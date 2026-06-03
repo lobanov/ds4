@@ -29,3 +29,75 @@ Why this changes the notes:
   - distributed generation tolerates worker `ctx >= coordinator ctx`
   - merged shard save requires exact layout equality, so `ctx` must match across participants
 - The Phase 2 `DSV4`-first path remains viable if the runbook pins matching `--ctx` on all distributed participants.
+
+## 2026-06-03: Implement a dedicated Phase 2 handoff harness before changing core transport
+
+Decision:
+
+- Validate Phase 2 with a dedicated harness built on existing APIs before attempting any distributed transport or payload-format changes.
+- Keep the first Phase 2 proof at the `DSV4` handoff boundary:
+  - distributed prefill,
+  - merged payload stage,
+  - fresh local full-session load,
+  - handoff logits comparison,
+  - greedy continuation comparison,
+  - and forced-token trace comparison.
+
+Evidence:
+
+- Phase 0 already proved that immediate merged `DSV4` staging works on the mixed Metal/CUDA route when `ctx` matches.
+- Phase 1 already proved that whole-payload local resume is a valid correctness boundary and that `CUDA -> Metal` drift appears after restore during subsequent decode evolution.
+- The existing test and helper surface already exposed the needed primitives:
+  - `tests/issue304_phase0_dgx` for distributed route, prefill, and stage
+  - `tests/issue304_phase1_matrix` for logit comparison and forced-token trace logic
+- A new local helper, `tests/issue304_phase2_handoff`, now builds successfully with:
+  - `make tests/issue304_phase2_handoff`
+
+Why this changes the work:
+
+- It lowers Phase 2 ambiguity without committing to chunked KV return or in-memory payload APIs.
+- It makes the next failure mode attributable:
+  - if staging fails, it is still a distributed gather/layout problem
+  - if load fails, it is a local payload compatibility problem
+  - if handoff logits match but forced trace drifts, it is post-load decode evolution, not a bad handoff point
+
+Follow-up:
+
+- Run the helper on the DGX/Mac topology and record the resulting metrics before deciding whether Phase 3 needs engine-residency work only or whether Phase 2 still hides a Metal/CUDA payload-resume defect.
+
+## 2026-06-03: Phase 2 confirms exact handoff but not exact resumed decode evolution
+
+Decision:
+
+- Treat Phase 2 as complete.
+- Do not spend more Phase 2 effort on distributed KV gather or merged payload staging.
+- Carry the remaining defect forward as a mixed-backend resumed-decode evolution problem.
+
+Evidence:
+
+- `tests/issue304_phase2_handoff` on the authoritative DGX/Mac topology produced:
+  - successful distributed prefill
+  - successful merged `DSV4` stage
+  - successful fresh local Metal load
+  - exact handoff logits (`top1`, `top5`, `top20`, `rms=0`, `max_abs=0`)
+  - exact 16-token greedy continuation match
+  - but forced-token trace divergence at first bad step `1`
+  - forced token before bad step: `5`
+  - `rms=0.0802887231`
+  - `max_abs=0.507860184`
+- Throughput also matched the intended motivation:
+  - distributed decode `16.28 tok/s`
+  - local decode after handoff `30.32 tok/s`
+
+Why this changes the next steps:
+
+- The current implementation direction is validated at the feature level:
+  - distributed prefill can hand off to materially faster local decode through the existing merged payload path
+- The remaining correctness issue is narrower than “handoff is broken”:
+  - the checkpoint is exact
+  - the sampled greedy path stayed stable
+  - the drift only appears in full-logit forced comparison after resumed eval begins
+
+Follow-up:
+
+- Phase 3 and follow-on debugging should focus on backend-specific post-load decode-state evolution, not on redesigning the merged `DSV4` handoff boundary.

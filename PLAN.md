@@ -38,17 +38,17 @@ Source: <https://github.com/antirez/ds4/issues/304> and its comment thread.
 
 ## Remaining unknowns
 
-- Whether CUDA-produced KV/session payloads are backend-neutral and can be loaded by Metal without format or numeric mismatches.
-- How to merge local-layer KV and remote-layer KV into one complete session state on the decode node before generation starts.
-- Whether KV payload transfer should happen strictly after prefill or be pipelined chunk-by-chunk during prefill to avoid stalls.
-- What API or file format changes are needed so a worker can export only its owned-layer KV/session slice and a coordinator can import it deterministically.
+- Why `CUDA -> Metal` payloads restore the handoff logits exactly but still diverge after the first identical resumed decode step.
+- Whether that resumed-decode drift lives in backend-specific KV interpretation, backend-specific decode-state evolution, or a smaller payload field that only matters after the next token is evaluated.
+- How to let the coordinator participate in distributed prefill while still keeping a full local decode-capable engine resident without exhausting Metal memory budget.
+- Whether the eventual handoff path should remain a merged `DSV4` checkpoint, move to an in-memory merged payload, or skip the merged payload entirely by streaming worker-owned KV shards back during prefill.
 
 ## Implementation direction
 
-- Add a way for remote workers to serialize and stream owned-layer KV/session chunks back to the coordinator.
-- Keep the transfer aligned with existing distributed prefill chunk boundaries so activation and KV movement can share the current pipeline structure.
-- Validate cross-backend session portability first with a minimal save/load test between CUDA and Metal before committing to the full feature.
-- Once portability is confirmed, add a coordinator-side resume path that reconstructs a complete local session and switches decode to the single-node fast path.
+- Keep the merged `DSV4` handoff path as the current correctness boundary. Phase 2 validated that it can gather distributed shards, stage a payload, load locally, and recover the exact handoff checkpoint.
+- Treat mixed-backend resumed-decode drift as the immediate blocker. Fix that before spending more time on transport redesign or pipelined KV return.
+- Treat coordinator engine residency as a separate productization problem. Phase 2 proved the feature concept by releasing the distributed engine before local decode; the next residency work is about making that handoff practical in one user-visible workflow.
+- Defer chunk-by-chunk KV return until after the resumed-decode correctness and residency story are both understood. At this point it is an optimization and UX improvement, not the first proof point.
 
 ## Relevant Code Module Map
 
@@ -190,10 +190,10 @@ Source: <https://github.com/antirez/ds4/issues/304> and its comment thread.
 
 ## Most Relevant Files To Start In
 
-- `ds4_distributed.c`: add or prototype KV-return/handoff orchestration here first.
-- `ds4.c`: adapt snapshot/payload/session construction boundaries for the handoff.
-- `ds4.h`: update public/internal API declarations only after the control flow is clear.
-- `ds4_metal.m` and `ds4_cuda.cu`: inspect only if payload portability or restore correctness breaks across backends.
+- `ds4_metal.m` and `ds4_cuda.cu`: Phase 2 points first at backend-specific resumed decode behavior, so these are now the highest-priority files.
+- `ds4.c`: inspect payload restore, decode entry, and session state setup around `ds4_session_load_payload()` and resumed `ds4_session_eval()`.
+- `tests/issue304_phase1_matrix.c` and `tests/issue304_phase2_handoff.c`: keep using these focused harnesses to narrow the first post-load divergence.
+- `ds4_distributed.c`: return here after backend resume correctness is understood, or when implementing the later residency/transport optimization phases.
 
 ## Research And Implementation Plan
 
@@ -206,7 +206,7 @@ This change should be run as an iterative research project, not as a straight fe
 - Keep implementation changes small until a validation artifact says the next abstraction is justified.
 - Capture every surprising result in this plan or a linked artifact before moving on. This includes failures, mismatched logits, transport timings, and rejected API options.
 - Measure correctness before throughput. A fast handoff is not useful until the resumed local session is demonstrably equivalent enough to continue generation.
-- Treat model weight residency as a separate correctness and feasibility problem. Local decode needs full-layer weights available, while distributed prefill benefits from loading only a slice; switching engines or running two engines may be too expensive to be viable.
+- Treat model weight residency as a separate correctness and feasibility problem. Phase 2 showed that releasing the distributed engine before local decode is enough to prove the feature concept, but not enough for a clean end-user workflow.
 
 ### Required research artifacts
 
@@ -412,12 +412,53 @@ Exit gate:
 - The existing payload path can hand off distributed prefill state into a local-only decode session, or a specific blocker is captured with enough detail to choose the next implementation step.
 - If the path works only by running two engines or reloading an engine, it must not proceed directly to user-facing implementation; Phase 3 must choose a viable layer-residency design first.
 
-### Phase 3: Engine layer residency and local decode feasibility
+### Phase 3: Mixed-backend resumed decode root cause
 
 Goal:
 
-- Why: the feature is not practical if it requires reloading the model or keeping two full model-weight copies in memory after prefill.
-- What: choose a viable layer-residency design that lets the decode machine have full local generation capability while still participating efficiently in distributed prefill, and document the memory/performance tradeoff with evidence.
+- Why: Phase 2 proved the merged handoff checkpoint is exact, but it also reproduced mixed-backend resumed-decode drift immediately after the first identical forced token. The next phase needs to turn that broad symptom into a concrete backend or restore-path bug.
+- What: isolate why `CUDA -> Metal` diverges after the first resumed eval step even when the restored logits are identical and the sampled greedy path can stay stable.
+
+Expected artifacts:
+
+- Update `artifacts/issue-304/logit-comparisons.md` with finer-grained forced-token traces around the first divergent resumed step.
+- Update `artifacts/issue-304/failure-cases.md` with every narrowed reproduction of post-load decode drift that remains rejected.
+- Update `artifacts/issue-304/research-notes.md` with the first divergent state that can be localized reliably.
+- Update `artifacts/issue-304/decision-log.md` if the evidence shows the bug is payload-ABI, backend-runtime, or decode-graph specific.
+
+Code touchpoints:
+
+- `tests/issue304_phase1_matrix.c`
+  - Extend the focused resume helper so it can compare finer-grained post-load state, not just logits and greedy tokens.
+- `tests/issue304_phase2_handoff.c`
+  - Keep the distributed-prefill harness aligned with the smaller Phase 1 probes so the same divergence can be reproduced in both contexts.
+- `ds4.c`
+  - `ds4_session_load_payload()`: restore path to inspect for any field that is sufficient for step-0 logits but insufficient for step-1 decode evolution.
+  - `ds4_session_eval()` and local decode entry path: first resumed decode step after load.
+- `ds4_gpu.h`
+  - Shared tensor read/write and synchronization boundary if the first divergent state turns out to be visible only below the session payload layer.
+- `ds4_metal.m` and `ds4_cuda.cu`
+  - Backend-specific decode-state assumptions, dtype conversion, raw/compressed KV interpretation, and graph state setup.
+
+Work items:
+
+- Extend `tests/issue304_phase1_matrix.c` so it can dump or compare finer-grained post-load state around the first resumed decode step.
+- Compare `CUDA -> Metal` and `Metal -> Metal` immediately after one identical forced eval token, looking for the first tensor or cache-state difference that appears before logits drift becomes visible.
+- Inspect `ds4_session_load_payload()` and resumed `ds4_session_eval()` in `ds4.c` for any state that is restored correctly enough for step-0 logits but not for step-1 decode evolution.
+- Inspect `ds4_metal.m` and `ds4_cuda.cu` for backend-specific assumptions around raw KV rows, compressed KV rows, cache frontiers, dtype conversion, or decode-only graph state that may not be fully represented by the current payload ABI.
+
+Exit gate:
+
+- Either:
+  - `CUDA -> Metal` forced-token drift is eliminated for the existing Phase 1 and Phase 2 probes, or
+  - the first divergent restored state is localized well enough that the remaining work is a specific backend/runtime bug rather than a general handoff uncertainty.
+
+### Phase 4: Coordinator residency and workflow viability
+
+Goal:
+
+- Why: Phase 2 currently proves the concept by releasing the distributed engine and then opening a full local engine. That is enough for research, but not enough for a practical one-shot coordinator workflow.
+- What: choose a viable residency design that lets the coordinator do distributed prefill and then local decode without requiring a research-only two-engine transition.
 
 Expected artifacts:
 
@@ -448,35 +489,32 @@ Code touchpoints:
 - `ds4_distributed.c`
   - `dist_coordinator_build_route_plan()`: route ownership should stay independent from local weight residency if the final design decouples them.
   - `dist_coordinator_prefill_prompt_pipelined()` and `dist_coordinator_eval_span()`: must continue issuing only the coordinator-owned distributed slice during prefill.
-- `ds4_cli.c`
-  - `--layers` parsing and help text if the meaning splits into "distributed route slice" and "model residency/load slice".
-- `README.md`
-  - Distributed docs currently state that `--layers` controls which tensors are mapped; this must be updated if route ownership and residency are decoupled.
-- Backend files:
-  - `ds4_gpu.h`, `ds4_metal.m`, and `ds4_cuda.cu` if the selected design requires dynamic mapping, lazy mapping, or remapping backend tensor views.
+- `ds4_cli.c` and `README.md`
+  - User-visible meaning of `--layers` if route ownership and residency are decoupled.
+  - Current distributed docs state that `--layers` controls which tensors are mapped; update that assumption only if the chosen design actually decouples route ownership from residency.
+- `ds4_gpu.h`, `ds4_metal.m`, and `ds4_cuda.cu`
+  - Revisit these if the residency design requires dynamic mapping, lazy mapping, or remapping backend tensor views.
 
 Candidate designs to analyze:
 
 - Decouple route ownership from weight residency:
   - Keep `--layers` as the distributed route slice, but allow the coordinator to map full local decode weights at startup.
   - During distributed prefill, call `ds4_session_eval_layer_slice()` only for the coordinator route slice even though more weights are resident.
-  - After KV handoff, continue local decode in the same engine/session shape if full-layer KV has been loaded.
 - Full-resident coordinator with sliced distributed execution:
   - Load the full model once on the coordinator, but still advertise/execute only the coordinator-owned distributed layer range for prefill.
-  - This avoids reloads and two engines, but may reduce the memory savings that made distributed prefill useful.
 - Lazy or expandable residency:
   - Start with route-slice mapping, then expand to full mapping before local decode without closing the engine.
-  - This is only viable if backend model map spans and cached/preloaded tensors can be expanded safely and fast enough.
+  - Only keep this path if backend model map spans and cached/preloaded tensors can be expanded safely and fast enough.
 - Dual session over one engine:
   - Use one full-resident engine with separate distributed-prefill and local-decode sessions.
   - This may avoid duplicate weights but still duplicates KV/session graph memory; measure before selecting.
 - Two engines or reload:
-  - Keep only as a correctness harness or fallback diagnostic. Assume this is not the final design unless memory measurements prove otherwise.
+  - Keep only as a correctness harness or fallback diagnostic, not the final workflow unless the measurements force it.
 
 Work items:
 
 - Trace exactly how distributed `--layers` becomes loaded model spans today.
-- Measure memory for route-slice engine, full engine, dual-session-over-one-engine, and two-engine proof harness where feasible.
+- Measure memory for route-slice engine, full engine, dual-session-over-one-engine, and the current two-engine proof harness where feasible.
 - Verify whether a full-resident coordinator can still execute only its distributed slice during prefill by using the existing layer-slice APIs.
 - Determine whether session graph allocation assumes only a subset of layers is bound, or whether it can safely hold KV for all layers when the engine has full weights.
 - Determine whether output head residency is required on the coordinator for local decode and how `load_output_optional` interacts with that.
@@ -486,56 +524,45 @@ Exit gate:
 
 - A final implementation path exists that does not require loading/unloading the whole engine at handoff time and does not require two full model-weight copies in memory.
 - The chosen strategy is captured in `artifacts/issue-304/engine-residency.md` and `artifacts/issue-304/decision-log.md`.
-- If no viable strategy is found, stop before Phase 4 and record the smallest code experiment needed to test dynamic/expanded residency.
+- If no viable strategy is found, stop before advancing and record the smallest code experiment needed to test dynamic or expanded residency.
 
-### Phase 4: Choose the public/internal API shape
+### Phase 5: Choose API shape and implement the handoff path
 
 Goal:
 
-- Why: API shape should follow validated behavior and residency constraints, not a speculative design that may encode the wrong abstraction.
-- What: choose the smallest public/internal API that supports the proven handoff path, records rejected alternatives, and keeps room for later in-memory, incremental, or topology-flexible improvements.
+- Why: once resumed-decode correctness and residency constraints are understood, the next step is turning the research-only path into a real session/CLI/server workflow.
+- What: choose the smallest API shape that matches the validated behavior, implement it, and verify that distributed prefill can transition to local-only decode without manual harness glue.
 
 Expected artifacts:
 
-- Update `artifacts/issue-304/decision-log.md` with the selected API shape, alternatives rejected, and evidence from Phase 2.
-- Update `artifacts/issue-304/runbook.md` with the expected developer/operator workflow for the selected API.
-- Update `artifacts/issue-304/engine-residency.md` if the chosen API requires new residency semantics or new CLI options.
-- Update `artifacts/issue-304/research-notes.md` with the API-shape conclusion and the reasoning that selected it over the other candidates.
-- Update this `PLAN.md` if the chosen path changes later phases.
+- Update `artifacts/issue-304/decision-log.md` with the selected API shape, alternatives rejected, and evidence from Phases 2-4.
+- Update `artifacts/issue-304/runbook.md` with the expected developer/operator workflow for the selected path.
+- Update `artifacts/issue-304/logit-comparisons.md` and `artifacts/issue-304/perf-breakdown.md` with post-implementation correctness and timing.
+- Update `artifacts/issue-304/failure-cases.md` with user-visible negative cases and observed diagnostics.
+- Update `artifacts/issue-304/research-notes.md` with implementation-phase findings and deltas from the earlier hypotheses.
+- Update `README.md` only once the workflow is stable enough to describe honestly.
 
 Code touchpoints:
 
 - `ds4.h`
-  - Public/internal declarations if a new session handoff helper is needed.
-  - `ds4_distributed_options` if the feature becomes an option rather than an explicit helper call.
+  - New helper declaration or option fields if the feature is exposed beyond the research harness.
 - `ds4.c`
-  - Session-level implementation if handoff is expressed as a normal session operation.
-  - Snapshot/payload helpers if in-memory handoff is chosen.
+  - Core handoff flow and local session creation/load boundaries.
 - `ds4_distributed.h`
-  - Distributed-specific declarations if the API remains internal to coordinator sessions.
+  - Distributed-specific declarations if the chosen API remains internal to coordinator sessions.
 - `ds4_distributed.c`
-  - Distributed gather/stage implementation and any coordinator state transition.
+  - Coordinator gather/handoff path and failure diagnostics for stale/missing shards.
 - `ds4_cli.c` and `ds4_server.c`
-  - User-visible wiring only after the core API is validated.
-
-Other entry points:
-
-- CLI flags and documented workflow.
-- Server request/session persistence behavior.
-- Existing `ds4_session_save_payload()` / `ds4_session_load_payload()` API if handoff remains a composition of existing primitives.
-- Existing `ds4_session_stage_payload()` if the first API is file-backed.
-
-Work items:
-
-- Decide whether the first implementation should be whole-payload, in-memory payload, or explicit shard merge.
-- Record the decision and evidence before adding user-facing wiring.
-- Update the phase sequence if the chosen API invalidates any later assumptions.
+  - User-visible wiring only after the core session path works.
+- `ds4_kvstore.c`
+  - Only if the selected path routes through persisted/staged KV payloads.
+- `tests/ds4_test.c`
+  - Regression coverage for local handoff behavior where feasible.
 
 Likely options:
 
 - Whole-payload handoff:
   - expose a helper that saves/stages a distributed session payload and loads it into a provided local session.
-  - This aligns with the existing `DSV4` topology-neutral contract.
 - In-memory payload handoff:
   - extend distributed sessions so `ds4_session_save_snapshot()` or a new memory-backed payload helper can gather remote shards.
   - This avoids temp files, but requires solving the current distributed snapshot restriction.
@@ -546,63 +573,17 @@ Likely options:
 Decision criteria:
 
 - Correctness equivalence after resume.
-- Compatibility with the chosen single-engine residency strategy.
+- Compatibility with the chosen residency strategy.
 - Operator complexity in CLI/server workflows.
 - Ability to support cross-backend handoff.
 - Measured handoff overhead relative to prefill speedup.
 - Amount of new protocol surface in `ds4_distributed.c`.
 
-Exit gate:
-
-- `artifacts/issue-304/decision-log.md` records the chosen API shape and rejected alternatives with evidence.
-
-### Phase 5: Implement local-generation handoff
-
-Goal:
-
-- Why: convert the proven research path into a real workflow that users or higher-level server/CLI code can execute without manual payload surgery.
-- What: implement the selected handoff mechanism, wire it through the appropriate session/CLI/server entry points, and verify that distributed prefill can transition to local-only decode with correctness and performance artifacts.
-
-Expected artifacts:
-
-- Update `artifacts/issue-304/runbook.md` with the user-visible invocation.
-- Update `artifacts/issue-304/logit-comparisons.md` with post-implementation correctness results.
-- Update `artifacts/issue-304/perf-breakdown.md` with prefill, handoff, load, and local decode timing from the implemented path.
-- Update `artifacts/issue-304/failure-cases.md` with negative tests and observed diagnostics.
-- Update `artifacts/issue-304/research-notes.md` with implementation-phase findings and any deltas from the earlier hypotheses.
-- Update `README.md` only once the workflow is stable enough to describe to users.
-
-Code touchpoints:
-
-- `ds4.h`
-  - New helper declaration or option fields, if selected in Phase 4.
-- `ds4.c`
-  - Core handoff flow.
-  - Local session creation/load boundaries.
-  - Any changes to distributed snapshot restriction if memory handoff is selected.
-- `ds4_distributed.c`
-  - Coordinator gather/handoff path.
-  - Route validation and worker shard fetch.
-  - Failure diagnostics for stale/missing shards.
-- `ds4_cli.c`
-  - CLI mode/flag for "distributed prefill, local decode" if the feature is exposed in CLI.
-- `ds4_server.c`
-  - Server/session workflow if local decode handoff must work for served sessions.
-- `ds4_kvstore.c`
-  - Only if the feature routes through persisted/staged KV payloads.
-- `tests/ds4_test.c`
-  - Regression coverage for local handoff behavior where feasible.
-
-Other entry points:
-
-- CLI command line.
-- Server session persistence/load path.
-- KV store files if the handoff uses persisted payloads.
-- Manual distributed coordinator/worker runbook for cross-host validation.
-
 Work items:
 
-- Add the minimal session-level handoff mechanism selected in Phase 4.
+- Decide whether the first implementation should be whole-payload, in-memory payload, or explicit shard merge.
+- Record that decision and evidence before adding user-facing wiring.
+- Add the minimal session-level handoff mechanism selected from that decision.
 - Keep the distributed prefill session and local decode session distinct unless evidence shows same-session mutation is safer.
 - Ensure the local session receives full token timeline, logits, raw SWA KV rows in logical order, compressed KV rows, compressor frontier state, and indexer state.
 - Add CLI/server wiring only after the core session path works.

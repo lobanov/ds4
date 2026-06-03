@@ -80,8 +80,8 @@ Observed requirements and results:
 ## Environment
 
 - Date: 2026-06-03 15:54:57Z
-- Local repo commit: `9952733bbc75eedfa1308cfed71b8e2694db978b`
-- DGX worker repo commit: `477c0e82e2699b35a65fd0a1ed6fe66b41087dfe`
+- Local repo commit: `116e35881679c99cbe33454f95d2b4c96448761b`
+- DGX worker repo commit: `477c0e82e2699b35a65fd0a1ed6fe66b41087dfe` plus synced local changes to `ds4.c`, `ds4.h`, `ds4_distributed.c`, `ds4_distributed.h`, `Makefile`, and `tests/issue304_phase2_handoff.c`
 - Coordinator host: Apple M5 Max / Metal
 - Worker host: NVIDIA GB10 / CUDA
 - Model: `DeepSeek-V4-Flash-IQ2XXS-w2Q2K-AProjQ8-SExpQ8-OutQ8-chat-v2-imatrix.gguf`
@@ -95,6 +95,12 @@ Observed requirements and results:
 
 ```sh
 make ds4_test
+```
+
+### Phase 2 build
+
+```sh
+make tests/issue304_phase2_handoff
 ```
 
 ### Phase 1 focused path
@@ -135,6 +141,58 @@ ssh dgx-direct 'cd ~/ds4 && ./tests/issue304_phase1_matrix --mode load-check --m
 ./ds4_test --metal-short-prefill --metal-tensor-equivalence --local-golden-vectors
 make test
 ```
+
+### Phase 2 DGX/Mac handoff validation
+
+Start the DGX worker with the same `ctx` as the coordinator:
+
+```sh
+ssh dgx-direct 'cd ~/ds4 && ./ds4 -m /home/ilo037/ds4/gguf/DeepSeek-V4-Flash-IQ2XXS-w2Q2K-AProjQ8-SExpQ8-OutQ8-chat-v2-imatrix.gguf --ctx 16384 --role worker --layers 22:output --coordinator 10.77.0.1 1234'
+```
+
+Run the local coordinator handoff helper on the Mac:
+
+```sh
+./tests/issue304_phase2_handoff --model ./gguf/DeepSeek-V4-Flash-IQ2XXS-w2Q2K-AProjQ8-SExpQ8-OutQ8-chat-v2-imatrix.gguf --listen-host 10.77.0.1 --listen-port 1234 --prompt-file README.md --ctx 16384 --gen-tokens 16 --forced-steps 8 --prefill-chunk 256 --activation-bits 32 --coordinator-layers 0:21 --worker-layers 22:output
+```
+
+Optional: retain the merged payload for post-run inspection:
+
+```sh
+./tests/issue304_phase2_handoff --model ./gguf/DeepSeek-V4-Flash-IQ2XXS-w2Q2K-AProjQ8-SExpQ8-OutQ8-chat-v2-imatrix.gguf --listen-host 10.77.0.1 --listen-port 1234 --prompt-file README.md --ctx 16384 --gen-tokens 16 --forced-steps 8 --prefill-chunk 256 --activation-bits 32 --coordinator-layers 0:21 --worker-layers 22:output --payload-out /private/tmp/issue304-phase2-readme.dsv4
+```
+
+What the helper records:
+
+- route summary and output owner
+- prompt token count and token hash
+- merged payload bytes and parsed `DSV4` header
+- distributed prefill timing
+- merged payload stage timing
+- local payload load timing
+- distributed vs local greedy decode timing
+- handoff-point logit comparison
+- greedy continuation mismatch step, if any
+- forced-token trace first bad step, if any
+
+Observed authoritative Phase 2 result:
+
+- Route summary: `local 0:21 -> 10.77.0.2:43045 Q2 22:output`
+- Prompt tokens: `14,318`
+- Prefill: `38.182716 s`, `374.99 tok/s`
+- Stage: `0.380082 s`
+- Payload bytes: `221,006,660`
+- Local load: `0.028093 s`
+- Distributed decode: `16.28 tok/s`
+- Local decode: `30.32 tok/s`
+- Handoff logits: exact match
+- Greedy continuation: exact match for `16` tokens
+- Forced trace:
+  - first bad step: `1`
+  - forced token before bad step: `5`
+  - top1 remained `420`
+  - `rms=0.0802887231`
+  - `max_abs=0.507860184`
 
 ## Runtime knobs used by `--local-payload-resume`
 

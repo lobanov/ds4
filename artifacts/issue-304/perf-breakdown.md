@@ -72,3 +72,51 @@ Notes:
   - merged `DSV4` stage failed because shard headers require exact layout equality
 - Reproduced earlier failure signature:
   - `distributed KV shards use different layouts: field=ctx local=16384 remote=32768 remote_layers=22:42`
+
+## Phase 2 handoff harness
+
+### Authoritative DGX + Mac result
+
+Phase 2 timing collection now has a dedicated tool:
+
+```sh
+make tests/issue304_phase2_handoff
+```
+
+Authoritative command pair:
+
+```sh
+ssh dgx-direct 'cd ~/ds4 && ./ds4 -m /home/ilo037/ds4/gguf/DeepSeek-V4-Flash-IQ2XXS-w2Q2K-AProjQ8-SExpQ8-OutQ8-chat-v2-imatrix.gguf --ctx 16384 --role worker --layers 22:output --coordinator 10.77.0.1 1234'
+./tests/issue304_phase2_handoff --model ./gguf/DeepSeek-V4-Flash-IQ2XXS-w2Q2K-AProjQ8-SExpQ8-OutQ8-chat-v2-imatrix.gguf --listen-host 10.77.0.1 --listen-port 1234 --prompt-file README.md --ctx 16384 --gen-tokens 16 --forced-steps 8 --prefill-chunk 256 --activation-bits 32 --coordinator-layers 0:21 --worker-layers 22:output --payload-out /private/tmp/issue304-phase2-readme.dsv4
+```
+
+Observed result:
+
+| Item | Result |
+| --- | --- |
+| Tool build | Pass |
+| Prompt file | `README.md` |
+| Prompt tokens | 14,318 |
+| Route summary | `local 0:21 -> 10.77.0.2:43045 Q2 22:output` |
+| Distributed prefill | `38.183 s`, `374.99 tok/s` |
+| Merged payload stage | `0.380 s` |
+| Merged payload bytes | `221,006,660` |
+| Local payload load | `0.028 s` |
+| Distributed decode | `0.983 s` for 16 tokens, `16.28 tok/s` |
+| Local decode after handoff | `0.528 s` for 16 tokens, `30.32 tok/s` |
+| Handoff logits | exact match |
+| Greedy continuation | exact match for 16 tokens |
+| Forced-trace result | first bad step `1`, `rms=0.0802887231`, `max_abs=0.507860184` |
+
+Planned fields from `tests/issue304_phase2_handoff`:
+
+- prompt file
+- prompt token count
+- route summary and output owner
+- distributed prefill seconds / t/s
+- merged payload stage seconds / bytes
+- local payload load seconds
+- distributed greedy decode seconds / t/s
+- local greedy decode seconds / t/s
+- handoff logit comparison metrics
+- forced-trace first bad step and drift metrics

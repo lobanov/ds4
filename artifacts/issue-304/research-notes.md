@@ -8,7 +8,7 @@ This file tracks phase-wise findings for the staged investigation in `PLAN.md`.
 | --- | --- | --- |
 | Phase 0 | Complete | The DGX/Mac baseline ran end-to-end, and the earlier merged-`DSV4` stage failure was narrowed to a worker/coordinator `ctx` mismatch rather than a backend or route-format incompatibility. |
 | Phase 1 | Complete | The payload resume matrix is now filled: `Metal -> Metal`, `CUDA -> CUDA`, and `Metal -> CUDA` passed, while `CUDA -> Metal` preserved restore-point logits but diverged during subsequent greedy decode. |
-| Phase 2 | Not started | The merged `DSV4` save path is still viable once distributed participants use the same session context. |
+| Phase 2 | Complete | Distributed prefill -> merged `DSV4` -> fresh local Metal load now validates end-to-end on the DGX/Mac route. Handoff logits and 16-token greedy continuation matched, but forced-token logits still diverged at the first post-load eval step. |
 | Phase 3 | Not started | Engine residency and same-process local decode feasibility are still open. |
 | Later optimization phases | Not started | No work yet on pipelined KV return or user-facing workflow. |
 
@@ -169,7 +169,7 @@ That means Phase 2 can use merged `DSV4` handoff as the first end-to-end correct
 
 ### Current status
 
-Not run yet.
+Complete. The dedicated handoff harness ran successfully on the DGX/Mac route after its local-decode step was changed to release the distributed engine before opening the full local one.
 
 ### Current working hypothesis
 
@@ -184,6 +184,52 @@ The intended correctness check was:
 ### Updated prerequisite
 
 - Keep worker and coordinator session context sizes identical before treating any merged-save failure as a true shard-format bug.
+
+### What was completed
+
+- Added `tests/issue304_phase2_handoff`.
+- Built the helper locally and on the DGX host after syncing the changed core files needed by the newer route-summary API surface.
+- Ran the authoritative Mac coordinator + DGX worker topology with matching `ctx=16384`.
+- Captured a staged merged payload, local load, greedy continuation comparison, forced-token trace comparison, and throughput split.
+
+### Findings
+
+1. The `DSV4`-first Phase 2 handoff path works end-to-end on the mixed Metal/CUDA route.
+   - Distributed prefill completed on the `README.md` prompt.
+   - Immediate merged stage succeeded.
+   - Fresh local Metal session load succeeded from the merged payload.
+
+2. The handoff checkpoint itself is exact enough to rule out a bad merged-save boundary.
+   - Handoff logits matched exactly:
+     - top1 match
+     - top5 overlap `5/5`
+     - top20 overlap `20/20`
+     - `rms=0`
+     - `max_abs=0`
+     - nonfinite `0`
+
+3. Greedy continuation from the resumed local session matched the distributed reference for the sampled window.
+   - The helper compared `16` greedy tokens.
+   - Result: exact match for all `16` steps.
+
+4. The remaining defect is still post-load decode evolution, not stage/load correctness.
+   - Forced-token trace still diverged at the first identical post-load eval step:
+     - first bad step: `1`
+     - forced token before bad step: `5`
+     - top1 still matched (`420`)
+     - top5 overlap `5/5`
+     - top20 overlap `20/20`
+     - `rms=0.0802887231`
+     - `max_abs=0.507860184`
+
+5. The expected throughput split was observed.
+   - Distributed prefill: `38.183 s`, `374.99 tok/s`
+   - Distributed decode: `16.28 tok/s`
+   - Local decode after handoff: `30.32 tok/s`
+
+### Implication
+
+Phase 2 is no longer blocked on distributed gather, payload staging, or initial local resume. The feature concept is viable through the existing merged `DSV4` path. The remaining technical problem is the already-familiar mixed-backend post-load decode drift, now reproduced after a real distributed prefill rather than only the smaller Phase 1 payload matrix case.
 
 ### Open question carried forward
 

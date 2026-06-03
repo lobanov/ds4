@@ -74,6 +74,49 @@ To separate token-selection drift from post-load decode evolution, the same `CUD
   - backend-specific interpretation of restored state used by the next decode step, or
   - backend-specific decode-state evolution from the same restored state.
 
+## Phase 2 distributed-prefill handoff
+
+The new `tests/issue304_phase2_handoff` helper compared:
+
+1. distributed coordinator session after mixed Metal/CUDA prefill
+2. fresh local Metal session after merged `DSV4` load
+3. distributed vs local greedy continuation
+4. distributed-reference forced-token trace vs local resumed forced-token trace
+
+### Summary
+
+- Route: `local 0:21 -> 10.77.0.2:43045 Q2 22:output`
+- Prompt: `README.md`
+- Prompt tokens: `14,318`
+- Result:
+  - handoff logits matched exactly
+  - 16-token greedy continuation matched exactly
+  - forced-token trace diverged at the first post-load eval step
+
+### Handoff result
+
+| Compared states | Top-1 match | Top-5 overlap | Top-20 overlap | RMS drift | Max abs drift | Non-finite |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| distributed handoff vs local resumed handoff | Yes | 5/5 | 20/20 | 0 | 0 | 0 |
+
+### Greedy continuation
+
+| Compared traces | Steps checked | Result |
+| --- | ---: | --- |
+| distributed decode vs local resumed decode | 16 | Exact match |
+
+### Forced-token trace
+
+| Compared traces | First bad step | Forced token before bad step | Top-1 at bad step | Top-5 overlap | Top-20 overlap | RMS drift | Max abs drift |
+| --- | ---: | ---: | --- | ---: | ---: | ---: | ---: |
+| distributed reference vs local resumed Metal | 1 | `5` | same (`420`) | 5/5 | 20/20 | 0.0802887231 | 0.507860184 |
+
+### Interpretation
+
+- Phase 2 removes staging and initial restore correctness as leading suspects.
+- The mixed-backend drift still shows up only after resumed decode evolution begins.
+- The fact that greedy continuation matched for 16 tokens while forced-trace drift still appeared means the drift is currently too small to perturb top-token choice in this sampled window, but it is still a real backend-resume mismatch.
+
 ## Baseline surrounding checks
 
 These were rerun after the Phase 1 changes to confirm the new harness did not perturb existing local correctness surfaces.

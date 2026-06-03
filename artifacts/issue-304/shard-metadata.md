@@ -93,3 +93,47 @@ Single-layer shard round trips captured from `./ds4_test --local-payload-resume`
 - These shard values come from the stable same-backend Metal run only.
 - The single-layer smoke validates `save -> load -> save` byte identity for the sampled layers.
 - The DGX/Mac mixed Metal/CUDA Phase 0 run did produce a merged `DSV4` header once the worker `ctx` matched the coordinator `ctx`.
+
+## Phase 2 harness metadata contract
+
+The new `tests/issue304_phase2_handoff` helper is intended to emit the following route and handoff metadata once the DGX/Mac run is executed:
+
+| Field | Intended source |
+| --- | --- |
+| route hops | `ds4_session_distributed_route_summary()` |
+| route summary | `ds4_session_distributed_route_summary()` |
+| output owner | `ds4_session_distributed_route_summary()` |
+| prompt tokens | encoded chat prompt length on the coordinator |
+| payload bytes | merged staged `DSV4` file size |
+| token count at handoff checkpoint | `ds4_session_tokens()` on the distributed session |
+| token hash at handoff checkpoint | helper-side token hash over the distributed timeline |
+| `ctx_size`, `prefill_cap`, `raw_cap`, `raw_window`, `comp_cap`, `saved_tokens`, `n_layer`, `head_dim`, `indexer_head_dim`, `vocab`, `raw_live` | parsed staged `DSV4` header |
+
+Current status:
+
+- helper implementation exists locally
+- helper build passed locally and on the DGX host after syncing the required core files
+
+### Phase 2 authoritative DGX/Mac row
+
+| Field | Value |
+| --- | --- |
+| route hops | 1 |
+| route summary | `local 0:21 -> 10.77.0.2:43045 Q2 22:output` |
+| output owner | worker |
+| prompt tokens | 14,318 |
+| payload bytes | 221,006,660 |
+| token count at handoff checkpoint | 14,334 |
+| token hash at handoff checkpoint | `0xe9f870851b231ebb` |
+| `ctx_size` | 16,384 |
+| `prefill_cap` | 4,096 |
+| `raw_cap` | 4,352 |
+| `raw_window` | 128 |
+| `comp_cap` | 4,098 |
+| `saved_tokens` | 14,318 |
+| `n_layer` | 43 |
+| `head_dim` | 512 |
+| `indexer_head_dim` | 128 |
+| `vocab` | 129,280 |
+| `raw_live` | 128 |
+| note | `token_count` and `token_hash` were captured after the 16-token distributed reference continuation; the serialized payload itself still reflects the immediate post-prefill checkpoint with `saved_tokens=14,318`. |
