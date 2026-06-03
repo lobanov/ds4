@@ -1,0 +1,212 @@
+# Issue 304 Research Notes
+
+This file tracks phase-wise findings for the staged investigation in `PLAN.md`.
+
+## Phase status
+
+| Phase | Status | Summary |
+| --- | --- | --- |
+| Phase 0 | Complete | The DGX/Mac baseline ran end-to-end, and the earlier merged-`DSV4` stage failure was narrowed to a worker/coordinator `ctx` mismatch rather than a backend or route-format incompatibility. |
+| Phase 1 | Complete | The payload resume matrix is now filled: `Metal -> Metal`, `CUDA -> CUDA`, and `Metal -> CUDA` passed, while `CUDA -> Metal` preserved restore-point logits but diverged during subsequent greedy decode. |
+| Phase 2 | Not started | The merged `DSV4` save path is still viable once distributed participants use the same session context. |
+| Phase 3 | Not started | Engine residency and same-process local decode feasibility are still open. |
+| Later optimization phases | Not started | No work yet on pipelined KV return or user-facing workflow. |
+
+## Phase 0: Establish distributed baseline
+
+### What was completed
+
+- Added a dedicated local baseline tool: `tests/issue304_phase0_local`.
+- Added a DGX/Mac coordinator helper: `tests/issue304_phase0_dgx`.
+- Added a build/run target in `Makefile` for the tool.
+- Defined the local smaller reproducible topology and the DGX issue topology in the runbook.
+- Created `perf-breakdown.md` so Phase 0 timing results have a fixed home before DGX runs start.
+- Ran the authoritative DGX worker + Mac coordinator issue-topology baseline on `README.md`.
+
+### Findings
+
+1. The current CLI/API surface is enough for a narrow two-host baseline harness.
+   - Route readiness, distributed prefill, distributed decode, and staged payload save are all reachable through existing APIs.
+   - A small helper binary was enough to exercise the route and record the relevant timings.
+
+2. Same-host loopback distributed baseline is still blocked by current process policy.
+   - The local tool launches a worker process and then opens a coordinator engine.
+   - The worker exits before route formation because `ds4_engine_open()` refuses a second `ds4` process on the same host.
+   - Observed worker-side failure: `another ds4 process is already running ... refusing to start`.
+
+3. The DGX/Mac route formed cleanly and produced stable distributed timings on the issue topology.
+   - Route: `local 0:21 -> 10.77.0.2:<worker-data-port> Q2 22:output`.
+   - Output owner: worker.
+   - Prompt: `README.md`, 14,318 tokens after chat formatting.
+   - Prefill: about `38 s`, about `376 tok/s`.
+   - Decode was measured before the `ctx` mismatch was diagnosed, and that earlier distributed decode number should be treated as route-performance context only, not as part of the corrected save-path validation run.
+
+4. The earlier immediate post-prefill merged `DSV4` stage failure was caused by mismatched `ctx`, not by Metal/CUDA shard incompatibility.
+   - The failing rerun used coordinator `ctx=16384` and worker default `ctx=32768`.
+   - The save path now reports the first mismatching header field explicitly:
+     - `distributed KV shards use different layouts: field=ctx local=16384 remote=32768 remote_layers=22:42`
+   - This is consistent with current route admission logic, which accepts `worker_ctx >= coordinator_ctx` for execution.
+   - It is also consistent with the merged save path, which requires exact equality of shard layout metadata.
+
+5. Immediate post-prefill merged `DSV4` staging works on the mixed Metal/CUDA route when `ctx` matches.
+   - Re-running the worker with `--ctx 16384` made immediate `ds4_session_stage_payload()` succeed.
+   - The staged payload size was `221,006,660` bytes.
+   - Parsed `DSV4` header:
+     - `ctx_size=16384`
+     - `prefill_cap=4096`
+     - `raw_cap=4352`
+     - `raw_window=128`
+     - `comp_cap=4098`
+     - `saved_tokens=14318`
+     - `n_layer=43`
+     - `head_dim=512`
+     - `indexer_head_dim=128`
+     - `vocab=129280`
+     - `raw_live=128`
+
+### Implication
+
+The original broad conclusion was too strong. The mixed Metal/CUDA route does support immediate merged `DSV4` staging, but only when the worker session context matches the coordinator session context. The real actionable constraint is: Phase 2 reproductions must set the same `--ctx` on every distributed participant.
+
+### Remaining caution
+
+- The DGX worker repo was not updated during this pass. The local helper/build and the DGX worker binary were behaviorally compatible for the tested Phase 0 path, but the exact authoritative evidence here is:
+  - route formation across those revisions worked,
+  - immediate merged save worked once `ctx` matched,
+  - not that every later Phase 2/3 path is already proven safe across revision skew.
+
+## Phase 1: Prove whole-payload resume locally
+
+### What was tested
+
+- Added `./ds4_test --local-payload-resume`.
+- Verified local `DSV4` save -> load -> resume on Metal.
+- Verified 8-token greedy continuation equivalence after restore.
+- Ran boundary frontiers at `1`, `3`, `4`, `5`, `127`, `128`, `129`.
+- Added representative single-layer `DSVL` save/load/save byte-roundtrip smoke cases.
+
+### Findings
+
+1. Local same-backend `DSV4` resume is a valid correctness boundary.
+   - Metal -> Metal resume matched exactly on every tested frontier.
+   - Logit drift was `0` for all tested cases.
+   - Greedy continuation matched exactly for all tested cases.
+
+2. Raw-window boundary behavior is not the immediate blocker.
+   - Resume remained exact at `raw_window - 1`, `raw_window`, and `raw_window + 1`.
+   - That reduces the chance that later handoff failures will come from raw-ring reconstruction or cache-frontier serialization on the local path.
+
+3. `DSVL` shard helpers appear healthy enough to use as building blocks.
+   - Representative layer cases passed save -> load -> save byte identity checks.
+   - Sampled layers:
+     - `0` first layer
+     - `21` middle compressed layer
+     - `2` representative ratio-4/indexer layer
+     - `42` final/output-adjacent layer
+
+4. The current payload metadata is internally coherent on this backend.
+   - Probe run observed:
+     - `ctx_size=16384`
+     - `prefill_cap=4096`
+     - `raw_cap=4352`
+     - `raw_window=128`
+     - `comp_cap=4098`
+     - `n_layer=43`
+     - `head_dim=512`
+    - `indexer_head_dim=128`
+    - `vocab=129280`
+
+5. Cross-backend whole-payload portability is asymmetric in the current evidence.
+   - `CUDA -> CUDA`: pass.
+   - `Metal -> CUDA`: pass.
+   - `CUDA -> Metal`: fail.
+   - The `CUDA -> Metal` failure is not a restore-point logit mismatch:
+     - top1 matched
+     - top5 overlap was `5/5`
+     - top20 overlap was `20/20`
+     - `rms=0`
+     - `max_abs=0`
+   - The first observed divergence happened during continued greedy decode at step `2`:
+     - saved token `5655`
+     - restored token `305`
+
+6. Forced-token comparison narrows the `CUDA -> Metal` failure to post-load decode evolution, not token-selection branching.
+   - The same CUDA-produced payload was loaded on CUDA and Metal.
+   - Both sessions were then advanced with the exact same forced token sequence from the CUDA reference run.
+   - The first logits divergence appeared immediately after the first forced eval step:
+     - bad step: `1`
+     - forced token before bad step: `3737`
+     - top1 still matched (`14`)
+     - top20 overlap dropped to `19/20`
+     - `rms=0.304555088`
+     - `max_abs=1.55702209`
+   - This rules out the narrow explanation that the earlier divergence was only caused by each backend choosing a different token after load.
+
+### What Phase 1 rules out
+
+- “Local `DSV4` resume is fundamentally broken” is no longer a leading hypothesis.
+- “Boundary frontiers immediately corrupt local resume state” is not supported by the current Metal results.
+- “Representative `DSVL` helpers are obviously unusable” is not supported by the current local shard smoke.
+
+### What Phase 1 does not prove
+
+- Why `CUDA -> Metal` diverges immediately after the first identical forced post-load eval
+- Distributed shard gather correctness
+- Coordinator-side local decode after distributed prefill
+- Whether a practical implementation can avoid a second full engine or model reload
+
+### Implication for the goal
+
+The goal is distributed prefill with local generation after handoff. Phase 1 reduces the problem to the real remaining unknowns:
+
+- distributed gather/load correctness,
+- the root cause of `CUDA -> Metal` post-restore decode divergence,
+- and engine residency / local decode feasibility.
+
+That means Phase 2 can use merged `DSV4` handoff as the first end-to-end correctness experiment with much lower ambiguity.
+
+## Phase 2: Prove distributed prefill to local decode via existing payload path
+
+### Current status
+
+Not run yet.
+
+### Current working hypothesis
+
+The intended correctness check was:
+
+1. run distributed prefill,
+2. stage the coordinator session as merged `DSV4`,
+3. create a fresh full local non-distributed session,
+4. load the merged payload,
+5. compare local decode against continued distributed decode.
+
+### Updated prerequisite
+
+- Keep worker and coordinator session context sizes identical before treating any merged-save failure as a true shard-format bug.
+
+### Open question carried forward
+
+- `CUDA -> Metal` restores the immediate logits exactly, but diverges after the first identical forced post-load eval token.
+- This remains unresolved and should be treated as a later investigation into post-load decode evolution, not as a blocker for considering Phases 0 and 1 complete.
+
+## Phase 3: Engine layer residency and local decode feasibility
+
+### Current status
+
+Not run yet.
+
+### What Phase 1 suggests
+
+If Phase 2 succeeds only by creating a second full local engine, the remaining work is probably not payload correctness. It is likely a residency and execution-shape problem.
+
+### Main decision to resolve later
+
+Whether the coordinator can keep full local decode weights resident while still participating in distributed prefill using only its owned layer slice.
+
+## Pointers
+
+- [runbook.md](/Users/lobanov/Projects/ds4/artifacts/issue-304/runbook.md)
+- [compatibility-matrix.md](/Users/lobanov/Projects/ds4/artifacts/issue-304/compatibility-matrix.md)
+- [logit-comparisons.md](/Users/lobanov/Projects/ds4/artifacts/issue-304/logit-comparisons.md)
+- [shard-metadata.md](/Users/lobanov/Projects/ds4/artifacts/issue-304/shard-metadata.md)

@@ -213,6 +213,14 @@ void ds4_session_report_progress(ds4_session *s, const char *event, int current,
 /* Distributed coordinator sessions return 1 when the full layer route is
  * available, 0 when it is still incomplete, and -1 for a local API error. */
 int ds4_session_distributed_route_ready(ds4_session *s, char *err, size_t errlen);
+int ds4_session_distributed_route_summary(
+        ds4_session *s,
+        char *summary,
+        size_t summary_len,
+        uint32_t *route_hops,
+        bool *output_on_coordinator,
+        char *err,
+        size_t errlen);
 
 typedef enum {
     DS4_SESSION_REWRITE_ERROR = -1,

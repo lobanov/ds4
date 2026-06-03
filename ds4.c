@@ -20319,6 +20319,27 @@ int ds4_session_distributed_route_ready(ds4_session *s, char *err, size_t errlen
     return ds4_dist_session_route_ready(s->distributed, err, errlen);
 }
 
+int ds4_session_distributed_route_summary(
+        ds4_session *s,
+        char *summary,
+        size_t summary_len,
+        uint32_t *route_hops,
+        bool *output_on_coordinator,
+        char *err,
+        size_t errlen) {
+    if (!s || !s->distributed) {
+        if (errlen) snprintf(err, errlen, "session is not a distributed coordinator");
+        return -1;
+    }
+    return ds4_dist_session_describe_route(s->distributed,
+                                           summary,
+                                           summary_len,
+                                           route_hops,
+                                           output_on_coordinator,
+                                           err,
+                                           errlen);
+}
+
 int ds4_session_power(ds4_session *s) {
     if (!s || !s->engine) return 100;
     return s->engine->power_percent;

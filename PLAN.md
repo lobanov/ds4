@@ -252,6 +252,7 @@ Expected artifacts:
 - Update `artifacts/issue-304/shard-metadata.md` with the current distributed route, layer ownership, token counts, token hash, and payload metadata.
 - Update `artifacts/issue-304/perf-breakdown.md` with current distributed prefill t/s, distributed decode t/s, and distributed payload save timing.
 - Update `artifacts/issue-304/decision-log.md` only if the current save/stage behavior disproves the assumed `DSV4` first path.
+- Update `artifacts/issue-304/research-notes.md` with the current pre-implementation findings, surviving assumptions, and any invalidated hypotheses.
 
 Code touchpoints:
 
@@ -306,6 +307,7 @@ Expected artifacts:
 - Update `artifacts/issue-304/logit-comparisons.md` with local save/load top-k, drift, and short greedy continuation results.
 - Update `artifacts/issue-304/shard-metadata.md` with `DSV4` header fields and `DSVL` representative shard metadata.
 - Update `artifacts/issue-304/runbook.md` with test commands and model/context settings.
+- Update `artifacts/issue-304/research-notes.md` with Phase 1 findings, what the results rule out, and the remaining unknowns carried into Phase 2.
 
 Code touchpoints:
 
@@ -357,6 +359,7 @@ Expected artifacts:
 - Update `artifacts/issue-304/shard-metadata.md` with route coverage and all shard metadata from the handoff run.
 - Update `artifacts/issue-304/failure-cases.md` for any mismatch that correctly rejects a handoff.
 - Update `artifacts/issue-304/engine-residency.md` with peak memory observed for the proof path and whether running two engines is feasible only as a test harness.
+- Update `artifacts/issue-304/research-notes.md` with the Phase 2 outcome, the current best explanation for any mismatch, and whether the payload-first path remains viable.
 
 Code touchpoints:
 
@@ -423,6 +426,7 @@ Expected artifacts:
 - Update `artifacts/issue-304/decision-log.md` with the chosen residency design and rejected alternatives.
 - Update `artifacts/issue-304/failure-cases.md` with expected failures for missing full-decode layers, invalid layer range transitions, and memory-budget rejection.
 - Update `artifacts/issue-304/runbook.md` with commands and environment settings used to measure memory.
+- Update `artifacts/issue-304/research-notes.md` with the residency conclusions and the decision impact on later implementation phases.
 
 Code touchpoints:
 
@@ -496,6 +500,7 @@ Expected artifacts:
 - Update `artifacts/issue-304/decision-log.md` with the selected API shape, alternatives rejected, and evidence from Phase 2.
 - Update `artifacts/issue-304/runbook.md` with the expected developer/operator workflow for the selected API.
 - Update `artifacts/issue-304/engine-residency.md` if the chosen API requires new residency semantics or new CLI options.
+- Update `artifacts/issue-304/research-notes.md` with the API-shape conclusion and the reasoning that selected it over the other candidates.
 - Update this `PLAN.md` if the chosen path changes later phases.
 
 Code touchpoints:
@@ -564,6 +569,7 @@ Expected artifacts:
 - Update `artifacts/issue-304/logit-comparisons.md` with post-implementation correctness results.
 - Update `artifacts/issue-304/perf-breakdown.md` with prefill, handoff, load, and local decode timing from the implemented path.
 - Update `artifacts/issue-304/failure-cases.md` with negative tests and observed diagnostics.
+- Update `artifacts/issue-304/research-notes.md` with implementation-phase findings and any deltas from the earlier hypotheses.
 - Update `README.md` only once the workflow is stable enough to describe to users.
 
 Code touchpoints:
@@ -620,6 +626,7 @@ Expected artifacts:
 - Update `artifacts/issue-304/shard-metadata.md` with per-chunk or per-window KV state metadata if chunked return is implemented.
 - Update `artifacts/issue-304/decision-log.md` with protocol decisions and why existing snapshot framing was or was not sufficient.
 - Update `artifacts/issue-304/failure-cases.md` with in-flight/race/stale chunk rejection cases.
+- Update `artifacts/issue-304/research-notes.md` with the optimization-phase findings and whether chunked return is justified versus whole-payload handoff.
 
 Code touchpoints:
 
@@ -672,6 +679,7 @@ Expected artifacts:
 - Update `artifacts/issue-304/failure-cases.md` with each negative case, expected rejection, observed error text, and reproduction command.
 - Update `artifacts/issue-304/runbook.md` with fault-injection or manual failure procedures.
 - Update `artifacts/issue-304/decision-log.md` if a failure mode forces an API or protocol change.
+- Update `artifacts/issue-304/research-notes.md` with any failure findings that materially change the implementation direction.
 
 Code touchpoints:
 
@@ -721,6 +729,7 @@ Expected artifacts:
 - Update `artifacts/issue-304/decision-log.md` with whether topology decoupling is deferred, partially required, or required for the first production implementation.
 - Update `artifacts/issue-304/perf-breakdown.md` with measurements that motivate topology changes, especially GPU-prefill throughput versus memory-bandwidth-local decode throughput.
 - Update `artifacts/issue-304/runbook.md` with any topology experiments and command lines.
+- Update `artifacts/issue-304/research-notes.md` with topology-related findings and whether they affect the first implementation scope.
 
 Current constraints to capture:
 
@@ -820,6 +829,7 @@ Expected artifacts:
 - Update `artifacts/issue-304/decision-log.md` with final architecture and remaining deferred work.
 - Update `artifacts/issue-304/perf-breakdown.md` with final benchmark numbers.
 - Update `artifacts/issue-304/topology-decoupling.md` if topology flexibility is deferred or partially implemented.
+- Update `artifacts/issue-304/research-notes.md` with a final phase-by-phase summary of what was learned and what remains deferred.
 - Keep this `PLAN.md` accurate if parts of the staged plan were skipped or invalidated.
 
 Code/documentation touchpoints:

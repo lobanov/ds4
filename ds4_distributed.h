@@ -79,6 +79,14 @@ void ds4_dist_session_free(ds4_dist_session *d);
  * still missing, and -1 for configuration or internal errors.
  */
 int ds4_dist_session_route_ready(ds4_dist_session *d, char *err, size_t errlen);
+int ds4_dist_session_describe_route(
+        ds4_dist_session *d,
+        char *summary,
+        size_t summary_len,
+        uint32_t *route_hops,
+        bool *output_on_coordinator,
+        char *err,
+        size_t errlen);
 
 /* Synchronize the distributed KV state to the requested prompt timeline. */
 int ds4_dist_session_sync(

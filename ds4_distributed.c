@@ -1972,8 +1972,26 @@ static bool dist_route_search_workers(
     return false;
 }
 
-static void dist_coordinator_report_plan(ds4_dist_coordinator_state *state) {
-    if (!dist_coordinator_debug_enabled(state)) return;
+static bool dist_coordinator_format_route_summary(
+        ds4_dist_coordinator_state *state,
+        char *summary,
+        size_t summary_len,
+        uint32_t *route_hops,
+        bool *output_on_coordinator,
+        uint32_t *missing_layer,
+        bool *ready,
+        char *err,
+        size_t errlen) {
+    if (summary_len != 0 && summary) summary[0] = '\0';
+    if (route_hops) *route_hops = 0;
+    if (output_on_coordinator) *output_on_coordinator = false;
+    if (missing_layer) *missing_layer = 0;
+    if (ready) *ready = false;
+    if (!state) {
+        if (errlen) snprintf(err, errlen, "missing distributed coordinator state");
+        return false;
+    }
+
     pthread_mutex_lock(&state->mu);
     uint32_t n = 0;
     for (ds4_dist_worker_entry *it = state->workers; it; it = it->next) n++;
@@ -1983,17 +2001,18 @@ static void dist_coordinator_report_plan(ds4_dist_coordinator_state *state) {
         free(workers);
         free(path);
         pthread_mutex_unlock(&state->mu);
-        fprintf(stderr, "ds4: distributed coordinator: out of memory building route plan\n");
-        return;
+        if (errlen) snprintf(err, errlen, "out of memory building route summary");
+        return false;
     }
     uint32_t i = 0;
     for (ds4_dist_worker_entry *it = state->workers; it; it = it->next) workers[i++] = it;
     qsort(workers, n, sizeof(workers[0]), dist_worker_route_cmp);
 
     const uint32_t last = state->n_layers - 1u;
+    const bool local_has_output = state->local_has_output;
     bool complete = state->local_start == 0;
     bool has_output = state->local_end == last &&
-                      (state->local_has_output || state->local_can_output_head);
+                      (local_has_output || state->local_can_output_head);
     uint32_t next = state->local_end + 1u;
     if (state->local_end >= last) next = state->n_layers;
     uint32_t path_len = 0;
@@ -2014,52 +2033,88 @@ static void dist_coordinator_report_plan(ds4_dist_coordinator_state *state) {
         }
     }
 
-    char plan[1024];
-    size_t used = 0;
+    if (route_hops) *route_hops = path_len;
+
     char local_end[32];
-    if (state->local_has_output) snprintf(local_end, sizeof(local_end), "output");
+    if (local_has_output) snprintf(local_end, sizeof(local_end), "output");
     else snprintf(local_end, sizeof(local_end), "%u", state->local_end);
-    used += (size_t)snprintf(plan + used, used < sizeof(plan) ? sizeof(plan) - used : 0,
-                             "local %u:%s",
-                             state->local_start,
-                             local_end);
+    size_t used = 0;
+    if (summary && summary_len != 0) {
+        used += (size_t)snprintf(summary + used, summary_len - used,
+                                 "local %u:%s",
+                                 state->local_start,
+                                 local_end);
+    }
     for (i = 0; i < path_len; i++) {
         ds4_dist_worker_entry *w = path[i];
-        if (used < sizeof(plan)) {
-            char end[32];
-            if (w->has_output) snprintf(end, sizeof(end), "output");
-            else snprintf(end, sizeof(end), "%u", w->layer_end);
-            used += (size_t)snprintf(plan + used, sizeof(plan) - used,
-                                     " -> %s:%u Q%u %u:%s",
-                                     w->peer_host,
-                                     w->listen_port,
-                                     w->quant_bits,
-                                     w->layer_start,
-                                     end);
+        if (!summary || used >= summary_len) continue;
+        char end[32];
+        if (w->has_output) snprintf(end, sizeof(end), "output");
+        else snprintf(end, sizeof(end), "%u", w->layer_end);
+        used += (size_t)snprintf(summary + used, summary_len - used,
+                                 " -> %s:%u Q%u %u:%s",
+                                 w->peer_host,
+                                 w->listen_port,
+                                 w->quant_bits,
+                                 w->layer_start,
+                                 end);
+    }
+    bool local_output = false;
+    if (complete && path_len != 0 &&
+        !path[path_len - 1u]->has_output && state->local_can_output_head) {
+        local_output = true;
+        if (summary && used < summary_len) {
+            used += (size_t)snprintf(summary + used, summary_len - used,
+                                     " -> local output");
         }
     }
-    if (complete && path_len != 0 &&
-        !path[path_len - 1u]->has_output && state->local_can_output_head &&
-        used < sizeof(plan)) {
-        used += (size_t)snprintf(plan + used, sizeof(plan) - used,
-                                 " -> local output");
-    }
     if (complete && path_len == 0 &&
-        state->local_end == last && !state->local_has_output &&
-        state->local_can_output_head && used < sizeof(plan)) {
-        used += (size_t)snprintf(plan + used, sizeof(plan) - used,
-                                 " -> local output");
+        state->local_end == last && !local_has_output &&
+        state->local_can_output_head) {
+        local_output = true;
+        if (summary && used < summary_len) {
+            used += (size_t)snprintf(summary + used, summary_len - used,
+                                     " -> local output");
+        }
     }
     complete = complete && has_output && next == state->n_layers;
     pthread_mutex_unlock(&state->mu);
 
+    if (summary && summary_len != 0) {
+        summary[summary_len - 1u] = '\0';
+    }
+    if (missing_layer) *missing_layer = missing;
+    if (ready) *ready = complete;
+    if (output_on_coordinator) *output_on_coordinator = local_output || local_has_output;
+    free(path);
+    free(workers);
+    if (errlen) err[0] = '\0';
+    return true;
+}
+
+static void dist_coordinator_report_plan(ds4_dist_coordinator_state *state) {
+    if (!dist_coordinator_debug_enabled(state)) return;
+    char plan[1024];
+    uint32_t missing = 0;
+    bool complete = false;
+    char err[128];
+    if (!dist_coordinator_format_route_summary(state,
+                                               plan,
+                                               sizeof(plan),
+                                               NULL,
+                                               NULL,
+                                               &missing,
+                                               &complete,
+                                               err,
+                                               sizeof(err))) {
+        fprintf(stderr, "ds4: distributed coordinator: %s\n", err[0] ? err : "failed to build route summary");
+        return;
+    }
     if (complete) {
         fprintf(stderr, "ds4: distributed coordinator: complete route ready: %s\n", plan);
     } else {
         fprintf(stderr, "ds4: distributed coordinator: route incomplete; next needed layer %u\n", missing);
     }
-    free(path);
-    free(workers);
 }
 
 static void dist_route_plan_free(ds4_dist_route_plan *plan) {
@@ -4652,6 +4707,75 @@ static bool dist_kv_layout_matches(
            a->raw_live == b->raw_live;
 }
 
+static int dist_kv_layout_mismatch_message(
+        const ds4_dist_kv_layout *want,
+        const ds4_dist_kv_layout *got,
+        uint32_t layer_start,
+        uint32_t layer_end,
+        char *err,
+        size_t errlen) {
+    if (!errlen) return 1;
+    if (!want || !got) {
+        snprintf(err, errlen, "distributed KV shards use different layouts");
+        return 1;
+    }
+
+    const char *field = "unknown";
+    uint32_t lhs = 0;
+    uint32_t rhs = 0;
+    if (want->ctx != got->ctx) {
+        field = "ctx";
+        lhs = want->ctx;
+        rhs = got->ctx;
+    } else if (want->prefill_cap != got->prefill_cap) {
+        field = "prefill_cap";
+        lhs = want->prefill_cap;
+        rhs = got->prefill_cap;
+    } else if (want->raw_cap != got->raw_cap) {
+        field = "raw_cap";
+        lhs = want->raw_cap;
+        rhs = got->raw_cap;
+    } else if (want->raw_window != got->raw_window) {
+        field = "raw_window";
+        lhs = want->raw_window;
+        rhs = got->raw_window;
+    } else if (want->comp_cap != got->comp_cap) {
+        field = "comp_cap";
+        lhs = want->comp_cap;
+        rhs = got->comp_cap;
+    } else if (want->token_count != got->token_count) {
+        field = "token_count";
+        lhs = want->token_count;
+        rhs = got->token_count;
+    } else if (want->n_layers != got->n_layers) {
+        field = "n_layers";
+        lhs = want->n_layers;
+        rhs = got->n_layers;
+    } else if (want->head_dim != got->head_dim) {
+        field = "head_dim";
+        lhs = want->head_dim;
+        rhs = got->head_dim;
+    } else if (want->indexer_head_dim != got->indexer_head_dim) {
+        field = "indexer_head_dim";
+        lhs = want->indexer_head_dim;
+        rhs = got->indexer_head_dim;
+    } else if (want->raw_live != got->raw_live) {
+        field = "raw_live";
+        lhs = want->raw_live;
+        rhs = got->raw_live;
+    }
+
+    snprintf(err,
+             errlen,
+             "distributed KV shards use different layouts: field=%s local=%u remote=%u remote_layers=%u:%u",
+             field,
+             lhs,
+             rhs,
+             layer_start,
+             layer_end);
+    return 1;
+}
+
 static bool dist_kv_raw_live_valid(const ds4_dist_kv_layout *layout) {
     if (!layout || layout->raw_window == 0 || layout->raw_cap == 0) return false;
     const uint32_t expected =
@@ -4715,8 +4839,12 @@ static int dist_kv_parse_layer_payload(
     }
     if (layout_set && *layout_set) {
         if (!dist_kv_layout_matches(layout, &got)) {
-            if (errlen) snprintf(err, errlen, "distributed KV shards use different layouts");
-            return 1;
+            return dist_kv_layout_mismatch_message(layout,
+                                                   &got,
+                                                   layer_start,
+                                                   layer_end,
+                                                   err,
+                                                   errlen);
         }
     } else if (layout && layout_set) {
         const uint32_t vocab = layout->vocab;
@@ -5477,6 +5605,39 @@ int ds4_dist_session_route_ready(ds4_dist_session *d, char *err, size_t errlen) 
         return 0;
     }
     dist_route_plan_free(&probe);
+    if (errlen) err[0] = '\0';
+    return 1;
+}
+
+int ds4_dist_session_describe_route(
+        ds4_dist_session *d,
+        char *summary,
+        size_t summary_len,
+        uint32_t *route_hops,
+        bool *output_on_coordinator,
+        char *err,
+        size_t errlen) {
+    if (!d) {
+        if (errlen) snprintf(err, errlen, "missing distributed session");
+        return -1;
+    }
+    uint32_t missing = 0;
+    bool ready = false;
+    if (!dist_coordinator_format_route_summary(&d->state,
+                                               summary,
+                                               summary_len,
+                                               route_hops,
+                                               output_on_coordinator,
+                                               &missing,
+                                               &ready,
+                                               err,
+                                               errlen)) {
+        return -1;
+    }
+    if (!ready) {
+        if (errlen) snprintf(err, errlen, "distributed route incomplete: missing layer %u", missing);
+        return 0;
+    }
     if (errlen) err[0] = '\0';
     return 1;
 }

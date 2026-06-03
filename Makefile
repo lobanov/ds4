@@ -33,7 +33,7 @@ CUDA_LDLIBS ?= -lm -Xcompiler -pthread -L$(CUDA_HOME)/targets/sbsa-linux/lib -L$
 METAL_LDLIBS := $(LDLIBS)
 endif
 
-.PHONY: all help clean test cpu cuda cuda-spark cuda-generic cuda-regression
+.PHONY: all help clean test cpu cuda cuda-spark cuda-generic cuda-regression issue304-phase0-local
 
 ifeq ($(UNAME_S),Darwin)
 all: ds4 ds4-server ds4-bench ds4-eval ds4-agent
@@ -190,6 +190,39 @@ ds4_cuda.o: ds4_cuda.cu ds4_gpu.h ds4_iq2_tables_cuda.inc
 tests/cuda_long_context_smoke: tests/cuda_long_context_smoke.o ds4_cuda.o
 	$(NVCC) $(NVCCFLAGS) -o $@ $^ $(CUDA_LDLIBS)
 
+tests/issue304_phase0_local.o: tests/issue304_phase0_local.c ds4.h ds4_distributed.h
+	$(CC) $(CFLAGS) -c -o $@ tests/issue304_phase0_local.c
+
+tests/issue304_phase0_local: tests/issue304_phase0_local.o $(CORE_OBJS)
+ifeq ($(UNAME_S),Darwin)
+	$(CC) $(CFLAGS) -o $@ tests/issue304_phase0_local.o $(CORE_OBJS) $(METAL_LDLIBS)
+else
+	$(NVCC) $(NVCCFLAGS) -o $@ tests/issue304_phase0_local.o $(CORE_OBJS) $(CUDA_LDLIBS)
+endif
+
+tests/issue304_phase0_dgx.o: tests/issue304_phase0_dgx.c ds4.h ds4_distributed.h
+	$(CC) $(CFLAGS) -c -o $@ tests/issue304_phase0_dgx.c
+
+tests/issue304_phase0_dgx: tests/issue304_phase0_dgx.o $(CORE_OBJS)
+ifeq ($(UNAME_S),Darwin)
+	$(CC) $(CFLAGS) -o $@ tests/issue304_phase0_dgx.o $(CORE_OBJS) $(METAL_LDLIBS)
+else
+	$(NVCC) $(NVCCFLAGS) -o $@ tests/issue304_phase0_dgx.o $(CORE_OBJS) $(CUDA_LDLIBS)
+endif
+
+tests/issue304_phase1_matrix.o: tests/issue304_phase1_matrix.c ds4.h
+	$(CC) $(CFLAGS) -c -o $@ tests/issue304_phase1_matrix.c
+
+tests/issue304_phase1_matrix: tests/issue304_phase1_matrix.o $(CORE_OBJS)
+ifeq ($(UNAME_S),Darwin)
+	$(CC) $(CFLAGS) -o $@ tests/issue304_phase1_matrix.o $(CORE_OBJS) $(METAL_LDLIBS)
+else
+	$(NVCC) $(NVCCFLAGS) -o $@ tests/issue304_phase1_matrix.o $(CORE_OBJS) $(CUDA_LDLIBS)
+endif
+
+issue304-phase0-local: ds4 tests/issue304_phase0_local
+	./tests/issue304_phase0_local
+
 ds4_test: ds4_test.o ds4_help.o ds4_kvstore.o rax.o $(CORE_OBJS)
 ifeq ($(UNAME_S),Darwin)
 	$(CC) $(CFLAGS) -o $@ ds4_test.o ds4_help.o ds4_kvstore.o rax.o $(CORE_OBJS) $(METAL_LDLIBS)
@@ -206,4 +239,4 @@ q4k-dot-test: tests/test_q4k_dot.c
 	./tests/test_q4k_dot
 
 clean:
-	rm -f ds4 ds4-server ds4-bench ds4-eval ds4-agent ds4_cpu ds4_native ds4_server_test ds4_test tests/test_q4k_dot *.o tests/cuda_long_context_smoke tests/cuda_long_context_smoke.o
+	rm -f ds4 ds4-server ds4-bench ds4-eval ds4-agent ds4_cpu ds4_native ds4_server_test ds4_test tests/test_q4k_dot *.o tests/cuda_long_context_smoke tests/cuda_long_context_smoke.o tests/issue304_phase0_local tests/issue304_phase0_local.o tests/issue304_phase0_dgx tests/issue304_phase0_dgx.o tests/issue304_phase1_matrix tests/issue304_phase1_matrix.o

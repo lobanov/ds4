@@ -893,6 +893,598 @@ static void test_official_logprob_vectors(void) {
     fclose(fp);
 }
 
+typedef struct {
+    uint32_t ctx_size;
+    uint32_t prefill_cap;
+    uint32_t raw_cap;
+    uint32_t raw_window;
+    uint32_t comp_cap;
+    uint32_t saved_tokens;
+    uint32_t n_layer;
+    uint32_t head_dim;
+    uint32_t indexer_head_dim;
+    uint32_t vocab;
+    uint32_t raw_live;
+    uint32_t *n_comp;
+    uint32_t *n_index_comp;
+} test_dsv4_metadata;
+
+typedef struct {
+    uint32_t ctx_size;
+    uint32_t prefill_cap;
+    uint32_t raw_cap;
+    uint32_t raw_window;
+    uint32_t comp_cap;
+    uint32_t saved_tokens;
+    uint32_t n_layer;
+    uint32_t head_dim;
+    uint32_t indexer_head_dim;
+    uint32_t layer_start;
+    uint32_t layer_end;
+    uint32_t raw_live;
+} test_dsvl_metadata;
+
+typedef struct {
+    int top1_saved;
+    int top1_restored;
+    int overlap;
+    int top5_overlap;
+    int nonfinite;
+    float rms;
+    float max_abs;
+} test_resume_logits_result;
+
+static void test_logits_topk(const float *logits, int n, int *out, int k);
+static bool test_topk_contains(const int *top, int k, int id);
+
+static void test_dsv4_metadata_free(test_dsv4_metadata *meta) {
+    if (!meta) return;
+    free(meta->n_comp);
+    free(meta->n_index_comp);
+    memset(meta, 0, sizeof(*meta));
+}
+
+static bool test_read_u32_le(FILE *fp, uint32_t *out) {
+    uint8_t buf[4];
+    if (fread(buf, 1, sizeof(buf), fp) != sizeof(buf)) return false;
+    *out = (uint32_t)buf[0] |
+           ((uint32_t)buf[1] << 8) |
+           ((uint32_t)buf[2] << 16) |
+           ((uint32_t)buf[3] << 24);
+    return true;
+}
+
+static bool test_parse_dsv4_metadata_file(const char *path,
+                                          const ds4_session_payload_file *payload,
+                                          test_dsv4_metadata *meta) {
+    memset(meta, 0, sizeof(*meta));
+    FILE *fp = fopen(path, "rb");
+    TEST_ASSERT(fp != NULL);
+    if (!fp) return false;
+
+    uint32_t header[DS4_SESSION_PAYLOAD_U32_FIELDS];
+    bool ok = true;
+    for (uint32_t i = 0; ok && i < DS4_SESSION_PAYLOAD_U32_FIELDS; i++) {
+        ok = test_read_u32_le(fp, &header[i]);
+    }
+    TEST_ASSERT(ok);
+    TEST_ASSERT(header[0] == DS4_SESSION_PAYLOAD_MAGIC);
+    TEST_ASSERT(header[1] == DS4_SESSION_PAYLOAD_VERSION);
+    if (!ok ||
+        header[0] != DS4_SESSION_PAYLOAD_MAGIC ||
+        header[1] != DS4_SESSION_PAYLOAD_VERSION) {
+        fclose(fp);
+        return false;
+    }
+
+    meta->ctx_size = header[2];
+    meta->prefill_cap = header[3];
+    meta->raw_cap = header[4];
+    meta->raw_window = header[5];
+    meta->comp_cap = header[6];
+    meta->saved_tokens = header[7];
+    meta->n_layer = header[8];
+    meta->head_dim = header[9];
+    meta->indexer_head_dim = header[10];
+    meta->vocab = header[11];
+    meta->raw_live = header[12];
+
+    const uint64_t fixed_prefix =
+        (uint64_t)DS4_SESSION_PAYLOAD_U32_FIELDS * sizeof(uint32_t) +
+        (uint64_t)meta->saved_tokens * sizeof(uint32_t) +
+        (uint64_t)meta->vocab * sizeof(float);
+    TEST_ASSERT(payload->bytes >= fixed_prefix);
+    if (payload->bytes < fixed_prefix) {
+        fclose(fp);
+        return false;
+    }
+    const off_t skip_bytes =
+        (off_t)(fixed_prefix -
+                (uint64_t)DS4_SESSION_PAYLOAD_U32_FIELDS * sizeof(uint32_t));
+    const int seek_rc = fseeko(fp, skip_bytes, SEEK_CUR);
+    TEST_ASSERT(seek_rc == 0);
+    if (seek_rc != 0) {
+        fclose(fp);
+        return false;
+    }
+
+    meta->n_comp = calloc(meta->n_layer, sizeof(meta->n_comp[0]));
+    meta->n_index_comp = calloc(meta->n_layer, sizeof(meta->n_index_comp[0]));
+    TEST_ASSERT(meta->n_comp != NULL);
+    TEST_ASSERT(meta->n_index_comp != NULL);
+    if (!meta->n_comp || !meta->n_index_comp) {
+        test_dsv4_metadata_free(meta);
+        fclose(fp);
+        return false;
+    }
+    for (uint32_t il = 0; il < meta->n_layer; il++) {
+        ok = test_read_u32_le(fp, &meta->n_comp[il]);
+        TEST_ASSERT(ok);
+        if (!ok) break;
+    }
+    for (uint32_t il = 0; ok && il < meta->n_layer; il++) {
+        ok = test_read_u32_le(fp, &meta->n_index_comp[il]);
+        TEST_ASSERT(ok);
+    }
+
+    fclose(fp);
+    if (!ok) {
+        test_dsv4_metadata_free(meta);
+        return false;
+    }
+    return true;
+}
+
+static bool test_parse_dsvl_metadata_bytes(const uint8_t *buf,
+                                           size_t len,
+                                           test_dsvl_metadata *meta) {
+    memset(meta, 0, sizeof(*meta));
+    TEST_ASSERT(len >= (size_t)DS4_SESSION_LAYER_PAYLOAD_U32_FIELDS * sizeof(uint32_t));
+    if (len < (size_t)DS4_SESSION_LAYER_PAYLOAD_U32_FIELDS * sizeof(uint32_t)) return false;
+
+    uint32_t header[DS4_SESSION_LAYER_PAYLOAD_U32_FIELDS];
+    for (uint32_t i = 0; i < DS4_SESSION_LAYER_PAYLOAD_U32_FIELDS; i++) {
+        const size_t off = (size_t)i * sizeof(uint32_t);
+        header[i] = (uint32_t)buf[off] |
+                    ((uint32_t)buf[off + 1] << 8) |
+                    ((uint32_t)buf[off + 2] << 16) |
+                    ((uint32_t)buf[off + 3] << 24);
+    }
+    TEST_ASSERT(header[0] == DS4_SESSION_LAYER_PAYLOAD_MAGIC);
+    TEST_ASSERT(header[1] == DS4_SESSION_LAYER_PAYLOAD_VERSION);
+    if (header[0] != DS4_SESSION_LAYER_PAYLOAD_MAGIC ||
+        header[1] != DS4_SESSION_LAYER_PAYLOAD_VERSION) {
+        return false;
+    }
+
+    meta->ctx_size = header[2];
+    meta->prefill_cap = header[3];
+    meta->raw_cap = header[4];
+    meta->raw_window = header[5];
+    meta->comp_cap = header[6];
+    meta->saved_tokens = header[7];
+    meta->n_layer = header[8];
+    meta->head_dim = header[9];
+    meta->indexer_head_dim = header[10];
+    meta->layer_start = header[11];
+    meta->layer_end = header[12];
+    meta->raw_live = header[13];
+    return true;
+}
+
+static bool test_read_binary_file(const char *path, uint8_t **out, size_t *len_out) {
+    *out = NULL;
+    *len_out = 0;
+
+    FILE *fp = fopen(path, "rb");
+    TEST_ASSERT(fp != NULL);
+    if (!fp) return false;
+    TEST_ASSERT(fseeko(fp, 0, SEEK_END) == 0);
+    if (fseeko(fp, 0, SEEK_END) != 0) {
+        fclose(fp);
+        return false;
+    }
+    off_t len = ftello(fp);
+    TEST_ASSERT(len >= 0);
+    if (len < 0) {
+        fclose(fp);
+        return false;
+    }
+    rewind(fp);
+
+    uint8_t *buf = malloc((size_t)len);
+    TEST_ASSERT(buf != NULL || len == 0);
+    if (!buf && len != 0) {
+        fclose(fp);
+        return false;
+    }
+    if (len != 0) {
+    const size_t nread = fread(buf, 1, (size_t)len, fp);
+    TEST_ASSERT(nread == (size_t)len);
+    if (nread != (size_t)len || ferror(fp)) {
+        free(buf);
+        fclose(fp);
+        return false;
+        }
+    }
+    fclose(fp);
+    *out = buf;
+    *len_out = (size_t)len;
+    return true;
+}
+
+static bool test_capture_greedy_tokens(ds4_session *session,
+                                       int steps,
+                                       int *out,
+                                       int *out_len) {
+    char err[160];
+    int n = 0;
+    while (n < steps) {
+        const int token = ds4_session_argmax(session);
+        out[n++] = token;
+        if (n < steps && ds4_session_eval(session, token, err, sizeof(err)) != 0) {
+            TEST_ASSERT(false);
+            *out_len = n;
+            return false;
+        }
+    }
+    *out_len = n;
+    return true;
+}
+
+static bool test_tokenize_phase1_prompt(ds4_engine *engine, ds4_tokens *prompt) {
+    memset(prompt, 0, sizeof(*prompt));
+    char *prompt_text = test_read_file("tests/long_context_story_prompt.txt");
+    TEST_ASSERT(prompt_text != NULL);
+    if (!prompt_text) return false;
+    ds4_tokenize_text(engine, prompt_text, prompt);
+    free(prompt_text);
+    TEST_ASSERT(prompt->len > 5000);
+    return prompt->len > 5000;
+}
+
+static test_resume_logits_result test_compare_resume_logits(const char *label,
+                                                            const float *saved,
+                                                            const float *restored,
+                                                            int vocab) {
+    int saved_top[20];
+    int restored_top[20];
+    test_logits_topk(saved, vocab, saved_top, 20);
+    test_logits_topk(restored, vocab, restored_top, 20);
+
+    int overlap = 0;
+    int top5_overlap = 0;
+    for (int i = 0; i < 20; i++) {
+        if (saved_top[i] >= 0 && test_topk_contains(restored_top, 20, saved_top[i])) overlap++;
+        if (i < 5 && saved_top[i] >= 0 && test_topk_contains(restored_top, 5, saved_top[i])) {
+            top5_overlap++;
+        }
+    }
+
+    int nonfinite = 0;
+    double sumsq = 0.0;
+    float max_abs = 0.0f;
+    for (int i = 0; i < vocab; i++) {
+        if (!isfinite(saved[i]) || !isfinite(restored[i])) {
+            nonfinite++;
+            continue;
+        }
+        const float delta = restored[i] - saved[i];
+        const float abs_delta = fabsf(delta);
+        if (abs_delta > max_abs) max_abs = abs_delta;
+        sumsq += (double)delta * (double)delta;
+    }
+    const float rms = (float)sqrt(sumsq / (double)vocab);
+
+    fprintf(stderr,
+            "ds4-test: payload resume %s top1 saved=%d restored=%d top5_overlap=%d/5 overlap=%d/20 rms=%g max_abs=%g nonfinite=%d\n",
+            label,
+            saved_top[0],
+            restored_top[0],
+            top5_overlap,
+            overlap,
+            rms,
+            max_abs,
+            nonfinite);
+
+    test_resume_logits_result result = {
+        .top1_saved = saved_top[0],
+        .top1_restored = restored_top[0],
+        .overlap = overlap,
+        .top5_overlap = top5_overlap,
+        .nonfinite = nonfinite,
+        .rms = rms,
+        .max_abs = max_abs,
+    };
+    return result;
+}
+
+static void test_local_payload_resume_frontier(ds4_engine *engine,
+                                               const ds4_tokens *prompt,
+                                               int ctx,
+                                               int frontier,
+                                               const test_dsv4_metadata *probe_meta) {
+    ds4_tokens prefix = {
+        .v = prompt->v,
+        .len = frontier,
+        .cap = frontier,
+    };
+    ds4_session *saved = NULL;
+    ds4_session *restored = NULL;
+    ds4_session_payload_file payload = {0};
+    test_dsv4_metadata meta = {0};
+    float *saved_logits = NULL;
+    float *restored_logits = NULL;
+
+    TEST_ASSERT(ds4_session_create(&saved, engine, ctx) == 0);
+    TEST_ASSERT(saved != NULL);
+    if (!saved) return;
+
+    char err[160];
+    TEST_ASSERT(ds4_session_sync(saved, &prefix, err, sizeof(err)) == 0);
+    if (ds4_session_sync(saved, &prefix, err, sizeof(err)) != 0) goto cleanup;
+
+    const int vocab = ds4_engine_vocab_size(engine);
+    saved_logits = malloc((size_t)vocab * sizeof(saved_logits[0]));
+    restored_logits = malloc((size_t)vocab * sizeof(restored_logits[0]));
+    TEST_ASSERT(saved_logits != NULL);
+    TEST_ASSERT(restored_logits != NULL);
+    if (!saved_logits || !restored_logits) goto cleanup;
+
+    TEST_ASSERT(ds4_session_copy_logits(saved, saved_logits, vocab) == vocab);
+    const int stage_rc = ds4_session_stage_payload(saved, &payload, err, sizeof(err));
+    TEST_ASSERT(stage_rc == 0);
+    TEST_ASSERT(ds4_session_payload_bytes(saved) == payload.bytes);
+    if (stage_rc != 0) goto cleanup;
+
+    TEST_ASSERT(test_parse_dsv4_metadata_file(payload.path, &payload, &meta));
+    TEST_ASSERT(meta.saved_tokens == (uint32_t)frontier);
+    TEST_ASSERT(meta.raw_window == probe_meta->raw_window);
+    TEST_ASSERT(meta.n_layer == probe_meta->n_layer);
+    TEST_ASSERT(meta.vocab == probe_meta->vocab);
+
+    TEST_ASSERT(ds4_session_create(&restored, engine, ctx) == 0);
+    TEST_ASSERT(restored != NULL);
+    if (!restored) goto cleanup;
+
+    FILE *fp = fopen(payload.path, "rb");
+    TEST_ASSERT(fp != NULL);
+    if (!fp) goto cleanup;
+    const int load_rc = ds4_session_load_payload(restored, fp, payload.bytes, err, sizeof(err));
+    fclose(fp);
+    TEST_ASSERT(load_rc == 0);
+    if (load_rc != 0) goto cleanup;
+
+    TEST_ASSERT(ds4_session_copy_logits(restored, restored_logits, vocab) == vocab);
+    char label[64];
+    snprintf(label, sizeof(label), "frontier=%d", frontier);
+    test_resume_logits_result result =
+        test_compare_resume_logits(label, saved_logits, restored_logits, vocab);
+    TEST_ASSERT(result.nonfinite == 0);
+    TEST_ASSERT(result.top1_saved == result.top1_restored);
+    TEST_ASSERT(result.top5_overlap >= 5);
+    TEST_ASSERT(result.overlap >= 16);
+
+    int saved_gen[8];
+    int restored_gen[8];
+    int saved_gen_len = 0;
+    int restored_gen_len = 0;
+    TEST_ASSERT(test_capture_greedy_tokens(saved, 8, saved_gen, &saved_gen_len));
+    TEST_ASSERT(test_capture_greedy_tokens(restored, 8, restored_gen, &restored_gen_len));
+    TEST_ASSERT(saved_gen_len == restored_gen_len);
+    for (int i = 0; i < saved_gen_len && i < restored_gen_len; i++) {
+        if (saved_gen[i] != restored_gen[i]) {
+            fprintf(stderr,
+                    "ds4-test: payload resume frontier=%d greedy mismatch step=%d saved=%d restored=%d\n",
+                    frontier, i, saved_gen[i], restored_gen[i]);
+        }
+        TEST_ASSERT(saved_gen[i] == restored_gen[i]);
+    }
+
+    fprintf(stderr,
+            "ds4-test: payload resume frontier=%d bytes=%llu raw_window=%u raw_cap=%u prefill_cap=%u top5_overlap=%d/5 overlap=%d/20 rms=%g max_abs=%g\n",
+            frontier,
+            (unsigned long long)payload.bytes,
+            meta.raw_window,
+            meta.raw_cap,
+            meta.prefill_cap,
+            result.top5_overlap,
+            result.overlap,
+            result.rms,
+            result.max_abs);
+
+cleanup:
+    free(saved_logits);
+    free(restored_logits);
+    test_dsv4_metadata_free(&meta);
+    ds4_session_payload_file_free(&payload);
+    ds4_session_free(restored);
+    ds4_session_free(saved);
+}
+
+static bool test_save_layer_payload_bytes(ds4_session *session,
+                                          uint32_t layer_start,
+                                          uint32_t layer_end,
+                                          uint8_t **out,
+                                          size_t *len_out) {
+    *out = NULL;
+    *len_out = 0;
+
+    const uint64_t payload_bytes = ds4_session_layer_payload_bytes(session, layer_start, layer_end);
+    TEST_ASSERT(payload_bytes > 0);
+    if (payload_bytes == 0 || payload_bytes > (uint64_t)SIZE_MAX) return false;
+
+    FILE *fp = tmpfile();
+    TEST_ASSERT(fp != NULL);
+    if (!fp) return false;
+
+    char err[160];
+    const int rc = ds4_session_save_layer_payload(session, fp, layer_start, layer_end, err, sizeof(err));
+    TEST_ASSERT(rc == 0);
+    TEST_ASSERT(fflush(fp) == 0);
+    TEST_ASSERT(fseeko(fp, 0, SEEK_SET) == 0);
+    if (rc != 0 || fflush(fp) != 0 || fseeko(fp, 0, SEEK_SET) != 0) {
+        fclose(fp);
+        return false;
+    }
+
+    uint8_t *buf = malloc((size_t)payload_bytes);
+    TEST_ASSERT(buf != NULL);
+    if (!buf) {
+        fclose(fp);
+        return false;
+    }
+    TEST_ASSERT(fread(buf, 1, (size_t)payload_bytes, fp) == (size_t)payload_bytes);
+    fclose(fp);
+    *out = buf;
+    *len_out = (size_t)payload_bytes;
+    return true;
+}
+
+static bool test_load_layer_payload_bytes(ds4_session *session,
+                                          const uint8_t *buf,
+                                          size_t len,
+                                          const int *tokens,
+                                          uint32_t n_tokens,
+                                          uint32_t layer_start,
+                                          uint32_t layer_end) {
+    FILE *fp = tmpfile();
+    TEST_ASSERT(fp != NULL);
+    if (!fp) return false;
+    const size_t nwritten = fwrite(buf, 1, len, fp);
+    const int flush_rc = fflush(fp);
+    const int rewind_rc = fseeko(fp, 0, SEEK_SET);
+    TEST_ASSERT(nwritten == len);
+    TEST_ASSERT(flush_rc == 0);
+    TEST_ASSERT(rewind_rc == 0);
+    if (nwritten != len || flush_rc != 0 || rewind_rc != 0) {
+        fclose(fp);
+        return false;
+    }
+    char err[160];
+    const int rc = ds4_session_load_layer_payload(session, fp, (uint64_t)len,
+                                                  tokens, n_tokens,
+                                                  layer_start, layer_end,
+                                                  err, sizeof(err));
+    fclose(fp);
+    TEST_ASSERT(rc == 0);
+    return rc == 0;
+}
+
+static void test_local_layer_payload_smoke(ds4_engine *engine,
+                                           const ds4_tokens *prompt,
+                                           int ctx,
+                                           int frontier) {
+    ds4_tokens prefix = {
+        .v = prompt->v,
+        .len = frontier,
+        .cap = frontier,
+    };
+    ds4_session *base = NULL;
+    ds4_session *restored = NULL;
+    ds4_session_payload_file full_payload = {0};
+    test_dsv4_metadata full_meta = {0};
+    uint8_t *src_buf = NULL;
+    uint8_t *roundtrip_buf = NULL;
+    size_t src_len = 0;
+    size_t roundtrip_len = 0;
+
+    TEST_ASSERT(ds4_session_create(&base, engine, ctx) == 0);
+    TEST_ASSERT(base != NULL);
+    if (!base) return;
+
+    char err[160];
+    TEST_ASSERT(ds4_session_sync(base, &prefix, err, sizeof(err)) == 0);
+    TEST_ASSERT(ds4_session_stage_payload(base, &full_payload, err, sizeof(err)) == 0);
+    TEST_ASSERT(test_parse_dsv4_metadata_file(full_payload.path, &full_payload, &full_meta));
+    if (!test_parse_dsv4_metadata_file(full_payload.path, &full_payload, &full_meta)) goto cleanup;
+
+    uint32_t layer_cases[4];
+    int ncase = 0;
+    layer_cases[ncase++] = 0;
+
+    uint32_t mid_layer = full_meta.n_layer / 2u;
+    uint32_t compressed_layer = mid_layer;
+    for (uint32_t delta = 0; delta < full_meta.n_layer; delta++) {
+        uint32_t left = mid_layer >= delta ? mid_layer - delta : 0;
+        uint32_t right = mid_layer + delta < full_meta.n_layer ? mid_layer + delta : full_meta.n_layer - 1u;
+        if (full_meta.n_comp[left] > 0 && full_meta.n_index_comp[left] == 0) {
+            compressed_layer = left;
+            break;
+        }
+        if (full_meta.n_comp[right] > 0 && full_meta.n_index_comp[right] == 0) {
+            compressed_layer = right;
+            break;
+        }
+    }
+    layer_cases[ncase++] = compressed_layer;
+
+    uint32_t ratio4_layer = compressed_layer;
+    for (uint32_t il = 0; il < full_meta.n_layer; il++) {
+        if (full_meta.n_index_comp[il] > 0) {
+            ratio4_layer = il;
+            break;
+        }
+    }
+    layer_cases[ncase++] = ratio4_layer;
+    layer_cases[ncase++] = full_meta.n_layer - 1u;
+
+    for (int i = 0; i < ncase; i++) {
+        const uint32_t layer = layer_cases[i];
+        bool duplicate = false;
+        for (int j = 0; j < i; j++) {
+            if (layer_cases[j] == layer) duplicate = true;
+        }
+        if (duplicate) continue;
+
+        free(src_buf);
+        free(roundtrip_buf);
+        src_buf = NULL;
+        roundtrip_buf = NULL;
+        src_len = 0;
+        roundtrip_len = 0;
+
+        TEST_ASSERT(test_save_layer_payload_bytes(base, layer, layer, &src_buf, &src_len));
+        test_dsvl_metadata dsvl = {0};
+        TEST_ASSERT(test_parse_dsvl_metadata_bytes(src_buf, src_len, &dsvl));
+        TEST_ASSERT(dsvl.layer_start == layer);
+        TEST_ASSERT(dsvl.layer_end == layer);
+        TEST_ASSERT(dsvl.saved_tokens == (uint32_t)frontier);
+
+        TEST_ASSERT(ds4_session_create(&restored, engine, ctx) == 0);
+        TEST_ASSERT(restored != NULL);
+        if (!restored) break;
+
+        TEST_ASSERT(test_load_layer_payload_bytes(restored, src_buf, src_len,
+                                                  prompt->v, (uint32_t)frontier,
+                                                  layer, layer));
+        TEST_ASSERT(test_save_layer_payload_bytes(restored, layer, layer,
+                                                 &roundtrip_buf, &roundtrip_len));
+        TEST_ASSERT(src_len == roundtrip_len);
+        TEST_ASSERT(memcmp(src_buf, roundtrip_buf, src_len) == 0);
+
+        fprintf(stderr,
+                "ds4-test: layer payload smoke layer=%u bytes=%zu raw_window=%u comp_cap=%u n_comp=%u n_index_comp=%u\n",
+                layer,
+                src_len,
+                dsvl.raw_window,
+                dsvl.comp_cap,
+                full_meta.n_comp[layer],
+                full_meta.n_index_comp[layer]);
+
+        ds4_session_free(restored);
+        restored = NULL;
+    }
+
+cleanup:
+    free(src_buf);
+    free(roundtrip_buf);
+    test_dsv4_metadata_free(&full_meta);
+    ds4_session_payload_file_free(&full_payload);
+    ds4_session_free(restored);
+    ds4_session_free(base);
+}
+
 static void test_logits_topk(const float *logits, int n, int *out, int k);
 static bool test_topk_contains(const int *top, int k, int id);
 
@@ -1101,6 +1693,88 @@ static void test_local_golden_vectors(void) {
     test_restore_env("DS4_METAL_DISABLE_METAL4", saved_disable_metal4);
     test_restore_env("DS4_METAL_PREFILL_CHUNK", saved_prefill_chunk);
     fclose(fp);
+}
+
+static void test_local_payload_resume(void) {
+    char *saved_prefill_chunk = test_save_env("DS4_METAL_PREFILL_CHUNK");
+    char *saved_disable_metal4 = test_save_env("DS4_METAL_DISABLE_METAL4");
+    char *saved_moe_tile_max = test_save_env("DS4_METAL_MOE_TILE_MAX");
+    setenv("DS4_METAL_PREFILL_CHUNK", "4096", 1);
+    setenv("DS4_METAL_DISABLE_METAL4", "1", 1);
+    unsetenv("DS4_METAL_MOE_TILE_MAX");
+
+    ds4_engine *engine = test_open_engine(false);
+    if (!engine) {
+        test_restore_env("DS4_METAL_MOE_TILE_MAX", saved_moe_tile_max);
+        test_restore_env("DS4_METAL_DISABLE_METAL4", saved_disable_metal4);
+        test_restore_env("DS4_METAL_PREFILL_CHUNK", saved_prefill_chunk);
+        return;
+    }
+
+    ds4_tokens prompt = {0};
+    if (!test_tokenize_phase1_prompt(engine, &prompt)) {
+        ds4_engine_close(engine);
+        test_restore_env("DS4_METAL_MOE_TILE_MAX", saved_moe_tile_max);
+        test_restore_env("DS4_METAL_DISABLE_METAL4", saved_disable_metal4);
+        test_restore_env("DS4_METAL_PREFILL_CHUNK", saved_prefill_chunk);
+        return;
+    }
+
+    const int probe_ctx = 16384;
+    ds4_session *probe = NULL;
+    TEST_ASSERT(ds4_session_create(&probe, engine, probe_ctx) == 0);
+    TEST_ASSERT(probe != NULL);
+    test_dsv4_metadata probe_meta = {0};
+    ds4_session_payload_file probe_payload = {0};
+    if (probe) {
+        ds4_tokens prefix = { .v = prompt.v, .len = 1, .cap = 1 };
+        char err[160];
+        TEST_ASSERT(ds4_session_sync(probe, &prefix, err, sizeof(err)) == 0);
+        TEST_ASSERT(ds4_session_stage_payload(probe, &probe_payload, err, sizeof(err)) == 0);
+        TEST_ASSERT(test_parse_dsv4_metadata_file(probe_payload.path, &probe_payload, &probe_meta));
+        fprintf(stderr,
+                "ds4-test: payload probe ctx=%u prefill_cap=%u raw_cap=%u raw_window=%u comp_cap=%u saved_tokens=%u n_layer=%u head_dim=%u indexer_head_dim=%u vocab=%u raw_live=%u\n",
+                probe_meta.ctx_size,
+                probe_meta.prefill_cap,
+                probe_meta.raw_cap,
+                probe_meta.raw_window,
+                probe_meta.comp_cap,
+                probe_meta.saved_tokens,
+                probe_meta.n_layer,
+                probe_meta.head_dim,
+                probe_meta.indexer_head_dim,
+                probe_meta.vocab,
+                probe_meta.raw_live);
+    }
+    const int ctx = probe_meta.raw_window > 0 ? (int)probe_meta.raw_window + 64 : 5000;
+    int frontiers[] = {
+        1, 3, 4, 5, 4095, 4096, 4097,
+        (int)probe_meta.raw_window - 1,
+        (int)probe_meta.raw_window,
+        (int)probe_meta.raw_window + 1,
+    };
+    const int nfrontiers = (int)(sizeof(frontiers) / sizeof(frontiers[0]));
+    for (int i = 0; i < nfrontiers; i++) {
+        const int frontier = frontiers[i];
+        if (frontier <= 0 || frontier >= ctx || frontier > prompt.len) continue;
+        bool duplicate = false;
+        for (int j = 0; j < i; j++) {
+            if (frontiers[j] == frontier) duplicate = true;
+        }
+        if (duplicate) continue;
+        test_local_payload_resume_frontier(engine, &prompt, ctx, frontier, &probe_meta);
+    }
+
+    test_local_layer_payload_smoke(engine, &prompt, ctx, probe_meta.raw_window);
+
+    test_dsv4_metadata_free(&probe_meta);
+    ds4_session_payload_file_free(&probe_payload);
+    ds4_session_free(probe);
+    ds4_tokens_free(&prompt);
+    ds4_engine_close(engine);
+    test_restore_env("DS4_METAL_MOE_TILE_MAX", saved_moe_tile_max);
+    test_restore_env("DS4_METAL_DISABLE_METAL4", saved_disable_metal4);
+    test_restore_env("DS4_METAL_PREFILL_CHUNK", saved_prefill_chunk);
 }
 
 #define TEST_MPP_EQ_MAX_CASES 8
@@ -1613,6 +2287,7 @@ static const ds4_test_entry test_entries[] = {
     {"--long-context", "long-context", "long-context story fact-recall regression", test_long_story_fact_recall},
     {"--tool-call-quality", "tool-call-quality", "model emits valid DSML tool calls", test_tool_call_quality},
     {"--logprob-vectors", "logprob-vectors", "official API top-logprob vector comparison on the standard Metal path", test_official_logprob_vectors},
+    {"--local-payload-resume", "local-payload-resume", "local DSV4 save/load resume and DSVL shard smoke", test_local_payload_resume},
     {"--local-golden-vectors", "local-golden-vectors", "local top-k/logit drift regression for long Metal prefill", test_local_golden_vectors},
     {"--metal-short-prefill", "metal-short-prefill", "Metal ratio-4 short prefill regression", test_metal_short_prefill_ratio4},
     {"--metal-kernels", "metal-kernels", "isolated Metal kernel numeric regressions", test_metal_kernel_group},
