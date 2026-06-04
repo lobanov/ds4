@@ -230,6 +230,26 @@ else
 	$(NVCC) $(NVCCFLAGS) -o $@ tests/issue304_phase2_handoff.o $(CORE_OBJS) $(CUDA_LDLIBS)
 endif
 
+tests/issue304_phase3_vectors.o: tests/issue304_phase3_vectors.c ds4.h ds4_distributed.h
+	$(CC) $(CFLAGS) -c -o $@ tests/issue304_phase3_vectors.c
+
+tests/issue304_phase3_vectors: tests/issue304_phase3_vectors.o $(CORE_OBJS)
+ifeq ($(UNAME_S),Darwin)
+	$(CC) $(CFLAGS) -o $@ tests/issue304_phase3_vectors.o $(CORE_OBJS) $(METAL_LDLIBS)
+else
+	$(NVCC) $(NVCCFLAGS) -o $@ tests/issue304_phase3_vectors.o $(CORE_OBJS) $(CUDA_LDLIBS)
+endif
+
+tests/issue304_phase35_vectors.o: tests/issue304_phase35_vectors.c ds4.h ds4_distributed.h
+	$(CC) $(CFLAGS) -c -o $@ tests/issue304_phase35_vectors.c
+
+tests/issue304_phase35_vectors: tests/issue304_phase35_vectors.o $(CORE_OBJS)
+ifeq ($(UNAME_S),Darwin)
+	$(CC) $(CFLAGS) -o $@ tests/issue304_phase35_vectors.o $(CORE_OBJS) $(METAL_LDLIBS)
+else
+	$(NVCC) $(NVCCFLAGS) -o $@ tests/issue304_phase35_vectors.o $(CORE_OBJS) $(CUDA_LDLIBS)
+endif
+
 issue304-phase0-local: ds4 tests/issue304_phase0_local
 	./tests/issue304_phase0_local
 
@@ -249,4 +269,4 @@ q4k-dot-test: tests/test_q4k_dot.c
 	./tests/test_q4k_dot
 
 clean:
-	rm -f ds4 ds4-server ds4-bench ds4-eval ds4-agent ds4_cpu ds4_native ds4_server_test ds4_test tests/test_q4k_dot *.o tests/cuda_long_context_smoke tests/cuda_long_context_smoke.o tests/issue304_phase0_local tests/issue304_phase0_local.o tests/issue304_phase0_dgx tests/issue304_phase0_dgx.o tests/issue304_phase1_matrix tests/issue304_phase1_matrix.o tests/issue304_phase2_handoff tests/issue304_phase2_handoff.o
+	rm -f ds4 ds4-server ds4-bench ds4-eval ds4-agent ds4_cpu ds4_native ds4_server_test ds4_test tests/test_q4k_dot *.o tests/cuda_long_context_smoke tests/cuda_long_context_smoke.o tests/issue304_phase0_local tests/issue304_phase0_local.o tests/issue304_phase0_dgx tests/issue304_phase0_dgx.o tests/issue304_phase1_matrix tests/issue304_phase1_matrix.o tests/issue304_phase2_handoff tests/issue304_phase2_handoff.o tests/issue304_phase3_vectors tests/issue304_phase3_vectors.o tests/issue304_phase35_vectors tests/issue304_phase35_vectors.o

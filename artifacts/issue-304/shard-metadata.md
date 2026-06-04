@@ -137,3 +137,81 @@ Current status:
 | `vocab` | 129,280 |
 | `raw_live` | 128 |
 | note | `token_count` and `token_hash` were captured after the 16-token distributed reference continuation; the serialized payload itself still reflects the immediate post-prefill checkpoint with `saved_tokens=14,318`. |
+
+## Phase 3 authoritative route/layout rows
+
+Phase 3 added one more hard layout constraint beyond matching `ctx`: merged `DSV4` staging also requires worker/coordinator `prefill_cap` equality.
+
+### Official vectors at `ctx=4096`
+
+| Field | Value |
+| --- | --- |
+| route summary | `local 0:21 -> 10.77.0.2:38705 Q2 22:output` |
+| route hops | 1 |
+| output owner | worker |
+| worker `ctx` | 4,096 |
+| coordinator `ctx` | 4,096 |
+| worker `prefill_cap` | 2,048 |
+| coordinator `prefill_cap` | 2,048 |
+| payload bytes, `short_code_completion` | 15,423,992 |
+| payload bytes, `short_reasoning_plain` | 14,523,860 |
+| note | The first attempted Phase 3 official run failed until worker `DS4_METAL_PREFILL_CHUNK` was aligned to `2048` with the strict local vector environment. |
+
+### Official vectors at `ctx=16384`
+
+| Field | Value |
+| --- | --- |
+| route summary | `local 0:21 -> 10.77.0.2:32907 Q2 22:output` |
+| route hops | 1 |
+| output owner | worker |
+| worker `ctx` | 16,384 |
+| coordinator `ctx` | 16,384 |
+| worker `prefill_cap` | 2,048 |
+| coordinator `prefill_cap` | 2,048 |
+| payload bytes, `short_italian_fact` | 14,841,824 |
+| payload bytes, `long_code_audit` | 76,903,324 |
+| note | The official-vector environment still pinned `DS4_METAL_PREFILL_CHUNK=2048` even at `ctx=16384`, so the worker had to match that lower `prefill_cap` for merged staging to succeed. |
+
+### Local-golden frontier at `ctx=5000`
+
+| Field | Value |
+| --- | --- |
+| route summary | `local 0:21 -> 10.77.0.2:36505 Q2 22:output` |
+| route hops | 1 |
+| output owner | worker |
+| worker `ctx` | 5,000 |
+| coordinator `ctx` | 5,000 |
+| worker `prefill_cap` | 4,096 |
+| coordinator `prefill_cap` | 4,096 |
+| payload bytes, `long_story_4096` | 80,373,132 |
+| note | The local-golden environment reused `DS4_METAL_PREFILL_CHUNK=4096`, so this group needed a different worker launch from the official-vector groups. |
+
+## Phase 3.5 route matrix metadata
+
+Phase 3.5 reused the same model and layer split, but broadened the execution topology to six routes and ran the DGX worker and DGX-side helper at `--power 50`.
+
+### Route mapping
+
+| Route | Meaning | Payload bytes |
+| --- | --- | ---: |
+| `1` | pure local CUDA prefill+generation | `0` |
+| `2` | pure local Metal prefill+generation | `0` |
+| `3` | distributed generation `CUDA -> Metal` | `0` |
+| `4` | distributed generation `Metal -> CUDA` | `0` |
+| `5` | distributed prefill `CUDA -> Metal`, then resumed pure Metal generation | case-dependent merged `DSV4` |
+| `6` | distributed prefill `Metal -> CUDA`, then resumed pure CUDA generation | case-dependent merged `DSV4` |
+
+### Phase 3.5 payload rows
+
+| Case | Payload bytes |
+| --- | ---: |
+| `short_code_completion` | 15,423,992 |
+| `short_reasoning_plain` | 14,523,860 |
+| `short_italian_fact` | 14,841,824 |
+| `long_code_audit` | 76,903,324 |
+| `long_story_4096` | 80,373,132 |
+
+Notes:
+
+- Routes `5` and `6` share payload byte counts per case because each pair resumes the same staged `DSV4` checkpoint on opposite hosts.
+- Phase 3.5 did not expose new shard-layout incompatibilities beyond the already-known `ctx` and `prefill_cap` alignment constraints.

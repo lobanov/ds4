@@ -124,3 +124,75 @@ Why this changes the next steps:
 
 - The next test should compare distributed-prefill-to-local decode against fully local decode on the same backend before assigning blame to CUDA/Metal engine differences.
 - If the same-backend comparison and official/local gates pass, Phase 3 can classify the forced-logit drift as acceptable backend variance and move on to residency/workflow planning.
+
+## 2026-06-04: Phase 3 rejects backend-variance-only classification
+
+Decision:
+
+- Do not classify the remaining resumed-decode drift as acceptable backend variance.
+- Treat the current problem as a handoff-specific resumed-decode mismatch until proven otherwise.
+- Keep Phase 4+ productization work blocked behind a same-backend parity fix or a tighter localization of the mismatch.
+
+Evidence:
+
+- Local and DGX GGUF hashes matched exactly before the runs:
+  - `efc7ed607ff27076e3e501fc3fefefa33c0ed8cf1eff483a2b7fdc0c2e616668`
+- The new `tests/issue304_phase3_vectors` helper compared fresh local Metal decode against distributed-prefill -> merged `DSV4` -> local Metal decode.
+- Official vector cases passed the existing selected-token/top-logprob gate on every run, but same-backend parity still drifted:
+  - `short_code_completion` worst@5: `top20=17/20`, `top64=62/64`, `rms=0.356403291`
+  - `short_italian_fact` worst@5: `top20=19/20`, `top64=62/64`, `rms=0.21716401`
+  - `long_code_audit` worst@5: `top5=4/5`, `top20=15/20`, `top64=55/64`, `rms=0.876981199`, `max_abs=4.63468361`
+- The local-golden frontier showed the clearest rejection:
+  - the resumed handoff still passed the coarse local-golden fixture on all five runs
+  - but same-backend continuation parity for `long_story_4096` failed worst@5 with `top5=3/5`, `top20=12/20`, `top64=46/64`, `rms=2.1708498`, `max_abs=12.3051796`
+
+Why this changes the next steps:
+
+- Cross-engine `CUDA -> Metal` drift is no longer the main question.
+- The more important defect is that a distributed-prefill checkpoint resumed on the same local decode backend does not evolve like a fresh local checkpoint.
+- The next work should inspect post-load decode evolution on Metal after merged distributed prefill, rather than moving on to residency or UX work.
+
+Operational note:
+
+- Phase 3 also confirmed that merged `DSV4` staging requires `prefill_cap` alignment in addition to `ctx` alignment.
+- The DGX worker had to be launched with:
+  - `DS4_METAL_PREFILL_CHUNK=2048` for the strict official-vector environment
+  - `DS4_METAL_PREFILL_CHUNK=4096` for the local-golden environment
+
+## 2026-06-04: Phase 3.5 broadens the drift classification across six routes
+
+Decision:
+
+- Keep treating resumed payload routes as suspect, but stop using the local-golden fixture as a local-Metal oracle.
+- Treat official-vector acceptance as necessary but not sufficient.
+- Split the remaining investigation into three independent buckets:
+  - backend-specific long-prompt generation variance,
+  - local-golden fixture drift,
+  - payload-resume-specific variance beyond those two baselines.
+
+Evidence:
+
+- Phase 3.5 measured all six routes at worst@5 with the DGX worker and DGX-side helper running at `--power 50`.
+- `short_code_completion` official acceptance was route-specific:
+  - fail on route `1` pure local CUDA
+  - fail on route `3` distributed generation `CUDA -> Metal`
+  - fail on route `5` resumed `CUDA -> Metal`
+  - pass on routes `2`, `4`, and `6`
+- Longer official cases all passed the official gate, but resumed payload routes still had weaker parity:
+  - `short_reasoning_plain` route `5`: `top64=61/64`, `rms=0.382280707`
+  - `short_reasoning_plain` route `6`: `top20=18/20`, `top64=59/64`, `rms=0.504765928`
+  - `long_code_audit` route `5`: `top5=4/5`, `top20=16/20`, `top64=50/64`, `rms=0.972514927`
+  - `long_code_audit` route `6`: `top5=4/5`, `top20=15/20`, `top64=53/64`, `rms=0.903749108`
+- Pure CUDA already shows longer-prompt drift without any payload resume:
+  - `long_code_audit` route `1`: `top5=4/5`, `top20=16/20`, `top64=52/64`, `rms=0.893455684`, `max_abs=4.59287167`
+- The stored local-golden fixture is not purely local-Metal-canonical:
+  - `long_story_4096` route `2` pure local Metal missed it with `top5=3/5`, `top20=16/20`, `top64=46/64`, `top20_max_abs=5.2168293`
+  - routes `1`, `3`, `4`, `5`, and `6` still passed the coarse fixture
+
+Why this changes the next steps:
+
+- Phase 3 was correct to block productization on “same-backend parity” alone, but Phase 3.5 shows that the remaining variance story is not one-dimensional.
+- A resumed-route miss is only attributable to the handoff path after it is compared against:
+  - the matching direct-generation backend,
+  - the opposite direct-generation backend,
+  - and the behavior of the stored local-golden fixture itself.

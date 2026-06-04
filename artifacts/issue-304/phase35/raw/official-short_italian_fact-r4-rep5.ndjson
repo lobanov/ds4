@@ -1,0 +1,19 @@
+{"mode":"distributed","suite":"official","case":"short_italian_fact","ctx":16384,"repeat":1,"ok":true,"route_summary":"local 0:21 -> 10.77.0.2:35375 Q2 22:output","payload_bytes":0,"prefill_sec":0.841012,"stage_sec":0.000000,"load_sec":0.000000,"parity":{"envelope":"strict","first_top1_mismatch_step":-1,"top1_ref":108149,"top1_cand":108149,"top5_overlap":5,"top20_overlap":20,"top64_overlap":64,"rms":0,"max_abs":0,"top20_max_abs":0,"nonfinite":0},"official":{"pass":true,"selected_mismatch_step":-1,"missing_top_count":0,"max_logprob_delta":0.000175568683},"golden":{"pass":false,"top1":0,"top5_overlap":0,"top20_overlap":0,"top64_overlap":0,"top20_max_abs":0},"error":""}
+{"mode":"distributed","suite":"official","case":"short_italian_fact","ctx":16384,"worst_at_1":{"passes":1,"route_summary":"local 0:21 -> 10.77.0.2:35375 Q2 22:output","payload_bytes_max":0,"prefill_sec_max":0.841012,"stage_sec_max":0.000000,"load_sec_max":0.000000,"parity":{"envelope":"strict","first_top1_mismatch_step":-1,"top1_ref":108149,"top1_cand":108149,"top5_overlap":5,"top20_overlap":20,"top64_overlap":64,"rms":0,"max_abs":0,"top20_max_abs":0,"nonfinite":0},"official":{"pass":true,"selected_mismatch_step":-1,"missing_top_count":0,"max_logprob_delta":0.000175568683},"golden":{"pass":false,"top1":0,"top5_overlap":0,"top20_overlap":0,"top64_overlap":0,"top20_max_abs":0}}}
+
+# STDERR
+ds4: Metal device Apple M5 Max, 128.00 GiB RAM
+ds4: Metal 4 tensor API enabled for Tensor kernels
+ds4: drift-patch flags hc_stable=on norm_unify=on kv_raw_f32=off rope_exp2_log2=off math_safe=off tensor_matmul=on
+ds4: restricting metal model map to layers 0:21+output (48 spans, 42.03 GiB tensor span)
+ds4: Metal model views created in 1.411 ms, residency requested in 182.307 ms, warmup 3.589 ms (mapped 43041.81 MiB from offset 5.09 MiB)
+ds4: Metal mapped mmaped model as 48 disjoint shared buffers across 48 tensor spans
+ds4: metal backend initialized for graph diagnostics
+ds4: distributed coordinator API: listening on 10.77.0.1:1234 model_id=0 layers=43 local=0:21 activation_bits=32
+ds4: distributed coordinator: registered worker 10.77.0.2:49832 data_port=35375 model_id=0 quant=Q2 layers=22:output hidden=1 ctx=16384
+ds4: distributed coordinator: complete route ready: local 0:21 -> 10.77.0.2:35375 Q2 22:output
+ds4: distributed telemetry: request=1 hop=0 layers=22:42 route=0 pos=0 tokens=21 eval=385.658ms downstream_wait=0.000ms forward_send=0.000ms input=1.31MiB output=0.49MiB
+ds4: distributed telemetry: request=2 hop=0 layers=22:42 route=0 pos=21 tokens=1 eval=38.377ms downstream_wait=0.000ms forward_send=0.000ms input=0.06MiB output=0.49MiB
+ds4: distributed telemetry: request=3 hop=0 layers=22:42 route=0 pos=22 tokens=1 eval=36.171ms downstream_wait=0.000ms forward_send=0.000ms input=0.06MiB output=0.49MiB
+ds4: distributed telemetry: request=4 hop=0 layers=22:42 route=0 pos=23 tokens=1 eval=36.083ms downstream_wait=0.000ms forward_send=0.000ms input=0.06MiB output=0.49MiB
+ds4: distributed coordinator: accept failed: Software caused connection abort

@@ -87,7 +87,9 @@ Observed requirements and results:
 - Model: `DeepSeek-V4-Flash-IQ2XXS-w2Q2K-AProjQ8-SExpQ8-OutQ8-chat-v2-imatrix.gguf`
 - Local model path: `/Users/lobanov/Projects/ds4/gguf/DeepSeek-V4-Flash-IQ2XXS-w2Q2K-AProjQ8-SExpQ8-OutQ8-chat-v2-imatrix.gguf`
 - DGX model path: `/home/ilo037/ds4/gguf/DeepSeek-V4-Flash-IQ2XXS-w2Q2K-AProjQ8-SExpQ8-OutQ8-chat-v2-imatrix.gguf`
-- Model hash: not recorded in this pass; `shasum -a 256` was skipped because the file is too large for a short verification loop
+- Model hash:
+  - local: `efc7ed607ff27076e3e501fc3fefefa33c0ed8cf1eff483a2b7fdc0c2e616668`
+  - DGX: `efc7ed607ff27076e3e501fc3fefefa33c0ed8cf1eff483a2b7fdc0c2e616668`
 
 ## Commands
 
@@ -223,6 +225,130 @@ Acceptance:
 - distributed-handoff output remains inside the local-golden drift envelope where full local logits are available
 - any remaining `CUDA -> Metal` forced-logit drift is classified separately as backend variance unless it causes same-backend handoff parity or official/local-vector checks to fail
 
+### Phase 3 actual build and sync
+
+Build the new helper locally:
+
+```sh
+make tests/issue304_phase3_vectors
+```
+
+Ship the local source tree, excluding the GGUF and local build products:
+
+```sh
+rsync -az --delete \
+  --exclude='.git/' \
+  --exclude='gguf/' \
+  --exclude='ds4flash.gguf' \
+  --exclude='*.o' \
+  --exclude='ds4' \
+  --exclude='ds4-server' \
+  --exclude='ds4-bench' \
+  --exclude='ds4-eval' \
+  --exclude='ds4-agent' \
+  --exclude='ds4_test' \
+  --exclude='tests/cuda_long_context_smoke' \
+  --exclude='tests/test_q4k_dot' \
+  --exclude='tests/issue304_phase0_local' \
+  --exclude='tests/issue304_phase0_dgx' \
+  --exclude='tests/issue304_phase1_matrix' \
+  --exclude='tests/issue304_phase2_handoff' \
+  --exclude='tests/issue304_phase3_vectors' \
+  ./ dgx-direct:~/ds4/
+```
+
+Build the helper remotely before starting the worker:
+
+```sh
+ssh dgx-direct 'cd ~/ds4 && make tests/issue304_phase3_vectors'
+```
+
+### Phase 3 actual worker launches
+
+Official vectors at `ctx=4096` and `ctx=16384` require worker `prefill_cap=2048` to match the strict local vector environment:
+
+```sh
+ssh dgx-direct 'pkill -9 ds4 >/dev/null 2>&1 || true; sh -c "cd ~/ds4; DS4_METAL_PREFILL_CHUNK=2048 nohup ./ds4 -m ~/ds4/gguf/DeepSeek-V4-Flash-IQ2XXS-w2Q2K-AProjQ8-SExpQ8-OutQ8-chat-v2-imatrix.gguf --ctx 4096 --role worker --layers 22:output --coordinator 10.77.0.1 1234 >/tmp/ds4-worker-4096.log 2>&1 < /dev/null &"'
+ssh dgx-direct 'pkill -9 ds4 >/dev/null 2>&1 || true; sh -c "cd ~/ds4; DS4_METAL_PREFILL_CHUNK=2048 nohup ./ds4 -m ~/ds4/gguf/DeepSeek-V4-Flash-IQ2XXS-w2Q2K-AProjQ8-SExpQ8-OutQ8-chat-v2-imatrix.gguf --ctx 16384 --role worker --layers 22:output --coordinator 10.77.0.1 1234 >/tmp/ds4-worker-16384.log 2>&1 < /dev/null &"'
+```
+
+The local-golden frontier requires worker `prefill_cap=4096`:
+
+```sh
+ssh dgx-direct 'pkill -9 ds4 >/dev/null 2>&1 || true; sh -c "cd ~/ds4; DS4_METAL_PREFILL_CHUNK=4096 nohup ./ds4 -m ~/ds4/gguf/DeepSeek-V4-Flash-IQ2XXS-w2Q2K-AProjQ8-SExpQ8-OutQ8-chat-v2-imatrix.gguf --ctx 5000 --role worker --layers 22:output --coordinator 10.77.0.1 1234 >/tmp/ds4-worker-5000.log 2>&1 < /dev/null &"'
+```
+
+### Phase 3 actual one-shot loops
+
+The authoritative worst@5 data used five one-shot coordinator runs with short pauses between runs. This avoided coordinator port reuse races on `10.77.0.1:1234`.
+
+Official `ctx=4096`:
+
+```sh
+for i in 1 2 3 4 5; do
+  sleep 2
+  DS4_METAL_DISABLE_METAL4=1 DS4_METAL_PREFILL_CHUNK=2048 \
+    ./tests/issue304_phase3_vectors \
+      --suite official \
+      --repeat 1 \
+      --ctx-filter 4096 \
+      --model ./gguf/DeepSeek-V4-Flash-IQ2XXS-w2Q2K-AProjQ8-SExpQ8-OutQ8-chat-v2-imatrix.gguf \
+      --listen-host 10.77.0.1 \
+      --listen-port 1234 \
+      --vector-file tests/test-vectors/official.vec \
+      --prefill-chunk 256 \
+      --activation-bits 32 \
+      --coordinator-layers 0:21 \
+      --worker-layers 22:output \
+      2>&1 | tee /tmp/issue304-phase3-official-4096-run${i}.log
+done
+```
+
+Official `ctx=16384`:
+
+```sh
+for i in 1 2 3 4 5; do
+  sleep 2
+  DS4_METAL_DISABLE_METAL4=1 DS4_METAL_PREFILL_CHUNK=2048 \
+    ./tests/issue304_phase3_vectors \
+      --suite official \
+      --repeat 1 \
+      --ctx-filter 16384 \
+      --model ./gguf/DeepSeek-V4-Flash-IQ2XXS-w2Q2K-AProjQ8-SExpQ8-OutQ8-chat-v2-imatrix.gguf \
+      --listen-host 10.77.0.1 \
+      --listen-port 1234 \
+      --vector-file tests/test-vectors/official.vec \
+      --prefill-chunk 256 \
+      --activation-bits 32 \
+      --coordinator-layers 0:21 \
+      --worker-layers 22:output \
+      2>&1 | tee /tmp/issue304-phase3-official-16384-run${i}.log
+done
+```
+
+Local golden `ctx=5000`:
+
+```sh
+for i in 1 2 3 4 5; do
+  sleep 2
+  DS4_METAL_DISABLE_METAL4=1 DS4_METAL_PREFILL_CHUNK=4096 \
+    ./tests/issue304_phase3_vectors \
+      --suite local-golden \
+      --repeat 1 \
+      --ctx-filter 5000 \
+      --greedy-steps 8 \
+      --model ./gguf/DeepSeek-V4-Flash-IQ2XXS-w2Q2K-AProjQ8-SExpQ8-OutQ8-chat-v2-imatrix.gguf \
+      --listen-host 10.77.0.1 \
+      --listen-port 1234 \
+      --local-golden-file tests/test-vectors/local-golden.vec \
+      --prefill-chunk 256 \
+      --activation-bits 32 \
+      --coordinator-layers 0:21 \
+      --worker-layers 22:output \
+      2>&1 | tee /tmp/issue304-phase3-local-golden-5000-run${i}.log
+done
+```
+
 ## Runtime knobs used by `--local-payload-resume`
 
 - `DS4_METAL_PREFILL_CHUNK=4096`
@@ -232,6 +358,62 @@ Acceptance:
 ## Observed payload probe
 
 The Phase 1 probe creates a session with `ctx=16384` and saves a 1-token local checkpoint to inspect the durable `DSV4` layout.
+
+## Phase 3.5 six-route matrix
+
+Build the Phase 3.5 tools locally:
+
+```sh
+make tests/issue304_phase35_vectors
+```
+
+Sync the tree to the DGX host:
+
+```sh
+rsync -az --delete \
+  --exclude='.git/' \
+  --exclude='gguf/' \
+  --exclude='*.o' \
+  --exclude='ds4' \
+  --exclude='ds4_test' \
+  ./ dgx-direct:~/ds4/
+```
+
+Build remotely:
+
+```sh
+ssh dgx-direct 'cd ~/ds4 && make tests/issue304_phase35_vectors ds4'
+```
+
+Run the full matrix with the stable remote host form and DGX power limit:
+
+```sh
+python3 tests/issue304_phase35_matrix.py \
+  --model ./gguf/DeepSeek-V4-Flash-IQ2XXS-w2Q2K-AProjQ8-SExpQ8-OutQ8-chat-v2-imatrix.gguf \
+  --remote-host ilo037@10.77.0.2 \
+  --remote-root ~/ds4 \
+  --repeat 5 \
+  --power 50
+```
+
+Targeted reruns are case-filterable:
+
+```sh
+python3 tests/issue304_phase35_matrix.py \
+  --model ./gguf/DeepSeek-V4-Flash-IQ2XXS-w2Q2K-AProjQ8-SExpQ8-OutQ8-chat-v2-imatrix.gguf \
+  --remote-host ilo037@10.77.0.2 \
+  --remote-root ~/ds4 \
+  --suite official \
+  --case short_code_completion \
+  --repeat 5 \
+  --power 50
+```
+
+Observed operating notes:
+
+- `ssh dgx-direct` aliasing was less reliable through the driver subprocess path than the explicit `ilo037@10.77.0.2` form.
+- Route `6` needs worker shutdown before opening the remote CUDA payload-resume engine.
+- Raw outputs were written under `artifacts/issue-304/phase35/raw/`.
 
 - `ctx_size=16384`
 - `prefill_cap=4096`

@@ -464,6 +464,158 @@ Exit gate:
 - Any remaining `CUDA -> Metal` forced-token drift is classified as accepted engine/backend variance, or is localized as a specific handoff defect with a reproduction.
 - If official-vector or local-golden checks fail only for distributed handoff, stop before Phase 4 and fix that handoff-specific mismatch.
 
+### Phase 3.5: Six-route variance matrix and worst@5 envelope
+
+Goal:
+
+- Why: Phase 3 showed that one distributed-prefill-to-local-decode route can drift materially from a fresh same-backend local baseline on longer prompts. That result is not enough to separate three different causes cleanly:
+  - ordinary `CUDA <-> Metal` implementation variance,
+  - variance introduced by distributed generation itself,
+  - variance introduced by distributed prefill followed by resumed generation from a merged `DSV4` payload.
+- What: build a like-for-like measurement rig that runs the same prompt sets across six execution routes, records both official top-logprob variance and local logit/greedy variance, and reports `worst@5` for every case and route.
+
+Required route matrix:
+
+- `1.` pure local `CUDA` prefill + generation
+- `2.` pure local `Metal` prefill + generation
+- `3.` distributed prefill + generation `CUDA -> Metal`
+- `4.` distributed prefill + generation `Metal -> CUDA`
+- `5.` distributed prefill `CUDA -> Metal`, then resumed pure `Metal` generation from merged `DSV4`
+- `6.` distributed prefill `Metal -> CUDA`, then resumed pure `CUDA` generation from merged `DSV4`
+
+Measurement contract:
+
+- Every route must run with `--repeat 5` semantics and emit:
+  - one result record per repeat,
+  - one `worst@5` summary record per case.
+- Every official-vector case must emit:
+  - selected-token pass/fail,
+  - missing official top-token count,
+  - max logprob delta,
+  - route metadata,
+  - timing metadata.
+- Every local variance case must emit:
+  - top1 match or first mismatch step,
+  - top5/top20/top64 overlap,
+  - RMS drift,
+  - max absolute drift,
+  - top20 max absolute drift,
+  - greedy token divergence,
+  - route metadata,
+  - timing metadata.
+- Each distributed or resumed route must also record:
+  - coordinator host/backend,
+  - worker host/backend,
+  - layer split,
+  - `ctx`,
+  - `prefill_chunk`,
+  - `prefill_window`,
+  - `activation_bits`,
+  - `prefill_cap`,
+  - payload bytes where applicable,
+  - model hash on both hosts.
+
+Expected artifacts:
+
+- Update `artifacts/issue-304/compatibility-matrix.md` with one row per route group and context bucket, using `worst@5` as the authoritative summary.
+- Update `artifacts/issue-304/logit-comparisons.md` with:
+  - official-vector `worst@5` variance tables for all six routes,
+  - local/golden `worst@5` variance tables for all six routes,
+  - explicit comparisons between:
+    - pure local `CUDA` vs pure local `Metal`,
+    - distributed generation vs pure local on the same generation backend,
+    - resumed generation vs pure local on the same generation backend.
+- Update `artifacts/issue-304/perf-breakdown.md` with route-specific prefill, staging, load, and generation timing envelopes from the same runs.
+- Update `artifacts/issue-304/shard-metadata.md` with the authoritative route/layout metadata for every distributed and resumed route.
+- Update `artifacts/issue-304/runbook.md` with exact local and remote commands, including source sync, remote build, payload copy, worker startup, and one-shot repeat structure.
+- Update `artifacts/issue-304/research-notes.md` with the classification outcome:
+  - whether resumed generation adds variance beyond pure backend differences,
+  - whether distributed generation adds variance beyond pure local generation,
+  - whether any route is acceptable under the official and local envelopes.
+- Update `artifacts/issue-304/decision-log.md` with the final interpretation of the six-route matrix.
+- Update `artifacts/issue-304/failure-cases.md` with any route/case combination that remains rejected after `worst@5`.
+
+Code touchpoints:
+
+- `tests/issue304_phase1_matrix.c`
+  - Reuse for pure local save/load, forced-token trace capture, and same-prompt local backend comparisons.
+- `tests/issue304_phase2_handoff.c`
+  - Reuse for distributed prefill + generation and staged merged-payload export.
+- `tests/issue304_phase3_vectors.c`
+  - Reuse its official/local-golden parsing, parity metrics, and `worst@5` summary shape as the base reporting contract.
+- New helper: `tests/issue304_phase35_vectors.c`
+  - Add a single-host vector runner with three modes:
+    - `local`
+    - `distributed`
+    - `payload`
+  - It must support both:
+    - `--suite official`
+    - `--suite local-golden`
+  - It must emit one stable NDJSON record schema across all three modes.
+- New orchestrator: `tests/issue304_phase35_matrix.py`
+  - Own cross-host orchestration rather than embedding SSH/rsync logic into the C helpers.
+  - Responsibilities:
+    - compare local and remote GGUF hashes before every run,
+    - sync source to `dgx-direct:~/ds4` when code differs,
+    - build local and remote helpers,
+    - start/stop opposite-host workers,
+    - run five one-shot repeats per case to avoid coordinator port reuse races,
+    - copy merged payloads between hosts for resumed routes,
+    - collect raw NDJSON into an artifact directory.
+- `Makefile`
+  - Add build targets for `tests/issue304_phase35_vectors`.
+
+Execution strategy:
+
+- Start by standardizing measurement shape, not by expanding route logic inside the existing helpers.
+- Keep cross-host control in the orchestrator and keep the C helper focused on:
+  - tokenization,
+  - official/golden checks,
+  - logit parity metrics,
+  - route-local session control.
+- Use the current trusted helpers to bootstrap the new runner:
+  - `issue304_phase3_vectors` defines the official/golden comparison rules,
+  - `issue304_phase2_handoff` defines distributed route setup and payload staging,
+  - `issue304_phase1_matrix` defines the local forced-trace comparison shape.
+- Treat one-shot coordinator runs with short pauses as mandatory for distributed routes; do not regress to a persistent in-process repeat loop for route-level validation.
+
+Work items:
+
+- Add `tests/issue304_phase35_vectors.c` with:
+  - `local` mode for pure local prefill + generation on the host backend,
+  - `distributed` mode for distributed prefill + generation on the coordinator host,
+  - `payload` mode for loading a merged `DSV4` payload and continuing generation on the host backend,
+  - official and local-golden suite support,
+  - per-repeat and `worst@5` NDJSON output.
+- Add `tests/issue304_phase35_matrix.py` to orchestrate:
+  - route selection,
+  - local/remote build,
+  - worker lifecycle,
+  - payload shipping,
+  - result collection.
+- Define a route manifest inside the orchestrator for the six required paths, including authoritative host role, backend role, layer split, and payload direction.
+- Reuse the current context buckets as the first required coverage set:
+  - `4096`
+  - `5000`
+  - `16384`
+- Run official vectors for all six routes where the route can produce normal token-by-token top-logprobs.
+- Run local-golden and prompt-length variance checks for all six routes.
+- Record a separate comparison table that normalizes each route against the pure local run on the same generation backend.
+- Only after the rig works reliably should we consider broadening prompt coverage beyond the existing official/local-golden cases.
+
+Key questions:
+
+- Can the distributed-generation routes use the same official top-logprob comparison rules directly, or do they need a coordinator-local top-logprob extraction shim when the output owner is remote?
+- Does the opposite-host resumed route require any payload normalization beyond the current merged `DSV4` file copy?
+- Are there backend-specific environment constraints, such as `DS4_METAL_PREFILL_CHUNK`, that must become part of the route manifest rather than ad hoc runbook notes?
+- Do any routes need distinct frontier definitions beyond the current official and local-golden prompt surfaces to make prompt-length variance comparisons fair?
+
+Exit gate:
+
+- We have authoritative `worst@5` results for all six routes across the required context buckets.
+- Official top-logprob variance and local logit/greedy variance are both available in one consistent result schema.
+- The evidence can answer, with numbers, whether resumed generation introduces materially more drift than pure `CUDA <-> Metal` variance and whether distributed generation introduces additional drift beyond pure local generation.
+
 ### Phase 4: Coordinator residency and workflow viability
 
 Goal:

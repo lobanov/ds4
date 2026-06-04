@@ -1,0 +1,23 @@
+{"mode":"distributed","suite":"official","case":"short_code_completion","ctx":4096,"repeat":1,"ok":true,"route_summary":"local 0:21 -> 192.168.1.218:59812 Q2 22:output","payload_bytes":0,"prefill_sec":1.041659,"stage_sec":0.000000,"load_sec":0.000000,"parity":{"envelope":"strict","first_top1_mismatch_step":-1,"top1_ref":9854,"top1_cand":9854,"top5_overlap":5,"top20_overlap":20,"top64_overlap":64,"rms":0,"max_abs":0,"top20_max_abs":0,"nonfinite":0},"official":{"pass":false,"selected_mismatch_step":1,"missing_top_count":0,"max_logprob_delta":0.85852015},"golden":{"pass":false,"top1":0,"top5_overlap":0,"top20_overlap":0,"top64_overlap":0,"top20_max_abs":0},"error":""}
+{"mode":"distributed","suite":"official","case":"short_code_completion","ctx":4096,"worst_at_1":{"passes":1,"route_summary":"local 0:21 -> 192.168.1.218:59812 Q2 22:output","payload_bytes_max":0,"prefill_sec_max":1.041659,"stage_sec_max":0.000000,"load_sec_max":0.000000,"parity":{"envelope":"strict","first_top1_mismatch_step":-1,"top1_ref":9854,"top1_cand":9854,"top5_overlap":5,"top20_overlap":20,"top64_overlap":64,"rms":0,"max_abs":0,"top20_max_abs":0,"nonfinite":0},"official":{"pass":false,"selected_mismatch_step":1,"missing_top_count":0,"max_logprob_delta":0.85852015},"golden":{"pass":false,"top1":0,"top5_overlap":0,"top20_overlap":0,"top64_overlap":0,"top20_max_abs":0}}}
+
+# STDERR
+ds4: CUDA backend initialized on NVIDIA GB10 (sm_121)
+ds4: restricting cuda model map to layers 0:21+output (48 spans, 42.03 GiB tensor span)
+ds4: CUDA preparing model tensor mappings
+ds4: CUDA loading model tensors into device cache
+ds4: CUDA loading model tensors 16.02 GiB cached
+ds4: CUDA prepared model tensor mappings 16.37 GiB
+ds4: CUDA loading model tensors 32.06 GiB cached
+ds4: CUDA prepared model tensor mappings 32.07 GiB
+ds4: CUDA startup model preparation covered 42.03 GiB of tensor spans in 5.760s
+ds4: cuda backend initialized for graph diagnostics
+ds4: distributed coordinator API: listening on 192.168.1.98:1234 model_id=0 layers=43 local=0:21 activation_bits=32
+ds4: distributed coordinator: registered worker 192.168.1.218:59876 data_port=59812 model_id=0 quant=Q2 layers=22:output hidden=1 ctx=4096
+ds4: distributed coordinator: complete route ready: local 0:21 -> 192.168.1.218:59812 Q2 22:output
+ds4: distributed telemetry: request=1 hop=0 layers=22:42 route=0 pos=0 tokens=27 eval=345.794ms downstream_wait=0.000ms forward_send=0.000ms input=1.69MiB output=0.49MiB
+ds4: distributed telemetry: request=2 hop=0 layers=22:42 route=0 pos=27 tokens=1 eval=15.797ms downstream_wait=0.000ms forward_send=0.000ms input=0.06MiB output=0.49MiB
+ds4: distributed telemetry: request=3 hop=0 layers=22:42 route=0 pos=28 tokens=1 eval=14.220ms downstream_wait=0.000ms forward_send=0.000ms input=0.06MiB output=0.49MiB
+ds4: distributed telemetry: request=4 hop=0 layers=22:42 route=0 pos=29 tokens=1 eval=13.901ms downstream_wait=0.000ms forward_send=0.000ms input=0.06MiB output=0.49MiB
+ds4: distributed coordinator: removed worker 192.168.1.218:59876 layers=22:42+output
+ds4: distributed coordinator: route incomplete; next needed layer 22

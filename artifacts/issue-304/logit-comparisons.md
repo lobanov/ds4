@@ -118,20 +118,43 @@ The new `tests/issue304_phase2_handoff` helper compared:
 - The fact that greedy continuation matched for 16 tokens while forced-trace drift still appeared means the drift is currently too small to perturb top-token choice in this sampled window.
 - Phase 3 should not require bit-exact cross-engine logits. It should decide whether the distributed-prefill-to-local path matches fully local inference on the same decode backend and satisfies the existing official-vector/local-golden correctness envelope.
 
-## Phase 3 planned official/local parity
+## Phase 3 official/local parity
 
-The Phase 3 logit comparison target is:
+The new `tests/issue304_phase3_vectors` helper compared:
 
-1. fully local inference on the decode backend
-2. distributed prefill + merged `DSV4` + local decode on that same backend
-3. official API top-logprob vectors in `tests/test-vectors/official.vec`
-4. local golden-vector drift thresholds where full local logits are available
+1. fresh fully local Metal inference
+2. distributed prefill -> merged `DSV4` -> local Metal load
+3. official API vector acceptance for official cases
+4. the existing local golden fixture for the `long_story_4096` frontier
 
-Acceptance should use the existing local correctness semantics:
+Local and DGX GGUF hashes matched exactly before these runs:
 
-- `./ds4_test --logprob-vectors` for official selected-token and top-logprob agreement, allowing the existing skipped `long_memory_archive` caveat.
-- `./ds4_test --local-golden-vectors` for local top-k/logit drift regression.
-- A new or extended issue-304 harness should compare distributed-handoff outputs against fully local outputs before classifying any cross-engine forced-logit drift as a defect.
+- `efc7ed607ff27076e3e501fc3fefefa33c0ed8cf1eff483a2b7fdc0c2e616668`
+
+### Official vectors, worst@5
+
+The official top-logprob gate passed on every run below, but same-backend parity against a fresh local Metal baseline did not stay close enough to classify the remaining drift as harmless backend variance.
+
+| Case | Ctx | Worker `prefill_cap` | Official gate | Top-5 | Top-20 | Top-64 | RMS | Max abs | Top-20 max abs | Envelope |
+| --- | ---: | ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| `short_code_completion` | 4096 | 2048 | Pass | 5/5 | 17/20 | 62/64 | 0.356403291 | 1.69900322 | 0.734794617 | Tolerant only |
+| `short_reasoning_plain` | 4096 | 2048 | Pass | 5/5 | 20/20 | 62/64 | 0.327032387 | 1.77348614 | 0.5119133 | Tolerant only |
+| `short_italian_fact` | 16384 | 2048 | Pass | 5/5 | 19/20 | 62/64 | 0.21716401 | 1.00239372 | 0.559177399 | Tolerant only |
+| `long_code_audit` | 16384 | 2048 | Pass | 4/5 | 15/20 | 55/64 | 0.876981199 | 4.63468361 | 2.87808609 | Tolerant floor |
+
+### Local-golden frontier, worst@5
+
+The resumed handoff still satisfied the existing local-golden fixture itself on all five runs, but the same resumed state diverged sharply from a fresh local Metal baseline over the next eight greedy steps.
+
+| Case | Ctx | Worker `prefill_cap` | Golden fixture | Golden top-20 | Golden top-64 | Golden top-20 max abs | Same-backend top-5 | Same-backend top-20 | Same-backend top-64 | Same-backend RMS | Same-backend max abs | Same-backend top-20 max abs | Result |
+| --- | ---: | ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| `long_story_4096` | 5000 | 4096 | Pass | 16/20 | 56/64 | 3.20196915 | 3/5 | 12/20 | 46/64 | 2.1708498 | 12.3051796 | 7.73109055 | Same-backend parity fail |
+
+### Interpretation
+
+- Official selected-token/top-logprob agreement is not strong enough to prove handoff equivalence.
+- The local-golden fixture is also not sufficient by itself: the resumed checkpoint can satisfy that coarse regression while still diverging materially from a fresh local Metal baseline immediately afterward.
+- Phase 3 therefore classifies the remaining issue as a handoff-specific resumed-decode mismatch, not merely cross-engine numeric variance.
 
 ## Baseline surrounding checks
 
@@ -143,3 +166,81 @@ These were rerun after the Phase 1 changes to confirm the new harness did not pe
 | `./ds4_test --metal-short-prefill` | Pass | Existing short prefill regression remained green |
 | `./ds4_test --metal-tensor-equivalence` | Pass | Worst observed `rms=0.024882`, `max_abs=0.105766`, `top20_max_abs=0.0233078` on `long_code_audit` |
 | `make test` | Pass | Full default test target passed with the new resume test included |
+
+## Phase 3.5 six-route variance matrix
+
+Phase 3.5 extends the comparison surface to six execution routes and measures each at worst@5:
+
+1. pure local CUDA prefill+generation
+2. pure local Metal prefill+generation
+3. distributed generation `CUDA -> Metal`
+4. distributed generation `Metal -> CUDA`
+5. distributed prefill `CUDA -> Metal`, then resumed pure Metal generation
+6. distributed prefill `Metal -> CUDA`, then resumed pure CUDA generation
+
+The DGX worker and DGX-side helper were run with `--power 50`.
+
+### Official vectors, worst@5 by route
+
+`short_code_completion`
+
+| Route | Official gate | First selected mismatch | Max logprob delta | Top-5 | Top-20 | Top-64 | RMS | Max abs |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| `1` local CUDA | Fail | 1 | 1.42368603 | 5/5 | 20/20 | 64/64 | 0 | 0 |
+| `2` local Metal | Pass | -1 | 0.188549042 | 5/5 | 20/20 | 64/64 | 0 | 0 |
+| `3` distributed `CUDA -> Metal` | Fail | 1 | 0.85852015 | 5/5 | 20/20 | 64/64 | 0 | 0 |
+| `4` distributed `Metal -> CUDA` | Pass | -1 | 0.178744242 | 5/5 | 20/20 | 64/64 | 0 | 0 |
+| `5` resumed `CUDA -> Metal` | Fail | 1 | 0.85852015 | 3/5 | 14/20 | 54/64 | 1.25698996 | 6.82095432 |
+| `6` resumed `Metal -> CUDA` | Pass | -1 | 0.178744242 | 3/5 | 14/20 | 49/64 | 1.30479431 | 6.16060066 |
+
+`short_reasoning_plain`
+
+| Route | Official gate | Max logprob delta | Top-5 | Top-20 | Top-64 | RMS | Max abs |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| `1` local CUDA | Pass | 0.0258535184 | 5/5 | 20/20 | 64/64 | 0 | 0 |
+| `2` local Metal | Pass | 0.0112166749 | 5/5 | 20/20 | 64/64 | 0 | 0 |
+| `3` distributed `CUDA -> Metal` | Pass | 0.034484677 | 5/5 | 20/20 | 64/64 | 0 | 0 |
+| `4` distributed `Metal -> CUDA` | Pass | 0.0139614902 | 5/5 | 20/20 | 64/64 | 0 | 0 |
+| `5` resumed `CUDA -> Metal` | Pass | 0.034484677 | 5/5 | 20/20 | 61/64 | 0.382280707 | 2.11430359 |
+| `6` resumed `Metal -> CUDA` | Pass | 0.0139614902 | 5/5 | 18/20 | 59/64 | 0.504765928 | 2.56024551 |
+
+`short_italian_fact`
+
+| Route | Official gate | Max logprob delta | Top-5 | Top-20 | Top-64 | RMS | Max abs |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| `1` local CUDA | Pass | 0.000240828318 | 5/5 | 20/20 | 64/64 | 0 | 0 |
+| `2` local Metal | Pass | 0.000227290249 | 5/5 | 20/20 | 64/64 | 0 | 0 |
+| `3` distributed `CUDA -> Metal` | Pass | 0.000264710223 | 5/5 | 20/20 | 64/64 | 0 | 0 |
+| `4` distributed `Metal -> CUDA` | Pass | 0.000175568683 | 5/5 | 20/20 | 64/64 | 0 | 0 |
+| `5` resumed `CUDA -> Metal` | Pass | 0.000264710223 | 4/5 | 18/20 | 56/64 | 0.663591683 | 3.45166492 |
+| `6` resumed `Metal -> CUDA` | Pass | 0.000175568683 | 4/5 | 18/20 | 58/64 | 0.688694775 | 4.14918375 |
+
+`long_code_audit`
+
+| Route | Official gate | Max logprob delta | Top-5 | Top-20 | Top-64 | RMS | Max abs |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| `1` local CUDA | Pass | 0.107287943 | 4/5 | 16/20 | 52/64 | 0.893455684 | 4.59287167 |
+| `2` local Metal | Pass | 0.0687521324 | 5/5 | 20/20 | 64/64 | 0 | 0 |
+| `3` distributed `CUDA -> Metal` | Pass | 0.0741011128 | 5/5 | 20/20 | 64/64 | 0 | 0 |
+| `4` distributed `Metal -> CUDA` | Pass | 0.0563559905 | 5/5 | 20/20 | 64/64 | 0 | 0 |
+| `5` resumed `CUDA -> Metal` | Pass | 0.0503566675 | 4/5 | 16/20 | 50/64 | 0.972514927 | 4.36004543 |
+| `6` resumed `Metal -> CUDA` | Pass | 0.0933624879 | 4/5 | 15/20 | 53/64 | 0.903749108 | 4.15296125 |
+
+### Local-golden frontier, worst@5 by route
+
+`long_story_4096`
+
+| Route | Golden fixture | Golden top-20 | Golden top-64 | Golden top-20 max abs | Same-route parity | Top-5 | Top-20 | Top-64 | RMS | Max abs |
+| --- | --- | ---: | ---: | ---: | --- | ---: | ---: | ---: | ---: | ---: |
+| `1` local CUDA | Pass | 17/20 | 52/64 | 3.07355976 | Fail | 2/5 | 13/20 | 44/64 | 2.12094522 | 15.0152826 |
+| `2` local Metal | Fail | 16/20 | 46/64 | 5.2168293 | Strict | 5/5 | 20/20 | 64/64 | 0 | 0 |
+| `3` distributed `CUDA -> Metal` | Pass | 16/20 | 50/64 | 3.56194687 | Strict | 5/5 | 20/20 | 64/64 | 0 | 0 |
+| `4` distributed `Metal -> CUDA` | Pass | 16/20 | 53/64 | 3.55953407 | Strict | 5/5 | 20/20 | 64/64 | 0 | 0 |
+| `5` resumed `CUDA -> Metal` | Pass | 16/20 | 51/64 | 2.24486637 | Fail | 3/5 | 13/20 | 42/64 | 2.14919782 | 14.7165461 |
+| `6` resumed `Metal -> CUDA` | Pass | 16/20 | 52/64 | 3.03334045 | Tolerant | 3/5 | 14/20 | 40/64 | 1.60283542 | 8.42455864 |
+
+### Interpretation
+
+- The official API gate is materially weaker than route parity. Three `short_code_completion` routes missed official acceptance, while the longer official cases still passed even when resumed-route parity had already drifted.
+- Resumed payload routes remain the weakest cells. They are the only routes that repeatedly combine nonzero official deltas with visibly looser top-k overlap and RMS on otherwise passing cases.
+- The local-golden fixture itself is also route-sensitive. Pure local Metal (`route 2`) missed the stored fixture while both distributed direct-generation routes (`3` and `4`) passed it exactly against their own references.

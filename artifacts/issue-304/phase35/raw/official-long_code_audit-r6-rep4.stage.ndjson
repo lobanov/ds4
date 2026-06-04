@@ -1,0 +1,36 @@
+{"mode":"distributed","suite":"official","case":"long_code_audit","ctx":16384,"repeat":1,"ok":true,"route_summary":"local 0:21 -> 10.77.0.2:45465 Q2 22:output","payload_bytes":76903324,"prefill_sec":9.247454,"stage_sec":0.238412,"load_sec":0.000000,"parity":{"envelope":"strict","first_top1_mismatch_step":-1,"top1_ref":671,"top1_cand":671,"top5_overlap":5,"top20_overlap":20,"top64_overlap":64,"rms":0,"max_abs":0,"top20_max_abs":0,"nonfinite":0},"official":{"pass":true,"selected_mismatch_step":-1,"missing_top_count":0,"max_logprob_delta":0.0593865961},"golden":{"pass":false,"top1":0,"top5_overlap":0,"top20_overlap":0,"top64_overlap":0,"top20_max_abs":0},"error":""}
+{"mode":"distributed","suite":"official","case":"long_code_audit","ctx":16384,"worst_at_1":{"passes":1,"route_summary":"local 0:21 -> 10.77.0.2:45465 Q2 22:output","payload_bytes_max":76903324,"prefill_sec_max":9.247454,"stage_sec_max":0.238412,"load_sec_max":0.000000,"parity":{"envelope":"strict","first_top1_mismatch_step":-1,"top1_ref":671,"top1_cand":671,"top5_overlap":5,"top20_overlap":20,"top64_overlap":64,"rms":0,"max_abs":0,"top20_max_abs":0,"nonfinite":0},"official":{"pass":true,"selected_mismatch_step":-1,"missing_top_count":0,"max_logprob_delta":0.0593865961},"golden":{"pass":false,"top1":0,"top5_overlap":0,"top20_overlap":0,"top64_overlap":0,"top20_max_abs":0}}}
+
+# STDERR
+ds4: Metal device Apple M5 Max, 128.00 GiB RAM
+ds4: Metal 4 tensor API enabled for Tensor kernels
+ds4: drift-patch flags hc_stable=on norm_unify=on kv_raw_f32=off rope_exp2_log2=off math_safe=off tensor_matmul=on
+ds4: restricting metal model map to layers 0:21+output (48 spans, 42.03 GiB tensor span)
+ds4: Metal model views created in 1.348 ms, residency requested in 184.071 ms, warmup 4.548 ms (mapped 43041.81 MiB from offset 5.09 MiB)
+ds4: Metal mapped mmaped model as 48 disjoint shared buffers across 48 tensor spans
+ds4: metal backend initialized for graph diagnostics
+ds4: distributed coordinator API: listening on 10.77.0.1:1234 model_id=0 layers=43 local=0:21 activation_bits=32
+ds4: distributed coordinator: registered worker 10.77.0.2:32998 data_port=45465 model_id=0 quant=Q2 layers=22:output hidden=1 ctx=16384
+ds4: distributed coordinator: complete route ready: local 0:21 -> 10.77.0.2:45465 Q2 22:output
+ds4: distributed coordinator: pipelined prefill 16 chunks of up to 256 tokens through 1 worker, first hop 10.77.0.2:45465, send depth 2, flow window 3
+ds4: distributed telemetry: request=1 hop=0 layers=22:42 route=0 pos=0 tokens=256 eval=504.620ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=2 hop=0 layers=22:42 route=0 pos=256 tokens=256 eval=366.143ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=3 hop=0 layers=22:42 route=0 pos=512 tokens=256 eval=380.188ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=4 hop=0 layers=22:42 route=0 pos=768 tokens=256 eval=379.843ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=5 hop=0 layers=22:42 route=0 pos=1024 tokens=256 eval=385.968ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=6 hop=0 layers=22:42 route=0 pos=1280 tokens=256 eval=391.005ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=7 hop=0 layers=22:42 route=0 pos=1536 tokens=256 eval=397.628ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=8 hop=0 layers=22:42 route=0 pos=1792 tokens=256 eval=404.433ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=9 hop=0 layers=22:42 route=0 pos=2048 tokens=256 eval=401.263ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=10 hop=0 layers=22:42 route=0 pos=2304 tokens=256 eval=401.826ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=11 hop=0 layers=22:42 route=0 pos=2560 tokens=256 eval=400.882ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=12 hop=0 layers=22:42 route=0 pos=2816 tokens=256 eval=401.644ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=13 hop=0 layers=22:42 route=0 pos=3072 tokens=256 eval=406.144ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=14 hop=0 layers=22:42 route=0 pos=3328 tokens=256 eval=404.089ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=15 hop=0 layers=22:42 route=0 pos=3584 tokens=256 eval=410.946ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=16 hop=0 layers=22:42 route=0 pos=3840 tokens=4 eval=73.791ms downstream_wait=0.000ms forward_send=0.000ms input=0.25MiB output=0.49MiB
+ds4: distributed coordinator: pipelined prefill done tokens=3844 chunks=16 total=9.247s 415.69 t/s local=8.755s send=0.347s 692.11 MiB/s
+ds4: distributed telemetry: request=18 hop=0 layers=22:42 route=0 pos=3844 tokens=1 eval=45.315ms downstream_wait=0.000ms forward_send=0.000ms input=0.06MiB output=0.49MiB
+ds4: distributed telemetry: request=19 hop=0 layers=22:42 route=0 pos=3845 tokens=1 eval=44.041ms downstream_wait=0.000ms forward_send=0.000ms input=0.06MiB output=0.49MiB
+ds4: distributed telemetry: request=20 hop=0 layers=22:42 route=0 pos=3846 tokens=1 eval=43.483ms downstream_wait=0.000ms forward_send=0.000ms input=0.06MiB output=0.49MiB
+ds4: distributed coordinator: accept failed: Software caused connection abort

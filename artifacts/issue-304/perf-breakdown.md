@@ -120,3 +120,101 @@ Planned fields from `tests/issue304_phase2_handoff`:
 - local greedy decode seconds / t/s
 - handoff logit comparison metrics
 - forced-trace first bad step and drift metrics
+
+## Phase 3 vector parity timings
+
+Phase 3 used `tests/issue304_phase3_vectors` with five one-shot coordinator runs per group. The one-shot structure avoided coordinator port reuse races on `10.77.0.1:1234` and gives the relevant worst@5 timing envelope directly.
+
+### Official vectors at `ctx=4096`
+
+Worker environment:
+
+- `--ctx 4096`
+- `DS4_METAL_PREFILL_CHUNK=2048`
+
+Worst@5 observed timing by case:
+
+| Case | Payload bytes | Prefill sec | Stage sec | Load sec |
+| --- | ---: | ---: | ---: | ---: |
+| `short_code_completion` | 15,423,992 | 0.450 | 0.090 | 0.0020 |
+| `short_reasoning_plain` | 14,523,860 | 0.394 | 0.076 | 0.0021 |
+
+Notes:
+
+- The `ctx=4096` official cases are cheap enough that phase timing was effectively stable across all five runs.
+- These timings are not the blocker; the blocker is same-backend resumed-decode parity.
+
+### Official vectors at `ctx=16384`
+
+Worker environment:
+
+- `--ctx 16384`
+- `DS4_METAL_PREFILL_CHUNK=2048`
+
+Worst@5 observed timing by case:
+
+| Case | Payload bytes | Prefill sec | Stage sec | Load sec |
+| --- | ---: | ---: | ---: | ---: |
+| `short_italian_fact` | 14,841,824 | 0.656 | 0.077 | 0.0022 |
+| `long_code_audit` | 76,903,324 | 9.977 | 0.368 | 0.0189 |
+
+Notes:
+
+- `long_code_audit` makes the intended cost split clear:
+  - distributed prefill still dominates at about 10 s
+  - merged payload stage stayed below 0.4 s
+  - local payload load stayed below 0.02 s
+- The throughput argument for handoff remains intact; the unresolved problem is decode-state equivalence after load.
+
+### Local-golden frontier at `ctx=5000`
+
+Worker environment:
+
+- `--ctx 5000`
+- `DS4_METAL_PREFILL_CHUNK=4096`
+
+Worst@5 observed timing:
+
+| Case | Payload bytes | Prefill sec | Stage sec | Load sec |
+| --- | ---: | ---: | ---: | ---: |
+| `long_story_4096` | 80,373,132 | 12.262 | 0.367 | 0.0102 |
+
+Notes:
+
+- The 4096-token frontier remains practical from a staging perspective:
+  - prefill about 12.1 s
+  - merged stage at most about 0.37 s
+  - local load about 0.01 s
+- That makes the same-backend parity failure more important: there is no evidence here that handoff cost, rather than resumed state evolution, is the main issue.
+
+## Phase 3.5 six-route timings
+
+Phase 3.5 used `tests/issue304_phase35_matrix.py` to run five one-shot repeats per route/case. The DGX worker and DGX-side helper were run with `--power 50`.
+
+### Official vectors
+
+| Case | Route `1` prefill sec | Route `2` prefill sec | Route `3` prefill sec | Route `4` prefill sec | Route `5` load sec | Route `6` load sec | Payload bytes |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| `short_code_completion` | 0.753 | 0.294 | 1.043 | 0.874 | 0.0018 | 0.0219 | 15,423,992 |
+| `short_reasoning_plain` | 0.621 | 0.257 | 0.982 | 0.823 | 0.0018 | 0.0680 | 14,523,860 |
+| `short_italian_fact` | 0.634 | 0.263 | 1.065 | 0.832 | 0.0024 | 0.0198 | 14,841,824 |
+| `long_code_audit` | 19.446 | 10.416 | 12.196 | 9.271 | 0.0111 | 0.0932 | 76,903,324 |
+
+Notes:
+
+- The route `1` vs route `2` gap is the expected CUDA-vs-Metal local prefill cost split.
+- Direct distributed generation remained close to the slower of the two local-prefill paths.
+- Payload resume cost stayed small relative to prefill cost, even on the longer frontier:
+  - route `5` loads stayed around `0.0018-0.0111 s`
+  - route `6` loads stayed around `0.0198-0.0932 s`
+
+### Local-golden frontier
+
+| Case | Route `1` prefill sec | Route `2` prefill sec | Route `3` prefill sec | Route `4` prefill sec | Route `5` load sec | Route `6` load sec | Payload bytes |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| `long_story_4096` | 19.855 | 8.933 | 15.193 | 11.276 | 0.0112 | 0.0883 | 80,373,132 |
+
+Notes:
+
+- The same pattern holds on the 4096-token frontier: payload load remains cheap, and the dominant runtime is still prefill.
+- That keeps the Phase 3.5 focus on correctness classification rather than route cost.
