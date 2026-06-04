@@ -11,7 +11,8 @@ This file tracks phase-wise findings for the staged investigation in `PLAN.md`.
 | Phase 2 | Complete | Distributed prefill -> merged `DSV4` -> fresh local Metal load now validates end-to-end on the DGX/Mac route. Handoff logits and 16-token greedy continuation matched, but forced-token logits still diverged at the first post-load eval step. |
 | Phase 3 | Complete | Same-backend Phase 3 parity was measured and rejected. The official-vector gate kept passing, but distributed-prefill-to-local decode did not match a fresh fully local Metal baseline closely enough, and the long local-golden continuation failed outright on same-backend parity. |
 | Phase 3.5 | Complete | The six-route worst@5 matrix is now measured. Official top-logprob variance is route-dependent on short prompts, resumed payload routes remain the weakest parity cells, and the stored local-golden fixture is not anchored purely to the local Metal route. |
-| Later phases | Deferred | Engine residency, user-facing workflow, and pipelined KV return stay deferred until the same-backend resumed-decode mismatch is fixed or localized. |
+| Phase 4 | Next | The next phase is a fused residency-plus-practical-workflow phase: make the handoff path usable enough to benchmark and operate realistically, while keeping the existing variance findings as active caveats. |
+| Later phases | Deferred | Pipelined KV return, topology decoupling, and broader optimization work stay deferred until the practical handoff workflow exists and can be benchmarked realistically. |
 
 ## Phase 0: Establish distributed baseline
 
@@ -289,7 +290,7 @@ Phase 2 is no longer blocked on distributed gather, payload staging, or initial 
 
 ### Implication
 
-Phase 3 did its job: the remaining drift is not just a CUDA-vs-Metal variance story. The handoff path itself differs from a same-backend fresh local Metal decode path after resumed evaluation begins. Later productization phases should stay blocked until that resumed-decode mismatch is localized or fixed.
+Phase 3 did its job: the remaining drift is not just a CUDA-vs-Metal variance story. The handoff path itself differs from a same-backend fresh local Metal decode path after resumed evaluation begins. That remains an active caveat, but it no longer blocks the next engineering phase by itself; the next step is to build a practical fused residency-plus-workflow path and then judge the variance again under realistic use and benchmarks.
 
 ## Pointers
 

@@ -196,3 +196,78 @@ Why this changes the next steps:
   - the matching direct-generation backend,
   - the opposite direct-generation backend,
   - and the behavior of the stored local-golden fixture itself.
+
+## 2026-06-04: Pivot next work toward practical handoff plumbing, defer deeper variance forensics
+
+Decision:
+
+- Do not spend the next implementation cycle on deeper route/backend variance investigation.
+- Move next to practical handoff/product plumbing so the feature can be exercised and later benchmarked in more realistic workflows.
+- Keep the existing Phase 3 and Phase 3.5 variance findings as active caveats, not resolved issues.
+
+Evidence:
+
+- Phase 3 and Phase 3.5 already produced enough evidence to show that route/backend variance exists and is not reducible to one simple explanation.
+- The current workflow is still too research-specific to measure resumed routes convincingly on practical use cases.
+- Some of the observed variance may shrink or shift as ongoing CUDA inference work lands, so further forensics now risks chasing a moving target.
+- The more actionable next unknown is whether the handoff path can be turned into a usable operator-facing workflow without excessive complexity or unacceptable overhead.
+
+Why this changes the next steps:
+
+- Realistic resumed-route benchmarking depends on practical plumbing existing first.
+- Official-vector and local-golden checks remain useful guardrails, but they are not enough by themselves to decide product value.
+- The next useful deliverable is a runnable handoff workflow that can answer practical engineering questions:
+  - how awkward the operator flow is,
+  - where the real latency and memory costs land,
+  - and whether resumed routes are good enough under actual benchmark workloads.
+
+Deferred re-entry triggers:
+
+- Re-open deeper variance investigation when one of these happens:
+  - practical handoff plumbing lands and realistic benchmarks show meaningful regressions,
+  - resumed routes underperform direct generation in user-visible ways,
+  - CUDA inference changes materially and the route matrix should be re-run,
+  - or product design starts depending on resumed routes being treated as equivalent.
+
+Operational planning note:
+
+- The next implementation phase should treat practical handoff plumbing and coordinator residency as one fused problem, not two separate phases.
+- In this codebase, a benchmarkable workflow depends directly on how weights stay resident, how `--layers` maps to loaded spans, and whether the coordinator can transition from distributed prefill to local decode without harness-only engine choreography.
+
+## 2026-06-05: Phase 4 targets final-worker residency, not topology flexibility
+
+Decision:
+
+- Keep topology flexibility out of Phase 4.
+- Preserve the current coordinator-first route model:
+  - coordinator prefills earlier layers,
+  - worker(s) prefill later layers,
+  - the final worker either owns output/logit generation or sends last-layer hidden state back to the coordinator.
+- Focus Phase 4 on the model where the final worker owns output generation and keeps full-model residency, while participating in distributed prefill only for its later-layer route slice.
+- Treat the final worker as the local decode owner after distributed prefill.
+- Defer the alternative where the final worker sends last-layer output back to the coordinator unless a specific benchmark or deployment need makes it worth the extra transfer.
+
+Evidence:
+
+- The current distributed topology requires the coordinator to execute the early prefill slice before worker execution.
+- Making the coordinator the full-resident decode node fights that topology and may force wasteful output/head or KV movement.
+- The final worker already owns later layers and can own `N:output`; making it full-resident for local decode is a narrower change than decoupling the control-plane coordinator from execution topology.
+- The current validated handoff boundary remains merged `DSV4`, but the practical direction should reduce toward sending the coordinator's earlier-layer KV state to the final worker rather than making the coordinator absorb all worker-owned state.
+
+Why this changes the next steps:
+
+- Phase 4 should decouple final-worker route ownership from final-worker model residency, not primarily coordinator route ownership from coordinator residency.
+- The final worker should be allowed to load all layers and output head, while still advertising/executing only its assigned later-layer route range during distributed prefill.
+- The handoff workflow should aim for:
+  - distributed prefill over the existing route,
+  - transfer or merge of the coordinator-owned early-layer KV into the final worker's full local decode session,
+  - local-only decode on the final worker,
+  - coordinator control/sampling integration only as needed by the chosen Phase 5 API shape.
+- This keeps Phase 8 topology decoupling deferred.
+
+Validation requirement:
+
+- Once Phase 4/5 implementation work completes, validate both backend directions:
+  - `CUDA -> Metal`
+  - `Metal -> CUDA`
+- Both directions should record correctness, payload/shard metadata, memory, timing, and failure cases in the existing issue artifacts before the workflow is treated as complete.

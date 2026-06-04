@@ -4,8 +4,8 @@ This artifact records follow-on topology work after the first correct local-gene
 
 ## Current Status
 
-- Topology decoupling is deferred until after the Phase 3 correctness classification and Phase 4 residency decision.
-- The current coordinator-first route model remains acceptable for proving the first local-generation handoff unless Phase 4 shows it blocks a viable residency design.
+- Topology decoupling is deferred until after the fused Phase 4 residency-plus-practical-workflow work.
+- The current coordinator-first route model remains acceptable for the first practical handoff path unless Phase 4 shows it blocks a viable runnable workflow or benchmarkable design.
 
 ## Current Constraints
 

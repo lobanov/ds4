@@ -38,17 +38,19 @@ Source: <https://github.com/antirez/ds4/issues/304> and its comment thread.
 
 ## Remaining unknowns
 
+- To what extent the currently observed route/backend variance would materially hurt realistic benchmarks or user-visible quality once a practical handoff workflow exists.
 - Whether `CUDA -> Metal` resumed-decode drift is only normal engine/backend implementation variance, or whether it indicates payload/handoff state that would make distributed-prefill-to-local differ from fully local inference on the same decode engine.
-- Whether distributed prefill -> merged `DSV4` -> local decode matches the official-vector and local-golden correctness surfaces already used for fully local inference.
+- Whether distributed prefill -> merged `DSV4` -> local decode matches the official-vector and local-golden correctness surfaces already used for fully local inference strongly enough to matter in real use, rather than only as a research comparison.
 - How to let the coordinator participate in distributed prefill while still keeping a full local decode-capable engine resident without exhausting Metal memory budget.
 - Whether the eventual handoff path should remain a merged `DSV4` checkpoint, move to an in-memory merged payload, or skip the merged payload entirely by streaming worker-owned KV shards back during prefill.
 
 ## Implementation direction
 
 - Keep the merged `DSV4` handoff path as the current correctness boundary. Phase 2 validated that it can gather distributed shards, stage a payload, load locally, and recover the exact handoff checkpoint.
-- Treat mixed-backend resumed-decode drift as a classification problem, not automatically a bug. Isolate it enough to decide whether it is expected engine variance or a handoff-specific defect.
-- Require the distributed-prefill-to-local path to match fully local inference on the same decode engine against `tests/test-vectors/official` / `official.vec` and the local golden-vector surface before productizing the workflow.
-- Treat coordinator engine residency as a separate productization problem. Phase 2 proved the feature concept by releasing the distributed engine before local decode; the next residency work is about making that handoff practical in one user-visible workflow.
+- Treat mixed-backend resumed-decode drift as a risk characterization problem, not automatically a bug and not the current implementation bottleneck. Record it, guard against obvious regressions, and revisit only when practical workflow or benchmark evidence says it matters.
+- Use `tests/test-vectors/official` / `official.vec` and the local golden-vector surface as guardrails, not as proofs of end-user equivalence.
+- Shift the next implementation focus to practical handoff plumbing: turn the current proof path into a usable workflow that can be benchmarked and exercised realistically.
+- Treat coordinator engine residency and practical handoff plumbing as one fused productization problem. Phase 2 proved the feature concept by releasing the distributed engine before local decode; the next work is about making that handoff runnable and benchmarkable in one user-visible workflow.
 - Defer chunk-by-chunk KV return until after the resumed-decode correctness and residency story are both understood. At this point it is an optimization and UX improvement, not the first proof point.
 
 ## Relevant Code Module Map
@@ -241,6 +243,20 @@ This change should be run as an iterative research project, not as a straight fe
 - If a code change adds a new flag, mode, or test, document both the intended command and one known-good invocation in `artifacts/issue-304/runbook.md`.
 - If a validation result changes the implementation direction, update `artifacts/issue-304/decision-log.md` and the relevant phase notes in this plan.
 
+## Current pivot after Phase 3.5
+
+- Phase 3 and Phase 3.5 produced enough evidence to characterize route/backend variance, but not enough to prove product harm.
+- Practical next work should therefore focus on making distributed-prefill-to-local-decode usable as an actual workflow that can later be benchmarked on realistic prompts and sessions.
+- Deeper variance forensics are deferred unless one of these happens:
+  - practical handoff plumbing lands and realistic benchmarks show meaningful regressions,
+  - resumed routes underperform direct generation in user-visible ways,
+  - CUDA inference changes materially and the route matrix needs to be re-run,
+  - product design starts depending on resumed routes being treated as equivalent.
+- Until then:
+  - official-vector and local-golden checks remain useful guardrails,
+  - the existing variance findings remain documented and unresolved,
+  - but they do not block the next round of handoff/product plumbing work.
+
 ### Phase 0: Baseline and instrumentation
 
 Goal:
@@ -400,7 +416,7 @@ Work items:
 - Load the merged `DSV4` payload into that local session.
 - Decode locally for at least 1-3 tokens.
 - Compare against continuing distributed decode from the original distributed session and single-node local prefill/decode when feasible.
-- Treat this two-session shape as a correctness experiment. Phase 4 owns the decision about whether engine residency can make it practical for user-facing use.
+- Treat this two-session shape as a correctness experiment. The fused Phase 4 owns the decision about whether residency plus workflow plumbing can make it practical for user-facing use.
 
 Key questions:
 
@@ -412,7 +428,7 @@ Key questions:
 Exit gate:
 
 - The existing payload path can hand off distributed prefill state into a local-only decode session, or a specific blocker is captured with enough detail to choose the next implementation step.
-- If the path works only by running two engines or reloading an engine, it must not proceed directly to user-facing implementation; Phase 4 must choose a viable layer-residency design first.
+- If the path works only by running two engines or reloading an engine, it must not proceed directly to user-facing implementation; Phase 4 must choose a viable residency-plus-workflow design first.
 
 ### Phase 3: Handoff equivalence and drift isolation
 
@@ -462,7 +478,7 @@ Exit gate:
 
 - Distributed prefill -> local decode matches fully local inference on the same decode backend for the official-vector prompt set, within the existing official/local-golden acceptance envelope.
 - Any remaining `CUDA -> Metal` forced-token drift is classified as accepted engine/backend variance, or is localized as a specific handoff defect with a reproduction.
-- If official-vector or local-golden checks fail only for distributed handoff, stop before Phase 4 and fix that handoff-specific mismatch.
+- If official-vector or local-golden checks fail only for distributed handoff, record that mismatch and carry it forward as an active caveat; Phase 4 may still proceed if the practical workflow questions remain more urgent than deeper variance forensics.
 
 ### Phase 3.5: Six-route variance matrix and worst@5 envelope
 
@@ -616,12 +632,13 @@ Exit gate:
 - Official top-logprob variance and local logit/greedy variance are both available in one consistent result schema.
 - The evidence can answer, with numbers, whether resumed generation introduces materially more drift than pure `CUDA <-> Metal` variance and whether distributed generation introduces additional drift beyond pure local generation.
 
-### Phase 4: Coordinator residency and workflow viability
+### Phase 4: Final-worker residency and workflow viability
 
 Goal:
 
-- Why: Phase 2 currently proves the concept by releasing the distributed engine and then opening a full local engine. That is enough for research, but not enough for a practical one-shot coordinator workflow.
-- What: choose a viable residency design that lets the coordinator do distributed prefill and then local decode without requiring a research-only two-engine transition.
+- Why: Phase 2 currently proves the concept by releasing the distributed engine and then opening a full local engine. That is enough for research, but not enough for a practical one-shot coordinator workflow, and realistic resumed-route benchmarking depends on turning that proof path into a usable workflow.
+- What: choose and implement a viable residency-plus-plumbing design that lets the final worker participate in distributed prefill over its later-layer route slice, then continue local decode as the full-resident generation node through a repeatable operator-facing workflow.
+- Scope: this phase is not another variance-forensics phase. Phase 3 and Phase 3.5 variance remains an active caveat, but Phase 4 should answer whether a practical, benchmarkable handoff workflow can exist with acceptable residency and operator complexity.
 
 Expected artifacts:
 
@@ -631,6 +648,8 @@ Expected artifacts:
 - Update `artifacts/issue-304/failure-cases.md` with expected failures for missing full-decode layers, invalid layer range transitions, and memory-budget rejection.
 - Update `artifacts/issue-304/runbook.md` with commands and environment settings used to measure memory.
 - Update `artifacts/issue-304/research-notes.md` with the residency conclusions and the decision impact on later implementation phases.
+- Update `artifacts/issue-304/runbook.md` with the intended developer/operator workflow for the first practical handoff path.
+- If a temporary probe flag or harness is added, document it as experimental and keep it out of README until Phase 5 chooses the user-facing API shape.
 
 Code touchpoints:
 
@@ -660,33 +679,70 @@ Code touchpoints:
 
 Candidate designs to analyze:
 
+- Full-resident final worker with sliced distributed execution:
+  - Load the full model once on the final worker, but still advertise/execute only the worker-owned later-layer route range for distributed prefill.
+  - Treat this as the preferred first experiment because it avoids engine unload/reload and avoids two model-weight copies.
+  - During distributed prefill, call `ds4_session_eval_layer_slice()` only for the worker route slice even though more weights are resident.
 - Decouple route ownership from weight residency:
-  - Keep `--layers` as the distributed route slice, but allow the coordinator to map full local decode weights at startup.
-  - During distributed prefill, call `ds4_session_eval_layer_slice()` only for the coordinator route slice even though more weights are resident.
-- Full-resident coordinator with sliced distributed execution:
-  - Load the full model once on the coordinator, but still advertise/execute only the coordinator-owned distributed layer range for prefill.
+  - Keep `--layers` as the distributed route slice, but stop forcing final-worker model mapping to that slice when a local-decode residency mode is selected.
+  - Preserve the coordinator-first route model and coordinator early-layer execution; broader topology flexibility stays deferred.
+  - Prefer an internal/test-only option or helper path first; defer public CLI naming to Phase 5.
+- Dual session over one full-resident engine:
+  - Use one full-resident final-worker engine with separate distributed-prefill and local-decode sessions.
+  - This avoids duplicate weights but may duplicate KV/session graph memory; measure it before selecting.
+  - Keep the distributed session and local decode session distinct unless evidence shows same-session mutation is safer.
 - Lazy or expandable residency:
   - Start with route-slice mapping, then expand to full mapping before local decode without closing the engine.
   - Only keep this path if backend model map spans and cached/preloaded tensors can be expanded safely and fast enough.
-- Dual session over one engine:
-  - Use one full-resident engine with separate distributed-prefill and local-decode sessions.
-  - This may avoid duplicate weights but still duplicates KV/session graph memory; measure before selecting.
 - Two engines or reload:
   - Keep only as a correctness harness or fallback diagnostic, not the final workflow unless the measurements force it.
 
 Work items:
 
-- Trace exactly how distributed `--layers` becomes loaded model spans today.
-- Measure memory for route-slice engine, full engine, dual-session-over-one-engine, and the current two-engine proof harness where feasible.
-- Verify whether a full-resident coordinator can still execute only its distributed slice during prefill by using the existing layer-slice APIs.
-- Determine whether session graph allocation assumes only a subset of layers is bound, or whether it can safely hold KV for all layers when the engine has full weights.
-- Determine whether output head residency is required on the coordinator for local decode and how `load_output_optional` interacts with that.
-- Decide whether the implementation should decouple "route layer range" from "loaded layer range" in `ds4_engine_options` / `ds4_distributed_options`.
+1. Re-state the current residency contract in `engine-residency.md`.
+   - Trace exactly how distributed `--layers` becomes loaded model spans today.
+   - Record how `load_output_optional`, `N:output`, and `N:42` affect output-head residency.
+   - Record that merged save/load still requires matching `ctx` and `prefill_cap`.
+
+2. Build the smallest full-resident-final-worker probe.
+   - Decouple final-worker route ownership from final-worker loaded spans only for the probe.
+   - Keep coordinator-first topology and coordinator early-layer execution unchanged.
+   - Verify the final worker can map full weights and output head while advertising/executing only `N:output` during distributed prefill.
+   - Verify `ds4_session_eval_layer_slice()` works on a full-resident worker for the route-owned slice.
+
+3. Measure residency and graph/session memory.
+   - Compare route-slice final worker, full-resident final worker, dual-session-over-one-engine, and current two-engine proof harness.
+   - Capture peak process memory, backend allocation behavior, payload bytes, stage/load time, and local decode t/s.
+   - Record whether dual sessions over one engine duplicate only KV/session graph memory or trigger any unexpected model-weight duplication.
+
+4. Prototype the first practical workflow with the existing `DSV4` boundary.
+   - Prefer staged merged `DSV4` first; do not add in-memory or incremental KV return unless the staged path blocks viability.
+   - Run distributed prefill in the distributed session.
+   - Transfer or merge the coordinator-owned early-layer KV state into the final worker's full local decode session.
+   - Prefer the existing merged `DSV4` boundary first if it is the lowest-risk way to prove the workflow.
+   - Load the handoff state into a local decode session backed by the same full-resident final-worker engine.
+   - Continue local decode and emit diagnostics for missing full-decode residency, output-head absence, layout mismatch, stale worker state, or memory-budget failure.
+
+5. Run focused validation, not a new broad variance campaign.
+   - Re-run the local guardrails that protect payload/session behavior.
+   - Re-run the Phase 2-style handoff check on the DGX/Mac topology.
+   - After the implementation is complete, validate both `CUDA -> Metal` and `Metal -> CUDA` routes.
+   - Re-run a reduced Phase 3.5 sample only if the Phase 4 plumbing changes logits, payload layout, or backend mapping behavior.
+   - Record any change in official/local behavior as a caveat, but do not require full resumed-route equivalence before proving workflow viability.
+
+6. Make the Phase 5 decision.
+   - Choose whether Phase 5 should expose whole-payload handoff, an in-memory payload helper, or an explicit shard merge.
+   - Record rejected alternatives and the measured reason.
+   - Do not update README or finalize CLI names until this decision is made.
 
 Exit gate:
 
-- A final implementation path exists that does not require loading/unloading the whole engine at handoff time and does not require two full model-weight copies in memory.
+- A practical handoff path can run distributed prefill, stage/load the merged payload, and continue local-only decode without closing and reopening the model at handoff time.
+- The preferred path uses one full-resident final-worker engine and does not hold two full model-weight copies in memory.
+- If the preferred path fails, the smallest acceptable temporary compromise is explicitly recorded with measured memory/runtime costs.
 - The chosen strategy is captured in `artifacts/issue-304/engine-residency.md` and `artifacts/issue-304/decision-log.md`.
+- The runbook contains one known-good Phase 4 command sequence and one memory-measurement procedure.
+- Completed implementation validation records both `CUDA -> Metal` and `Metal -> CUDA` route results in the existing issue artifacts.
 - If no viable strategy is found, stop before advancing and record the smallest code experiment needed to test dynamic or expanded residency.
 
 ### Phase 5: Choose API shape and implement the handoff path
@@ -1000,6 +1056,6 @@ Work items:
 - Keep this plan current as decisions are made.
 - If an unknown unknown changes the direction, add the new fact, the decision it invalidated, and the replacement hypothesis before continuing implementation.
 
-### Initial recommended path
+### Current recommended path
 
-Start with Phase 1 and Phase 2 using the existing `DSV4` payload path. This gives the fastest correctness signal with the least new code. Only after that should the work move into API design or pipelined KV return.
+Start Phase 4 with the full-resident-final-worker probe and keep the merged `DSV4` payload as the first handoff boundary. Do not move into user-facing API shape, pipelined KV return, or topology decoupling until the final-worker residency workflow is either proven viable or rejected with measured memory/runtime evidence.
