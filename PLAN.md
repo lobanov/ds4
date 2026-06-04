@@ -38,15 +38,16 @@ Source: <https://github.com/antirez/ds4/issues/304> and its comment thread.
 
 ## Remaining unknowns
 
-- Why `CUDA -> Metal` payloads restore the handoff logits exactly but still diverge after the first identical resumed decode step.
-- Whether that resumed-decode drift lives in backend-specific KV interpretation, backend-specific decode-state evolution, or a smaller payload field that only matters after the next token is evaluated.
+- Whether `CUDA -> Metal` resumed-decode drift is only normal engine/backend implementation variance, or whether it indicates payload/handoff state that would make distributed-prefill-to-local differ from fully local inference on the same decode engine.
+- Whether distributed prefill -> merged `DSV4` -> local decode matches the official-vector and local-golden correctness surfaces already used for fully local inference.
 - How to let the coordinator participate in distributed prefill while still keeping a full local decode-capable engine resident without exhausting Metal memory budget.
 - Whether the eventual handoff path should remain a merged `DSV4` checkpoint, move to an in-memory merged payload, or skip the merged payload entirely by streaming worker-owned KV shards back during prefill.
 
 ## Implementation direction
 
 - Keep the merged `DSV4` handoff path as the current correctness boundary. Phase 2 validated that it can gather distributed shards, stage a payload, load locally, and recover the exact handoff checkpoint.
-- Treat mixed-backend resumed-decode drift as the immediate blocker. Fix that before spending more time on transport redesign or pipelined KV return.
+- Treat mixed-backend resumed-decode drift as a classification problem, not automatically a bug. Isolate it enough to decide whether it is expected engine variance or a handoff-specific defect.
+- Require the distributed-prefill-to-local path to match fully local inference on the same decode engine against `tests/test-vectors/official` / `official.vec` and the local golden-vector surface before productizing the workflow.
 - Treat coordinator engine residency as a separate productization problem. Phase 2 proved the feature concept by releasing the distributed engine before local decode; the next residency work is about making that handoff practical in one user-visible workflow.
 - Defer chunk-by-chunk KV return until after the resumed-decode correctness and residency story are both understood. At this point it is an optimization and UX improvement, not the first proof point.
 
@@ -190,9 +191,10 @@ Source: <https://github.com/antirez/ds4/issues/304> and its comment thread.
 
 ## Most Relevant Files To Start In
 
-- `ds4_metal.m` and `ds4_cuda.cu`: Phase 2 points first at backend-specific resumed decode behavior, so these are now the highest-priority files.
+- `tests/ds4_test.c` and `tests/test-vectors/official.vec`: Phase 3 should reuse the official-vector and local-golden correctness gates as the primary acceptance surface.
+- `tests/issue304_phase1_matrix.c` and `tests/issue304_phase2_handoff.c`: keep using these focused harnesses to isolate and classify cross-engine drift.
 - `ds4.c`: inspect payload restore, decode entry, and session state setup around `ds4_session_load_payload()` and resumed `ds4_session_eval()`.
-- `tests/issue304_phase1_matrix.c` and `tests/issue304_phase2_handoff.c`: keep using these focused harnesses to narrow the first post-load divergence.
+- `ds4_metal.m` and `ds4_cuda.cu`: inspect only if evidence points to backend-specific decode behavior that needs classification or documentation.
 - `ds4_distributed.c`: return here after backend resume correctness is understood, or when implementing the later residency/transport optimization phases.
 
 ## Research And Implementation Plan
@@ -398,7 +400,7 @@ Work items:
 - Load the merged `DSV4` payload into that local session.
 - Decode locally for at least 1-3 tokens.
 - Compare against continuing distributed decode from the original distributed session and single-node local prefill/decode when feasible.
-- Treat this two-session shape as a correctness experiment unless `artifacts/issue-304/engine-residency.md` proves memory is acceptable.
+- Treat this two-session shape as a correctness experiment. Phase 4 owns the decision about whether engine residency can make it practical for user-facing use.
 
 Key questions:
 
@@ -410,48 +412,57 @@ Key questions:
 Exit gate:
 
 - The existing payload path can hand off distributed prefill state into a local-only decode session, or a specific blocker is captured with enough detail to choose the next implementation step.
-- If the path works only by running two engines or reloading an engine, it must not proceed directly to user-facing implementation; Phase 3 must choose a viable layer-residency design first.
+- If the path works only by running two engines or reloading an engine, it must not proceed directly to user-facing implementation; Phase 4 must choose a viable layer-residency design first.
 
-### Phase 3: Mixed-backend resumed decode root cause
+### Phase 3: Handoff equivalence and drift isolation
 
 Goal:
 
-- Why: Phase 2 proved the merged handoff checkpoint is exact, but it also reproduced mixed-backend resumed-decode drift immediately after the first identical forced token. The next phase needs to turn that broad symptom into a concrete backend or restore-path bug.
-- What: isolate why `CUDA -> Metal` diverges after the first resumed eval step even when the restored logits are identical and the sampled greedy path can stay stable.
+- Why: Phase 2 proved the merged handoff checkpoint is exact and local greedy decode can match distributed reference, but forced-token logits can drift after resumed eval. That drift is acceptable if it is just normal backend implementation variance; it is not acceptable if distributed prefill -> local decode differs from fully local inference on the same decode engine or fails the existing official-vector/local-golden correctness gates.
+- What: isolate the drift class and prove that distributed-prefill-to-local decode matches fully local decode on the same backend for `tests/test-vectors/official` / `official.vec` and local golden-vector style checks.
 
 Expected artifacts:
 
-- Update `artifacts/issue-304/logit-comparisons.md` with finer-grained forced-token traces around the first divergent resumed step.
-- Update `artifacts/issue-304/failure-cases.md` with every narrowed reproduction of post-load decode drift that remains rejected.
-- Update `artifacts/issue-304/research-notes.md` with the first divergent state that can be localized reliably.
-- Update `artifacts/issue-304/decision-log.md` if the evidence shows the bug is payload-ABI, backend-runtime, or decode-graph specific.
+- Update `artifacts/issue-304/logit-comparisons.md` with official-vector comparisons for fully local inference and distributed-prefill-to-local decode on the same decode backend.
+- Update `artifacts/issue-304/compatibility-matrix.md` with a Phase 3 row classifying drift as accepted engine variance or rejected handoff-specific mismatch.
+- Update `artifacts/issue-304/failure-cases.md` with every drift case that remains rejected because it changes local-backend behavior or fails official/local-golden gates.
+- Update `artifacts/issue-304/research-notes.md` with the classification result and any remaining caveat about cross-engine numeric differences.
+- Update `artifacts/issue-304/decision-log.md` if the evidence shows the drift is acceptable engine variance, payload-ABI related, backend-runtime related, or decode-graph specific.
 
 Code touchpoints:
 
+- `tests/ds4_test.c`
+  - Existing `--logprob-vectors` and `--local-golden-vectors` checks define the local correctness surface to reuse or mirror.
+- `tests/test-vectors/official.vec` and `tests/test-vectors/official/*.official.json`
+  - Official API top-logprob vectors are the reference surface; the hosted API exposes top-logprobs rather than full logits.
 - `tests/issue304_phase1_matrix.c`
-  - Extend the focused resume helper so it can compare finer-grained post-load state, not just logits and greedy tokens.
+  - Extend the focused resume helper only as needed to classify whether cross-engine drift changes accepted top-token/top-logprob behavior.
 - `tests/issue304_phase2_handoff.c`
-  - Keep the distributed-prefill harness aligned with the smaller Phase 1 probes so the same divergence can be reproduced in both contexts.
+  - Add or reuse a mode that can run the official-vector prompts through distributed prefill -> merged payload -> local decode and compare against fully local decode on the same backend.
 - `ds4.c`
-  - `ds4_session_load_payload()`: restore path to inspect for any field that is sufficient for step-0 logits but insufficient for step-1 decode evolution.
-  - `ds4_session_eval()` and local decode entry path: first resumed decode step after load.
+  - Inspect `ds4_session_load_payload()` and resumed `ds4_session_eval()` only if distributed handoff differs from fully local inference on the same backend.
 - `ds4_gpu.h`
-  - Shared tensor read/write and synchronization boundary if the first divergent state turns out to be visible only below the session payload layer.
+  - Shared tensor read/write and synchronization boundary if same-backend handoff mismatch appears below the session payload layer.
 - `ds4_metal.m` and `ds4_cuda.cu`
-  - Backend-specific decode-state assumptions, dtype conversion, raw/compressed KV interpretation, and graph state setup.
+  - Backend-specific decode-state assumptions, dtype conversion, raw/compressed KV interpretation, and graph state setup; cross-engine differences here are acceptable if they do not invalidate the same-backend handoff checks.
 
 Work items:
 
-- Extend `tests/issue304_phase1_matrix.c` so it can dump or compare finer-grained post-load state around the first resumed decode step.
-- Compare `CUDA -> Metal` and `Metal -> Metal` immediately after one identical forced eval token, looking for the first tensor or cache-state difference that appears before logits drift becomes visible.
-- Inspect `ds4_session_load_payload()` and resumed `ds4_session_eval()` in `ds4.c` for any state that is restored correctly enough for step-0 logits but not for step-1 decode evolution.
-- Inspect `ds4_metal.m` and `ds4_cuda.cu` for backend-specific assumptions around raw KV rows, compressed KV rows, cache frontiers, dtype conversion, or decode-only graph state that may not be fully represented by the current payload ABI.
+- Define the Phase 3 acceptance envelope from existing local checks:
+  - `./ds4_test --logprob-vectors`
+  - `./ds4_test --local-golden-vectors`
+  - the existing skipped `long_memory_archive` official-vector caveat
+- Add a focused distributed-handoff vector check that runs the official-vector prompts through distributed prefill, stages merged `DSV4`, loads into local decode, and compares against fully local inference on the same decode backend.
+- Compare distributed-prefill-to-local output to the official top-logprob vectors using the same selected-token and top-logprob tolerance rules as `--logprob-vectors`.
+- Compare distributed-prefill-to-local output to fully local output for the same prompt/frontier before interpreting any cross-engine drift as a defect.
+- Keep the forced-token trace probe, but use it to classify and bound backend variance rather than requiring bit-exact agreement across engines.
+- Inspect `ds4_session_load_payload()`, `ds4_session_eval()`, and backend decode paths only if the same-backend fully-local vs distributed-handoff comparison fails or official/local-golden gates regress.
 
 Exit gate:
 
-- Either:
-  - `CUDA -> Metal` forced-token drift is eliminated for the existing Phase 1 and Phase 2 probes, or
-  - the first divergent restored state is localized well enough that the remaining work is a specific backend/runtime bug rather than a general handoff uncertainty.
+- Distributed prefill -> local decode matches fully local inference on the same decode backend for the official-vector prompt set, within the existing official/local-golden acceptance envelope.
+- Any remaining `CUDA -> Metal` forced-token drift is classified as accepted engine/backend variance, or is localized as a specific handoff defect with a reproduction.
+- If official-vector or local-golden checks fail only for distributed handoff, stop before Phase 4 and fix that handoff-specific mismatch.
 
 ### Phase 4: Coordinator residency and workflow viability
 
@@ -646,7 +657,7 @@ Work items:
 
 Exit gate:
 
-- Incremental KV return reduces measured handoff latency without changing resumed logits/tokens beyond the accepted drift envelope.
+- Incremental KV return reduces measured handoff latency without changing resumed logits/tokens beyond the Phase 3 official/local acceptance envelope.
 
 ### Phase 7: Failure handling and recovery
 
@@ -702,7 +713,7 @@ Goal:
 - Why: practical deployments may want GPU-rich machines to do prefill and memory-rich machines to do generation, so control-plane role, prefill layer ownership, output-head/logit ownership, KV return destination, and decode owner should not remain permanently coupled.
 - What: document the current coordinator-first topology constraints, determine whether topology decoupling is required for the first production implementation or can be deferred, and outline a route/protocol direction if it must be solved.
 
-This is intentionally after Phase 7 because the immediate feature can be proven with the current route model. Do not let this phase block the first correct local-generation handoff unless the chosen Phase 3 residency design makes topology decoupling unavoidable.
+This is intentionally after Phase 7 because the immediate feature can be proven with the current route model. Do not let this phase block the first correct local-generation handoff unless the chosen Phase 4 residency design makes topology decoupling unavoidable.
 
 Expected artifacts:
 

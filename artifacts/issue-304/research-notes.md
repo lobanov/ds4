@@ -9,8 +9,8 @@ This file tracks phase-wise findings for the staged investigation in `PLAN.md`.
 | Phase 0 | Complete | The DGX/Mac baseline ran end-to-end, and the earlier merged-`DSV4` stage failure was narrowed to a worker/coordinator `ctx` mismatch rather than a backend or route-format incompatibility. |
 | Phase 1 | Complete | The payload resume matrix is now filled: `Metal -> Metal`, `CUDA -> CUDA`, and `Metal -> CUDA` passed, while `CUDA -> Metal` preserved restore-point logits but diverged during subsequent greedy decode. |
 | Phase 2 | Complete | Distributed prefill -> merged `DSV4` -> fresh local Metal load now validates end-to-end on the DGX/Mac route. Handoff logits and 16-token greedy continuation matched, but forced-token logits still diverged at the first post-load eval step. |
-| Phase 3 | Not started | Engine residency and same-process local decode feasibility are still open. |
-| Later optimization phases | Not started | No work yet on pipelined KV return or user-facing workflow. |
+| Phase 3 | Not started | Re-scoped to prove distributed-prefill-to-local decode matches fully local inference on the same decode engine against the official-vector/local-golden correctness surfaces, while classifying any remaining cross-engine forced-logit drift. |
+| Later phases | Not started | Engine residency, user-facing workflow, and pipelined KV return remain open after Phase 3 classification. |
 
 ## Phase 0: Establish distributed baseline
 
@@ -160,7 +160,7 @@ The original broad conclusion was too strong. The mixed Metal/CUDA route does su
 The goal is distributed prefill with local generation after handoff. Phase 1 reduces the problem to the real remaining unknowns:
 
 - distributed gather/load correctness,
-- the root cause of `CUDA -> Metal` post-restore decode divergence,
+- classification of `CUDA -> Metal` post-restore decode divergence against same-backend and official/local baselines,
 - and engine residency / local decode feasibility.
 
 That means Phase 2 can use merged `DSV4` handoff as the first end-to-end correctness experiment with much lower ambiguity.
@@ -212,7 +212,7 @@ The intended correctness check was:
    - The helper compared `16` greedy tokens.
    - Result: exact match for all `16` steps.
 
-4. The remaining defect is still post-load decode evolution, not stage/load correctness.
+4. The remaining observed drift is still post-load decode evolution, not stage/load correctness.
    - Forced-token trace still diverged at the first identical post-load eval step:
      - first bad step: `1`
      - forced token before bad step: `5`
@@ -229,26 +229,30 @@ The intended correctness check was:
 
 ### Implication
 
-Phase 2 is no longer blocked on distributed gather, payload staging, or initial local resume. The feature concept is viable through the existing merged `DSV4` path. The remaining technical problem is the already-familiar mixed-backend post-load decode drift, now reproduced after a real distributed prefill rather than only the smaller Phase 1 payload matrix case.
+Phase 2 is no longer blocked on distributed gather, payload staging, or initial local resume. The feature concept is viable through the existing merged `DSV4` path. The remaining question is not whether every backend can produce bit-identical logits after resume; engine implementations can legitimately differ. The next question is whether distributed prefill followed by local decode matches fully local inference on the same decode backend and stays inside the existing official-vector/local-golden acceptance envelope.
 
 ### Open question carried forward
 
 - `CUDA -> Metal` restores the immediate logits exactly, but diverges after the first identical forced post-load eval token.
 - This remains unresolved and should be treated as a later investigation into post-load decode evolution, not as a blocker for considering Phases 0 and 1 complete.
 
-## Phase 3: Engine layer residency and local decode feasibility
+## Phase 3: Handoff equivalence and drift isolation
 
 ### Current status
 
-Not run yet.
+Not started.
 
-### What Phase 1 suggests
+### Revised goal
 
-If Phase 2 succeeds only by creating a second full local engine, the remaining work is probably not payload correctness. It is likely a residency and execution-shape problem.
+- Use `tests/test-vectors/official.vec` and the existing local golden-vector checks as the correctness reference.
+- Compare distributed-prefill-to-local decode against fully local inference on the same decode backend before treating cross-engine drift as a defect.
+- Keep forced-token traces as diagnostic evidence, but do not require bit-exact cross-engine logits if selected tokens and official/local-golden gates remain stable.
 
-### Main decision to resolve later
+### Acceptance direction
 
-Whether the coordinator can keep full local decode weights resident while still participating in distributed prefill using only its owned layer slice.
+- Distributed prefill -> merged `DSV4` -> local decode should match fully local inference on the same decode backend for the official-vector prompt set.
+- The same path should satisfy the existing official top-logprob tolerance and local-golden drift thresholds, allowing the already documented `long_memory_archive` API/official graph caveat.
+- Remaining `CUDA -> Metal` forced-logit drift should be classified as accepted backend variance only after the same-backend distributed handoff checks pass.
 
 ## Pointers
 

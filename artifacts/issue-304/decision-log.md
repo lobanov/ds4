@@ -63,7 +63,7 @@ Why this changes the work:
 
 Follow-up:
 
-- Run the helper on the DGX/Mac topology and record the resulting metrics before deciding whether Phase 3 needs engine-residency work only or whether Phase 2 still hides a Metal/CUDA payload-resume defect.
+- Run the helper on the DGX/Mac topology and record the resulting metrics before deciding whether the remaining work is same-backend handoff validation, acceptable backend-variance classification, or a specific payload-resume defect.
 
 ## 2026-06-03: Phase 2 confirms exact handoff but not exact resumed decode evolution
 
@@ -71,7 +71,7 @@ Decision:
 
 - Treat Phase 2 as complete.
 - Do not spend more Phase 2 effort on distributed KV gather or merged payload staging.
-- Carry the remaining defect forward as a mixed-backend resumed-decode evolution problem.
+- Carry the remaining observed drift forward as a mixed-backend resumed-decode evolution classification problem.
 
 Evidence:
 
@@ -100,4 +100,27 @@ Why this changes the next steps:
 
 Follow-up:
 
-- Phase 3 and follow-on debugging should focus on backend-specific post-load decode-state evolution, not on redesigning the merged `DSV4` handoff boundary.
+- Phase 3 should focus on classifying backend-specific post-load decode drift, not necessarily eliminating it. Cross-engine drift is acceptable if distributed prefill -> local decode matches fully local inference on the same decode backend and passes the official-vector/local-golden correctness gates.
+
+## 2026-06-04: Re-scope Phase 3 around handoff parity, not bit-exact cross-engine logits
+
+Decision:
+
+- Phase 3 success does not require eliminating `CUDA -> Metal` forced-logit drift.
+- Treat cross-engine drift as acceptable engine variance if it is isolated from the handoff path.
+- Require distributed prefill -> merged `DSV4` -> local decode to match fully local inference on the same decode engine against:
+  - `tests/test-vectors/official.vec`
+  - `./ds4_test --logprob-vectors`
+  - `./ds4_test --local-golden-vectors`
+
+Evidence:
+
+- Phase 2 handoff logits matched exactly and 16-token greedy continuation matched exactly.
+- The observed drift appeared only in full-logit forced comparison after resumed eval began.
+- Existing test-vector infrastructure already treats the official API as a top-logprob reference rather than a bit-exact full-logit oracle.
+- Local golden vectors already exist to catch substantial local backend drift while tolerating implementation-level numeric differences.
+
+Why this changes the next steps:
+
+- The next test should compare distributed-prefill-to-local decode against fully local decode on the same backend before assigning blame to CUDA/Metal engine differences.
+- If the same-backend comparison and official/local gates pass, Phase 3 can classify the forced-logit drift as acceptable backend variance and move on to residency/workflow planning.

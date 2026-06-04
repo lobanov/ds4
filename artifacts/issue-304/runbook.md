@@ -142,6 +142,22 @@ ssh dgx-direct 'cd ~/ds4 && ./tests/issue304_phase1_matrix --mode load-check --m
 make test
 ```
 
+### Official/local vector checks
+
+Strict local official top-logprob check:
+
+```sh
+./ds4_test --logprob-vectors
+```
+
+Local golden-vector drift check:
+
+```sh
+./ds4_test --local-golden-vectors
+```
+
+Phase 3 should use these as the reference envelope for distributed-prefill-to-local decode. The hosted official API exposes top-logprobs, not full logits, so official-vector comparison is about selected-token and top-logprob agreement rather than bit-exact logit equality.
+
 ### Phase 2 DGX/Mac handoff validation
 
 Start the DGX worker with the same `ctx` as the coordinator:
@@ -193,6 +209,19 @@ Observed authoritative Phase 2 result:
   - top1 remained `420`
   - `rms=0.0802887231`
   - `max_abs=0.507860184`
+
+### Phase 3 planned validation
+
+Phase 3 should run the official-vector prompt set through both:
+
+- fully local inference on the decode backend
+- distributed prefill -> merged `DSV4` -> local decode on the same backend
+
+Acceptance:
+
+- distributed-handoff output matches fully local output on the same decode backend within the same top-token/top-logprob behavior used by `--logprob-vectors`
+- distributed-handoff output remains inside the local-golden drift envelope where full local logits are available
+- any remaining `CUDA -> Metal` forced-logit drift is classified separately as backend variance unless it causes same-backend handoff parity or official/local-vector checks to fail
 
 ## Runtime knobs used by `--local-payload-resume`
 

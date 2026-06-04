@@ -580,6 +580,7 @@ Validation commands:
 - `./ds4_test --metal-short-prefill`
 - `./ds4_test --metal-kernels`
 - `./ds4_test --metal-tensor-equivalence`
+- `./ds4_test --logprob-vectors`
 - `./ds4_test --local-golden-vectors`
 - `./ds4_test --long-context`
 
@@ -596,6 +597,12 @@ Issue #304 validation additions:
   - save merged `DSV4`,
   - load into non-distributed full local session,
   - compare logits and greedy tokens.
+- Add Phase 3 official/local parity checks:
+  - run official-vector prompts through fully local inference on the decode backend,
+  - run the same prompts through distributed prefill -> merged `DSV4` -> local decode on that backend,
+  - compare distributed handoff against fully local before treating cross-engine drift as a defect,
+  - compare selected tokens/top-logprobs against `tests/test-vectors/official.vec`,
+  - compare local full-logit behavior against `tests/test-vectors/local-golden.vec` where available.
 - Add cross-backend manual smoke where hardware allows:
   - CUDA worker/shard -> Metal local load/decode,
   - Metal shard -> CUDA local load/decode.
@@ -605,6 +612,7 @@ Issue #304 validation additions:
   - max absolute logit drift,
   - RMS logit drift,
   - first 16 greedy tokens.
+- Treat bit-exact cross-engine logits as diagnostic evidence, not a Phase 3 requirement, unless they expose a same-backend handoff or official/local-vector failure.
 
 ## User-Facing Workflow And Documentation
 
@@ -676,6 +684,7 @@ Useful test binary modes:
 - `./ds4_test --metal-short-prefill`
 - `./ds4_test --metal-kernels`
 - `./ds4_test --metal-tensor-equivalence`
+- `./ds4_test --logprob-vectors`
 - `./ds4_test --local-golden-vectors`
 - `./ds4_test --long-context`
 
@@ -684,6 +693,10 @@ Relevant test files:
 - `tests/ds4_test.c`
   - Local/Metal/session regression surface.
   - Best place for focused payload save/load and layer-shard tests.
+- `tests/test-vectors/official.vec`
+  - Official API top-logprob vector fixture used as the Phase 3 selected-token/top-logprob acceptance surface.
+- `tests/test-vectors/local-golden.vec`
+  - Local top-k/logit fixture used to catch substantial local backend drift.
 - `tests/cuda_long_context_smoke.c`
   - CUDA-specific kernel smoke surface.
 - `tests/long_context_story_prompt.txt`
@@ -736,6 +749,7 @@ Minimal correctness proof:
   - `ds4_session_load_payload()`.
 - Decode locally for 1-3 tokens.
 - Compare against current distributed decode and single-node local decode where feasible.
+- For Phase 3, run the official-vector prompt set through the same sequence and require same-backend distributed handoff parity with fully local inference before classifying cross-engine forced-logit drift as acceptable backend variance.
 
 Known blockers to analyze before user-facing implementation:
 
@@ -763,7 +777,7 @@ Failure cases to preserve:
 - Missing output head when logits are requested.
 - Worker reconnect before shard fetch.
 - Stale worker session after route rebuild.
-- Cross-backend payload load drift outside accepted tolerance.
+- Cross-backend payload load drift that changes same-backend handoff behavior or fails official/local-vector tolerance.
 
 ## Search Tips
 

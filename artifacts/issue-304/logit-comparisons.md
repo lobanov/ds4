@@ -115,7 +115,23 @@ The new `tests/issue304_phase2_handoff` helper compared:
 
 - Phase 2 removes staging and initial restore correctness as leading suspects.
 - The mixed-backend drift still shows up only after resumed decode evolution begins.
-- The fact that greedy continuation matched for 16 tokens while forced-trace drift still appeared means the drift is currently too small to perturb top-token choice in this sampled window, but it is still a real backend-resume mismatch.
+- The fact that greedy continuation matched for 16 tokens while forced-trace drift still appeared means the drift is currently too small to perturb top-token choice in this sampled window.
+- Phase 3 should not require bit-exact cross-engine logits. It should decide whether the distributed-prefill-to-local path matches fully local inference on the same decode backend and satisfies the existing official-vector/local-golden correctness envelope.
+
+## Phase 3 planned official/local parity
+
+The Phase 3 logit comparison target is:
+
+1. fully local inference on the decode backend
+2. distributed prefill + merged `DSV4` + local decode on that same backend
+3. official API top-logprob vectors in `tests/test-vectors/official.vec`
+4. local golden-vector drift thresholds where full local logits are available
+
+Acceptance should use the existing local correctness semantics:
+
+- `./ds4_test --logprob-vectors` for official selected-token and top-logprob agreement, allowing the existing skipped `long_memory_archive` caveat.
+- `./ds4_test --local-golden-vectors` for local top-k/logit drift regression.
+- A new or extended issue-304 harness should compare distributed-handoff outputs against fully local outputs before classifying any cross-engine forced-logit drift as a defect.
 
 ## Baseline surrounding checks
 

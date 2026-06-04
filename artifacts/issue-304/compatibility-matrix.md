@@ -20,7 +20,13 @@
 
 | Date | Commit | Model | Route | Handoff path | Result | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
-| 2026-06-03 | local `116e35881679c99cbe33454f95d2b4c96448761b`, DGX worker rebuilt from synced `477c0e82e2699b35a65fd0a1ed6fe66b41087dfe` tree with local source updates | `DeepSeek-V4-Flash-IQ2XXS-w2Q2K-AProjQ8-SExpQ8-OutQ8-chat-v2-imatrix.gguf` | `0:21 -> 22:output` | distributed prefill on Metal/CUDA route -> merged `DSV4` stage on Metal -> fresh local Metal load -> local decode comparison | Mixed result | `tests/issue304_phase2_handoff`: handoff logits matched exactly and 16-token greedy continuation matched exactly; forced-token trace still diverged at step `1` after the first identical post-load eval token (`5`), with `rms=0.0802887231`, `max_abs=0.507860184`. |
+| 2026-06-03 | local `116e35881679c99cbe33454f95d2b4c96448761b`, DGX worker rebuilt from synced `477c0e82e2699b35a65fd0a1ed6fe66b41087dfe` tree with local source updates | `DeepSeek-V4-Flash-IQ2XXS-w2Q2K-AProjQ8-SExpQ8-OutQ8-chat-v2-imatrix.gguf` | `0:21 -> 22:output` | distributed prefill on Metal/CUDA route -> merged `DSV4` stage on Metal -> fresh local Metal load -> local decode comparison | Pass with drift caveat | `tests/issue304_phase2_handoff`: handoff logits matched exactly and 16-token greedy continuation matched exactly; forced-token trace diverged at step `1` after the first identical post-load eval token (`5`), with `rms=0.0802887231`, `max_abs=0.507860184`. Phase 3 must classify this against fully local and official-vector baselines before treating it as a defect. |
+
+## Phase 3: Official/local baseline parity
+
+| Date | Commit | Model | Route | Validation path | Result | Notes |
+| --- | --- | --- | --- | --- | --- | --- |
+| Pending | Pending | `DeepSeek-V4-Flash-IQ2XXS-w2Q2K-AProjQ8-SExpQ8-OutQ8-chat-v2-imatrix.gguf` | `0:21 -> 22:output` | official-vector prompts -> distributed prefill -> merged `DSV4` -> local decode, compared against fully local inference and `tests/test-vectors/official.vec` | Not run | Phase 3 should classify whether the Phase 2 forced-logit drift is acceptable engine variance by proving same-backend distributed handoff parity with fully local inference and existing official/local-golden gates. |
 
 ## Representative `DSVL` shard smoke
 
@@ -36,4 +42,4 @@
 - Every planned Phase 1 backend pair has now been exercised at least once.
 - The only failing cell is `CUDA -> Metal`, and the current failure is narrower than a restore-point logit mismatch: the loaded Metal session starts from identical logits but diverges during subsequent greedy decode.
 - Forced-token follow-up on the same failing cell shows that logits already diverge after the first identical post-load eval token, so the failure is not explained by token-selection branching alone.
-- Phase 2 now confirms the same pattern after real distributed prefill: exact handoff checkpoint, matching greedy continuation over the sampled window, but first-step forced-trace drift on resumed Metal decode.
+- Phase 2 now confirms exact handoff checkpoint and matching greedy continuation over the sampled window. The first-step forced-trace drift on resumed Metal decode is a Phase 3 classification item, not automatically a failing compatibility result.
