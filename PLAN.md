@@ -640,6 +640,12 @@ Goal:
 - What: choose and implement a viable residency-plus-plumbing design that lets the final worker participate in distributed prefill over its later-layer route slice, then continue local decode as the full-resident generation node through a repeatable operator-facing workflow.
 - Scope: this phase is not another variance-forensics phase. Phase 3 and Phase 3.5 variance remains an active caveat, but Phase 4 should answer whether a practical, benchmarkable handoff workflow can exist with acceptable residency and operator complexity.
 
+Closeout note:
+
+- Phase 4 is now complete.
+- The practical answer is yes: a final-worker full-resident handoff workflow exists, works in both backend directions, and is benchmarkable.
+- Ongoing caveat: strict `CUDA -> Metal` parity checks should use a fresh Metal worker process because reused-worker reruns can still produce Phase-3.5-class near-top1 variance.
+
 Expected artifacts:
 
 - Update `artifacts/issue-304/engine-residency.md` with the current layer-loading model, observed memory behavior, and candidate designs.
@@ -780,14 +786,19 @@ Code touchpoints:
 
 Likely options:
 
+- Same-session final-worker handoff:
+  - keep the final worker's later-layer KV resident in its existing distributed worker session,
+  - transfer only the coordinator-owned earlier-layer shard into that same worker session,
+  - and continue local decode in-process on the final worker.
+  - This is now the preferred Phase 5 implementation direction because Phase 4 proved it viable.
 - Whole-payload handoff:
-  - expose a helper that saves/stages a distributed session payload and loads it into a provided local session.
+  - keep merged `DSV4` staging as a correctness harness, debug surface, and fallback diagnostic.
+  - Do not treat it as the preferred user-facing implementation unless the same-session path proves too brittle.
 - In-memory payload handoff:
-  - extend distributed sessions so `ds4_session_save_snapshot()` or a new memory-backed payload helper can gather remote shards.
-  - This avoids temp files, but requires solving the current distributed snapshot restriction.
+  - only pursue if the same logical whole-payload path is still needed after Phase 5 and temp-file staging is the only material problem.
 - Explicit shard merge:
-  - expose a multi-`DSVL` merge path that reconstructs a local session from layer shards.
-  - This is more invasive and should only be chosen if whole `DSV4` handoff proves too slow or too rigid.
+  - treat this as the practical optimization path around the coordinator-owned missing shard, not as a requirement to reconstruct the full session from scratch.
+  - Prefer it only in the narrow form already validated by Phase 4: worker keeps its own later-layer KV in place while loading the coordinator's earlier-layer shard.
 
 Decision criteria:
 
@@ -797,16 +808,17 @@ Decision criteria:
 - Ability to support cross-backend handoff.
 - Measured handoff overhead relative to prefill speedup.
 - Amount of new protocol surface in `ds4_distributed.c`.
+- Fit with the validated same-session final-worker continuation shape.
 
 Work items:
 
-- Decide whether the first implementation should be whole-payload, in-memory payload, or explicit shard merge.
+- Decide the smallest API shape for the already-chosen same-session final-worker continuation path.
 - Record that decision and evidence before adding user-facing wiring.
 - Add the minimal session-level handoff mechanism selected from that decision.
-- Keep the distributed prefill session and local decode session distinct unless evidence shows same-session mutation is safer.
-- Ensure the local session receives full token timeline, logits, raw SWA KV rows in logical order, compressed KV rows, compressor frontier state, and indexer state.
+- Prefer same-session worker continuation; keep whole-payload `DSV4` as a debug/fallback path rather than the primary implementation.
+- Ensure the final worker session receives full token timeline, logits, raw SWA KV rows in logical order, compressed KV rows, compressor frontier state, and indexer state.
 - Add CLI/server wiring only after the core session path works.
-- Document the operator requirement for full local decode weights if the coordinator's distributed `--layers` setting does not load them.
+- Document the operator requirement for full decode weights on the final worker and the current validation rule for strict `CUDA -> Metal` parity checks: restart the Metal worker first.
 
 Exit gate:
 
@@ -817,7 +829,7 @@ Exit gate:
 Goal:
 
 - Why: once correctness is established, the remaining risk is that post-prefill shard fetch/merge/load latency erases the practical benefit of faster distributed prefill.
-- What: measure handoff overhead, then add incremental or pipelined KV return only if it materially reduces latency while preserving token/hash ordering, backend synchronization, and resume equivalence.
+- What: measure the residual cost of returning the coordinator-owned missing KV shard to the final worker, then add incremental or pipelined KV return only if it materially reduces latency while preserving token/hash ordering, backend synchronization, and resume equivalence.
 
 Expected artifacts:
 
@@ -857,11 +869,16 @@ Other entry points:
 Work items:
 
 - Extend `ds4_distributed.c` only after Phase 5 shows payload save/load overhead is material.
-- Investigate returning worker-owned KV alongside prefill chunk boundaries.
+- Investigate returning only the coordinator-owned missing KV alongside prefill chunk boundaries.
 - Define when a chunk's KV is safe to export relative to in-flight kernels and worker forwarding.
 - Preserve ratio-4 compressor/indexer frontier state; do not return only completed compressed rows.
 - Reuse existing snapshot chunk framing where possible: `DS4_DIST_MSG_SNAPSHOT_SAVE_REQ`, `DS4_DIST_MSG_SNAPSHOT_BEGIN`, `DS4_DIST_MSG_SNAPSHOT_CHUNK`, and `DS4_DIST_MSG_SNAPSHOT_DONE`.
 - Add new protocol messages only if existing request/response snapshot framing cannot express incremental return cleanly.
+
+Scope note:
+
+- Phase 6 is no longer about optimizing a whole-session `DSV4` handoff first.
+- It is specifically about shrinking or hiding the cost of moving the coordinator-owned earlier-layer KV into the already-full-resident final worker session.
 
 Exit gate:
 
@@ -914,108 +931,7 @@ Exit gate:
 
 - Known stale/missing/mismatched shard cases fail closed with useful diagnostics.
 
-### Phase 8: Topology decoupling follow-on
-
-Goal:
-
-- Why: practical deployments may want GPU-rich machines to do prefill and memory-rich machines to do generation, so control-plane role, prefill layer ownership, output-head/logit ownership, KV return destination, and decode owner should not remain permanently coupled.
-- What: document the current coordinator-first topology constraints, determine whether topology decoupling is required for the first production implementation or can be deferred, and outline a route/protocol direction if it must be solved.
-
-This is intentionally after Phase 7 because the immediate feature can be proven with the current route model. Do not let this phase block the first correct local-generation handoff unless the chosen Phase 4 residency design makes topology decoupling unavoidable.
-
-Expected artifacts:
-
-- Update `artifacts/issue-304/topology-decoupling.md` with the current topology constraints, desired future topologies, and candidate protocol/API changes.
-- Update `artifacts/issue-304/decision-log.md` with whether topology decoupling is deferred, partially required, or required for the first production implementation.
-- Update `artifacts/issue-304/perf-breakdown.md` with measurements that motivate topology changes, especially GPU-prefill throughput versus memory-bandwidth-local decode throughput.
-- Update `artifacts/issue-304/runbook.md` with any topology experiments and command lines.
-- Update `artifacts/issue-304/research-notes.md` with topology-related findings and whether they affect the first implementation scope.
-
-Current constraints to capture:
-
-- The coordinator route must currently start at layer `0`.
-- The coordinator runs the early layer slice during distributed prefill.
-- Workers cover later contiguous slices.
-- `--layers N:output` makes the final worker own the output head and return logits.
-- `--layers N:42` keeps the output head/logit production on the coordinator, but the worker still owns the later transformer slice up to layer 42.
-- Coordinator/worker roles currently imply control-plane ownership, prompt/session ownership, route construction, and a position in the layer pipeline.
-
-Desired future topology properties:
-
-- Control-plane coordinator should be separable from prefill execution role.
-- The machine that performs local decode should be separable from the machine that runs the earliest prefill layers.
-- Prefill pipeline stages should be assignable to the machines with the best GPU throughput, not necessarily to the decode/sampling machine.
-- Decode/sampling should be placeable on the machine with the best memory bandwidth and enough resident full-model/KV state.
-- Output-head/logit production should be an explicit route property rather than an implicit consequence of `N:output` versus `N:42`.
-- KV ownership and KV return destination should be explicit enough to support "GPU prefill workers -> memory-rich local decoder" without forcing awkward layer ownership.
-
-Code touchpoints:
-
-- `ds4_distributed.c`
-  - `dist_coordinator_build_route_plan()`: currently enforces route coverage and coordinator-first execution.
-  - `dist_coordinator_ensure_route()`: route readiness and rebuild entry point.
-  - `dist_coordinator_prefill_prompt_pipelined()`: assumes coordinator local slice starts the pipeline.
-  - `dist_coordinator_eval_span()`: current span execution over the route.
-  - `dist_coordinator_send_remote_work_on_fd()`: work dispatch format and first remote hop.
-  - `dist_prefill_sender_main()` / `dist_prefill_result_reader_main()`: current pipelined prefill sender/result coupling.
-  - `dist_worker_process_work_payload()`: worker route validation, forwarding, output-logits handling, and final-result behavior.
-  - `dist_route_validate_blob()`, `dist_route_get_entry()`, and return-target helpers: current route representation and result destination constraints.
-  - Worker `HELLO` registration structs and parsing: advertised layer range and output-head ownership.
-- `ds4_distributed.h`
-  - Coordinator/worker API boundary if roles become more specific than control-plane coordinator and execution worker.
-- `ds4.h`
-  - `ds4_distributed_options.layers`: currently combines route layer ownership and local model loading concerns.
-  - Future option shapes if route ownership, output-head ownership, KV return destination, and decode destination are split.
-- `ds4_cli.c`
-  - CLI flag parsing and help text for future topology descriptions.
-- `README.md`
-  - Distributed docs currently describe `A -> B -> C -> back to A`, coordinator early layers, and final-worker output-head behavior.
-
-Other entry points:
-
-- Existing CLI forms:
-  - `--role coordinator --layers 0:M`
-  - `--role worker --layers N:output`
-  - `--role worker --layers N:42`
-- Future topology experiments:
-  - control coordinator with no prefill layers
-  - GPU-prefill node owns early layers while decode node owns full local generation state
-  - final prefill worker returns hidden state or KV to a separate decode destination
-  - output head computed on a non-final/non-prefill participant
-
-Candidate directions to analyze:
-
-- Split roles into control role and execution role:
-  - coordinator owns prompt/session/control plane but may not execute layer `0`.
-  - execution participants advertise layer ranges and capabilities independently.
-- Make the route graph explicit:
-  - represent ordered prefill stages, output/logit stage, return target, and KV return target separately.
-  - keep contiguous layer coverage initially, but do not hard-code coordinator-first.
-- Add an explicit decode owner:
-  - define which participant will receive merged KV and run local decode.
-  - this may be the coordinator, but should not be required forever.
-- Add explicit output-head ownership:
-  - replace `N:output`/`N:42` as the only mechanism with a capability/route field.
-  - preserve the current flags as shorthand for the simple topology.
-- Keep current topology for Phases 5 and 6:
-  - use this option if local-generation handoff works and topology flexibility can be deferred without compromising correctness.
-
-Work items:
-
-- Document exactly where the current route requires the coordinator to own layer `0`.
-- Document how output logits are requested and validated today.
-- Identify which protocol fields would need to change to support a route whose first execution stage is remote.
-- Identify whether hidden-state return, logits return, and KV return need separate destinations.
-- Determine whether topology changes are necessary for the first production implementation or should be split into a later issue.
-- Preserve compatibility with existing `--layers 0:M` / `N:output` workflows as shorthand if new topology controls are added.
-
-Exit gate:
-
-- The follow-on topology problem is documented with a concrete design direction or explicitly deferred.
-- If deferred, the plan records why the current coordinator-first topology is acceptable for the first local-generation implementation.
-- If required, Phases 4 and 5 must be revisited before user-facing implementation.
-
-### Phase 9: Documentation and durable learnings
+### Phase 8: Documentation and durable learnings
 
 Goal:
 
@@ -1055,6 +971,117 @@ Work items:
 - Keep issue-specific research notes in `artifacts/issue-304/`.
 - Keep this plan current as decisions are made.
 - If an unknown unknown changes the direction, add the new fact, the decision it invalidated, and the replacement hypothesis before continuing implementation.
+
+### Phase 9: Topology decoupling follow-on
+
+Goal:
+
+- Why: practical deployments may want the best GPU machine to own early prefill while a different machine owns later layers and generation, so control-plane role, prefill layer ownership, output-head/logit ownership, KV return destination, and decode owner should not remain permanently coupled.
+- What: document the current coordinator-first topology constraints, then design a route/protocol direction that allows any role to own generation effectively, including cases where a worker prefills early layers while the coordinator owns later layers and generation.
+
+This is intentionally after Phase 8 so the first production handoff path and its caveats are documented before route structure is reopened. Do not let this phase block the first correct local-generation handoff unless later product requirements prove the current topology insufficient.
+
+Phase 4 conclusion for this phase:
+
+- Topology decoupling is still deferred for the first implementation.
+- The current coordinator-first topology is acceptable for the first production implementation as long as the final worker owns `N:output`, keeps full decode residency, and becomes the local decode owner after prefill.
+- Phase 9 should therefore start from a documented working baseline and then ask what protocol/API changes are needed to let generation ownership move independently of today's coordinator/worker split.
+
+Expected artifacts:
+
+- Update `artifacts/issue-304/topology-decoupling.md` with the current topology constraints, desired future topologies, and candidate protocol/API changes.
+- Update `artifacts/issue-304/decision-log.md` with whether topology decoupling remains deferred, becomes partially required, or becomes required for the next implementation stage.
+- Update `artifacts/issue-304/perf-breakdown.md` with measurements that motivate topology changes, especially GPU-prefill throughput versus memory-bandwidth-local decode throughput.
+- Update `artifacts/issue-304/runbook.md` with any topology experiments and command lines.
+- Update `artifacts/issue-304/research-notes.md` with topology-related findings and whether they affect the implementation scope after the first production path.
+
+Current constraints to capture:
+
+- The coordinator route must currently start at layer `0`.
+- The coordinator runs the early layer slice during distributed prefill.
+- Workers cover later contiguous slices.
+- `--layers N:output` makes the final worker own the output head and return logits.
+- `--layers N:42` keeps the output head/logit production on the coordinator, but the worker still owns the later transformer slice up to layer 42.
+- Coordinator/worker roles currently imply control-plane ownership, prompt/session ownership, route construction, and a position in the layer pipeline.
+
+Desired future topology properties:
+
+- Control-plane coordinator should be separable from prefill execution role.
+- Any role should be able to own generation if it has the required later layers, output head, and full KV state.
+- Early prefill ownership should be assignable to a worker while the coordinator owns later layers and generation.
+- The machine that performs local decode should be separable from the machine that runs the earliest prefill layers.
+- Prefill pipeline stages should be assignable to the machines with the best GPU throughput, not necessarily to the decode/sampling machine.
+- Decode/sampling should be placeable on the machine with the best memory bandwidth and enough resident full-model/KV state.
+- Output-head/logit production should be an explicit route property rather than an implicit consequence of `N:output` versus `N:42`.
+- KV ownership and KV return destination should be explicit enough to support "GPU-prefill workers -> memory-rich decoder" without forcing awkward layer ownership.
+
+Code touchpoints:
+
+- `ds4_distributed.c`
+  - `dist_coordinator_build_route_plan()`: currently enforces route coverage and coordinator-first execution.
+  - `dist_coordinator_ensure_route()`: route readiness and rebuild entry point.
+  - `dist_coordinator_prefill_prompt_pipelined()`: assumes coordinator local slice starts the pipeline.
+  - `dist_coordinator_eval_span()`: current span execution over the route.
+  - `dist_coordinator_send_remote_work_on_fd()`: work dispatch format and first remote hop.
+  - `dist_prefill_sender_main()` / `dist_prefill_result_reader_main()`: current pipelined prefill sender/result coupling.
+  - `dist_worker_process_work_payload()`: worker route validation, forwarding, output-logits handling, and final-result behavior.
+  - `dist_route_validate_blob()`, `dist_route_get_entry()`, and return-target helpers: current route representation and result destination constraints.
+  - Worker `HELLO` registration structs and parsing: advertised layer range and output-head ownership.
+- `ds4_distributed.h`
+  - Coordinator/worker API boundary if roles become more specific than control-plane coordinator and execution worker.
+- `ds4.h`
+  - `ds4_distributed_options.layers`: currently combines route layer ownership and local model loading concerns.
+  - Future option shapes if route ownership, output-head ownership, KV return destination, and decode destination are split.
+- `ds4_cli.c`
+  - CLI flag parsing and help text for future topology descriptions.
+- `README.md`
+  - Distributed docs currently describe `A -> B -> C -> back to A`, coordinator early layers, and final-worker output-head behavior.
+
+Other entry points:
+
+- Existing CLI forms:
+  - `--role coordinator --layers 0:M`
+  - `--role worker --layers N:output`
+  - `--role worker --layers N:42`
+- Future topology experiments:
+  - control coordinator with no prefill layers
+  - worker owns early layers while coordinator owns later layers and generation
+  - GPU-prefill node owns early layers while a different decode node owns full local generation state
+  - final prefill worker returns hidden state or KV to a separate decode destination
+  - output head computed on a non-final/non-prefill participant
+
+Candidate directions to analyze:
+
+- Split roles into control role and execution role:
+  - coordinator owns prompt/session/control plane but may not execute layer `0`.
+  - execution participants advertise layer ranges and capabilities independently.
+- Make the route graph explicit:
+  - represent ordered prefill stages, output/logit stage, generation owner, return target, and KV return target separately.
+  - keep contiguous layer coverage initially, but do not hard-code coordinator-first.
+- Add an explicit generation owner / decode owner:
+  - define which participant will receive merged KV and run local decode.
+  - allow that participant to be a worker or the coordinator.
+- Add explicit output-head ownership:
+  - replace `N:output`/`N:42` as the only mechanism with a capability/route field.
+  - preserve the current flags as shorthand for the simple topology.
+- Keep current topology for Phases 5 and 6:
+  - use this option if local-generation handoff works and topology flexibility can stay deferred without compromising the first implementation.
+
+Work items:
+
+- Document exactly where the current route requires the coordinator to own layer `0`.
+- Document how output logits are requested and validated today.
+- Identify which protocol fields would need to change to support a route whose first execution stage is remote.
+- Identify which protocol fields would need to change to let generation ownership live on a different role than the final prefill worker.
+- Identify whether hidden-state return, logits return, and KV return need separate destinations.
+- Determine whether topology changes are necessary for the next implementation stage or should remain a later issue.
+- Preserve compatibility with existing `--layers 0:M` / `N:output` workflows as shorthand if new topology controls are added.
+
+Exit gate:
+
+- The follow-on topology problem is documented with a concrete design direction or explicitly deferred again.
+- If deferred, the plan records why the current coordinator-first topology is still acceptable after the first implementation lands.
+- If required, the plan identifies exactly which earlier assumptions in Phases 5-7 would need to be revisited.
 
 ### Current recommended path
 
