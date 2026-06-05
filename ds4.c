@@ -17639,6 +17639,77 @@ const char *ds4_backend_name(ds4_backend backend) {
     return "unknown";
 }
 
+static double ds4_bytes_gib(uint64_t bytes) {
+    return (double)bytes / 1073741824.0;
+}
+
+static bool ds4_startup_memory_guard_enabled(void) {
+    const char *env = getenv("DS4_DISABLE_STARTUP_MEMORY_GUARD");
+    return !(env && env[0] && strcmp(env, "0") != 0);
+}
+
+static uint64_t ds4_startup_memory_guard_reserve_bytes(ds4_backend backend,
+                                                       uint64_t total_bytes,
+                                                       uint64_t request_bytes) {
+    if (backend == DS4_BACKEND_CUDA) {
+        uint64_t reserve = total_bytes / 12u;
+        const uint64_t min_reserve = 8ull * 1073741824ull;
+        const uint64_t max_reserve = 16ull * 1073741824ull;
+        if (reserve < min_reserve) reserve = min_reserve;
+        if (reserve > max_reserve) reserve = max_reserve;
+        if (request_bytes >= 80ull * 1073741824ull && reserve < 12ull * 1073741824ull) {
+            reserve = 12ull * 1073741824ull;
+        }
+        return reserve;
+    }
+    (void)request_bytes;
+    (void)total_bytes;
+    return 0;
+}
+
+static bool ds4_startup_memory_guard_check(ds4_backend backend,
+                                           const char *what,
+                                           uint64_t request_bytes) {
+#ifdef DS4_NO_GPU
+    (void)backend;
+    (void)what;
+    (void)request_bytes;
+    return true;
+#else
+    if (!ds4_startup_memory_guard_enabled() ||
+        request_bytes == 0 ||
+        backend == DS4_BACKEND_CPU) {
+        return true;
+    }
+
+    uint64_t free_bytes = 0;
+    uint64_t total_bytes = 0;
+    if (ds4_gpu_query_memory(&free_bytes, &total_bytes) == 0 || total_bytes == 0) {
+        return true;
+    }
+
+    const uint64_t reserve_bytes =
+        ds4_startup_memory_guard_reserve_bytes(backend, total_bytes, request_bytes);
+    if (request_bytes > free_bytes ||
+        free_bytes - request_bytes < reserve_bytes) {
+        fprintf(stderr,
+                "ds4: %s startup memory guard rejected %s "
+                "(free %.2f GiB, request %.2f GiB, reserve %.2f GiB, total %.2f GiB)\n",
+                ds4_backend_name(backend),
+                what ? what : "accelerator residency request",
+                ds4_bytes_gib(free_bytes),
+                ds4_bytes_gib(request_bytes),
+                ds4_bytes_gib(reserve_bytes),
+                ds4_bytes_gib(total_bytes));
+        fprintf(stderr,
+                "ds4: free accelerator memory or reduce the layer slice before starting this process. "
+                "Set DS4_DISABLE_STARTUP_MEMORY_GUARD=1 to bypass.\n");
+        return false;
+    }
+    return true;
+#endif
+}
+
 bool ds4_think_mode_enabled(ds4_think_mode mode) {
     return mode == DS4_THINK_HIGH || mode == DS4_THINK_MAX;
 }
@@ -19944,8 +20015,13 @@ int ds4_engine_open(ds4_engine **out, const ds4_engine_options *opt) {
     uint32_t load_layer_end = opt->load_layer_end;
     bool load_output = opt->load_output;
     bool load_output_optional = false;
+    const bool full_resident_worker =
+        opt->distributed.role == DS4_DISTRIBUTED_WORKER &&
+        getenv("DS4_DIST_WORKER_FULL_RESIDENT") != NULL &&
+        strcmp(getenv("DS4_DIST_WORKER_FULL_RESIDENT"), "0") != 0;
     if (opt->distributed.role != DS4_DISTRIBUTED_NONE &&
-        opt->distributed.layers.set)
+        opt->distributed.layers.set &&
+        !full_resident_worker)
     {
         load_slice = true;
         load_layer_start = opt->distributed.layers.start;
@@ -20018,6 +20094,8 @@ int ds4_engine_open(ds4_engine **out, const ds4_engine_options *opt) {
         uint64_t *load_offsets = NULL;
         uint64_t *load_sizes = NULL;
         uint32_t load_span_count = 0;
+        uint64_t startup_model_bytes = 0;
+        uint64_t load_max_tensor_bytes = e->model.max_tensor_bytes;
         if (load_slice) {
             const bool map_output = load_output ||
                                     (load_output_optional &&
@@ -20053,9 +20131,11 @@ int ds4_engine_open(ds4_engine **out, const ds4_engine_options *opt) {
                 sizes[i] = spans.v[i].end - spans.v[i].off;
                 span_bytes += sizes[i];
             }
+            startup_model_bytes = span_bytes;
             load_offsets = offsets;
             load_sizes = sizes;
             load_span_count = spans.len;
+            load_max_tensor_bytes = spans.max_tensor_bytes;
             fprintf(stderr,
                     "ds4: restricting %s model map to layers %u:%s (%u spans, %.2f GiB tensor span)\n",
                     ds4_backend_name(e->backend),
@@ -20063,13 +20143,33 @@ int ds4_engine_open(ds4_engine **out, const ds4_engine_options *opt) {
                     load_end,
                     spans.len,
                     (double)span_bytes / 1073741824.0);
-            model_map_ok = ds4_gpu_set_model_map_spans(e->model.map,
-                                                        e->model.size,
-                                                        load_offsets,
-                                                        load_sizes,
-                                                        load_span_count,
-                                                        spans.max_tensor_bytes);
             free(spans.v);
+        } else {
+            startup_model_bytes = e->model.size > e->model.tensor_data_pos ?
+                                  e->model.size - e->model.tensor_data_pos : 0;
+        }
+        if (e->mtp_ready) {
+            const uint64_t mtp_bytes = e->mtp_model.size > e->mtp_model.tensor_data_pos ?
+                                       e->mtp_model.size - e->mtp_model.tensor_data_pos : 0;
+            if (mtp_bytes <= UINT64_MAX - startup_model_bytes) startup_model_bytes += mtp_bytes;
+            else startup_model_bytes = UINT64_MAX;
+        }
+        if (!ds4_startup_memory_guard_check(e->backend,
+                                            "model residency request",
+                                            startup_model_bytes)) {
+            free(load_offsets);
+            free(load_sizes);
+            ds4_engine_close(e);
+            *out = NULL;
+            return 1;
+        }
+        if (load_slice) {
+            model_map_ok = ds4_gpu_set_model_map_spans(e->model.map,
+                                                       e->model.size,
+                                                       load_offsets,
+                                                       load_sizes,
+                                                       load_span_count,
+                                                       load_max_tensor_bytes);
         } else {
             model_map_ok = ds4_gpu_set_model_map_range(e->model.map,
                                                        e->model.size,
@@ -20302,6 +20402,9 @@ void ds4_session_free(ds4_session *s) {
     }
 #ifndef DS4_NO_GPU
     else {
+        if (ds4_gpu_synchronize() == 0) {
+            fprintf(stderr, "ds4: synchronize before session free failed\n");
+        }
         metal_graph_free(&s->graph);
     }
 #endif
@@ -20338,6 +20441,68 @@ int ds4_session_distributed_route_summary(
                                            output_on_coordinator,
                                            err,
                                            errlen);
+}
+
+int ds4_session_distributed_handoff_argmax(
+        ds4_session *s,
+        int n_predict,
+        int *tokens_out,
+        int token_cap,
+        double *shard_load_sec_out,
+        double *decode_sec_out,
+        char *err,
+        size_t errlen) {
+    if (!s || !s->distributed) {
+        if (errlen) snprintf(err, errlen, "session is not a distributed coordinator");
+        return -1;
+    }
+    if (!s->checkpoint_valid) {
+        if (errlen) snprintf(err, errlen, "distributed handoff requires a valid checkpoint");
+        return -1;
+    }
+    return ds4_dist_session_handoff_argmax(s->distributed,
+                                           s,
+                                           n_predict,
+                                           tokens_out,
+                                           token_cap,
+                                           shard_load_sec_out,
+                                           decode_sec_out,
+                                           err,
+                                           errlen);
+}
+
+int ds4_session_distributed_handoff_argmax_trace(
+        ds4_session *s,
+        int n_predict,
+        int *tokens_out,
+        int token_cap,
+        float *logits_trace_out,
+        int logits_trace_cap,
+        int *logits_trace_steps_out,
+        double *shard_load_sec_out,
+        double *decode_sec_out,
+        char *err,
+        size_t errlen) {
+    if (!s || !s->distributed) {
+        if (errlen) snprintf(err, errlen, "session is not a distributed coordinator");
+        return -1;
+    }
+    if (!s->checkpoint_valid) {
+        if (errlen) snprintf(err, errlen, "distributed handoff requires a valid checkpoint");
+        return -1;
+    }
+    return ds4_dist_session_handoff_argmax_trace(s->distributed,
+                                                 s,
+                                                 n_predict,
+                                                 tokens_out,
+                                                 token_cap,
+                                                 logits_trace_out,
+                                                 logits_trace_cap,
+                                                 logits_trace_steps_out,
+                                                 shard_load_sec_out,
+                                                 decode_sec_out,
+                                                 err,
+                                                 errlen);
 }
 
 int ds4_session_power(ds4_session *s) {

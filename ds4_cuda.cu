@@ -1534,6 +1534,8 @@ extern "C" int ds4_gpu_commit_and_wait_selected_readback(uint64_t event_value, c
 }
 extern "C" int ds4_gpu_end_commands(void) { return cuda_ok(cudaDeviceSynchronize(), "end commands"); }
 extern "C" int ds4_gpu_synchronize(void) { return cuda_ok(cudaDeviceSynchronize(), "synchronize"); }
+extern "C" void ds4_gpu_reset_runtime_scratch(void) {
+}
 
 static int cuda_model_set_host_map(const void *model_map, uint64_t model_size) {
     if (!model_map || model_size == 0) return 0;
@@ -1758,6 +1760,18 @@ extern "C" void ds4_gpu_print_memory_report(const char *label) {
     (void)cudaMemGetInfo(&free_b, &total_b);
     fprintf(stderr, "ds4: CUDA memory report %s: free %.2f MiB total %.2f MiB\n",
             label ? label : "", (double)free_b / 1048576.0, (double)total_b / 1048576.0);
+}
+
+extern "C" int ds4_gpu_query_memory(uint64_t *free_bytes, uint64_t *total_bytes) {
+    size_t free_b = 0, total_b = 0;
+    cudaError_t err = cudaMemGetInfo(&free_b, &total_b);
+    if (err != cudaSuccess) {
+        (void)cudaGetLastError();
+        return 0;
+    }
+    if (free_bytes) *free_bytes = (uint64_t)free_b;
+    if (total_bytes) *total_bytes = (uint64_t)total_b;
+    return 1;
 }
 
 extern "C" void ds4_gpu_set_quality(bool quality) {

@@ -1843,6 +1843,12 @@ void ds4_gpu_print_memory_report(const char *label) {
             ds4_gpu_mib((uint64_t)g_raw_store_round_bytes));
 }
 
+int ds4_gpu_query_memory(uint64_t *free_bytes, uint64_t *total_bytes) {
+    (void)free_bytes;
+    (void)total_bytes;
+    return 0;
+}
+
 void ds4_gpu_set_quality(bool quality) {
     g_quality_mode = quality ? 1 : 0;
 }
@@ -5323,6 +5329,78 @@ int ds4_gpu_synchronize(void) {
     id<MTLCommandBuffer> cb = ds4_gpu_new_command_buffer();
     if (!cb) return 0;
     return ds4_gpu_finish_command_buffer(cb, 1, "synchronize");
+}
+
+void ds4_gpu_reset_runtime_scratch(void) {
+    if (!g_initialized) return;
+
+    @autoreleasepool {
+        if (ds4_gpu_synchronize() == 0) {
+            fprintf(stderr, "ds4: Metal synchronize before scratch reset failed\n");
+        }
+
+        g_selected_readback_event = nil;
+        g_selected_readback_event_value = 0;
+        [g_transient_buffers removeAllObjects];
+
+        g_flash_attn_mask_buffer = nil;
+        g_flash_attn_pad_buffer = nil;
+        g_flash_attn_tmp_buffer = nil;
+        g_flash_attn_blk_buffer = nil;
+        g_flash_attn_ring_buffer = nil;
+        g_flash_attn_kv_buffer = nil;
+        g_compressor_pool_kv_buffer = nil;
+        g_compressor_pool_score_buffer = nil;
+        g_compressor_pool_score_cont_buffer = nil;
+        g_compressor_pool_softmax_buffer = nil;
+        g_compressor_pool_product_buffer = nil;
+        g_compressor_store_ape_buffer = nil;
+        g_compressor_store_score_buffer = nil;
+        g_embed_rows_buffer = nil;
+        g_router_selection_buffer = nil;
+        g_router_weight_sum_buffer = nil;
+        g_indexer_head_scores_buffer = nil;
+        g_indexer_topk_buffer = nil;
+        g_indexed_topk_buffer = nil;
+        g_f16_round_scratch_buffer = nil;
+        g_raw_store_round_buffer = nil;
+        g_moe_gate_scratch_buffer = nil;
+        g_moe_down_scratch_buffer = nil;
+        g_moe_id_map_buffer = nil;
+        g_moe_q4_gate_slots_buffer = nil;
+        g_moe_q4_up_slots_buffer = nil;
+        g_moe_q4_down_slots_buffer = nil;
+        g_attn_out_group_ids_buffer = nil;
+
+        g_flash_attn_mask_bytes = 0;
+        g_flash_attn_pad_bytes = 0;
+        g_flash_attn_tmp_bytes = 0;
+        g_flash_attn_blk_bytes = 0;
+        g_flash_attn_ring_bytes = 0;
+        g_flash_attn_kv_bytes = 0;
+        g_compressor_pool_kv_bytes = 0;
+        g_compressor_pool_score_bytes = 0;
+        g_compressor_pool_score_cont_bytes = 0;
+        g_compressor_pool_softmax_bytes = 0;
+        g_compressor_pool_product_bytes = 0;
+        g_compressor_store_ape_bytes = 0;
+        g_compressor_store_score_bytes = 0;
+        g_embed_rows_bytes = 0;
+        g_router_selection_bytes = 0;
+        g_router_weight_sum_bytes = 0;
+        g_indexer_head_scores_bytes = 0;
+        g_indexer_topk_bytes = 0;
+        g_indexed_topk_bytes = 0;
+        g_f16_round_scratch_bytes = 0;
+        g_raw_store_round_bytes = 0;
+        g_moe_gate_scratch_bytes = 0;
+        g_moe_down_scratch_bytes = 0;
+        g_moe_id_map_bytes = 0;
+        g_moe_q4_gate_slots_bytes = 0;
+        g_moe_q4_up_slots_bytes = 0;
+        g_moe_q4_down_slots_bytes = 0;
+        g_attn_out_group_ids_bytes = 0;
+    }
 }
 
 void ds4_gpu_cleanup(void) {

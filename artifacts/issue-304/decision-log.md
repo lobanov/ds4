@@ -271,3 +271,73 @@ Validation requirement:
   - `CUDA -> Metal`
   - `Metal -> CUDA`
 - Both directions should record correctness, payload/shard metadata, memory, timing, and failure cases in the existing issue artifacts before the workflow is treated as complete.
+
+## 2026-06-05: Phase 4 workflow is viable; lifecycle stability remains in scope
+
+Decision:
+
+- Treat the core Phase 4 workflow question as answered: the full-resident final-worker handoff design works in both backend directions.
+- Keep worker lifecycle stabilization inside Phase 4 scope before calling the workflow complete.
+- Keep the startup memory guard enabled by default.
+
+Evidence:
+
+- `Metal -> CUDA` produced a passing final-worker handoff run with matching generated tokens.
+- `CUDA -> Metal` also produced a passing run with matching generated tokens.
+- DGX startup now rejects an unsafe second CUDA residency request before model mapping, preventing the earlier memory-exhaustion freeze class.
+- Reused long-lived Metal workers produced inconsistent `CUDA -> Metal` outcomes until the Metal worker process was restarted.
+
+Implications:
+
+- The remaining question is no longer whether final-worker handoff can work.
+- The remaining question is whether a reused worker process can survive coordinator reconnects and repeated handoff runs without stale state leaking into a later session.
+- If the lifecycle bug is not fixed in Phase 4, the runbook must explicitly require fresh worker startup for authoritative `CUDA -> Metal` validation.
+
+## 2026-06-05: Lifecycle hardening helped, but did not close repeated `CUDA -> Metal` instability
+
+Decision:
+
+- Keep the lifecycle fixes landed so far.
+- Do not mark Phase 4 lifecycle stabilization complete yet.
+- Continue treating repeated `CUDA -> Metal` validation as an open technical risk, not just an operator-runbook problem.
+
+Evidence:
+
+- Added hardening:
+  - unique coordinator session ids,
+  - epoch-gated stale worker data connections,
+  - GPU synchronize before session free,
+  - Metal runtime scratch reset when worker sessions are cleared.
+- Those changes removed the simplest stale-session explanation, but repeated `CUDA -> Metal` validation still failed in two ways:
+  - a fresh-worker run later diverged at generated step `12`,
+  - the immediate next run on the same worker again diverged from the first generated token.
+
+Implications:
+
+- The remaining instability is no longer well described as session-id reuse alone.
+- The next investigation should focus on Metal runtime state reuse across worker reconnects and on any remaining distributed/local decode variance that only appears after prior worker activity.
+
+## 2026-06-05: Close Phase 4 with a fresh-Metal-worker validation rule
+
+Decision:
+
+- Mark Phase 4 complete.
+- Treat the reused-Metal-worker `CUDA -> Metal` rerun mismatch as a Phase 3.5-class variance caveat, not a Phase 4 workflow blocker.
+- Keep the startup memory guard and lifecycle hardening changes.
+- Use a fresh Metal worker process for strict `CUDA -> Metal` parity validation in later phases unless and until reuse determinism becomes a specific goal.
+
+Evidence:
+
+- `Metal -> CUDA` passed three back-to-back sessions on one reused CUDA worker with identical generated tokens.
+- `CUDA -> Metal` also continued to reproduce on a reused Metal worker, but the new diagnostic harness showed two important properties:
+  - the divergent token streams were coherent text, not gibberish,
+  - the first mismatch in both sampled reruns was a near-top1 logit flip with full `top5`/`top10` overlap.
+- Example shapes:
+  - mismatch at step `0`: handoff `#`, reference `This`
+  - mismatch at step `11`: handoff ` (\``, reference ` (`
+
+Implications:
+
+- Phase 4 answered its actual question: the final-worker residency and in-process handoff workflow is viable and benchmarkable.
+- The remaining reused-Metal-worker drift should not block Phase 5+ work unless those phases require strict repeated token parity on a long-lived Metal worker.
+- Research documentation should now describe Phase 4 as complete with an operational validation caveat, not as an open residency/workflow question.

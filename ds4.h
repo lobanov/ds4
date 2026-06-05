@@ -221,6 +221,27 @@ int ds4_session_distributed_route_summary(
         bool *output_on_coordinator,
         char *err,
         size_t errlen);
+int ds4_session_distributed_handoff_argmax(
+        ds4_session *s,
+        int n_predict,
+        int *tokens_out,
+        int token_cap,
+        double *shard_load_sec_out,
+        double *decode_sec_out,
+        char *err,
+        size_t errlen);
+int ds4_session_distributed_handoff_argmax_trace(
+        ds4_session *s,
+        int n_predict,
+        int *tokens_out,
+        int token_cap,
+        float *logits_trace_out,
+        int logits_trace_cap,
+        int *logits_trace_steps_out,
+        double *shard_load_sec_out,
+        double *decode_sec_out,
+        char *err,
+        size_t errlen);
 
 typedef enum {
     DS4_SESSION_REWRITE_ERROR = -1,

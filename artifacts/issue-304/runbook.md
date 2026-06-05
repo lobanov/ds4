@@ -1,5 +1,46 @@
 # Issue 304 Runbook
 
+## Phase 4 closeout rules
+
+Phase 4 is complete. Use these rules for ongoing validation and follow-on work:
+
+- run only one DGX `ds4` worker at a time,
+- clear stale DGX workers before starting the opposite route direction,
+- treat a fresh Metal worker process as the authoritative `CUDA -> Metal` validation path,
+- do not rely on repeated `CUDA -> Metal` reruns against the same long-lived Metal worker process,
+- do not treat one successful fresh-worker `CUDA -> Metal` pass as proof that immediate reruns will also match,
+- and do treat repeated `Metal -> CUDA` runs on a reused CUDA worker as acceptable coverage, since three back-to-back sessions matched.
+
+Current startup guard behavior:
+
+- CUDA startup now rejects a large accelerator residency request before model mapping if free memory is too low.
+- Override only for explicit debugging with:
+
+```sh
+DS4_DISABLE_STARTUP_MEMORY_GUARD=1
+```
+
+Observed DGX rejection example:
+
+```text
+ds4: cuda startup memory guard rejected model residency request
+free 18.94 GiB, request 42.03 GiB, reserve 10.14 GiB, total 121.69 GiB
+```
+
+Safe Phase 4 route order:
+
+1. start exactly one worker for the target route
+2. run `tests/issue304_phase4_handoff` for pass/fail validation or `tests/issue304_phase4_diagnose` for mismatch characterization
+3. stop that worker
+4. verify no stale DGX `ds4` remains before starting the next route
+
+Recommended cleanup checks:
+
+```sh
+ssh dgx-direct 'ps -ef | grep "[d]s4" || true'
+ssh dgx-direct 'nvidia-smi --query-compute-apps=pid,process_name,used_gpu_memory --format=csv,noheader,nounits'
+```
+
 ## Phase 0 baseline
 
 ### Historical localhost preparation

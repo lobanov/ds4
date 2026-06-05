@@ -1,5 +1,47 @@
 # Issue 304 Performance Breakdown
 
+## Phase 4 final-worker handoff timings
+
+Tool:
+
+```sh
+make tests/issue304_phase4_handoff
+```
+
+Authoritative 2026-06-05 passing runs:
+
+| Route | Prefill handoff sec | Prefill ref sec | Shard load sec | Local decode sec | Local tok/s | Distributed decode sec | Distributed tok/s | Result |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| `Metal -> CUDA` | 37.998446 | 38.547497 | 0.431831 | 1.226027 | 13.05 | 0.977782 | 16.36 | Pass |
+| `CUDA -> Metal` | 36.136962 | 35.978407 | 0.263383 | 0.522352 | 30.63 | 0.950070 | 16.84 | Pass |
+
+Additional 2026-06-05 instability notes:
+
+| Route | Result | Notes |
+| --- | --- | --- |
+| `CUDA -> Metal` reused Metal worker, run A | Fail | First mismatch at generated step `11`. |
+| `CUDA -> Metal` reused Metal worker, run B | Fail | Diverged from the first generated token; `handoff_first_token=5`, reference `2337`. |
+| `Metal -> CUDA` reused CUDA worker, repeat set of 3 | Pass | All three runs matched with identical generated tokens. |
+
+Interpretation:
+
+- The in-process final-worker handoff is viable in both backend directions.
+- The local worker decode can be materially faster than continued distributed decode on the same prompt frontier.
+- The remaining performance caveat is operational: strict `CUDA -> Metal` parity checks should restart the Metal worker first.
+
+`CUDA -> Metal` divergence characterization from `tests/issue304_phase4_diagnose`:
+
+| Reused-worker run | First mismatch | Sequence character | Top-5 overlap | Top-10 overlap | Notes |
+| --- | ---: | --- | ---: | ---: | --- |
+| A | `0` | Coherent alternate continuation | `5/5` | `10/10` | Handoff chose `#`; reference chose `This`. |
+| B | `11` | Coherent punctuation / formatting variant | `5/5` | `10/10` | Handoff chose ` (\``; reference chose ` (`. |
+
+Diagnostic interpretation:
+
+- The observed reused-Metal-worker divergence is not gibberish.
+- The first divergent token remains inside the opposite side's top-5/top-10 candidate set.
+- This matches the practical shape already seen in Phase 3.5: near-top1 ranking flips on a backend-sensitive frontier.
+
 ## Phase 0 baseline
 
 ### Historical local loopback topology

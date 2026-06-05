@@ -14,6 +14,7 @@
  */
 
 #include "ds4_distributed.h"
+#include "ds4_gpu.h"
 
 #include <arpa/inet.h>
 #include <errno.h>
@@ -51,6 +52,8 @@
 #define DS4_DIST_MSG_SNAPSHOT_CHUNK 7u
 #define DS4_DIST_MSG_SNAPSHOT_DONE 8u
 #define DS4_DIST_MSG_SNAPSHOT_LOAD_BEGIN 9u
+#define DS4_DIST_MSG_LOCAL_GENERATE_REQ 10u
+#define DS4_DIST_MSG_LOCAL_GENERATE_RES 11u
 #define DS4_DIST_MAX_MODEL_NAME 127u
 #define DS4_DIST_WORK_F_INPUT_HC 0x00000001u
 #define DS4_DIST_WORK_F_OUTPUT_LOGITS 0x00000002u
@@ -195,6 +198,34 @@ typedef struct {
     uint32_t message_bytes;
 } ds4_dist_snapshot_done_fixed;
 
+typedef struct {
+    uint32_t model_id;
+    uint32_t session_hi;
+    uint32_t session_lo;
+    uint32_t request_hi;
+    uint32_t request_lo;
+    uint32_t token_hash_hi;
+    uint32_t token_hash_lo;
+    uint32_t n_predict;
+    uint32_t logits_bytes;
+} ds4_dist_local_generate_req_fixed;
+
+typedef struct {
+    uint32_t model_id;
+    uint32_t session_hi;
+    uint32_t session_lo;
+    uint32_t request_hi;
+    uint32_t request_lo;
+    uint32_t token_hash_hi;
+    uint32_t token_hash_lo;
+    uint32_t generated_count;
+    uint32_t decode_usec;
+    uint32_t status;
+    uint32_t token_bytes;
+    uint32_t logits_bytes;
+    uint32_t message_bytes;
+} ds4_dist_local_generate_res_fixed;
+
 /* =========================================================================
  * Runtime State
  * =========================================================================
@@ -273,6 +304,8 @@ typedef struct {
     int listen_fd;
     pthread_mutex_t mu;
     ds4_dist_worker_session *sessions;
+    uint64_t connection_epoch;
+    bool control_connected;
 } ds4_dist_worker_state;
 
 typedef struct ds4_dist_worker_upstream ds4_dist_worker_upstream;
@@ -305,6 +338,7 @@ typedef struct ds4_dist_worker_forwarder {
 struct ds4_dist_worker_upstream {
     ds4_dist_worker_state *state;
     int fd;
+    uint64_t epoch;
     pthread_mutex_t write_mu;
     pthread_mutex_t forward_mu;
     ds4_dist_worker_forwarder *forwarders;
@@ -334,6 +368,7 @@ typedef struct {
 typedef struct {
     ds4_dist_worker_state *state;
     int fd;
+    uint64_t epoch;
     char peer_host[NI_MAXHOST];
     char peer_port[NI_MAXSERV];
 } ds4_dist_data_client_ctx;
@@ -504,10 +539,15 @@ static int dist_worker_handle_snapshot_load(
         ds4_dist_worker_state *state,
         ds4_dist_worker_upstream *upstream,
         uint32_t bytes);
+static int dist_worker_handle_local_generate(
+        ds4_dist_worker_state *state,
+        ds4_dist_worker_upstream *upstream,
+        uint32_t bytes);
 static void dist_worker_upstream_init(
         ds4_dist_worker_upstream *upstream,
         ds4_dist_worker_state *state,
-        int fd);
+        int fd,
+        uint64_t epoch);
 static void dist_worker_upstream_destroy(ds4_dist_worker_upstream *upstream);
 static int dist_worker_upstream_send_work_error(
         ds4_dist_worker_upstream *upstream,
@@ -537,6 +577,11 @@ static const char *dist_role_name(ds4_distributed_role role) {
     case DS4_DISTRIBUTED_WORKER:      return "worker";
     }
     return "unknown";
+}
+
+static bool dist_worker_full_resident_enabled(void) {
+    const char *env = getenv("DS4_DIST_WORKER_FULL_RESIDENT");
+    return env && env[0] && strcmp(env, "0") != 0;
 }
 
 static void dist_sleep_reconnect(void) {
@@ -1704,6 +1749,62 @@ static void dist_snapshot_done_from_wire(ds4_dist_snapshot_done_fixed *s) {
     s->request_lo = ntohl(s->request_lo);
     s->status = ntohl(s->status);
     s->message_bytes = ntohl(s->message_bytes);
+}
+
+static void dist_local_generate_req_to_wire(ds4_dist_local_generate_req_fixed *r) {
+    r->model_id = htonl(r->model_id);
+    r->session_hi = htonl(r->session_hi);
+    r->session_lo = htonl(r->session_lo);
+    r->request_hi = htonl(r->request_hi);
+    r->request_lo = htonl(r->request_lo);
+    r->token_hash_hi = htonl(r->token_hash_hi);
+    r->token_hash_lo = htonl(r->token_hash_lo);
+    r->n_predict = htonl(r->n_predict);
+    r->logits_bytes = htonl(r->logits_bytes);
+}
+
+static void dist_local_generate_req_from_wire(ds4_dist_local_generate_req_fixed *r) {
+    r->model_id = ntohl(r->model_id);
+    r->session_hi = ntohl(r->session_hi);
+    r->session_lo = ntohl(r->session_lo);
+    r->request_hi = ntohl(r->request_hi);
+    r->request_lo = ntohl(r->request_lo);
+    r->token_hash_hi = ntohl(r->token_hash_hi);
+    r->token_hash_lo = ntohl(r->token_hash_lo);
+    r->n_predict = ntohl(r->n_predict);
+    r->logits_bytes = ntohl(r->logits_bytes);
+}
+
+static void dist_local_generate_res_to_wire(ds4_dist_local_generate_res_fixed *r) {
+    r->model_id = htonl(r->model_id);
+    r->session_hi = htonl(r->session_hi);
+    r->session_lo = htonl(r->session_lo);
+    r->request_hi = htonl(r->request_hi);
+    r->request_lo = htonl(r->request_lo);
+    r->token_hash_hi = htonl(r->token_hash_hi);
+    r->token_hash_lo = htonl(r->token_hash_lo);
+    r->generated_count = htonl(r->generated_count);
+    r->decode_usec = htonl(r->decode_usec);
+    r->status = htonl(r->status);
+    r->token_bytes = htonl(r->token_bytes);
+    r->logits_bytes = htonl(r->logits_bytes);
+    r->message_bytes = htonl(r->message_bytes);
+}
+
+static void dist_local_generate_res_from_wire(ds4_dist_local_generate_res_fixed *r) {
+    r->model_id = ntohl(r->model_id);
+    r->session_hi = ntohl(r->session_hi);
+    r->session_lo = ntohl(r->session_lo);
+    r->request_hi = ntohl(r->request_hi);
+    r->request_lo = ntohl(r->request_lo);
+    r->token_hash_hi = ntohl(r->token_hash_hi);
+    r->token_hash_lo = ntohl(r->token_hash_lo);
+    r->generated_count = ntohl(r->generated_count);
+    r->decode_usec = ntohl(r->decode_usec);
+    r->status = ntohl(r->status);
+    r->token_bytes = ntohl(r->token_bytes);
+    r->logits_bytes = ntohl(r->logits_bytes);
+    r->message_bytes = ntohl(r->message_bytes);
 }
 
 static void dist_telemetry_to_wire(ds4_dist_telemetry_fixed *t) {
@@ -4362,10 +4463,21 @@ static void *dist_coordinator_accept_main(void *arg) {
 }
 
 static uint64_t dist_make_session_id(const void *ptr) {
-    uint64_t id = ((uint64_t)(uint32_t)time(NULL) << 32) ^ (uint64_t)getpid();
-    id ^= ((uint64_t)(uintptr_t)ptr << 17) ^ (uint64_t)(uintptr_t)ptr;
-    id ^= (uint64_t)clock();
-    return id ? id : 1u;
+    static pthread_mutex_t mu = PTHREAD_MUTEX_INITIALIZER;
+    static uint64_t next_id = 0;
+
+    pthread_mutex_lock(&mu);
+    if (next_id == 0) {
+        uint64_t seed = ((uint64_t)(uint32_t)time(NULL) << 32) ^
+                        (uint64_t)(uint32_t)getpid();
+        seed ^= ((uint64_t)(uintptr_t)ptr << 17) ^ (uint64_t)(uintptr_t)ptr;
+        seed ^= (uint64_t)clock();
+        next_id = seed ? seed : 1u;
+    }
+    uint64_t id = next_id++;
+    if (next_id == 0) next_id = 1u;
+    pthread_mutex_unlock(&mu);
+    return id;
 }
 
 static int dist_session_ensure_route(ds4_dist_session *d, char *err, size_t errlen) {
@@ -4556,6 +4668,174 @@ static int dist_read_snapshot_done_frame(
         return 1;
     }
     return 0;
+}
+
+static int dist_local_generate_remote(
+        ds4_dist_session *d,
+        const ds4_dist_route_entry *entry,
+        uint64_t token_hash,
+        const float *logits,
+        int n_predict,
+        int *tokens_out,
+        int token_cap,
+        float *logits_trace_out,
+        int logits_trace_cap,
+        int *logits_trace_steps_out,
+        double *decode_sec_out,
+        char *err,
+        size_t errlen) {
+    if (decode_sec_out) *decode_sec_out = 0.0;
+    if (logits_trace_steps_out) *logits_trace_steps_out = 0;
+    if (!d || !entry || !logits || n_predict < 0 || token_cap < n_predict) {
+        if (errlen) snprintf(err, errlen, "invalid distributed local generate request");
+        return -1;
+    }
+
+    const uint32_t vocab = (uint32_t)ds4_engine_vocab_size(d->state.engine);
+    const uint32_t logits_bytes = (uint32_t)((uint64_t)vocab * sizeof(float));
+    const uint64_t frame_bytes64 =
+        sizeof(ds4_dist_local_generate_req_fixed) + (uint64_t)logits_bytes;
+    if (frame_bytes64 > UINT32_MAX) {
+        if (errlen) snprintf(err, errlen, "distributed local generate frame is too large");
+        return -1;
+    }
+
+    int fd = dist_connect_endpoint(entry->host, (int)entry->port, err, errlen);
+    if (fd < 0) return -1;
+
+    uint64_t request_id = d->request_id++;
+    ds4_dist_local_generate_req_fixed req;
+    memset(&req, 0, sizeof(req));
+    req.model_id = d->state.model_id;
+    dist_u64_to_halves(d->session_id, &req.session_hi, &req.session_lo);
+    dist_u64_to_halves(request_id, &req.request_hi, &req.request_lo);
+    dist_u64_to_halves(token_hash, &req.token_hash_hi, &req.token_hash_lo);
+    req.n_predict = (uint32_t)n_predict;
+    req.logits_bytes = logits_bytes;
+    ds4_dist_local_generate_req_fixed wire = req;
+    dist_local_generate_req_to_wire(&wire);
+
+    int rc = -1;
+    if (dist_write_frame_header(fd, DS4_DIST_MSG_LOCAL_GENERATE_REQ,
+                                (uint32_t)frame_bytes64) != 0 ||
+        dist_write_full(fd, &wire, sizeof(wire)) != 0 ||
+        dist_write_full(fd, logits, logits_bytes) != 0) {
+        if (errlen) snprintf(err, errlen, "failed to send distributed local generate request");
+        goto cleanup;
+    }
+
+    uint32_t type = 0, bytes = 0;
+    if (dist_read_frame_header(fd, &type, &bytes, err, errlen) <= 0) {
+        if (errlen && !err[0]) snprintf(err, errlen, "worker closed before local generate response");
+        goto cleanup;
+    }
+    if (type != DS4_DIST_MSG_LOCAL_GENERATE_RES ||
+        bytes < sizeof(ds4_dist_local_generate_res_fixed)) {
+        dist_discard_bytes(fd, bytes);
+        if (errlen) snprintf(err, errlen, "worker returned invalid local generate frame");
+        goto cleanup;
+    }
+
+    ds4_dist_local_generate_res_fixed res;
+    if (dist_read_full(fd, &res, sizeof(res)) <= 0) {
+        if (errlen) snprintf(err, errlen, "failed to read local generate response");
+        goto cleanup;
+    }
+    dist_local_generate_res_from_wire(&res);
+    uint32_t body = bytes - (uint32_t)sizeof(res);
+    if (res.model_id != d->state.model_id ||
+        dist_u64_from_halves(res.session_hi, res.session_lo) != d->session_id ||
+        dist_u64_from_halves(res.request_hi, res.request_lo) != request_id ||
+        res.token_bytes > body ||
+        res.logits_bytes > body - res.token_bytes ||
+        res.message_bytes > body - res.token_bytes - res.logits_bytes) {
+        dist_discard_bytes(fd, body);
+        if (errlen) snprintf(err, errlen, "invalid distributed local generate response");
+        goto cleanup;
+    }
+
+    if (res.status != 0) {
+        char msg[256] = {0};
+        if (res.token_bytes != 0) {
+            dist_discard_bytes(fd, res.token_bytes);
+            body -= res.token_bytes;
+        }
+        if (res.logits_bytes != 0) {
+            if (dist_discard_bytes(fd, res.logits_bytes) <= 0) {
+                if (errlen) snprintf(err, errlen, "failed to discard local generate logits");
+                goto cleanup;
+            }
+            body -= res.logits_bytes;
+        }
+        if (res.message_bytes != 0) {
+            uint32_t copy = res.message_bytes < sizeof(msg) ?
+                res.message_bytes : (uint32_t)sizeof(msg) - 1u;
+            if (copy != 0 && dist_read_full(fd, msg, copy) <= 0) {
+                if (errlen) snprintf(err, errlen, "failed to read local generate error");
+                goto cleanup;
+            }
+            msg[copy] = '\0';
+            if (res.message_bytes > copy &&
+                dist_discard_bytes(fd, res.message_bytes - copy) <= 0) {
+                if (errlen) snprintf(err, errlen, "failed to discard local generate error");
+                goto cleanup;
+            }
+            body -= res.message_bytes;
+        }
+        if (body != 0) dist_discard_bytes(fd, body);
+        if (errlen) snprintf(err, errlen, "%s",
+                             msg[0] ? msg : "distributed local generate failed");
+        goto cleanup;
+    }
+
+    if (res.generated_count > (uint32_t)n_predict ||
+        res.generated_count > (uint32_t)token_cap ||
+        res.token_bytes != res.generated_count * sizeof(uint32_t) ||
+        res.message_bytes != 0) {
+        dist_discard_bytes(fd, body);
+        if (errlen) snprintf(err, errlen, "distributed local generate returned invalid token payload");
+        goto cleanup;
+    }
+    const uint32_t expect_logits_bytes =
+        (uint32_t)((uint64_t)res.generated_count * (uint64_t)vocab * sizeof(float));
+    if (res.logits_bytes != expect_logits_bytes) {
+        dist_discard_bytes(fd, body);
+        if (errlen) snprintf(err, errlen, "distributed local generate returned invalid logits payload");
+        goto cleanup;
+    }
+    for (uint32_t i = 0; i < res.generated_count; i++) {
+        uint32_t wire_token = 0;
+        if (dist_read_full(fd, &wire_token, sizeof(wire_token)) <= 0) {
+            if (errlen) snprintf(err, errlen, "failed to read generated token");
+            goto cleanup;
+        }
+        tokens_out[i] = (int)ntohl(wire_token);
+    }
+    body -= res.token_bytes;
+    if (res.logits_bytes != 0) {
+        const int logits_trace_values = (int)((uint64_t)res.generated_count * (uint64_t)vocab);
+        if (!logits_trace_out || logits_trace_cap < logits_trace_values) {
+            if (dist_discard_bytes(fd, res.logits_bytes) <= 0) {
+                if (errlen) snprintf(err, errlen, "failed to discard local generate logits");
+                goto cleanup;
+            }
+        } else if (dist_read_full(fd, logits_trace_out, res.logits_bytes) <= 0) {
+            if (errlen) snprintf(err, errlen, "failed to read local generate logits");
+            goto cleanup;
+        }
+        body -= res.logits_bytes;
+        if (logits_trace_steps_out) *logits_trace_steps_out = (int)res.generated_count;
+    }
+    if (body != 0 && dist_discard_bytes(fd, body) <= 0) {
+        if (errlen) snprintf(err, errlen, "failed to discard trailing local generate bytes");
+        goto cleanup;
+    }
+    if (decode_sec_out) *decode_sec_out = (double)res.decode_usec / 1000000.0;
+    rc = (int)res.generated_count;
+
+cleanup:
+    close(fd);
+    return rc;
 }
 
 static int dist_receive_snapshot_chunks_to_file(
@@ -5143,6 +5423,8 @@ cleanup:
 static int dist_load_remote_shard_from_payload(
         ds4_dist_session *d,
         const ds4_dist_route_entry *entry,
+        uint32_t layer_start,
+        uint32_t layer_end,
         const int *tokens,
         uint32_t token_count,
         uint64_t token_hash,
@@ -5161,8 +5443,8 @@ static int dist_load_remote_shard_from_payload(
     dist_u64_to_halves(request_id, &begin.request_hi, &begin.request_lo);
     dist_u64_to_halves(token_hash, &begin.token_hash_hi, &begin.token_hash_lo);
     begin.token_count = token_count;
-    begin.layer_start = entry->layer_start;
-    begin.layer_end = entry->layer_end;
+    begin.layer_start = layer_start;
+    begin.layer_end = layer_end;
     dist_u64_to_halves(payload_bytes, &begin.payload_hi, &begin.payload_lo);
     begin.token_bytes = token_count * sizeof(uint32_t);
 
@@ -5461,6 +5743,7 @@ int ds4_dist_session_load_payload(
             }
         } else {
             if (dist_load_remote_shard_from_payload(d, entry,
+                                                    layer_start, layer_end,
                                                     tokens_arg, layout.token_count,
                                                     token_hash,
                                                     tmp, shard_bytes,
@@ -5487,6 +5770,163 @@ cleanup:
     free(n_comp);
     free(n_index_comp);
     return rc;
+}
+
+static int dist_session_handoff_argmax_trace(
+        ds4_dist_session *d,
+        ds4_session *owner,
+        int n_predict,
+        int *tokens_out,
+        int token_cap,
+        float *logits_trace_out,
+        int logits_trace_cap,
+        int *logits_trace_steps_out,
+        double *shard_load_sec_out,
+        double *decode_sec_out,
+        char *err,
+        size_t errlen) {
+    if (shard_load_sec_out) *shard_load_sec_out = 0.0;
+    if (decode_sec_out) *decode_sec_out = 0.0;
+    if (!d || !owner || n_predict < 0 || token_cap < n_predict) {
+        if (errlen) snprintf(err, errlen, "invalid distributed handoff request");
+        return -1;
+    }
+    if (dist_session_ensure_route(d, err, errlen) != 0) return -1;
+    if (dist_kv_route_validate(d, err, errlen) != 0) return -1;
+    if (d->plan.count != 1) {
+        if (errlen) snprintf(err, errlen, "distributed handoff currently requires exactly one worker");
+        return -1;
+    }
+    const ds4_dist_route_entry *entry = &d->plan.entry[d->plan.count - 1u];
+    if ((entry->flags & DS4_DIST_ROUTE_F_OUTPUT_LOGITS) == 0u) {
+        if (errlen) snprintf(err, errlen, "distributed handoff requires worker-owned output head");
+        return -1;
+    }
+
+    const ds4_tokens *timeline = ds4_session_tokens(owner);
+    if (!timeline || timeline->len < 0 || (uint64_t)timeline->len > UINT32_MAX) {
+        if (errlen) snprintf(err, errlen, "distributed handoff requires a valid token timeline");
+        return -1;
+    }
+    const uint64_t token_hash = dist_token_hash_prefix(timeline->v, (uint32_t)timeline->len);
+
+    FILE *tmp = dist_tmpfile_or_err("dist-handoff-local", err, errlen);
+    if (!tmp) return -1;
+    int rc = -1;
+    uint64_t shard_bytes = 0;
+    if (ds4_session_save_layer_payload(owner,
+                                       tmp,
+                                       d->state.local_start,
+                                       d->state.local_end,
+                                       err,
+                                       errlen) != 0) {
+        fclose(tmp);
+        return -1;
+    }
+    if (dist_measure_file(tmp, &shard_bytes, "distributed handoff shard", err, errlen) != 0 ||
+        dist_rewind_file(tmp, "distributed handoff shard", err, errlen) != 0) {
+        fclose(tmp);
+        return -1;
+    }
+
+    const double load_t0 = dist_now_sec();
+    if (dist_load_remote_shard_from_payload(d,
+                                            entry,
+                                            d->state.local_start,
+                                            d->state.local_end,
+                                            timeline->v,
+                                            (uint32_t)timeline->len,
+                                            token_hash,
+                                            tmp,
+                                            shard_bytes,
+                                            err,
+                                            errlen) != 0) {
+        fclose(tmp);
+        return -1;
+    }
+    const double load_t1 = dist_now_sec();
+    fclose(tmp);
+
+    const int vocab = ds4_engine_vocab_size(d->state.engine);
+    float *logits = malloc((size_t)vocab * sizeof(logits[0]));
+    if (!logits) {
+        if (errlen) snprintf(err, errlen, "out of memory copying handoff logits");
+        return -1;
+    }
+    if (ds4_session_copy_logits(owner, logits, vocab) != vocab) {
+        free(logits);
+        if (errlen) snprintf(err, errlen, "failed to copy handoff logits");
+        return -1;
+    }
+    rc = dist_local_generate_remote(d,
+                                    entry,
+                                    token_hash,
+                                    logits,
+                                    n_predict,
+                                    tokens_out,
+                                    token_cap,
+                                    logits_trace_out,
+                                    logits_trace_cap,
+                                    logits_trace_steps_out,
+                                    decode_sec_out,
+                                    err,
+                                    errlen);
+    free(logits);
+    if (rc >= 0 && shard_load_sec_out) {
+        *shard_load_sec_out = load_t1 - load_t0;
+    }
+    return rc;
+}
+
+int ds4_dist_session_handoff_argmax(
+        ds4_dist_session *d,
+        ds4_session *owner,
+        int n_predict,
+        int *tokens_out,
+        int token_cap,
+        double *shard_load_sec_out,
+        double *decode_sec_out,
+        char *err,
+        size_t errlen) {
+    return dist_session_handoff_argmax_trace(d,
+                                             owner,
+                                             n_predict,
+                                             tokens_out,
+                                             token_cap,
+                                             NULL,
+                                             0,
+                                             NULL,
+                                             shard_load_sec_out,
+                                             decode_sec_out,
+                                             err,
+                                             errlen);
+}
+
+int ds4_dist_session_handoff_argmax_trace(
+        ds4_dist_session *d,
+        ds4_session *owner,
+        int n_predict,
+        int *tokens_out,
+        int token_cap,
+        float *logits_trace_out,
+        int logits_trace_cap,
+        int *logits_trace_steps_out,
+        double *shard_load_sec_out,
+        double *decode_sec_out,
+        char *err,
+        size_t errlen) {
+    return dist_session_handoff_argmax_trace(d,
+                                             owner,
+                                             n_predict,
+                                             tokens_out,
+                                             token_cap,
+                                             logits_trace_out,
+                                             logits_trace_cap,
+                                             logits_trace_steps_out,
+                                             shard_load_sec_out,
+                                             decode_sec_out,
+                                             err,
+                                             errlen);
 }
 
 /* =========================================================================
@@ -5896,9 +6336,9 @@ static int dist_run_coordinator(ds4_engine *engine, const ds4_dist_options *opt,
  * Worker Control Loop And Result Frames
  * ========================================================================= */
 
-static int dist_worker_read_loop(ds4_dist_worker_state *state, int fd) {
+static int dist_worker_read_loop(ds4_dist_worker_state *state, int fd, uint64_t epoch) {
     ds4_dist_worker_upstream upstream;
-    dist_worker_upstream_init(&upstream, state, fd);
+    dist_worker_upstream_init(&upstream, state, fd, epoch);
     int loop_rc = 0;
 
     for (;;) {
@@ -5943,6 +6383,14 @@ static int dist_worker_read_loop(ds4_dist_worker_state *state, int fd) {
         }
         if (type == DS4_DIST_MSG_SNAPSHOT_LOAD_BEGIN) {
             rc = dist_worker_handle_snapshot_load(state, &upstream, bytes);
+            if (rc <= 0) {
+                loop_rc = rc == 0 ? 0 : 1;
+                break;
+            }
+            continue;
+        }
+        if (type == DS4_DIST_MSG_LOCAL_GENERATE_REQ) {
+            rc = dist_worker_handle_local_generate(state, &upstream, bytes);
             if (rc <= 0) {
                 loop_rc = rc == 0 ? 0 : 1;
                 break;
@@ -6101,6 +6549,67 @@ static int dist_send_snapshot_done(int fd, uint64_t request_id, uint32_t status,
     if (dist_write_frame_header(fd, DS4_DIST_MSG_SNAPSHOT_DONE, (uint32_t)frame_bytes64) != 0) return -1;
     if (dist_write_full(fd, &wire, sizeof(wire)) != 0) return -1;
     if (len && dist_write_full(fd, msg, len) != 0) return -1;
+    return 1;
+}
+
+static int dist_send_local_generate_response(
+        int fd,
+        uint64_t session_id,
+        uint64_t request_id,
+        uint32_t model_id,
+        uint64_t token_hash,
+        const int *tokens,
+        uint32_t generated_count,
+        const float *logits_trace,
+        uint32_t logits_bytes,
+        uint32_t decode_usec,
+        uint32_t status,
+        const char *msg) {
+    if (!msg) msg = "";
+    size_t len = strlen(msg);
+    if (len > UINT32_MAX) len = UINT32_MAX;
+    uint64_t token_bytes64 = (uint64_t)generated_count * sizeof(uint32_t);
+    if (token_bytes64 > UINT32_MAX) return -1;
+    uint32_t token_bytes = status == 0 ? (uint32_t)token_bytes64 : 0u;
+    if (status != 0) {
+        generated_count = 0;
+        logits_bytes = 0;
+    }
+
+    ds4_dist_local_generate_res_fixed res;
+    memset(&res, 0, sizeof(res));
+    res.model_id = model_id;
+    dist_u64_to_halves(session_id, &res.session_hi, &res.session_lo);
+    dist_u64_to_halves(request_id, &res.request_hi, &res.request_lo);
+    dist_u64_to_halves(token_hash, &res.token_hash_hi, &res.token_hash_lo);
+    res.generated_count = generated_count;
+    res.decode_usec = decode_usec;
+    res.status = status;
+    res.token_bytes = token_bytes;
+    res.logits_bytes = logits_bytes;
+    res.message_bytes = status == 0 ? 0u : (uint32_t)len;
+
+    uint64_t frame_bytes64 = sizeof(res) + token_bytes + logits_bytes + res.message_bytes;
+    if (frame_bytes64 > UINT32_MAX) return -1;
+    ds4_dist_local_generate_res_fixed wire = res;
+    dist_local_generate_res_to_wire(&wire);
+    if (dist_write_frame_header(fd, DS4_DIST_MSG_LOCAL_GENERATE_RES,
+                                (uint32_t)frame_bytes64) != 0 ||
+        dist_write_full(fd, &wire, sizeof(wire)) != 0) {
+        return -1;
+    }
+    if (status == 0) {
+        for (uint32_t i = 0; i < generated_count; i++) {
+            uint32_t t = htonl((uint32_t)tokens[i]);
+            if (dist_write_full(fd, &t, sizeof(t)) != 0) return -1;
+        }
+        if (logits_bytes != 0 &&
+            dist_write_full(fd, logits_trace, logits_bytes) != 0) {
+            return -1;
+        }
+    } else if (len != 0 && dist_write_full(fd, msg, len) != 0) {
+        return -1;
+    }
     return 1;
 }
 
@@ -6437,12 +6946,41 @@ static int dist_worker_upstream_send_work_error(
 static void dist_worker_upstream_init(
         ds4_dist_worker_upstream *upstream,
         ds4_dist_worker_state *state,
-        int fd) {
+        int fd,
+        uint64_t epoch) {
     memset(upstream, 0, sizeof(*upstream));
     upstream->state = state;
     upstream->fd = fd;
+    upstream->epoch = epoch;
     pthread_mutex_init(&upstream->write_mu, NULL);
     pthread_mutex_init(&upstream->forward_mu, NULL);
+}
+
+static uint64_t dist_worker_control_connect(ds4_dist_worker_state *state) {
+    pthread_mutex_lock(&state->mu);
+    state->connection_epoch++;
+    if (state->connection_epoch == 0) state->connection_epoch = 1u;
+    state->control_connected = true;
+    const uint64_t epoch = state->connection_epoch;
+    pthread_mutex_unlock(&state->mu);
+    return epoch;
+}
+
+static void dist_worker_control_disconnect(ds4_dist_worker_state *state, uint64_t epoch) {
+    pthread_mutex_lock(&state->mu);
+    if (state->control_connected && state->connection_epoch == epoch) {
+        state->control_connected = false;
+        state->connection_epoch++;
+        if (state->connection_epoch == 0) state->connection_epoch = 1u;
+    }
+    pthread_mutex_unlock(&state->mu);
+}
+
+static bool dist_worker_epoch_is_current(ds4_dist_worker_state *state, uint64_t epoch) {
+    pthread_mutex_lock(&state->mu);
+    const bool ok = state->control_connected && state->connection_epoch == epoch;
+    pthread_mutex_unlock(&state->mu);
+    return ok;
 }
 
 static bool dist_worker_forwarder_enqueue_request(
@@ -6972,6 +7510,7 @@ static uint32_t dist_worker_clear_sessions(ds4_dist_worker_state *state) {
         it = next;
         n++;
     }
+    if (n != 0) ds4_gpu_reset_runtime_scratch();
     return n;
 }
 
@@ -7008,6 +7547,13 @@ static int dist_worker_handle_snapshot_save(
         ds4_dist_worker_state *state,
         ds4_dist_worker_upstream *upstream,
         uint32_t bytes) {
+    if (!dist_worker_epoch_is_current(state, upstream->epoch)) {
+        DIST_DEBUG("worker ignoring stale snapshot-save fd=%d epoch=%llu",
+                   upstream->fd,
+                   (unsigned long long)upstream->epoch);
+        dist_discard_bytes(upstream->fd, bytes);
+        return -1;
+    }
     ds4_dist_snapshot_req_fixed req;
     uint64_t request_id = 0;
     uint64_t session_id = 0;
@@ -7114,6 +7660,13 @@ static int dist_worker_handle_snapshot_load(
         ds4_dist_worker_state *state,
         ds4_dist_worker_upstream *upstream,
         uint32_t bytes) {
+    if (!dist_worker_epoch_is_current(state, upstream->epoch)) {
+        DIST_DEBUG("worker ignoring stale snapshot-load fd=%d epoch=%llu",
+                   upstream->fd,
+                   (unsigned long long)upstream->epoch);
+        dist_discard_bytes(upstream->fd, bytes);
+        return -1;
+    }
     ds4_dist_snapshot_begin_fixed begin;
     uint64_t request_id = 0;
     uint64_t session_id = 0;
@@ -7169,11 +7722,13 @@ static int dist_worker_handle_snapshot_load(
         dist_token_hash_prefix(tokens, begin.token_count) != token_hash) {
         snprintf(err, sizeof(err), "snapshot load token hash mismatch");
     }
+    const bool full_resident_worker = dist_worker_full_resident_enabled();
     if (!err[0] &&
         (begin.model_id != state->model_id ||
-         begin.layer_start != state->layer_start ||
-         begin.layer_end != state->layer_end ||
-         begin.token_count > (uint32_t)state->ctx_size)) {
+         begin.token_count > (uint32_t)state->ctx_size ||
+         (!full_resident_worker &&
+          (begin.layer_start != state->layer_start ||
+           begin.layer_end != state->layer_end)))) {
         snprintf(err, sizeof(err), "snapshot load request does not match worker state");
     }
 
@@ -7257,8 +7812,8 @@ static int dist_worker_handle_snapshot_load(
                                            payload_bytes,
                                            tokens,
                                            begin.token_count,
-                                           state->layer_start,
-                                           state->layer_end,
+                                           begin.layer_start,
+                                           begin.layer_end,
                                            err,
                                            sizeof(err)) == 0) {
             session->token_hash = token_hash;
@@ -7282,6 +7837,137 @@ static int dist_worker_handle_snapshot_load(
     return rc;
 }
 
+static int dist_worker_handle_local_generate(
+        ds4_dist_worker_state *state,
+        ds4_dist_worker_upstream *upstream,
+        uint32_t bytes) {
+    if (!dist_worker_epoch_is_current(state, upstream->epoch)) {
+        DIST_DEBUG("worker ignoring stale local-generate fd=%d epoch=%llu",
+                   upstream->fd,
+                   (unsigned long long)upstream->epoch);
+        dist_discard_bytes(upstream->fd, bytes);
+        return -1;
+    }
+    ds4_dist_local_generate_req_fixed req;
+    char err[256] = {0};
+    uint64_t request_id = 0;
+    uint64_t session_id = 0;
+    const uint32_t vocab = (uint32_t)ds4_engine_vocab_size(state->engine);
+    const uint32_t logits_bytes = (uint32_t)((uint64_t)vocab * sizeof(float));
+
+    if (bytes != sizeof(req) + logits_bytes) {
+        dist_discard_bytes(upstream->fd, bytes);
+        return -1;
+    }
+    int rc = dist_read_full(upstream->fd, &req, sizeof(req));
+    if (rc <= 0) return rc == 0 ? 0 : -1;
+    dist_local_generate_req_from_wire(&req);
+    request_id = dist_u64_from_halves(req.request_hi, req.request_lo);
+    session_id = dist_u64_from_halves(req.session_hi, req.session_lo);
+    const uint64_t token_hash = dist_u64_from_halves(req.token_hash_hi,
+                                                     req.token_hash_lo);
+    if (req.model_id != state->model_id || req.logits_bytes != logits_bytes) {
+        dist_discard_bytes(upstream->fd, bytes - (uint32_t)sizeof(req));
+        snprintf(err, sizeof(err), "local generate request does not match worker state");
+    }
+
+    float *logits = NULL;
+    if (!err[0]) {
+        logits = malloc(logits_bytes);
+        if (!logits) {
+            dist_discard_bytes(upstream->fd, logits_bytes);
+            snprintf(err, sizeof(err), "out of memory reading local generate logits");
+        }
+    }
+    if (!err[0] && dist_read_full(upstream->fd, logits, logits_bytes) <= 0) {
+        free(logits);
+        return -1;
+    }
+
+    int *tokens = NULL;
+    float *logits_trace = NULL;
+    uint32_t generated = 0;
+    uint64_t final_hash = token_hash;
+    uint32_t decode_usec = 0;
+    if (!err[0] && req.n_predict != 0) {
+        tokens = malloc((size_t)req.n_predict * sizeof(tokens[0]));
+        if (!tokens) snprintf(err, sizeof(err), "out of memory allocating generated tokens");
+        if (!err[0]) {
+            const uint64_t trace_values64 = (uint64_t)req.n_predict * (uint64_t)vocab;
+            if (trace_values64 > SIZE_MAX / sizeof(float)) {
+                snprintf(err, sizeof(err), "local generate logits trace is too large");
+            } else {
+                logits_trace = malloc((size_t)trace_values64 * sizeof(float));
+                if (!logits_trace) {
+                    snprintf(err, sizeof(err), "out of memory allocating generated logits trace");
+                }
+            }
+        }
+    }
+
+    if (!err[0]) {
+        pthread_mutex_lock(&state->mu);
+        ds4_dist_worker_session *session = dist_worker_find_session_locked(state, session_id);
+        if (!session) {
+            snprintf(err, sizeof(err), "worker has no session for local generate");
+        } else if (!session->token_hash_valid || session->token_hash != token_hash) {
+            snprintf(err, sizeof(err), "worker local generate token hash mismatch");
+        } else if (ds4_session_set_logits(session->session, logits, (int)vocab) != 0) {
+            snprintf(err, sizeof(err), "failed to seed local generate logits");
+        } else {
+            const double t0 = dist_now_sec();
+            for (uint32_t i = 0; i < req.n_predict; i++) {
+                const int tok = ds4_session_argmax(session->session);
+                tokens[i] = tok;
+                if (ds4_session_eval(session->session, tok, err, sizeof(err)) != 0) {
+                    session->token_hash_valid = false;
+                    generated = i;
+                    break;
+                }
+                if (logits_trace) {
+                    if (ds4_session_copy_logits(session->session,
+                                                logits_trace + (size_t)i * (size_t)vocab,
+                                                (int)vocab) != (int)vocab) {
+                        snprintf(err, sizeof(err), "failed to copy local generate logits trace");
+                        session->token_hash_valid = false;
+                        generated = i;
+                        break;
+                    }
+                }
+                final_hash = dist_token_hash_update(final_hash, tok);
+                generated = i + 1u;
+            }
+            const double t1 = dist_now_sec();
+            decode_usec = dist_usec_since(t0, t1);
+            if (!err[0]) {
+                session->token_hash = final_hash;
+                session->token_hash_valid = true;
+            }
+        }
+        pthread_mutex_unlock(&state->mu);
+    }
+
+    pthread_mutex_lock(&upstream->write_mu);
+    rc = dist_send_local_generate_response(upstream->fd,
+                                           session_id,
+                                           request_id,
+                                           state->model_id,
+                                           err[0] ? token_hash : final_hash,
+                                           tokens,
+                                           generated,
+                                           logits_trace,
+                                           (uint32_t)((uint64_t)generated * (uint64_t)vocab *
+                                                      sizeof(float)),
+                                           decode_usec,
+                                           err[0] ? 1u : 0u,
+                                           err);
+    pthread_mutex_unlock(&upstream->write_mu);
+    free(tokens);
+    free(logits_trace);
+    free(logits);
+    return rc;
+}
+
 /* =========================================================================
  * Worker Layer Execution
  * ========================================================================= */
@@ -7291,6 +7977,12 @@ static int dist_worker_process_work_payload(
         ds4_dist_worker_upstream *upstream,
         const void *payload,
         uint32_t bytes) {
+    if (!dist_worker_epoch_is_current(state, upstream->epoch)) {
+        DIST_DEBUG("worker ignoring stale data payload fd=%d epoch=%llu",
+                   upstream->fd,
+                   (unsigned long long)upstream->epoch);
+        return -1;
+    }
     uint64_t request_id = 0;
     char err[256];
     if (bytes < sizeof(ds4_dist_work_fixed)) {
@@ -7872,9 +8564,9 @@ static void *dist_worker_prefetch_eval_main(void *arg) {
     return NULL;
 }
 
-static int dist_worker_read_loop_prefetch(ds4_dist_worker_state *state, int fd) {
+static int dist_worker_read_loop_prefetch(ds4_dist_worker_state *state, int fd, uint64_t epoch) {
     ds4_dist_worker_upstream upstream;
-    dist_worker_upstream_init(&upstream, state, fd);
+    dist_worker_upstream_init(&upstream, state, fd, epoch);
 
     ds4_dist_worker_job_queue queue;
     dist_worker_job_queue_init(&queue, state, &upstream);
@@ -7961,6 +8653,14 @@ static int dist_worker_read_loop_prefetch(ds4_dist_worker_state *state, int fd) 
             }
             continue;
         }
+        if (type == DS4_DIST_MSG_LOCAL_GENERATE_REQ) {
+            rc = dist_worker_handle_local_generate(state, &upstream, bytes);
+            if (rc <= 0) {
+                loop_rc = rc == 0 ? 0 : 1;
+                break;
+            }
+            continue;
+        }
         rc = dist_discard_bytes(fd, bytes);
         if (rc <= 0) {
             loop_rc = rc == 0 ? 0 : 1;
@@ -7987,15 +8687,21 @@ static void *dist_worker_data_client_main(void *arg) {
     ds4_dist_data_client_ctx *ctx = arg;
     ds4_dist_worker_state *state = ctx->state;
     int fd = ctx->fd;
+    const uint64_t epoch = ctx->epoch;
     char peer_host[NI_MAXHOST];
     char peer_port[NI_MAXSERV];
     snprintf(peer_host, sizeof(peer_host), "%s", ctx->peer_host);
     snprintf(peer_port, sizeof(peer_port), "%s", ctx->peer_port);
     free(ctx);
 
+    if (!dist_worker_epoch_is_current(state, epoch)) {
+        close(fd);
+        return NULL;
+    }
+
     int rc = getenv("DS4_DIST_DISABLE_WORKER_PREFETCH")
-        ? dist_worker_read_loop(state, fd)
-        : dist_worker_read_loop_prefetch(state, fd);
+        ? dist_worker_read_loop(state, fd, epoch)
+        : dist_worker_read_loop_prefetch(state, fd, epoch);
     if (rc != 0) {
         fprintf(stderr,
                 "ds4: distributed worker: data connection %s:%s closed after error\n",
@@ -8027,8 +8733,20 @@ static void *dist_worker_data_listener_main(void *arg) {
             close(fd);
             continue;
         }
+        uint64_t epoch = 0;
+        bool connected = false;
+        pthread_mutex_lock(&state->mu);
+        epoch = state->connection_epoch;
+        connected = state->control_connected;
+        pthread_mutex_unlock(&state->mu);
+        if (!connected || epoch == 0) {
+            close(fd);
+            free(ctx);
+            continue;
+        }
         ctx->state = state;
         ctx->fd = fd;
+        ctx->epoch = epoch;
         if (getnameinfo((struct sockaddr *)&ss, slen,
                         ctx->peer_host, sizeof(ctx->peer_host),
                         ctx->peer_port, sizeof(ctx->peer_port),
@@ -8121,11 +8839,13 @@ static int dist_run_worker(ds4_engine *engine, const ds4_dist_options *opt, int 
             dist_sleep_reconnect();
             continue;
         }
+        const uint64_t control_epoch = dist_worker_control_connect(&state);
 
         int rc = getenv("DS4_DIST_DISABLE_WORKER_PREFETCH")
-            ? dist_worker_read_loop(&state, fd)
-            : dist_worker_read_loop_prefetch(&state, fd);
+            ? dist_worker_read_loop(&state, fd, control_epoch)
+            : dist_worker_read_loop_prefetch(&state, fd, control_epoch);
         close(fd);
+        dist_worker_control_disconnect(&state, control_epoch);
         uint32_t dropped_sessions = dist_worker_clear_sessions(&state);
         if (dropped_sessions) {
             fprintf(stderr,
@@ -8497,10 +9217,15 @@ int ds4_dist_prepare_engine_options(
     if (engine && opt) {
         engine->distributed = *opt;
         if (ds4_dist_enabled(opt)) {
-            engine->load_slice = true;
-            engine->load_layer_start = opt->layers.start;
-            engine->load_layer_end = opt->layers.has_output ? UINT32_MAX : opt->layers.end;
-            engine->load_output = opt->layers.has_output;
+            const bool full_resident_worker =
+                opt->role == DS4_DISTRIBUTED_WORKER &&
+                dist_worker_full_resident_enabled();
+            if (!full_resident_worker) {
+                engine->load_slice = true;
+                engine->load_layer_start = opt->layers.start;
+                engine->load_layer_end = opt->layers.has_output ? UINT32_MAX : opt->layers.end;
+                engine->load_output = opt->layers.has_output;
+            }
         }
     }
     return 0;

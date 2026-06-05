@@ -40,6 +40,7 @@ int ds4_gpu_signal_selected_readback_ready(uint64_t *event_value);
 int ds4_gpu_commit_and_wait_selected_readback(uint64_t event_value, const char *label);
 int ds4_gpu_end_commands(void);
 int ds4_gpu_synchronize(void);
+void ds4_gpu_reset_runtime_scratch(void);
 
 int ds4_gpu_set_model_map(const void *model_map, uint64_t model_size);
 int ds4_gpu_set_model_fd(int fd);
@@ -55,6 +56,7 @@ int ds4_gpu_preload_q4_expert_tables(const void *model_map, uint64_t model_size,
 int ds4_gpu_should_use_managed_kv_cache(uint64_t kv_cache_bytes, uint64_t context_bytes);
 void ds4_gpu_set_quality(bool quality);
 void ds4_gpu_print_memory_report(const char *label);
+int ds4_gpu_query_memory(uint64_t *free_bytes, uint64_t *total_bytes);
 
 /* =========================================================================
  * Embeddings and Indexer Helpers.
