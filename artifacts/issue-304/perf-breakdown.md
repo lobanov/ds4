@@ -1,5 +1,38 @@
 # Issue 304 Performance Breakdown
 
+## Phase 5 CLI worker-owned local-decode timings
+
+These measurements use the plain `ds4` CLI and the in-process final-worker
+handoff path with stream-based KV transfer. The coordinator was run with
+`--debug` so the new KV handoff timing line was emitted directly from the
+user-visible path.
+
+### 2026-06-05 CLI measurements
+
+| Route | Prompt | Prompt tokens | KV bytes | KV handoff sec | KV MiB/s | Prefill tok/s | Worker/local generation tok/s | Notes |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| `Metal -> CUDA` | `ping` | 10 | 6,564,072 | 0.025 | 248.27 | 14.27 | 14.88 | tiny prompt sanity check |
+| `Metal -> CUDA` | README 4 KiB slice | 958 | 18,091,240 | 0.055 | 313.91 | 314.80 | 14.13 | mid-sized prompt |
+| `Metal -> CUDA` | full `README.md` | 14,318 | 105,725,160 | 0.345 | 292.47 | 603.15 | 13.08 | reused CUDA worker |
+| `CUDA -> Metal` | `ping` | 10 | 6,564,072 | 0.019 | 335.60 | 10.87 | 38.69 | fresh Metal worker |
+| `CUDA -> Metal` | full `README.md` | 14,524 | 107,097,320 | 0.350 | 291.42 | 589.93 | 30.33 | fresh Metal worker |
+| local Mac baseline | full `README.md` | 14,318 | n/a | n/a | n/a | 413.44 | 34.78 | no distributed route |
+
+Interpretation:
+
+- For long prompts, distributed prefill still dominates runtime. The new KV
+  handoff stayed around `0.35 s` for roughly `100 MiB` payloads in both
+  directions.
+- That keeps KV handoff in the "small tail" category relative to
+  `23-25 s` distributed prefill on the README prompt.
+- On the Mac decode side, worker-owned local generation reached
+  `30.33 tok/s` against a pure local Mac baseline of `34.78 tok/s`, which
+  is close enough that the main performance question is no longer decode
+  throughput.
+- For very short generations the one-time handoff can still matter to
+  first-token latency, but the current data does not justify KV pipelining
+  for throughput-oriented Phase 5 benchmarking.
+
 ## Phase 4 final-worker handoff timings
 
 Tool:

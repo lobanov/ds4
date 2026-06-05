@@ -1341,6 +1341,79 @@ static bool test_save_layer_payload_bytes(ds4_session *session,
     return true;
 }
 
+typedef struct {
+    uint8_t *buf;
+    size_t len;
+    size_t cap;
+    size_t pos;
+} test_payload_stream_buf;
+
+static int test_payload_stream_write(void *ud,
+                                     const void *ptr,
+                                     uint64_t bytes,
+                                     char *err,
+                                     size_t errlen) {
+    test_payload_stream_buf *stream = ud;
+    if (!stream || bytes > (uint64_t)SIZE_MAX) {
+        if (errlen) snprintf(err, errlen, "invalid test payload stream write");
+        return 1;
+    }
+    size_t need = stream->len + (size_t)bytes;
+    if (need > stream->cap) {
+        size_t new_cap = stream->cap ? stream->cap : 4096u;
+        while (new_cap < need) new_cap *= 2u;
+        uint8_t *new_buf = realloc(stream->buf, new_cap);
+        if (!new_buf) {
+            if (errlen) snprintf(err, errlen, "out of memory growing test payload stream");
+            return 1;
+        }
+        stream->buf = new_buf;
+        stream->cap = new_cap;
+    }
+    memcpy(stream->buf + stream->len, ptr, (size_t)bytes);
+    stream->len += (size_t)bytes;
+    return 0;
+}
+
+static int test_payload_stream_read(void *ud,
+                                    void *ptr,
+                                    uint64_t bytes,
+                                    char *err,
+                                    size_t errlen) {
+    test_payload_stream_buf *stream = ud;
+    if (!stream || bytes > (uint64_t)(stream->len - stream->pos)) {
+        if (errlen) snprintf(err, errlen, "truncated test payload stream");
+        return 1;
+    }
+    memcpy(ptr, stream->buf + stream->pos, (size_t)bytes);
+    stream->pos += (size_t)bytes;
+    return 0;
+}
+
+static bool test_save_layer_payload_stream_bytes(ds4_session *session,
+                                                 uint32_t layer_start,
+                                                 uint32_t layer_end,
+                                                 uint8_t **out,
+                                                 size_t *len_out) {
+    test_payload_stream_buf stream = {0};
+    char err[160];
+    const int rc = ds4_session_save_layer_payload_stream(session,
+                                                         test_payload_stream_write,
+                                                         &stream,
+                                                         layer_start,
+                                                         layer_end,
+                                                         err,
+                                                         sizeof(err));
+    TEST_ASSERT(rc == 0);
+    if (rc != 0) {
+        free(stream.buf);
+        return false;
+    }
+    *out = stream.buf;
+    *len_out = stream.len;
+    return true;
+}
+
 static bool test_load_layer_payload_bytes(ds4_session *session,
                                           const uint8_t *buf,
                                           size_t len,
@@ -1371,6 +1444,33 @@ static bool test_load_layer_payload_bytes(ds4_session *session,
     return rc == 0;
 }
 
+static bool test_load_layer_payload_stream_bytes(ds4_session *session,
+                                                 const uint8_t *buf,
+                                                 size_t len,
+                                                 const int *tokens,
+                                                 uint32_t n_tokens,
+                                                 uint32_t layer_start,
+                                                 uint32_t layer_end) {
+    test_payload_stream_buf stream = {
+        .buf = (uint8_t *)buf,
+        .len = len,
+    };
+    char err[160];
+    const int rc = ds4_session_load_layer_payload_stream(session,
+                                                         test_payload_stream_read,
+                                                         &stream,
+                                                         (uint64_t)len,
+                                                         tokens,
+                                                         n_tokens,
+                                                         layer_start,
+                                                         layer_end,
+                                                         err,
+                                                         sizeof(err));
+    TEST_ASSERT(rc == 0);
+    TEST_ASSERT(stream.pos == len);
+    return rc == 0 && stream.pos == len;
+}
+
 static void test_local_layer_payload_smoke(ds4_engine *engine,
                                            const ds4_tokens *prompt,
                                            int ctx,
@@ -1385,8 +1485,10 @@ static void test_local_layer_payload_smoke(ds4_engine *engine,
     ds4_session_payload_file full_payload = {0};
     test_dsv4_metadata full_meta = {0};
     uint8_t *src_buf = NULL;
+    uint8_t *stream_buf = NULL;
     uint8_t *roundtrip_buf = NULL;
     size_t src_len = 0;
+    size_t stream_len = 0;
     size_t roundtrip_len = 0;
 
     TEST_ASSERT(ds4_session_create(&base, engine, ctx) == 0);
@@ -1438,13 +1540,19 @@ static void test_local_layer_payload_smoke(ds4_engine *engine,
         if (duplicate) continue;
 
         free(src_buf);
+        free(stream_buf);
         free(roundtrip_buf);
         src_buf = NULL;
+        stream_buf = NULL;
         roundtrip_buf = NULL;
         src_len = 0;
+        stream_len = 0;
         roundtrip_len = 0;
 
         TEST_ASSERT(test_save_layer_payload_bytes(base, layer, layer, &src_buf, &src_len));
+        TEST_ASSERT(test_save_layer_payload_stream_bytes(base, layer, layer, &stream_buf, &stream_len));
+        TEST_ASSERT(src_len == stream_len);
+        TEST_ASSERT(memcmp(src_buf, stream_buf, src_len) == 0);
         test_dsvl_metadata dsvl = {0};
         TEST_ASSERT(test_parse_dsvl_metadata_bytes(src_buf, src_len, &dsvl));
         TEST_ASSERT(dsvl.layer_start == layer);
@@ -1455,9 +1563,9 @@ static void test_local_layer_payload_smoke(ds4_engine *engine,
         TEST_ASSERT(restored != NULL);
         if (!restored) break;
 
-        TEST_ASSERT(test_load_layer_payload_bytes(restored, src_buf, src_len,
-                                                  prompt->v, (uint32_t)frontier,
-                                                  layer, layer));
+        TEST_ASSERT(test_load_layer_payload_stream_bytes(restored, stream_buf, stream_len,
+                                                         prompt->v, (uint32_t)frontier,
+                                                         layer, layer));
         TEST_ASSERT(test_save_layer_payload_bytes(restored, layer, layer,
                                                  &roundtrip_buf, &roundtrip_len));
         TEST_ASSERT(src_len == roundtrip_len);
@@ -1478,6 +1586,7 @@ static void test_local_layer_payload_smoke(ds4_engine *engine,
 
 cleanup:
     free(src_buf);
+    free(stream_buf);
     free(roundtrip_buf);
     test_dsv4_metadata_free(&full_meta);
     ds4_session_payload_file_free(&full_payload);
@@ -1770,6 +1879,75 @@ static void test_local_payload_resume(void) {
     test_dsv4_metadata_free(&probe_meta);
     ds4_session_payload_file_free(&probe_payload);
     ds4_session_free(probe);
+    ds4_tokens_free(&prompt);
+    ds4_engine_close(engine);
+    test_restore_env("DS4_METAL_MOE_TILE_MAX", saved_moe_tile_max);
+    test_restore_env("DS4_METAL_DISABLE_METAL4", saved_disable_metal4);
+    test_restore_env("DS4_METAL_PREFILL_CHUNK", saved_prefill_chunk);
+}
+
+static void test_local_payload_stream(void) {
+    char *saved_prefill_chunk = test_save_env("DS4_METAL_PREFILL_CHUNK");
+    char *saved_disable_metal4 = test_save_env("DS4_METAL_DISABLE_METAL4");
+    char *saved_moe_tile_max = test_save_env("DS4_METAL_MOE_TILE_MAX");
+    setenv("DS4_METAL_PREFILL_CHUNK", "4096", 1);
+    setenv("DS4_METAL_DISABLE_METAL4", "1", 1);
+    unsetenv("DS4_METAL_MOE_TILE_MAX");
+
+    ds4_engine *engine = test_open_engine(false);
+    if (!engine) {
+        test_restore_env("DS4_METAL_MOE_TILE_MAX", saved_moe_tile_max);
+        test_restore_env("DS4_METAL_DISABLE_METAL4", saved_disable_metal4);
+        test_restore_env("DS4_METAL_PREFILL_CHUNK", saved_prefill_chunk);
+        return;
+    }
+
+    ds4_tokens prompt = {0};
+    if (!test_tokenize_phase1_prompt(engine, &prompt)) {
+        ds4_engine_close(engine);
+        test_restore_env("DS4_METAL_MOE_TILE_MAX", saved_moe_tile_max);
+        test_restore_env("DS4_METAL_DISABLE_METAL4", saved_disable_metal4);
+        test_restore_env("DS4_METAL_PREFILL_CHUNK", saved_prefill_chunk);
+        return;
+    }
+
+    ds4_session *base = NULL;
+    ds4_session *restored = NULL;
+    uint8_t *file_buf = NULL;
+    uint8_t *stream_buf = NULL;
+    uint8_t *roundtrip_buf = NULL;
+    size_t file_len = 0;
+    size_t stream_len = 0;
+    size_t roundtrip_len = 0;
+    char err[160];
+    ds4_tokens prefix = { .v = prompt.v, .len = 1, .cap = 1 };
+
+    TEST_ASSERT(ds4_session_create(&base, engine, 16384) == 0);
+    TEST_ASSERT(base != NULL);
+    TEST_ASSERT(ds4_session_sync(base, &prefix, err, sizeof(err)) == 0);
+    TEST_ASSERT(test_save_layer_payload_bytes(base, 0, 0, &file_buf, &file_len));
+    TEST_ASSERT(test_save_layer_payload_stream_bytes(base, 0, 0, &stream_buf, &stream_len));
+    TEST_ASSERT(file_len == stream_len);
+    TEST_ASSERT(memcmp(file_buf, stream_buf, file_len) == 0);
+
+    TEST_ASSERT(ds4_session_create(&restored, engine, 16384) == 0);
+    TEST_ASSERT(restored != NULL);
+    TEST_ASSERT(test_load_layer_payload_stream_bytes(restored,
+                                                     stream_buf,
+                                                     stream_len,
+                                                     prefix.v,
+                                                     (uint32_t)prefix.len,
+                                                     0,
+                                                     0));
+    TEST_ASSERT(test_save_layer_payload_bytes(restored, 0, 0, &roundtrip_buf, &roundtrip_len));
+    TEST_ASSERT(file_len == roundtrip_len);
+    TEST_ASSERT(memcmp(file_buf, roundtrip_buf, file_len) == 0);
+
+    free(file_buf);
+    free(stream_buf);
+    free(roundtrip_buf);
+    ds4_session_free(restored);
+    ds4_session_free(base);
     ds4_tokens_free(&prompt);
     ds4_engine_close(engine);
     test_restore_env("DS4_METAL_MOE_TILE_MAX", saved_moe_tile_max);
@@ -2273,6 +2451,58 @@ static void test_server_unit_group(void) {
     ds4_server_unit_tests_run();
 }
 
+static void test_distributed_cli_parse(void) {
+    ds4_engine_options engine = {0};
+    char err[160];
+
+    ds4_dist_options *worker = ds4_dist_options_create();
+    TEST_ASSERT(worker != NULL);
+    if (!worker) return;
+    char *worker_argv[] = {
+        "ds4",
+        "--role", "worker",
+        "--layers", "21:output",
+        "--coordinator", "127.0.0.1", "9000",
+        "--local-decode",
+    };
+    for (int i = 1; i < (int)(sizeof(worker_argv) / sizeof(worker_argv[0])); i++) {
+        ds4_dist_cli_parse_result rc = ds4_dist_parse_cli_arg(worker_argv[i],
+                                                              &i,
+                                                              (int)(sizeof(worker_argv) / sizeof(worker_argv[0])),
+                                                              worker_argv,
+                                                              worker,
+                                                              err,
+                                                              sizeof(err));
+        TEST_ASSERT(rc == DS4_DIST_CLI_MATCHED);
+    }
+    TEST_ASSERT(worker->local_decode);
+    TEST_ASSERT(ds4_dist_prepare_engine_options(worker, &engine, err, sizeof(err)) == 0);
+    ds4_dist_options_free(worker);
+
+    ds4_dist_options *invalid = ds4_dist_options_create();
+    TEST_ASSERT(invalid != NULL);
+    if (!invalid) return;
+    char *invalid_argv[] = {
+        "ds4",
+        "--role", "worker",
+        "--layers", "21:42",
+        "--coordinator", "127.0.0.1", "9000",
+        "--local-decode",
+    };
+    for (int i = 1; i < (int)(sizeof(invalid_argv) / sizeof(invalid_argv[0])); i++) {
+        ds4_dist_cli_parse_result rc = ds4_dist_parse_cli_arg(invalid_argv[i],
+                                                              &i,
+                                                              (int)(sizeof(invalid_argv) / sizeof(invalid_argv[0])),
+                                                              invalid_argv,
+                                                              invalid,
+                                                              err,
+                                                              sizeof(err));
+        TEST_ASSERT(rc == DS4_DIST_CLI_MATCHED);
+    }
+    TEST_ASSERT(ds4_dist_prepare_engine_options(invalid, &engine, err, sizeof(err)) != 0);
+    ds4_dist_options_free(invalid);
+}
+
 typedef void (*test_fn)(void);
 
 typedef struct {
@@ -2288,12 +2518,14 @@ static const ds4_test_entry test_entries[] = {
     {"--tool-call-quality", "tool-call-quality", "model emits valid DSML tool calls", test_tool_call_quality},
     {"--logprob-vectors", "logprob-vectors", "official API top-logprob vector comparison on the standard Metal path", test_official_logprob_vectors},
     {"--local-payload-resume", "local-payload-resume", "local DSV4 save/load resume and DSVL shard smoke", test_local_payload_resume},
+    {"--local-payload-stream", "local-payload-stream", "stream-vs-file DSVL payload roundtrip smoke", test_local_payload_stream},
     {"--local-golden-vectors", "local-golden-vectors", "local top-k/logit drift regression for long Metal prefill", test_local_golden_vectors},
     {"--metal-short-prefill", "metal-short-prefill", "Metal ratio-4 short prefill regression", test_metal_short_prefill_ratio4},
     {"--metal-kernels", "metal-kernels", "isolated Metal kernel numeric regressions", test_metal_kernel_group},
     {"--metal-tensor-equivalence", "metal-tensor-equivalence", "fast/quality Metal prompt-logit and greedy equivalence", test_metal_mpp_equivalence},
 #endif
     {"--server", "server", "server parser/rendering/cache unit tests", test_server_unit_group},
+    {"--dist-cli-parse", "dist-cli-parse", "distributed CLI parsing and --local-decode validation", test_distributed_cli_parse},
 };
 
 static void test_print_help(const char *prog) {

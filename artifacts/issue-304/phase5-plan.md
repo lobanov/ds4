@@ -6,6 +6,45 @@ variance forensics, does not change residency, and does not change route topolog
 It is the smallest step that turns `tests/issue304_phase4_handoff` into something
 a real frontend can call.
 
+## 2026-06-05 implementation status
+
+Phase 5 is now partially implemented in the main CLI/runtime path.
+
+Implemented:
+
+- `--local-decode` is parsed by the shared distributed CLI parser and is
+  accepted only on worker processes that own `N:output`.
+- `--local-decode` implies full worker residency and is advertised in
+  HELLO/route metadata.
+- The coordinator pushes its local KV shard to the output-owning worker
+  after distributed prefill using stream-based `DSVL` helpers; the
+  temp-file detour was removed from this handoff path.
+- Reusable coordinator sessions catch up their local slice from the
+  generated token ids returned by worker local generation.
+- One-shot greedy CLI coordinator runs (`--temp 0`) now attempt the
+  worker-owned handoff path directly.
+
+Measured on 2026-06-05 with the plain `ds4` CLI:
+
+- `Metal -> CUDA`, full `README.md`, `ctx=16384`:
+  - distributed prefill: `603.15 tok/s`
+  - KV handoff: `105,725,160` bytes in `0.345 s` (`292.47 MiB/s`)
+  - worker local generation: `13.08 tok/s`
+- `CUDA -> Metal`, fresh Metal worker, full `README.md`, `ctx=16384`:
+  - distributed prefill: `589.93 tok/s`
+  - KV handoff: `107,097,320` bytes in `0.350 s` (`291.42 MiB/s`)
+  - worker local generation: `30.33 tok/s`
+- Pure local Mac baseline, full `README.md`, `ctx=16384`:
+  - local prefill: `413.44 tok/s`
+  - local generation: `34.78 tok/s`
+
+Current limitation:
+
+- The worker-owned handoff is wired into the one-shot greedy coordinator
+  path. The normal sampled distributed `ds4_session_eval(token)` path is
+  still the old per-token distributed decode surface, so full sampled
+  coordinator/server delegation remains follow-on work.
+
 ## Source documents
 
 - `PLAN.md` Phase 5 section defines the goal, candidate options, and decision criteria.

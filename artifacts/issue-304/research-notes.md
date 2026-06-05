@@ -370,3 +370,56 @@ The remaining work should separate:
 - backend-specific generation variance on long prompts,
 - fixture drift in `local-golden.vec`,
 - and any additional error introduced specifically by distributed payload resume.
+
+## Phase 5: CLI worker-owned local decode
+
+### What was completed
+
+- Landed the worker-owned `--local-decode` CLI/runtime path.
+- Made `--local-decode` imply full worker residency and advertise through
+  HELLO/route metadata.
+- Replaced the Phase 5 handoff temp-file path with stream-based `DSVL`
+  save/load helpers.
+- Added coordinator catch-up from returned worker token ids for reusable
+  sessions.
+- Validated the path with the plain `ds4` CLI in both backend directions.
+
+### Findings
+
+1. The user-visible worker-owned path now exists without a harness.
+   - One-shot greedy coordinator runs (`--temp 0`) can prefill over the
+     distributed route, push the coordinator KV shard, and let the
+     output-owning worker finish generation.
+
+2. KV handoff cost is measurable but small relative to prefill.
+   - `Metal -> CUDA`, full `README.md`:
+     - prompt tokens `14,318`
+     - KV bytes `105,725,160`
+     - handoff `0.345 s`
+     - prefill `603.15 tok/s`
+   - `CUDA -> Metal`, fresh Metal worker, full `README.md`:
+     - prompt tokens `14,524`
+     - KV bytes `107,097,320`
+     - handoff `0.350 s`
+     - prefill `589.93 tok/s`
+
+3. Local decode on the Mac side is close to the pure local baseline.
+   - `CUDA -> Metal` worker-owned local generation reached `30.33 tok/s`.
+   - Pure local Mac generation on the same `README.md` prompt reached
+     `34.78 tok/s`.
+   - That is close enough that Phase 5 no longer needs to justify itself on
+     decode throughput alone.
+
+4. The remaining surface gap is protocol usage, not handoff mechanics.
+   - The current worker-owned path is wired into the greedy one-shot
+     coordinator flow.
+   - The normal sampled distributed eval/decode path is still the older
+     token-by-token coordinator-owned surface.
+
+### Implication
+
+Phase 5 has crossed the implementation threshold: the intended CLI workflow
+is real, benchmarkable, and no longer dependent on the issue harnesses.
+The next work should focus on extending surface coverage and preserving
+correctness for reusable/sample-driven flows, not on adding KV pipelining
+prematurely.

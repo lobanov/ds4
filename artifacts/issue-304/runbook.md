@@ -1,5 +1,78 @@
 # Issue 304 Runbook
 
+## Phase 5 worker-owned local-decode workflow
+
+Phase 5 now has a CLI-visible path. Use these rules for authoritative
+validation:
+
+- use the plain `ds4` CLI, not the older issue harnesses, when validating
+  the user-visible workflow,
+- `--local-decode` belongs on the worker that owns `N:output`,
+- `--local-decode` implies full worker residency,
+- for strict `CUDA -> Metal` checks, start a fresh Metal worker process,
+- for `Metal -> CUDA`, a reused CUDA worker remains acceptable coverage,
+- pass `--debug` on the coordinator to record the KV handoff timing line.
+
+The coordinator now logs:
+
+```text
+ds4: distributed coordinator: local-decode KV handoff tokens=... layers=... bytes=... total=... MiB/s worker=...
+```
+
+This is the timing surface to use when deciding whether KV pipelining is
+worth implementing.
+
+### CLI commands
+
+`Metal -> CUDA` worker startup on DGX:
+
+```sh
+ssh dgx-direct 'pkill -9 ds4 >/dev/null 2>&1 || true; sh -c "cd ~/ds4; nohup ./ds4 -m ~/ds4/gguf/DeepSeek-V4-Flash-IQ2XXS-w2Q2K-AProjQ8-SExpQ8-OutQ8-chat-v2-imatrix.gguf --ctx 16384 --role worker --layers 22:output --local-decode --coordinator 10.77.0.1 1234 >/tmp/ds4-phase5-worker.log 2>&1 < /dev/null &"'
+```
+
+`Metal -> CUDA` one-shot coordinator run on the Mac:
+
+```sh
+./ds4 -m ./gguf/DeepSeek-V4-Flash-IQ2XXS-w2Q2K-AProjQ8-SExpQ8-OutQ8-chat-v2-imatrix.gguf --ctx 16384 --temp 0 --nothink --role coordinator --layers 0:21 --listen 10.77.0.1 1234 --prompt-file README.md -n 8 --debug
+```
+
+`CUDA -> Metal` fresh worker startup on the Mac:
+
+```sh
+./ds4 -m ./gguf/DeepSeek-V4-Flash-IQ2XXS-w2Q2K-AProjQ8-SExpQ8-OutQ8-chat-v2-imatrix.gguf --ctx 16384 --role worker --layers 22:output --local-decode --coordinator 10.77.0.2 1234
+```
+
+`CUDA -> Metal` one-shot coordinator run on DGX:
+
+```sh
+ssh dgx-direct 'cd ~/ds4 && ./ds4 -m ~/ds4/gguf/DeepSeek-V4-Flash-IQ2XXS-w2Q2K-AProjQ8-SExpQ8-OutQ8-chat-v2-imatrix.gguf --ctx 16384 --temp 0 --nothink --role coordinator --layers 0:21 --listen 10.77.0.2 1234 --prompt-file README.md -n 8 --debug'
+```
+
+### Authoritative 2026-06-05 CLI timings
+
+| Route | Prompt | Prompt tokens | KV handoff bytes | KV handoff sec | Prefill tok/s | Generation tok/s |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| `Metal -> CUDA` | `ping` | 10 | 6,564,072 | 0.025 | 14.27 | 14.88 |
+| `Metal -> CUDA` | README 4 KiB slice | 958 | 18,091,240 | 0.055 | 314.80 | 14.13 |
+| `Metal -> CUDA` | full `README.md` | 14,318 | 105,725,160 | 0.345 | 603.15 | 13.08 |
+| `CUDA -> Metal` | `ping` | 10 | 6,564,072 | 0.019 | 10.87 | 38.69 |
+| `CUDA -> Metal` | full `README.md` | 14,524 | 107,097,320 | 0.350 | 589.93 | 30.33 |
+
+Reference local Mac baseline:
+
+```sh
+./ds4 -m ./gguf/DeepSeek-V4-Flash-IQ2XXS-w2Q2K-AProjQ8-SExpQ8-OutQ8-chat-v2-imatrix.gguf --ctx 16384 --temp 0 --nothink --prompt-file README.md -n 8
+```
+
+- full `README.md`: prefill `413.44 tok/s`, generation `34.78 tok/s`
+
+Current limitation:
+
+- the worker-owned handoff is wired into the greedy one-shot coordinator
+  path. Normal sampled distributed decode/server reuse still needs follow-on
+  work, even though reusable coordinators now have catch-up logic in the
+  session layer.
+
 ## Phase 4 closeout rules
 
 Phase 4 is complete. Use these rules for ongoing validation and follow-on work:

@@ -19,6 +19,7 @@
 #include <arpa/inet.h>
 #include <errno.h>
 #include <float.h>
+#include <inttypes.h>
 #include <math.h>
 #include <netdb.h>
 #include <net/if.h>
@@ -55,6 +56,7 @@
 #define DS4_DIST_MSG_LOCAL_GENERATE_REQ 10u
 #define DS4_DIST_MSG_LOCAL_GENERATE_RES 11u
 #define DS4_DIST_MAX_MODEL_NAME 127u
+#define DS4_DIST_HELLO_F_LOCAL_DECODE 0x00000001u
 #define DS4_DIST_WORK_F_INPUT_HC 0x00000001u
 #define DS4_DIST_WORK_F_OUTPUT_LOGITS 0x00000002u
 #define DS4_DIST_WORK_F_RESET_SESSION 0x00000004u
@@ -67,6 +69,7 @@
 #define DS4_DIST_RESULT_LOGITS 2u
 #define DS4_DIST_ACTIVATION_BITS_DEFAULT 32u
 #define DS4_DIST_ROUTE_F_OUTPUT_LOGITS 0x00000001u
+#define DS4_DIST_ROUTE_F_LOCAL_DECODE 0x00000002u
 #define DS4_DIST_ROUTE_RETURN_UPSTREAM 1u
 #define DS4_DIST_RECV_TRANSPORT_ERROR 1
 #define DS4_DIST_RECV_REMOTE_ERROR 2
@@ -89,6 +92,7 @@ typedef struct {
     uint32_t n_layers;
     uint32_t listen_port;
     uint32_t model_name_len;
+    uint32_t flags;
 } ds4_dist_hello_fixed;
 
 typedef struct {
@@ -250,6 +254,7 @@ typedef struct ds4_dist_worker_entry {
     uint32_t ctx_size;
     uint32_t n_layers;
     uint32_t listen_port;
+    bool wants_local_decode;
     struct ds4_dist_worker_entry *next;
 } ds4_dist_worker_entry;
 
@@ -300,6 +305,8 @@ typedef struct {
     uint32_t layer_start;
     uint32_t layer_end;
     bool has_output;
+    bool local_decode;
+    bool full_resident;
     int ctx_size;
     int listen_fd;
     pthread_mutex_t mu;
@@ -385,6 +392,7 @@ typedef struct {
     uint32_t layer_start;
     uint32_t layer_end;
     uint32_t flags;
+    bool wants_local_decode;
     int fd;
 } ds4_dist_route_entry;
 
@@ -429,6 +437,7 @@ struct ds4_dist_session {
     uint64_t plan_generation;
     uint64_t session_id;
     uint64_t request_id;
+    bool local_decode_active;
 };
 
 typedef struct {
@@ -563,6 +572,24 @@ static int dist_coordinator_prefill_prompt(
         float *logits,
         char *err,
         size_t errlen);
+static int dist_load_remote_shard_from_session(
+        ds4_dist_session *d,
+        const ds4_dist_route_entry *entry,
+        ds4_session *owner,
+        const int *tokens,
+        uint32_t token_count,
+        uint64_t token_hash,
+        uint32_t layer_start,
+        uint32_t layer_end,
+        char *err,
+        size_t errlen);
+static int dist_coordinator_catch_up_generated_tokens(
+        ds4_dist_session *d,
+        ds4_session *owner,
+        const int *tokens,
+        uint32_t token_count,
+        char *err,
+        size_t errlen);
 static int dist_validate_options(const ds4_dist_options *opt, char *err, size_t errlen);
 
 static uint32_t dist_resolved_layer_end(const ds4_dist_options *opt, uint32_t n_layers) {
@@ -582,6 +609,11 @@ static const char *dist_role_name(ds4_distributed_role role) {
 static bool dist_worker_full_resident_enabled(void) {
     const char *env = getenv("DS4_DIST_WORKER_FULL_RESIDENT");
     return env && env[0] && strcmp(env, "0") != 0;
+}
+
+static bool dist_worker_full_resident_requested(const ds4_dist_options *opt) {
+    return (opt && opt->role == DS4_DISTRIBUTED_WORKER && opt->local_decode) ||
+           dist_worker_full_resident_enabled();
 }
 
 static void dist_sleep_reconnect(void) {
@@ -1496,6 +1528,7 @@ static void dist_hello_to_wire(ds4_dist_hello_fixed *h) {
     h->n_layers = htonl(h->n_layers);
     h->listen_port = htonl(h->listen_port);
     h->model_name_len = htonl(h->model_name_len);
+    h->flags = htonl(h->flags);
 }
 
 static void dist_hello_from_wire(ds4_dist_hello_fixed *h) {
@@ -1509,6 +1542,7 @@ static void dist_hello_from_wire(ds4_dist_hello_fixed *h) {
     h->n_layers = ntohl(h->n_layers);
     h->listen_port = ntohl(h->listen_port);
     h->model_name_len = ntohl(h->model_name_len);
+    h->flags = ntohl(h->flags);
 }
 
 static uint64_t dist_u64_from_halves(uint32_t hi, uint32_t lo) {
@@ -1861,7 +1895,8 @@ static int dist_send_hello(ds4_engine *engine, const ds4_dist_options *opt, int 
         ctx_size > 0 ? (uint32_t)ctx_size : 0u,
         n_layers,
         listen_port,
-        (uint32_t)model_name_len
+        (uint32_t)model_name_len,
+        opt->local_decode ? DS4_DIST_HELLO_F_LOCAL_DECODE : 0u,
     };
     ds4_dist_hello_fixed wire = h;
     dist_hello_to_wire(&wire);
@@ -1964,6 +1999,7 @@ static void dist_coordinator_add_worker(
     entry->ctx_size = hello->ctx_size;
     entry->n_layers = hello->n_layers;
     entry->listen_port = hello->listen_port;
+    entry->wants_local_decode = (hello->flags & DS4_DIST_HELLO_F_LOCAL_DECODE) != 0;
 
     pthread_mutex_lock(&state->mu);
     if (state->shutting_down) {
@@ -2002,7 +2038,7 @@ static void dist_coordinator_add_worker(
     if (entry->has_output) snprintf(layer_end, sizeof(layer_end), "output");
     else snprintf(layer_end, sizeof(layer_end), "%u", entry->layer_end);
     DIST_COORD_DEBUG(state,
-                     "ds4: distributed coordinator: registered worker %s:%s data_port=%u model_id=%u quant=Q%u layers=%u:%s hidden=%u ctx=%u\n",
+                     "ds4: distributed coordinator: registered worker %s:%s data_port=%u model_id=%u quant=Q%u layers=%u:%s hidden=%u ctx=%u%s\n",
                      entry->peer_host,
                      entry->peer_port,
                      entry->listen_port,
@@ -2011,7 +2047,8 @@ static void dist_coordinator_add_worker(
                      entry->layer_start,
                      layer_end,
                      entry->has_hidden,
-                     entry->ctx_size);
+                     entry->ctx_size,
+                     entry->wants_local_decode ? " local_decode=1" : "");
     if (dist_coordinator_debug_enabled(state)) dist_coordinator_report_plan(state);
 }
 
@@ -2407,7 +2444,9 @@ static bool dist_coordinator_build_route_plan(
         entry.port = w->listen_port;
         entry.layer_start = w->layer_start;
         entry.layer_end = w->layer_end;
-        entry.flags = w->has_output ? DS4_DIST_ROUTE_F_OUTPUT_LOGITS : 0u;
+        entry.flags = (w->has_output ? DS4_DIST_ROUTE_F_OUTPUT_LOGITS : 0u) |
+                      (w->wants_local_decode ? DS4_DIST_ROUTE_F_LOCAL_DECODE : 0u);
+        entry.wants_local_decode = w->wants_local_decode;
         if (state->use_control_for_work && plan->count == 0) {
             entry.fd = dup(w->fd);
             if (entry.fd < 0) {
@@ -4351,6 +4390,13 @@ static void *dist_coordinator_client_main(void *arg) {
         close(fd);
         return NULL;
     }
+    if ((hello.flags & ~DS4_DIST_HELLO_F_LOCAL_DECODE) != 0u) {
+        snprintf(err, sizeof(err), "invalid worker hello flags 0x%x", hello.flags);
+        DIST_COORD_DEBUG(state, "ds4: distributed coordinator: rejecting %s:%s: %s\n", peer_host, peer_port, err);
+        dist_send_error(fd, err);
+        close(fd);
+        return NULL;
+    }
     if (hello.layer_start >= hello.n_layers || hello.layer_end >= hello.n_layers || hello.layer_end < hello.layer_start) {
         snprintf(err, sizeof(err), "invalid worker layer range %u:%u for %u layers", hello.layer_start, hello.layer_end, hello.n_layers);
         DIST_COORD_DEBUG(state, "ds4: distributed coordinator: rejecting %s:%s: %s\n", peer_host, peer_port, err);
@@ -4365,6 +4411,13 @@ static void *dist_coordinator_client_main(void *arg) {
                  hello.layer_start,
                  hello.layer_end,
                  hello.n_layers);
+        DIST_COORD_DEBUG(state, "ds4: distributed coordinator: rejecting %s:%s: %s\n", peer_host, peer_port, err);
+        dist_send_error(fd, err);
+        close(fd);
+        return NULL;
+    }
+    if ((hello.flags & DS4_DIST_HELLO_F_LOCAL_DECODE) != 0u && !hello.has_output) {
+        snprintf(err, sizeof(err), "worker local decode requires output head ownership");
         DIST_COORD_DEBUG(state, "ds4: distributed coordinator: rejecting %s:%s: %s\n", peer_host, peer_port, err);
         dist_send_error(fd, err);
         close(fd);
@@ -5802,6 +5855,10 @@ static int dist_session_handoff_argmax_trace(
         if (errlen) snprintf(err, errlen, "distributed handoff requires worker-owned output head");
         return -1;
     }
+    if ((entry->flags & DS4_DIST_ROUTE_F_LOCAL_DECODE) == 0u) {
+        if (errlen) snprintf(err, errlen, "distributed handoff requires worker local-decode capability");
+        return -1;
+    }
 
     const ds4_tokens *timeline = ds4_session_tokens(owner);
     if (!timeline || timeline->len < 0 || (uint64_t)timeline->len > UINT32_MAX) {
@@ -5809,43 +5866,37 @@ static int dist_session_handoff_argmax_trace(
         return -1;
     }
     const uint64_t token_hash = dist_token_hash_prefix(timeline->v, (uint32_t)timeline->len);
-
-    FILE *tmp = dist_tmpfile_or_err("dist-handoff-local", err, errlen);
-    if (!tmp) return -1;
+    const uint64_t payload_bytes = ds4_session_layer_payload_bytes(owner,
+                                                                   d->state.local_start,
+                                                                   d->state.local_end);
     int rc = -1;
-    uint64_t shard_bytes = 0;
-    if (ds4_session_save_layer_payload(owner,
-                                       tmp,
-                                       d->state.local_start,
-                                       d->state.local_end,
-                                       err,
-                                       errlen) != 0) {
-        fclose(tmp);
-        return -1;
-    }
-    if (dist_measure_file(tmp, &shard_bytes, "distributed handoff shard", err, errlen) != 0 ||
-        dist_rewind_file(tmp, "distributed handoff shard", err, errlen) != 0) {
-        fclose(tmp);
-        return -1;
-    }
-
     const double load_t0 = dist_now_sec();
-    if (dist_load_remote_shard_from_payload(d,
+    if (dist_load_remote_shard_from_session(d,
                                             entry,
-                                            d->state.local_start,
-                                            d->state.local_end,
+                                            owner,
                                             timeline->v,
                                             (uint32_t)timeline->len,
                                             token_hash,
-                                            tmp,
-                                            shard_bytes,
+                                            d->state.local_start,
+                                            d->state.local_end,
                                             err,
                                             errlen) != 0) {
-        fclose(tmp);
         return -1;
     }
     const double load_t1 = dist_now_sec();
-    fclose(tmp);
+    const double load_sec = load_t1 - load_t0;
+    const double load_mib_s = load_sec > 0.0 ?
+        ((double)payload_bytes / (1024.0 * 1024.0)) / load_sec : 0.0;
+    DIST_COORD_DEBUG(&d->state,
+                     "ds4: distributed coordinator: local-decode KV handoff tokens=%u layers=%u:%u bytes=%" PRIu64 " total=%.3fs %.2f MiB/s worker=%s:%u\n",
+                     (uint32_t)timeline->len,
+                     d->state.local_start,
+                     d->state.local_end,
+                     payload_bytes,
+                     load_sec,
+                     load_mib_s,
+                     entry->host,
+                     entry->port);
 
     const int vocab = ds4_engine_vocab_size(d->state.engine);
     float *logits = malloc((size_t)vocab * sizeof(logits[0]));
@@ -5872,8 +5923,26 @@ static int dist_session_handoff_argmax_trace(
                                     err,
                                     errlen);
     free(logits);
+    if (rc > 0 &&
+        dist_coordinator_catch_up_generated_tokens(d,
+                                                   owner,
+                                                   tokens_out,
+                                                   (uint32_t)rc,
+                                                   err,
+                                                   errlen) != 0) {
+        return -1;
+    }
+    if (rc > 0 && logits_trace_out) {
+        const int vocab = ds4_engine_vocab_size(d->state.engine);
+        const int trace_values = rc > INT_MAX / vocab ? 0 : rc * vocab;
+        if (trace_values != 0 && logits_trace_cap >= trace_values) {
+            (void)ds4_session_set_logits(owner,
+                                         logits_trace_out + (size_t)(rc - 1) * (size_t)vocab,
+                                         vocab);
+        }
+    }
     if (rc >= 0 && shard_load_sec_out) {
-        *shard_load_sec_out = load_t1 - load_t0;
+        *shard_load_sec_out = load_sec;
     }
     return rc;
 }
@@ -6642,6 +6711,247 @@ static int dist_send_snapshot_file_chunks(int fd, uint64_t request_id, FILE *fp,
     return rc;
 }
 
+typedef struct {
+    int fd;
+    uint64_t request_id;
+} ds4_dist_snapshot_stream_writer;
+
+typedef struct {
+    int fd;
+    uint64_t request_id;
+    uint64_t payload_bytes;
+    uint64_t received;
+    uint8_t *buf;
+    uint32_t chunk_bytes;
+    uint32_t chunk_pos;
+} ds4_dist_snapshot_stream_reader;
+
+static int dist_snapshot_stream_write_cb(void *ud,
+                                         const void *ptr,
+                                         uint64_t bytes,
+                                         char *err,
+                                         size_t errlen) {
+    ds4_dist_snapshot_stream_writer *writer = ud;
+    const uint8_t *p = ptr;
+    if (!writer) {
+        if (errlen) snprintf(err, errlen, "missing distributed snapshot writer");
+        return 1;
+    }
+    while (bytes != 0) {
+        const uint32_t n = bytes > DS4_DIST_SNAPSHOT_CHUNK_BYTES ?
+            DS4_DIST_SNAPSHOT_CHUNK_BYTES : (uint32_t)bytes;
+        ds4_dist_snapshot_chunk_fixed chunk;
+        dist_u64_to_halves(writer->request_id, &chunk.request_hi, &chunk.request_lo);
+        chunk.chunk_bytes = n;
+        ds4_dist_snapshot_chunk_fixed wire = chunk;
+        dist_snapshot_chunk_to_wire(&wire);
+        const uint32_t frame_bytes = (uint32_t)sizeof(wire) + n;
+        if (dist_write_frame_header(writer->fd, DS4_DIST_MSG_SNAPSHOT_CHUNK, frame_bytes) != 0 ||
+            dist_write_full(writer->fd, &wire, sizeof(wire)) != 0 ||
+            dist_write_full(writer->fd, p, n) != 0) {
+            if (errlen) snprintf(err, errlen, "failed to send distributed KV shard chunk");
+            return 1;
+        }
+        p += n;
+        bytes -= n;
+    }
+    return 0;
+}
+
+static int dist_snapshot_stream_read_refill(ds4_dist_snapshot_stream_reader *reader,
+                                            char *err,
+                                            size_t errlen) {
+    uint32_t type = 0, bytes = 0;
+    int rc;
+    if (!reader || !reader->buf) {
+        if (errlen) snprintf(err, errlen, "missing distributed snapshot reader");
+        return 1;
+    }
+    if (reader->received >= reader->payload_bytes) {
+        if (errlen) snprintf(err, errlen, "distributed KV shard over-read");
+        return 1;
+    }
+    rc = dist_read_frame_header(reader->fd, &type, &bytes, err, errlen);
+    if (rc <= 0) {
+        if (rc == 0 && errlen) snprintf(err, errlen, "distributed worker closed while sending KV shard");
+        return 1;
+    }
+    if (type != DS4_DIST_MSG_SNAPSHOT_CHUNK ||
+        bytes < sizeof(ds4_dist_snapshot_chunk_fixed)) {
+        dist_discard_bytes(reader->fd, bytes);
+        if (errlen) snprintf(err, errlen, "expected distributed KV shard chunk");
+        return 1;
+    }
+    ds4_dist_snapshot_chunk_fixed chunk;
+    rc = dist_read_full(reader->fd, &chunk, sizeof(chunk));
+    if (rc <= 0) {
+        if (errlen) snprintf(err, errlen, "failed to read distributed KV shard chunk header");
+        return 1;
+    }
+    dist_snapshot_chunk_from_wire(&chunk);
+    reader->chunk_bytes = bytes - (uint32_t)sizeof(chunk);
+    if (dist_u64_from_halves(chunk.request_hi, chunk.request_lo) != reader->request_id ||
+        chunk.chunk_bytes != reader->chunk_bytes ||
+        reader->chunk_bytes > DS4_DIST_SNAPSHOT_CHUNK_BYTES ||
+        reader->chunk_bytes > reader->payload_bytes - reader->received) {
+        dist_discard_bytes(reader->fd, reader->chunk_bytes);
+        if (errlen) snprintf(err, errlen, "invalid distributed KV shard chunk");
+        return 1;
+    }
+    rc = dist_read_full(reader->fd, reader->buf, reader->chunk_bytes);
+    if (rc <= 0) {
+        if (errlen) snprintf(err, errlen, "failed to read distributed KV shard chunk");
+        return 1;
+    }
+    reader->chunk_pos = 0;
+    reader->received += reader->chunk_bytes;
+    return 0;
+}
+
+static int dist_snapshot_stream_read_cb(void *ud,
+                                        void *ptr,
+                                        uint64_t bytes,
+                                        char *err,
+                                        size_t errlen) {
+    ds4_dist_snapshot_stream_reader *reader = ud;
+    uint8_t *out = ptr;
+    if (!reader) {
+        if (errlen) snprintf(err, errlen, "missing distributed snapshot reader");
+        return 1;
+    }
+    while (bytes != 0) {
+        if (reader->chunk_pos == reader->chunk_bytes &&
+            dist_snapshot_stream_read_refill(reader, err, errlen) != 0) {
+            return 1;
+        }
+        const uint32_t avail = reader->chunk_bytes - reader->chunk_pos;
+        const size_t n = bytes < avail ? (size_t)bytes : (size_t)avail;
+        memcpy(out, reader->buf + reader->chunk_pos, n);
+        out += n;
+        reader->chunk_pos += (uint32_t)n;
+        bytes -= n;
+    }
+    return 0;
+}
+
+static int dist_snapshot_stream_discard_remaining(ds4_dist_snapshot_stream_reader *reader,
+                                                  char *err,
+                                                  size_t errlen) {
+    if (!reader) return 1;
+    reader->chunk_pos = reader->chunk_bytes;
+    while (reader->received < reader->payload_bytes) {
+        if (dist_snapshot_stream_read_refill(reader, err, errlen) != 0) return 1;
+        reader->chunk_pos = reader->chunk_bytes;
+    }
+    return 0;
+}
+
+static int dist_load_remote_shard_from_session(
+        ds4_dist_session *d,
+        const ds4_dist_route_entry *entry,
+        ds4_session *owner,
+        const int *tokens,
+        uint32_t token_count,
+        uint64_t token_hash,
+        uint32_t layer_start,
+        uint32_t layer_end,
+        char *err,
+        size_t errlen) {
+    const uint64_t payload_bytes = ds4_session_layer_payload_bytes(owner, layer_start, layer_end);
+    if (payload_bytes == 0) {
+        if (errlen) snprintf(err, errlen, "distributed handoff shard is empty");
+        return 1;
+    }
+
+    uint64_t request_id = d->request_id++;
+    int fd = dist_connect_endpoint(entry->host, (int)entry->port, err, errlen);
+    if (fd < 0) return 1;
+
+    ds4_dist_snapshot_begin_fixed begin;
+    memset(&begin, 0, sizeof(begin));
+    begin.model_id = d->state.model_id;
+    dist_u64_to_halves(d->session_id, &begin.session_hi, &begin.session_lo);
+    dist_u64_to_halves(request_id, &begin.request_hi, &begin.request_lo);
+    dist_u64_to_halves(token_hash, &begin.token_hash_hi, &begin.token_hash_lo);
+    begin.token_count = token_count;
+    begin.layer_start = layer_start;
+    begin.layer_end = layer_end;
+    dist_u64_to_halves(payload_bytes, &begin.payload_hi, &begin.payload_lo);
+    begin.token_bytes = token_count * sizeof(uint32_t);
+
+    int rc = 1;
+    if (dist_write_snapshot_load_begin(fd, &begin, tokens) <= 0) {
+        if (errlen) snprintf(err, errlen, "failed to send distributed KV shard restore request");
+        goto cleanup;
+    }
+
+    ds4_dist_snapshot_stream_writer writer = {
+        .fd = fd,
+        .request_id = request_id,
+    };
+    if (ds4_session_save_layer_payload_stream(owner,
+                                              dist_snapshot_stream_write_cb,
+                                              &writer,
+                                              layer_start,
+                                              layer_end,
+                                              err,
+                                              errlen) != 0) {
+        goto cleanup;
+    }
+    if (dist_read_snapshot_done_frame(fd, request_id, err, errlen) != 0) goto cleanup;
+    rc = 0;
+
+cleanup:
+    close(fd);
+    return rc;
+}
+
+static int dist_coordinator_catch_up_generated_tokens(ds4_dist_session *d,
+                                                      ds4_session *owner,
+                                                      const int *tokens,
+                                                      uint32_t token_count,
+                                                      char *err,
+                                                      size_t errlen) {
+    if (!d || !owner || !tokens) {
+        if (errlen) snprintf(err, errlen, "invalid coordinator catch-up request");
+        return 1;
+    }
+    if (token_count == 0) return 0;
+    const int cap_i = ds4_session_prefill_cap(owner);
+    if (cap_i <= 0) {
+        if (errlen) snprintf(err, errlen, "coordinator catch-up has no prefill capacity");
+        return 1;
+    }
+    const uint32_t chunk_cap = (uint32_t)cap_i;
+    const ds4_tokens *timeline = ds4_session_tokens(owner);
+    if (!timeline || timeline->len < 0) {
+        if (errlen) snprintf(err, errlen, "coordinator catch-up requires a valid token timeline");
+        return 1;
+    }
+    uint32_t pos = (uint32_t)timeline->len;
+    uint32_t done = 0;
+    while (done < token_count) {
+        const uint32_t chunk = token_count - done < chunk_cap ? token_count - done : chunk_cap;
+        if (ds4_session_eval_layer_slice(owner,
+                                         tokens + done,
+                                         chunk,
+                                         pos,
+                                         d->state.local_start,
+                                         d->state.local_end,
+                                         NULL,
+                                         NULL,
+                                         false,
+                                         NULL,
+                                         err,
+                                         errlen) != 0) {
+            return 1;
+        }
+        pos += chunk;
+        done += chunk;
+    }
+    return 0;
+}
+
 /* =========================================================================
  * Worker Route Parsing And Forwarding
  * ========================================================================= */
@@ -6685,6 +6995,7 @@ static bool dist_route_get_entry(
             out->layer_start = fixed.layer_start;
             out->layer_end = fixed.layer_end;
             out->flags = fixed.flags;
+            out->wants_local_decode = (fixed.flags & DS4_DIST_ROUTE_F_LOCAL_DECODE) != 0;
             out->fd = -1;
             return true;
         }
@@ -6814,13 +7125,18 @@ static bool dist_route_validate_blob(
             if (errlen) snprintf(err, errlen, "invalid route layer range");
             return false;
         }
-        if ((fixed.flags & ~DS4_DIST_ROUTE_F_OUTPUT_LOGITS) != 0) {
+        if ((fixed.flags & ~(DS4_DIST_ROUTE_F_OUTPUT_LOGITS | DS4_DIST_ROUTE_F_LOCAL_DECODE)) != 0) {
             if (errlen) snprintf(err, errlen, "invalid route flags");
             return false;
         }
         if ((fixed.flags & DS4_DIST_ROUTE_F_OUTPUT_LOGITS) != 0 &&
             fixed.layer_end + 1u != n_layers) {
             if (errlen) snprintf(err, errlen, "route logits require final layer");
+            return false;
+        }
+        if ((fixed.flags & DS4_DIST_ROUTE_F_LOCAL_DECODE) != 0 &&
+            (fixed.flags & DS4_DIST_ROUTE_F_OUTPUT_LOGITS) == 0) {
+            if (errlen) snprintf(err, errlen, "route local decode requires logits ownership");
             return false;
         }
         if (i != 0 && fixed.layer_start != prev_end + 1u) {
@@ -7722,7 +8038,7 @@ static int dist_worker_handle_snapshot_load(
         dist_token_hash_prefix(tokens, begin.token_count) != token_hash) {
         snprintf(err, sizeof(err), "snapshot load token hash mismatch");
     }
-    const bool full_resident_worker = dist_worker_full_resident_enabled();
+    const bool full_resident_worker = state->full_resident;
     if (!err[0] &&
         (begin.model_id != state->model_id ||
          begin.token_count > (uint32_t)state->ctx_size ||
@@ -7732,90 +8048,31 @@ static int dist_worker_handle_snapshot_load(
         snprintf(err, sizeof(err), "snapshot load request does not match worker state");
     }
 
-    FILE *tmp = NULL;
-    char tmp_path[PATH_MAX];
-    if (!err[0] && dist_temp_file("ds4-dist-load", tmp_path, sizeof(tmp_path), &tmp) != 0) {
-        snprintf(err, sizeof(err), "failed to create worker snapshot restore temp file");
-    }
-
-    uint8_t *buf = NULL;
+    ds4_dist_snapshot_stream_reader reader = {
+        .fd = upstream->fd,
+        .request_id = request_id,
+        .payload_bytes = payload_bytes,
+        .buf = NULL,
+    };
     if (!err[0]) {
-        buf = malloc(DS4_DIST_SNAPSHOT_CHUNK_BYTES);
-        if (!buf) snprintf(err, sizeof(err), "out of memory restoring worker KV shard");
-    }
-    uint64_t received = 0;
-    while (!err[0] && received < payload_bytes) {
-        uint32_t type = 0, chunk_frame_bytes = 0;
-        rc = dist_read_frame_header(upstream->fd, &type, &chunk_frame_bytes, err, sizeof(err));
-        if (rc <= 0) {
-            free(buf);
-            free(tokens);
-            if (tmp) fclose(tmp);
-            if (tmp) unlink(tmp_path);
-            return rc == 0 ? 0 : -1;
-        }
-        if (type != DS4_DIST_MSG_SNAPSHOT_CHUNK ||
-            chunk_frame_bytes < sizeof(ds4_dist_snapshot_chunk_fixed)) {
-            dist_discard_bytes(upstream->fd, chunk_frame_bytes);
-            snprintf(err, sizeof(err), "expected distributed snapshot chunk");
-            break;
-        }
-        ds4_dist_snapshot_chunk_fixed chunk;
-        rc = dist_read_full(upstream->fd, &chunk, sizeof(chunk));
-        if (rc <= 0) {
-            free(buf);
-            free(tokens);
-            if (tmp) fclose(tmp);
-            if (tmp) unlink(tmp_path);
-            return rc == 0 ? 0 : -1;
-        }
-        dist_snapshot_chunk_from_wire(&chunk);
-        uint64_t got_request = dist_u64_from_halves(chunk.request_hi, chunk.request_lo);
-        uint32_t chunk_bytes = chunk_frame_bytes - (uint32_t)sizeof(chunk);
-        if (got_request != request_id ||
-            chunk.chunk_bytes != chunk_bytes ||
-            chunk_bytes > DS4_DIST_SNAPSHOT_CHUNK_BYTES ||
-            chunk_bytes > payload_bytes - received) {
-            dist_discard_bytes(upstream->fd, chunk_bytes);
-            snprintf(err, sizeof(err), "invalid distributed snapshot chunk");
-            break;
-        }
-        rc = dist_read_full(upstream->fd, buf, chunk_bytes);
-        if (rc <= 0) {
-            free(buf);
-            free(tokens);
-            if (tmp) fclose(tmp);
-            if (tmp) unlink(tmp_path);
-            return rc == 0 ? 0 : -1;
-        }
-        if (fwrite(buf, 1, chunk_bytes, tmp) != chunk_bytes) {
-            snprintf(err, sizeof(err), "failed to write worker KV shard temp file");
-            break;
-        }
-        received += chunk_bytes;
-    }
-    free(buf);
-
-    if (!err[0] && fflush(tmp) != 0) {
-        snprintf(err, sizeof(err), "failed to flush worker KV shard restore file");
-    }
-    if (!err[0] && fseeko(tmp, 0, SEEK_SET) != 0) {
-        snprintf(err, sizeof(err), "failed to rewind worker KV shard restore file");
+        reader.buf = malloc(DS4_DIST_SNAPSHOT_CHUNK_BYTES);
+        if (!reader.buf) snprintf(err, sizeof(err), "out of memory restoring worker KV shard");
     }
     if (!err[0]) {
         pthread_mutex_lock(&state->mu);
         ds4_dist_worker_session *session =
             dist_worker_get_session_locked(state, session_id, err, sizeof(err));
         if (session &&
-            ds4_session_load_layer_payload(session->session,
-                                           tmp,
-                                           payload_bytes,
-                                           tokens,
-                                           begin.token_count,
-                                           begin.layer_start,
-                                           begin.layer_end,
-                                           err,
-                                           sizeof(err)) == 0) {
+            ds4_session_load_layer_payload_stream(session->session,
+                                                  dist_snapshot_stream_read_cb,
+                                                  &reader,
+                                                  payload_bytes,
+                                                  tokens,
+                                                  begin.token_count,
+                                                  begin.layer_start,
+                                                  begin.layer_end,
+                                                  err,
+                                                  sizeof(err)) == 0) {
             session->token_hash = token_hash;
             session->token_hash_valid = true;
         } else {
@@ -7824,16 +8081,22 @@ static int dist_worker_handle_snapshot_load(
         }
         pthread_mutex_unlock(&state->mu);
     }
-
-    if (tmp) fclose(tmp);
-    if (tmp) unlink(tmp_path);
+    if (err[0] && reader.buf) {
+        char discard_err[256] = {0};
+        (void)dist_snapshot_stream_discard_remaining(&reader, discard_err, sizeof(discard_err));
+    }
+    if (!err[0] &&
+        (reader.received != payload_bytes || reader.chunk_pos != reader.chunk_bytes)) {
+        snprintf(err, sizeof(err), "worker KV shard payload size mismatch");
+    }
+    free(reader.buf);
     free(tokens);
 
     pthread_mutex_lock(&upstream->write_mu);
     rc = dist_send_snapshot_done(upstream->fd, request_id, err[0] ? 1u : 0u,
                                  err[0] ? err : NULL);
     pthread_mutex_unlock(&upstream->write_mu);
-    if (err[0] && received < payload_bytes) return -1;
+    if (err[0] && reader.received < payload_bytes) return -1;
     return rc;
 }
 
@@ -8799,6 +9062,8 @@ static int dist_run_worker(ds4_engine *engine, const ds4_dist_options *opt, int 
     state.layer_start = opt->layers.start;
     state.layer_end = dist_resolved_layer_end(opt, (uint32_t)ds4_engine_layer_count(engine));
     state.has_output = opt->layers.has_output;
+    state.local_decode = opt->local_decode;
+    state.full_resident = dist_worker_full_resident_requested(opt);
     state.ctx_size = ctx_size;
     state.listen_fd = listen_fd;
     pthread_mutex_init(&state.mu, NULL);
@@ -8812,14 +9077,16 @@ static int dist_run_worker(ds4_engine *engine, const ds4_dist_options *opt, int 
     pthread_detach(data_tid);
 
     fprintf(stderr,
-            "ds4: distributed worker: layers %u:%s model_id=%d data_listen=%s:%u connecting to coordinator %s:%d\n",
+            "ds4: distributed worker: layers %u:%s model_id=%d data_listen=%s:%u connecting to coordinator %s:%d%s%s\n",
             opt->layers.start,
             layer_end,
             ds4_engine_model_id(engine),
             listen_host ? listen_host : "*",
             listen_port,
             opt->coordinator_host,
-            opt->coordinator_port);
+            opt->coordinator_port,
+            state.local_decode ? " local_decode=1" : "",
+            state.full_resident ? " full_resident=1" : "");
 
     for (;;) {
         int fd = dist_connect_endpoint(opt->coordinator_host, opt->coordinator_port, err, sizeof(err));
@@ -8988,6 +9255,8 @@ void ds4_dist_usage(FILE *fp) {
         "      Coordinator TCP listen address. Workers may later use it to force their data listener.\n"
         "  --coordinator HOST PORT\n"
         "      Coordinator TCP address for --role worker.\n"
+        "  --local-decode\n"
+        "      Worker-only: advertise full-resident local decode on an output-owning worker.\n"
         "  --dist-prefill-chunk N\n"
         "      Coordinator prefill pipeline chunk size. Default: session cap, normally 4096.\n"
         "      Non-default values are experimental and can change logits unless validated.\n"
@@ -9073,6 +9342,14 @@ ds4_dist_cli_parse_result ds4_dist_parse_cli_arg(
         opt->coordinator_host = host;
         return DS4_DIST_CLI_MATCHED;
     }
+    if (!strcmp(arg, "--local-decode")) {
+        if (!opt) {
+            if (errlen) snprintf(err, errlen, "missing distributed options");
+            return DS4_DIST_CLI_ERROR;
+        }
+        opt->local_decode = true;
+        return DS4_DIST_CLI_MATCHED;
+    }
     if (!strcmp(arg, "--dist-prefill-chunk")) {
         if (!opt) {
             if (errlen) snprintf(err, errlen, "missing distributed options");
@@ -9148,7 +9425,7 @@ static int dist_validate_options(const ds4_dist_options *opt, char *err, size_t 
         if (opt->layers.set || opt->listen_host || opt->listen_port ||
             opt->coordinator_host || opt->coordinator_port ||
             opt->prefill_chunk != 0 || opt->prefill_window != 0 ||
-            opt->activation_bits != 0) {
+            opt->activation_bits != 0 || opt->local_decode) {
             if (errlen) snprintf(err, errlen, "distributed options require --role coordinator or --role worker");
             return 1;
         }
@@ -9169,6 +9446,10 @@ static int dist_validate_options(const ds4_dist_options *opt, char *err, size_t 
     }
 
     if (opt->role == DS4_DISTRIBUTED_COORDINATOR) {
+        if (opt->local_decode) {
+            if (errlen) snprintf(err, errlen, "--local-decode requires --role worker");
+            return 1;
+        }
         if (!opt->listen_host || opt->listen_port <= 0) {
             if (errlen) snprintf(err, errlen, "--role coordinator requires --listen HOST PORT");
             return 1;
@@ -9183,6 +9464,10 @@ static int dist_validate_options(const ds4_dist_options *opt, char *err, size_t 
     if (opt->role == DS4_DISTRIBUTED_WORKER) {
         if (!opt->coordinator_host || opt->coordinator_port <= 0) {
             if (errlen) snprintf(err, errlen, "--role worker requires --coordinator HOST PORT");
+            return 1;
+        }
+        if (opt->local_decode && !opt->layers.has_output) {
+            if (errlen) snprintf(err, errlen, "--local-decode requires --layers N:output");
             return 1;
         }
         if (opt->prefill_chunk != 0) {
@@ -9217,9 +9502,7 @@ int ds4_dist_prepare_engine_options(
     if (engine && opt) {
         engine->distributed = *opt;
         if (ds4_dist_enabled(opt)) {
-            const bool full_resident_worker =
-                opt->role == DS4_DISTRIBUTED_WORKER &&
-                dist_worker_full_resident_enabled();
+            const bool full_resident_worker = dist_worker_full_resident_requested(opt);
             if (!full_resident_worker) {
                 engine->load_slice = true;
                 engine->load_layer_start = opt->layers.start;

@@ -226,6 +226,43 @@ it removes the only significant runtime cost of the current snapshot
 framing. Phase 6 can then target pipelining or wire-to-GPU streaming
 for further optimization.
 
+## 2026-06-05 implementation update
+
+This recommendation is now implemented on the Phase 5 handoff path.
+
+What landed:
+
+- `ds4_session_save_layer_payload_stream()`
+- `ds4_session_load_layer_payload_stream()`
+- stream-based coordinator KV push directly from the owning session
+- stream-based worker restore directly into the resident decode session
+
+What did not land:
+
+- no public staging-size tuning flag
+- no broader rewrite of every existing distributed save/load path
+- no KV pipelining during prefill
+
+Measured CLI handoff timings with the new stream path:
+
+| Route | Prompt | Tokens | Payload bytes | Handoff sec | Effective MiB/s |
+| --- | --- | ---: | ---: | ---: | ---: |
+| `Metal -> CUDA` | `ping` | 10 | 6,564,072 | 0.025 | 248.27 |
+| `Metal -> CUDA` | `README` 4 KiB slice | 958 | 18,091,240 | 0.055 | 313.91 |
+| `Metal -> CUDA` | full `README.md` | 14,318 | 105,725,160 | 0.345 | 292.47 |
+| `CUDA -> Metal` | `ping` | 10 | 6,564,072 | 0.019 | 335.60 |
+| `CUDA -> Metal` | full `README.md` | 14,524 | 107,097,320 | 0.350 | 291.42 |
+
+Interpretation:
+
+- The stream path keeps handoff as a small linear tail relative to
+  24-second-class distributed prefill runs.
+- At roughly 100 MiB payload size the handoff stayed around `0.35 s` in
+  both directions.
+- That is small enough that Phase 5 does not need KV pipelining for
+  throughput. Pipelining can stay deferred unless first-token latency for
+  very short generations becomes the priority metric.
+
 ## Code touchpoints
 
 - `ds4.c`

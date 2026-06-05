@@ -341,3 +341,46 @@ Implications:
 - Phase 4 answered its actual question: the final-worker residency and in-process handoff workflow is viable and benchmarkable.
 - The remaining reused-Metal-worker drift should not block Phase 5+ work unless those phases require strict repeated token parity on a long-lived Metal worker.
 - Research documentation should now describe Phase 4 as complete with an operational validation caveat, not as an open residency/workflow question.
+
+## 2026-06-05: Phase 5 should ship the worker-owned CLI path first, without KV pipelining
+
+Decision:
+
+- Treat the current worker-owned `--local-decode` CLI path as the Phase 5
+  implementation baseline.
+- Keep KV pipelining out of Phase 5.
+- Keep the existing `LOCAL_GENERATE` protocol surface for now; do not add a
+  new catch-up or decode message family just to finish the first user-visible
+  path.
+
+Evidence:
+
+- `--local-decode` now:
+  - parses in the shared distributed CLI layer,
+  - requires worker role plus `N:output`,
+  - implies full worker residency,
+  - and is advertised in HELLO/route metadata.
+- The coordinator now pushes its own KV shard directly from the live session
+  with stream-based `DSVL` helpers; the temp-file detour is removed from the
+  Phase 5 handoff path.
+- Reusable sessions now have coordinator catch-up from returned worker token
+  ids, while one-shot CLI can ignore catch-up and exit after printing.
+- Plain CLI measurements on 2026-06-05 showed:
+  - `Metal -> CUDA`, full `README.md`: prefill `603.15 tok/s`, KV handoff
+    `0.345 s` for `105,725,160` bytes, generation `13.08 tok/s`
+  - `CUDA -> Metal`, fresh Metal worker, full `README.md`: prefill
+    `589.93 tok/s`, KV handoff `0.350 s` for `107,097,320` bytes,
+    generation `30.33 tok/s`
+  - pure local Mac baseline, full `README.md`: generation `34.78 tok/s`
+
+Why this changes the next steps:
+
+- The current bottleneck is not KV handoff throughput. At roughly `100 MiB`
+  the handoff stayed near `0.35 s`, which is small relative to the
+  `23-25 s` distributed prefill runs.
+- The next product-level gap is not transport but surface coverage:
+  the worker-owned path is currently wired into greedy one-shot coordinator
+  runs, not yet into the normal sampled distributed eval path.
+- That makes the most defensible next task explicit:
+  extend the user-facing decode surfaces only after preserving the current
+  simple worker protocol and measured handoff cost.

@@ -456,6 +456,56 @@ static int run_sampled_generation(ds4_engine *engine, const cli_config *cfg, con
     if (room <= 1) max_tokens = 0;
     else if (max_tokens > room - 1) max_tokens = room - 1;
 
+    if (cli_distributed_coordinator(cfg) &&
+        cfg->gen.temperature <= 0.0f &&
+        max_tokens > 0) {
+        int *handoff_tokens = calloc((size_t)max_tokens, sizeof(handoff_tokens[0]));
+        if (!handoff_tokens) {
+            fprintf(stderr, "ds4: out of memory allocating handoff tokens\n");
+            ds4_session_free(session);
+            return 1;
+        }
+        double shard_load_s = 0.0;
+        double worker_decode_s = 0.0;
+        cli_dist_busy_set(cfg, true);
+        const int handoff_rc = ds4_session_distributed_handoff_argmax(session,
+                                                                      max_tokens,
+                                                                      handoff_tokens,
+                                                                      max_tokens,
+                                                                      &shard_load_s,
+                                                                      &worker_decode_s,
+                                                                      err,
+                                                                      sizeof(err));
+        cli_dist_busy_set(cfg, false);
+        if (handoff_rc >= 0) {
+            for (int i = 0; i < handoff_rc; i++) {
+                if (handoff_tokens[i] == ds4_token_eos(engine)) break;
+                size_t piece_len = 0;
+                char *piece = ds4_token_text(engine, handoff_tokens[i], &piece_len);
+                token_printer_write_text(&printer, piece, piece_len);
+                fflush(stdout);
+                free(piece);
+            }
+            generation_done(&printer);
+            if (cli_interrupt_requested()) cli_interrupt_clear();
+            const double prefill_s = t_prefill1 - t_prefill0;
+            ds4_log(stderr,
+                    DS4_LOG_TIMING,
+                    "ds4: prefill: %.2f t/s, generation: %.2f t/s\n",
+                    prefill_s > 0.0 ? (double)prompt->len / prefill_s : 0.0,
+                    worker_decode_s > 0.0 ? (double)handoff_rc / worker_decode_s : 0.0);
+            free(handoff_tokens);
+            ds4_session_free(session);
+            return 0;
+        }
+        free(handoff_tokens);
+        if (strstr(err, "distributed handoff requires") == NULL) {
+            fprintf(stderr, "ds4: decode failed: %s\n", err);
+            ds4_session_free(session);
+            return 1;
+        }
+    }
+
     uint64_t rng = cfg->gen.seed ? cfg->gen.seed :
         ((uint64_t)time(NULL) ^ ((uint64_t)getpid() << 32) ^ (uint64_t)clock());
     int generated = 0;

@@ -82,6 +82,7 @@ typedef struct {
     uint32_t prefill_chunk;
     uint32_t prefill_window;
     uint32_t activation_bits;
+    bool local_decode;
     bool replay_check;
     bool debug;
 } ds4_distributed_options;
@@ -130,6 +131,11 @@ typedef struct {
     char *path;
     uint64_t bytes;
 } ds4_session_payload_file;
+
+typedef int (*ds4_payload_write_fn)(void *ud, const void *ptr, uint64_t bytes,
+                                    char *err, size_t errlen);
+typedef int (*ds4_payload_read_fn)(void *ud, void *ptr, uint64_t bytes,
+                                   char *err, size_t errlen);
 
 int ds4_engine_open(ds4_engine **out, const ds4_engine_options *opt);
 void ds4_engine_close(ds4_engine *e);
@@ -331,9 +337,26 @@ void ds4_session_snapshot_free(ds4_session_snapshot *snap);
 uint64_t ds4_session_layer_payload_bytes(ds4_session *s,
                                          uint32_t layer_start,
                                          uint32_t layer_end);
+int ds4_session_save_layer_payload_stream(ds4_session *s,
+                                          ds4_payload_write_fn write_fn,
+                                          void *write_ud,
+                                          uint32_t layer_start,
+                                          uint32_t layer_end,
+                                          char *err,
+                                          size_t errlen);
 int ds4_session_save_layer_payload(ds4_session *s, FILE *fp,
                                    uint32_t layer_start, uint32_t layer_end,
                                    char *err, size_t errlen);
+int ds4_session_load_layer_payload_stream(ds4_session *s,
+                                          ds4_payload_read_fn read_fn,
+                                          void *read_ud,
+                                          uint64_t payload_bytes,
+                                          const int *tokens,
+                                          uint32_t n_tokens,
+                                          uint32_t layer_start,
+                                          uint32_t layer_end,
+                                          char *err,
+                                          size_t errlen);
 int ds4_session_load_layer_payload(ds4_session *s, FILE *fp,
                                    uint64_t payload_bytes,
                                    const int *tokens, uint32_t n_tokens,
