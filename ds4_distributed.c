@@ -4764,6 +4764,7 @@ static int dist_local_generate_remote(
         int token_cap,
         float *logits_trace_out,
         int logits_trace_cap,
+        float *final_logits_out,
         int *logits_trace_steps_out,
         double *decode_sec_out,
         char *err,
@@ -4903,13 +4904,33 @@ static int dist_local_generate_remote(
     if (res.logits_bytes != 0) {
         const int logits_trace_values = (int)((uint64_t)res.generated_count * (uint64_t)vocab);
         if (!logits_trace_out || logits_trace_cap < logits_trace_values) {
-            if (dist_discard_bytes(fd, res.logits_bytes) <= 0) {
+            uint32_t remaining_logits_bytes = res.logits_bytes;
+            if (final_logits_out && res.generated_count != 0) {
+                const uint32_t tail_bytes = logits_bytes;
+                const uint32_t prefix_bytes = res.logits_bytes - tail_bytes;
+                if (prefix_bytes != 0 &&
+                    dist_discard_bytes(fd, prefix_bytes) <= 0) {
+                    if (errlen) snprintf(err, errlen, "failed to discard local generate logits");
+                    goto cleanup;
+                }
+                if (dist_read_full(fd, final_logits_out, tail_bytes) <= 0) {
+                    if (errlen) snprintf(err, errlen, "failed to read final local generate logits");
+                    goto cleanup;
+                }
+                remaining_logits_bytes = 0;
+            }
+            if (remaining_logits_bytes != 0 &&
+                dist_discard_bytes(fd, remaining_logits_bytes) <= 0) {
                 if (errlen) snprintf(err, errlen, "failed to discard local generate logits");
                 goto cleanup;
             }
         } else if (dist_read_full(fd, logits_trace_out, res.logits_bytes) <= 0) {
             if (errlen) snprintf(err, errlen, "failed to read local generate logits");
             goto cleanup;
+        } else if (final_logits_out && res.generated_count != 0) {
+            memcpy(final_logits_out,
+                   logits_trace_out + (size_t)(res.generated_count - 1u) * (size_t)vocab,
+                   (size_t)vocab * sizeof(final_logits_out[0]));
         }
         body -= res.logits_bytes;
         if (logits_trace_steps_out) *logits_trace_steps_out = (int)res.generated_count;
@@ -5961,11 +5982,11 @@ static int dist_session_handoff_generate_trace(
                                     token_cap,
                                     logits_trace_out,
                                     logits_trace_cap,
+                                    logits,
                                     logits_trace_steps_out,
                                     decode_sec_out,
                                     err,
                                     errlen);
-    free(logits);
     if (rc > 0 &&
         dist_coordinator_catch_up_generated_tokens(d,
                                                    owner,
@@ -5975,15 +5996,10 @@ static int dist_session_handoff_generate_trace(
                                                    errlen) != 0) {
         return -1;
     }
-    if (rc > 0 && logits_trace_out) {
-        const int vocab = ds4_engine_vocab_size(d->state.engine);
-        const int trace_values = rc > INT_MAX / vocab ? 0 : rc * vocab;
-        if (trace_values != 0 && logits_trace_cap >= trace_values) {
-            (void)ds4_session_set_logits(owner,
-                                         logits_trace_out + (size_t)(rc - 1) * (size_t)vocab,
-                                         vocab);
-        }
+    if (rc > 0) {
+        (void)ds4_session_set_logits(owner, logits, vocab);
     }
+    free(logits);
     if (rc >= 0 && shard_load_sec_out) {
         *shard_load_sec_out = load_sec;
     }

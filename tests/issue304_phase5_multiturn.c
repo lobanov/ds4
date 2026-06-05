@@ -398,11 +398,13 @@ static void build_followup_prompt(ds4_engine *engine,
                                   const int *assistant_tokens,
                                   int assistant_count,
                                   const char *followup_prompt,
+                                  ds4_tokens *turn1_out,
                                   ds4_tokens *out) {
-    ds4_tokens_copy(out, base_prompt);
+    ds4_tokens_copy(turn1_out, base_prompt);
     for (int i = 0; i < assistant_count; i++) {
-        ds4_tokens_push(out, assistant_tokens[i]);
+        ds4_tokens_push(turn1_out, assistant_tokens[i]);
     }
+    ds4_tokens_copy(out, turn1_out);
     ds4_chat_append_message(engine, out, "user", followup_prompt);
     ds4_chat_append_assistant_prefix(engine, out, DS4_THINK_NONE);
 }
@@ -514,12 +516,17 @@ int main(int argc, char **argv) {
     ds4_session *reused = NULL;
     ds4_session *fresh = NULL;
     ds4_tokens prompt1 = {0};
+    ds4_tokens prompt1_turn1 = {0};
     ds4_tokens prompt2 = {0};
     handoff_run turn1 = {0};
     handoff_run turn2_reused = {0};
     handoff_run turn2_fresh = {0};
+    float *reused_turn1_logits = NULL;
+    float *fresh_turn1_logits = NULL;
     float *reused_seed_logits = NULL;
     float *fresh_seed_logits = NULL;
+    int reused_turn1_argmax = -1;
+    int reused_argmax = -1;
     int rc = 1;
 
     if (ds4_engine_open(&engine, &opt) != 0 || !engine) {
@@ -577,6 +584,7 @@ int main(int argc, char **argv) {
                           turn1.tokens,
                           turn1_visible,
                           cfg.followup_prompt,
+                          &prompt1_turn1,
                           &prompt2);
 
     const int expected_after_turn1 = prompt1.len + turn1_visible;
@@ -587,24 +595,32 @@ int main(int argc, char **argv) {
                 expected_after_turn1);
         goto cleanup;
     }
+    const int vocab = ds4_engine_vocab_size(engine);
+    reused_turn1_logits = malloc((size_t)vocab * sizeof(reused_turn1_logits[0]));
+    fresh_turn1_logits = malloc((size_t)vocab * sizeof(fresh_turn1_logits[0]));
+    reused_seed_logits = malloc((size_t)vocab * sizeof(reused_seed_logits[0]));
+    fresh_seed_logits = malloc((size_t)vocab * sizeof(fresh_seed_logits[0]));
+    if (!reused_turn1_logits || !fresh_turn1_logits ||
+        !reused_seed_logits || !fresh_seed_logits) {
+        fprintf(stderr, "issue304-phase5-multiturn: out of memory for logits snapshots\n");
+        goto cleanup;
+    }
+    if (ds4_session_copy_logits(reused, reused_turn1_logits, vocab) != vocab) {
+        fprintf(stderr, "issue304-phase5-multiturn: failed to copy reused turn1 logits\n");
+        goto cleanup;
+    }
+    reused_turn1_argmax = ds4_session_argmax(reused);
 
     if (ds4_session_sync(reused, &prompt2, err, sizeof(err)) != 0) {
         fprintf(stderr, "issue304-phase5-multiturn: reused-session followup sync failed: %s\n",
                 err[0] ? err : "unknown error");
         goto cleanup;
     }
-    const int vocab = ds4_engine_vocab_size(engine);
-    reused_seed_logits = malloc((size_t)vocab * sizeof(reused_seed_logits[0]));
-    fresh_seed_logits = malloc((size_t)vocab * sizeof(fresh_seed_logits[0]));
-    if (!reused_seed_logits || !fresh_seed_logits) {
-        fprintf(stderr, "issue304-phase5-multiturn: out of memory for seed logits\n");
-        goto cleanup;
-    }
     if (ds4_session_copy_logits(reused, reused_seed_logits, vocab) != vocab) {
         fprintf(stderr, "issue304-phase5-multiturn: failed to copy reused seed logits\n");
         goto cleanup;
     }
-    const int reused_argmax = ds4_session_argmax(reused);
+    reused_argmax = ds4_session_argmax(reused);
 
     if (!run_handoff(reused, cfg.gen_tokens, &turn2_reused)) {
         goto cleanup;
@@ -635,6 +651,43 @@ int main(int argc, char **argv) {
                                   &output_on_coordinator)) {
         goto cleanup;
     }
+    if (ds4_session_sync(fresh, &prompt1_turn1, err, sizeof(err)) != 0) {
+        fprintf(stderr, "issue304-phase5-multiturn: fresh-session turn1 sync failed: %s\n",
+                err[0] ? err : "unknown error");
+        goto cleanup;
+    }
+    if (ds4_session_pos(fresh) != prompt1_turn1.len) {
+        fprintf(stderr, "issue304-phase5-multiturn: fresh session did not reach turn1 transcript\n");
+        goto cleanup;
+    }
+    if (ds4_session_copy_logits(fresh, fresh_turn1_logits, vocab) != vocab) {
+        fprintf(stderr, "issue304-phase5-multiturn: failed to copy fresh turn1 logits\n");
+        goto cleanup;
+    }
+    const int fresh_turn1_argmax = ds4_session_argmax(fresh);
+    parity_metrics turn1_cmp = compare_logits(fresh_turn1_logits, reused_turn1_logits, vocab);
+    int fresh_turn1_top5[5];
+    int reused_turn1_top5[5];
+    logits_topk(fresh_turn1_logits, vocab, fresh_turn1_top5, 5);
+    logits_topk(reused_turn1_logits, vocab, reused_turn1_top5, 5);
+    printf("PHASE5_MULTITURN_TURN1_ARGMAX reused=%d fresh=%d reused_in_fresh_top5=%s fresh_in_reused_top5=%s\n",
+           reused_turn1_argmax,
+           fresh_turn1_argmax,
+           topk_contains(fresh_turn1_top5, 5, reused_turn1_argmax) ? "true" : "false",
+           topk_contains(reused_turn1_top5, 5, fresh_turn1_argmax) ? "true" : "false");
+    printf("PHASE5_MULTITURN_TURN1_LOGITS top5=%d top10=%d top20=%d rms=%.8f max_abs=%.8f top20_max_abs=%.8f nonfinite=%d\n",
+           turn1_cmp.top5_overlap,
+           turn1_cmp.top10_overlap,
+           turn1_cmp.top20_overlap,
+           turn1_cmp.rms,
+           turn1_cmp.max_abs,
+           turn1_cmp.top20_max_abs,
+           turn1_cmp.nonfinite);
+    printf("PHASE5_MULTITURN_TURN1_TOP5 fresh=");
+    print_topk_json(engine, fresh_turn1_logits, vocab, 5);
+    printf(" reused=");
+    print_topk_json(engine, reused_turn1_logits, vocab, 5);
+    printf("\n");
     if (ds4_session_sync(fresh, &prompt2, err, sizeof(err)) != 0) {
         fprintf(stderr, "issue304-phase5-multiturn: fresh-session followup sync failed: %s\n",
                 err[0] ? err : "unknown error");
@@ -706,10 +759,13 @@ int main(int argc, char **argv) {
 cleanup:
     free(fresh_seed_logits);
     free(reused_seed_logits);
+    free(fresh_turn1_logits);
+    free(reused_turn1_logits);
     handoff_run_free(&turn2_fresh);
     handoff_run_free(&turn2_reused);
     handoff_run_free(&turn1);
     ds4_tokens_free(&prompt2);
+    ds4_tokens_free(&prompt1_turn1);
     ds4_tokens_free(&prompt1);
     ds4_session_free(fresh);
     ds4_session_free(reused);
