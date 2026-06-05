@@ -12,6 +12,7 @@ user-visible path.
 | Route | Prompt | Prompt tokens | KV bytes | KV handoff sec | KV MiB/s | Prefill tok/s | Worker/local generation tok/s | Notes |
 | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |
 | `Metal -> CUDA` | `ping` | 10 | 6,564,072 | 0.025 | 248.27 | 14.27 | 14.88 | tiny prompt sanity check |
+| `Metal -> CUDA` | sampled short prompt | 17 | 6,930,664 | 0.028 | 238.89 | 32.76 | 12.06 | one-shot sampled coordinator `--temp 0.7 --top-p 0.95 --min-p 0.05`; output: `A distributed system is a collection of independent` |
 | `Metal -> CUDA` | README 4 KiB slice | 958 | 18,091,240 | 0.055 | 313.91 | 314.80 | 14.13 | mid-sized prompt |
 | `Metal -> CUDA` | full `README.md` | 14,318 | 105,725,160 | 0.345 | 292.47 | 603.15 | 13.08 | reused CUDA worker |
 | `CUDA -> Metal` | `ping` | 10 | 6,564,072 | 0.019 | 335.60 | 10.87 | 38.69 | fresh Metal worker |
@@ -29,6 +30,13 @@ Interpretation:
   `30.33 tok/s` against a pure local Mac baseline of `34.78 tok/s`, which
   is close enough that the main performance question is no longer decode
   throughput.
+- Sampled one-shot handoff uses the same KV transfer and worker-owned
+  decode path as greedy one-shot runs; no separate protocol was needed to
+  get sampling through the Phase 5 CLI surface.
+- Normal token-by-token eval now uses the same worker-owned local-decode
+  transport after a one-time activation push. CLI `--dump-logprobs` and
+  `ds4_server` both exercised that surface successfully in both route
+  directions on 2026-06-05.
 - For very short generations the one-time handoff can still matter to
   first-token latency, but the current data does not justify KV pipelining
   for throughput-oriented Phase 5 benchmarking.

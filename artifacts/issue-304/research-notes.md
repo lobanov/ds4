@@ -411,10 +411,51 @@ The remaining work should separate:
      decode throughput alone.
 
 4. The remaining surface gap is protocol usage, not handoff mechanics.
-   - The current worker-owned path is wired into the greedy one-shot
-     coordinator flow.
-   - The normal sampled distributed eval/decode path is still the older
-     token-by-token coordinator-owned surface.
+   - The worker-owned path now supports sampled one-shot coordinator runs
+     through the existing `LOCAL_GENERATE` response path.
+   - The normal token-by-token distributed eval/decode path now also
+     delegates through worker-owned local decode by lazily activating the
+     worker on first `ds4_session_eval()` after sync and then using
+     forced-token one-step `LOCAL_GENERATE` calls for subsequent tokens.
+   - This was validated on the plain CLI `--dump-logprobs` path and on
+     `ds4_server` in both `Metal -> CUDA` and `CUDA -> Metal`.
+
+5. The first reusable-session variance diagnosis was partly a stale-logits
+   bookkeeping bug on the coordinator.
+   - After worker-owned decode, the coordinator transcript/KV advanced but
+     the coordinator often kept pre-handoff logits unless a full logits
+     trace was requested.
+   - Fixing that bug made the immediate post-catch-up frontier much closer
+     to a fresh full-transcript session.
+
+6. The remaining reusable-session drift now appears after follow-up sync,
+   not immediately after catch-up.
+   - On the DGX/Mac `0:21 -> 22:output` route, the post-turn1 reused-vs-fresh
+     frontier now matches on top1 (`1116` vs `1116`) with `top5=5/5`,
+     `top10=10/10`, `top20=20/20`, and `rms=0.27032664`.
+   - After syncing the next user follow-up on top of that reused state, the
+     frontier diverges again with a near-top1 flip:
+     - reused top1 `8474` (`"They"`)
+     - fresh top1 `267` (`"en"`)
+     - `top5=4/5`, `top10=6/10`, `top20=16/20`
+     - `rms=0.99836105`
+   - That means the remaining Phase 5 reusable-session variance is no
+     longer best described as "catch-up is broken". It is more narrowly a
+     reused-state follow-up sync variance that appears after the next
+     distributed prefill step.
+
+7. The symmetric `CUDA -> Metal` sampled normal-eval route is milder than
+   the `Metal -> CUDA` case.
+   - `Metal -> CUDA`, sampled normal-eval multi-turn:
+     - reused top1 `8474`, fresh top1 `267`
+     - `top5=4/5`, `top10=8/10`, `top20=18/20`
+     - turn-two tokens diverged
+   - `CUDA -> Metal`, sampled normal-eval multi-turn with the same seed:
+     - reused top1 `8474`, fresh top1 `8474`
+     - `top5=4/5`, `top10=8/10`, `top20=15/20`
+     - turn-two tokens still matched exactly
+   - So the remaining reused-session follow-up-sync variance is present in
+     both directions, but it is not equally severe on the sampled path.
 
 ### Implication
 

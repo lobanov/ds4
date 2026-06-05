@@ -36,6 +36,12 @@ ssh dgx-direct 'pkill -9 ds4 >/dev/null 2>&1 || true; sh -c "cd ~/ds4; nohup ./d
 ./ds4 -m ./gguf/DeepSeek-V4-Flash-IQ2XXS-w2Q2K-AProjQ8-SExpQ8-OutQ8-chat-v2-imatrix.gguf --ctx 16384 --temp 0 --nothink --role coordinator --layers 0:21 --listen 10.77.0.1 1234 --prompt-file README.md -n 8 --debug
 ```
 
+`Metal -> CUDA` sampled one-shot coordinator smoke on the Mac:
+
+```sh
+./ds4 -m ./gguf/DeepSeek-V4-Flash-IQ2XXS-w2Q2K-AProjQ8-SExpQ8-OutQ8-chat-v2-imatrix.gguf --ctx 16384 --temp 0.7 --top-p 0.95 --min-p 0.05 --nothink --role coordinator --layers 0:21 --listen 10.77.0.1 1234 -p 'Describe a distributed system in one sentence.' -n 8 --debug
+```
+
 `CUDA -> Metal` fresh worker startup on the Mac:
 
 ```sh
@@ -68,10 +74,17 @@ Reference local Mac baseline:
 
 Current limitation:
 
-- the worker-owned handoff is wired into the greedy one-shot coordinator
-  path. Normal sampled distributed decode/server reuse still needs follow-on
-  work, even though reusable coordinators now have catch-up logic in the
-  session layer.
+- sampled one-shot CLI coordinator runs now work through the worker-owned
+  handoff path as well as greedy ones.
+- normal token-by-token distributed eval now also delegates through
+  worker-owned local decode after the first post-sync activation on both
+  CLI and `ds4_server`.
+- reusable-session follow-up after catch-up is still under investigation:
+  the immediate post-handoff frontier is now close to fresh-session parity,
+  but a follow-up distributed sync on top of that reused state can still
+  produce a near-top1 logit flip and divergent turn-two tokens.
+- the remaining open issue is reusable-session variance, not lack of
+  normal eval/server delegation.
 
 ## Phase 4 closeout rules
 

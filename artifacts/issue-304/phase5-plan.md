@@ -8,7 +8,7 @@ a real frontend can call.
 
 ## 2026-06-05 implementation status
 
-Phase 5 is now partially implemented in the main CLI/runtime path.
+Phase 5 is now substantially implemented in the main CLI/runtime path.
 
 Implemented:
 
@@ -21,8 +21,15 @@ Implemented:
   temp-file detour was removed from this handoff path.
 - Reusable coordinator sessions catch up their local slice from the
   generated token ids returned by worker local generation.
-- One-shot greedy CLI coordinator runs (`--temp 0`) now attempt the
-  worker-owned handoff path directly.
+- One-shot CLI coordinator runs now attempt the worker-owned handoff path
+  directly for both greedy and sampled generation.
+- The coordinator now preserves the worker's final logits after handoff
+  even when the caller does not request a full logits trace.
+- The normal distributed `ds4_session_eval(token)` path now lazily
+  activates worker local decode after sync and delegates subsequent token
+  eval through forced one-step worker `LOCAL_GENERATE` calls.
+- `ds4_server` inherits that path automatically because it already samples
+  on the coordinator and advances through `ds4_session_eval()`.
 
 Measured on 2026-06-05 with the plain `ds4` CLI:
 
@@ -40,10 +47,13 @@ Measured on 2026-06-05 with the plain `ds4` CLI:
 
 Current limitation:
 
-- The worker-owned handoff is wired into the one-shot greedy coordinator
-  path. The normal sampled distributed `ds4_session_eval(token)` path is
-  still the old per-token distributed decode surface, so full sampled
-  coordinator/server delegation remains follow-on work.
+- Reusable-session catch-up no longer looks broadly broken, but the next
+  follow-up sync on top of a caught-up reused state can still drift from a
+  fresh full-transcript session before turn two begins.
+- The severity of that remaining reusable-session drift differs by route:
+  on the tested sampled normal-eval seed, `Metal -> CUDA` still diverged in
+  second-turn tokens while `CUDA -> Metal` preserved the same second-turn
+  token sequence despite frontier drift.
 
 ## Source documents
 

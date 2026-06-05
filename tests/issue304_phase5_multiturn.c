@@ -26,6 +26,11 @@ typedef struct {
     uint32_t prefill_chunk;
     uint32_t prefill_window;
     uint32_t activation_bits;
+    float temperature;
+    float top_p;
+    float min_p;
+    uint64_t seed;
+    bool normal_eval;
     bool debug;
 } phase5_cfg;
 
@@ -59,6 +64,7 @@ static void die_usage(const char *argv0) {
             "usage: %s --model FILE --listen-host IPV4 --listen-port N "
             "[--prompt-file FILE] [--system TEXT] [--followup TEXT] [--ctx N] "
             "[--gen-tokens N] [--prefill-chunk N] [--prefill-window N] "
+            "[--temp F] [--top-p F] [--min-p F] [--seed N] [--normal-eval] "
             "[--activation-bits N] [--coordinator-layers A:B|A:output] "
             "[--worker-layers A:B|A:output] [--lock-file FILE] [--no-debug]\n",
             argv0);
@@ -210,6 +216,37 @@ static bool run_handoff(ds4_session *session, int max_tokens, handoff_run *out) 
         return false;
     }
     out->token_count = rc;
+    return true;
+}
+
+static bool run_normal_eval(ds4_engine *engine,
+                            ds4_session *session,
+                            const phase5_cfg *cfg,
+                            handoff_run *out) {
+    char err[256] = {0};
+    memset(out, 0, sizeof(*out));
+    out->tokens = calloc((size_t)cfg->gen_tokens, sizeof(out->tokens[0]));
+    if (!out->tokens) {
+        fprintf(stderr, "issue304-phase5-multiturn: out of memory allocating eval tokens\n");
+        return false;
+    }
+    uint64_t rng = cfg->seed;
+    for (int i = 0; i < cfg->gen_tokens; i++) {
+        int tok = ds4_session_sample(session,
+                                     cfg->temperature,
+                                     0,
+                                     cfg->top_p,
+                                     cfg->min_p,
+                                     &rng);
+        out->tokens[i] = tok;
+        out->token_count = i + 1;
+        if (tok == ds4_token_eos(engine)) break;
+        if (ds4_session_eval(session, tok, err, sizeof(err)) != 0) {
+            fprintf(stderr, "issue304-phase5-multiturn: normal eval failed: %s\n",
+                    err[0] ? err : "unknown error");
+            return false;
+        }
+    }
     return true;
 }
 
@@ -433,6 +470,16 @@ static void parse_args(phase5_cfg *cfg, int argc, char **argv) {
             cfg->prefill_window = (uint32_t)strtoul(argv[++i], NULL, 10);
         } else if (!strcmp(argv[i], "--activation-bits") && i + 1 < argc) {
             cfg->activation_bits = (uint32_t)strtoul(argv[++i], NULL, 10);
+        } else if (!strcmp(argv[i], "--temp") && i + 1 < argc) {
+            cfg->temperature = strtof(argv[++i], NULL);
+        } else if (!strcmp(argv[i], "--top-p") && i + 1 < argc) {
+            cfg->top_p = strtof(argv[++i], NULL);
+        } else if (!strcmp(argv[i], "--min-p") && i + 1 < argc) {
+            cfg->min_p = strtof(argv[++i], NULL);
+        } else if (!strcmp(argv[i], "--seed") && i + 1 < argc) {
+            cfg->seed = (uint64_t)strtoull(argv[++i], NULL, 10);
+        } else if (!strcmp(argv[i], "--normal-eval")) {
+            cfg->normal_eval = true;
         } else if (!strcmp(argv[i], "--coordinator-layers") && i + 1 < argc) {
             cfg->coordinator_layers = argv[++i];
         } else if (!strcmp(argv[i], "--worker-layers") && i + 1 < argc) {
@@ -460,6 +507,10 @@ int main(int argc, char **argv) {
         .prefill_chunk = 0,
         .prefill_window = 0,
         .activation_bits = 0,
+        .temperature = 0.0f,
+        .top_p = 1.0f,
+        .min_p = 0.0f,
+        .seed = 1u,
         .debug = true,
         .coordinator_layers = "0:21",
         .worker_layers = "22:output",
@@ -566,7 +617,9 @@ int main(int argc, char **argv) {
         goto cleanup;
     }
 
-    if (!run_handoff(reused, cfg.gen_tokens, &turn1)) goto cleanup;
+    if (!(cfg.normal_eval
+            ? run_normal_eval(engine, reused, &cfg, &turn1)
+            : run_handoff(reused, cfg.gen_tokens, &turn1))) goto cleanup;
     const int turn1_visible = visible_token_count(engine, turn1.tokens, turn1.token_count);
     if (turn1_visible <= 0) {
         fprintf(stderr, "issue304-phase5-multiturn: first handoff returned no reusable tokens\n");
@@ -622,7 +675,9 @@ int main(int argc, char **argv) {
     }
     reused_argmax = ds4_session_argmax(reused);
 
-    if (!run_handoff(reused, cfg.gen_tokens, &turn2_reused)) {
+    if (!(cfg.normal_eval
+            ? run_normal_eval(engine, reused, &cfg, &turn2_reused)
+            : run_handoff(reused, cfg.gen_tokens, &turn2_reused))) {
         goto cleanup;
     }
     printf("PHASE5_MULTITURN_SYNC reused_pos=%d prompt2_tokens=%d\n",
@@ -725,7 +780,9 @@ int main(int argc, char **argv) {
     printf(" reused=");
     print_topk_json(engine, reused_seed_logits, vocab, 5);
     printf("\n");
-    if (!run_handoff(fresh, cfg.gen_tokens, &turn2_fresh)) {
+    if (!(cfg.normal_eval
+            ? run_normal_eval(engine, fresh, &cfg, &turn2_fresh)
+            : run_handoff(fresh, cfg.gen_tokens, &turn2_fresh))) {
         goto cleanup;
     }
 

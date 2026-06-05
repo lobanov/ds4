@@ -379,8 +379,79 @@ Why this changes the next steps:
   the handoff stayed near `0.35 s`, which is small relative to the
   `23-25 s` distributed prefill runs.
 - The next product-level gap is not transport but surface coverage:
-  the worker-owned path is currently wired into greedy one-shot coordinator
+  the worker-owned path was initially wired into greedy one-shot coordinator
   runs, not yet into the normal sampled distributed eval path.
 - That makes the most defensible next task explicit:
   extend the user-facing decode surfaces only after preserving the current
   simple worker protocol and measured handoff cost.
+
+## 2026-06-05: Sampled one-shot local-decode is enabled, and the remaining multi-turn variance starts after follow-up sync
+
+Decision:
+
+- Treat sampled one-shot coordinator handoff as implemented for Phase 5.
+- Reclassify the main reusable-session issue from "catch-up is broken" to
+  "follow-up sync on reused handoff state still diverges from a fresh
+  full-transcript session".
+
+Evidence:
+
+- Plain CLI sampled one-shot on `Metal -> CUDA` now succeeds with:
+  - `--temp 0.7 --top-p 0.95 --min-p 0.05`
+  - route formation,
+  - KV handoff log emission,
+  - and sampled worker-owned output text.
+- A coordinator bookkeeping bug was fixed: after worker-owned decode, the
+  coordinator now keeps the worker's final logits even when no full logits
+  trace buffer is requested.
+- The DGX-backed multi-turn diagnostic now shows two distinct boundaries:
+  - immediately after turn-1 worker decode plus coordinator catch-up:
+    - reused top1 `1116`, fresh top1 `1116`
+    - `top5=5/5`, `top10=10/10`, `top20=20/20`
+    - `rms=0.27032664`
+  - after syncing the next user follow-up on top of that reused state:
+    - reused top1 `8474`, fresh top1 `267`
+    - `top5=4/5`, `top10=6/10`, `top20=16/20`
+    - `rms=0.99836105`
+
+Why this changes the next steps:
+
+- The broad "coordinator catch-up is wrong" diagnosis was too coarse.
+- The remaining Phase 5 reusable-session problem is narrower and more
+  useful: something in the next distributed sync/reused-state path is
+  shifting the frontier before the second handoff.
+- That means further investigation should focus on reused-session sync over
+  an already-caught-up state rather than on the basic worker-owned
+  generation or token replay mechanics.
+
+## 2026-06-05: Normal sampled eval/server delegation is now enabled through local decode
+
+Decision:
+
+- Treat the normal distributed `ds4_session_eval(token)` surface as in
+  Phase 5 scope and now implemented through worker-owned local decode.
+- Keep the remaining Phase 5 blocker focused on reusable-session variance.
+
+Evidence:
+
+- After sync, the coordinator now lazily activates local decode by pushing
+  its KV shard and seeding the worker with the current logits.
+- Subsequent `ds4_session_eval(token)` calls use the existing
+  `LOCAL_GENERATE` RPC with a forced-token one-step request, then catch up
+  the coordinator's local slice and install the returned next logits.
+- Validation passed on:
+  - `Metal -> CUDA` CLI `--dump-logprobs`
+  - `CUDA -> Metal` CLI `--dump-logprobs`
+  - `Metal -> CUDA` `ds4_server`
+  - `CUDA -> Metal` `ds4_server`
+- The symmetric sampled multi-turn result on `CUDA -> Metal` still shows
+  follow-up-sync frontier drift, but it is milder than the `Metal -> CUDA`
+  case because the second-turn sampled tokens still matched exactly for the
+  tested seed.
+
+Why this changes the next steps:
+
+- Phase 5 no longer has a major surface-coverage gap between one-shot and
+  ordinary sampled decode.
+- The remaining work is now primarily about reusable-session parity under
+  follow-up sync, not about missing API wiring.

@@ -595,6 +595,10 @@ static int dist_coordinator_catch_up_generated_tokens(
         uint32_t token_count,
         char *err,
         size_t errlen);
+static int dist_kv_route_validate(
+        const ds4_dist_session *d,
+        char *err,
+        size_t errlen);
 static int dist_validate_options(const ds4_dist_options *opt, char *err, size_t errlen);
 
 static uint32_t dist_resolved_layer_end(const ds4_dist_options *opt, uint32_t n_layers) {
@@ -4947,6 +4951,187 @@ cleanup:
     return rc;
 }
 
+static const ds4_dist_route_entry *dist_session_final_local_decode_entry(
+        const ds4_dist_session *d) {
+    if (!d || d->plan.count != 1u) return NULL;
+    const ds4_dist_route_entry *entry = &d->plan.entry[d->plan.count - 1u];
+    if ((entry->flags & DS4_DIST_ROUTE_F_OUTPUT_LOGITS) == 0u) return NULL;
+    if ((entry->flags & DS4_DIST_ROUTE_F_LOCAL_DECODE) == 0u) return NULL;
+    return entry;
+}
+
+static int dist_session_activate_local_decode(
+        ds4_dist_session *d,
+        ds4_session *owner,
+        char *err,
+        size_t errlen) {
+    if (!d || !owner) {
+        if (errlen) snprintf(err, errlen, "invalid local-decode activation request");
+        return -1;
+    }
+    if (d->local_decode_active) return 0;
+    if (dist_session_ensure_route(d, err, errlen) != 0) return -1;
+    if (dist_kv_route_validate(d, err, errlen) != 0) return -1;
+
+    const ds4_dist_route_entry *entry = dist_session_final_local_decode_entry(d);
+    if (!entry) {
+        if (errlen) snprintf(err, errlen, "distributed route does not support worker local decode");
+        return -1;
+    }
+
+    const ds4_tokens *timeline = ds4_session_tokens(owner);
+    if (!timeline || timeline->len < 0 || (uint64_t)timeline->len > UINT32_MAX) {
+        if (errlen) snprintf(err, errlen, "distributed local decode requires a valid token timeline");
+        return -1;
+    }
+    const uint64_t token_hash = dist_token_hash_prefix(timeline->v, (uint32_t)timeline->len);
+    const uint64_t payload_bytes = ds4_session_layer_payload_bytes(owner,
+                                                                   d->state.local_start,
+                                                                   d->state.local_end);
+    const double load_t0 = dist_now_sec();
+    if (dist_load_remote_shard_from_session(d,
+                                            entry,
+                                            owner,
+                                            timeline->v,
+                                            (uint32_t)timeline->len,
+                                            token_hash,
+                                            d->state.local_start,
+                                            d->state.local_end,
+                                            err,
+                                            errlen) != 0) {
+        return -1;
+    }
+    const double load_t1 = dist_now_sec();
+    DIST_COORD_DEBUG(&d->state,
+                     "ds4: distributed coordinator: local-decode begin tokens=%u layers=%u:%u bytes=%" PRIu64 " total=%.3fs %.2f MiB/s worker=%s:%u\n",
+                     (uint32_t)timeline->len,
+                     d->state.local_start,
+                     d->state.local_end,
+                     payload_bytes,
+                     load_t1 - load_t0,
+                     (load_t1 > load_t0)
+                        ? (((double)payload_bytes / (1024.0 * 1024.0)) / (load_t1 - load_t0))
+                        : 0.0,
+                     entry->host,
+                     entry->port);
+
+    const int vocab = ds4_engine_vocab_size(d->state.engine);
+    float *logits = malloc((size_t)vocab * sizeof(logits[0]));
+    if (!logits) {
+        if (errlen) snprintf(err, errlen, "out of memory copying activation logits");
+        return -1;
+    }
+    if (ds4_session_copy_logits(owner, logits, vocab) != vocab) {
+        free(logits);
+        if (errlen) snprintf(err, errlen, "failed to copy activation logits");
+        return -1;
+    }
+    int dummy_steps = 0;
+    double dummy_decode_sec = 0.0;
+    const int rc = dist_local_generate_remote(d,
+                                              entry,
+                                              token_hash,
+                                              logits,
+                                              0,
+                                              0.0f,
+                                              1.0f,
+                                              0.0f,
+                                              0u,
+                                              NULL,
+                                              0,
+                                              NULL,
+                                              0,
+                                              NULL,
+                                              &dummy_steps,
+                                              &dummy_decode_sec,
+                                              err,
+                                              errlen);
+    free(logits);
+    if (rc < 0) return -1;
+    d->local_decode_active = true;
+    return 0;
+}
+
+static int dist_session_eval_local_decode(
+        ds4_dist_session *d,
+        ds4_session *owner,
+        const ds4_tokens *checkpoint,
+        int token,
+        float *logits,
+        char *err,
+        size_t errlen) {
+    if (!d || !owner || !checkpoint || !logits) {
+        if (errlen) snprintf(err, errlen, "invalid local-decode eval request");
+        return 1;
+    }
+    const ds4_dist_route_entry *entry = dist_session_final_local_decode_entry(d);
+    if (!entry || !d->local_decode_active) {
+        if (errlen) snprintf(err, errlen, "local-decode eval is not active");
+        return 1;
+    }
+
+    const int vocab = ds4_engine_vocab_size(d->state.engine);
+    if (token < 0 || token >= vocab) {
+        if (errlen) snprintf(err, errlen, "forced token is outside the model vocabulary");
+        return 1;
+    }
+    float *forced_logits = malloc((size_t)vocab * sizeof(forced_logits[0]));
+    if (!forced_logits) {
+        if (errlen) snprintf(err, errlen, "out of memory allocating forced logits");
+        return 1;
+    }
+    for (int i = 0; i < vocab; i++) forced_logits[i] = -1.0e30f;
+    forced_logits[token] = 0.0f;
+
+    int echoed_token = -1;
+    int trace_steps = 0;
+    double decode_sec_unused = 0.0;
+    const uint64_t token_hash = dist_token_hash_prefix(checkpoint->v, (uint32_t)checkpoint->len);
+    const int rc = dist_local_generate_remote(d,
+                                              entry,
+                                              token_hash,
+                                              forced_logits,
+                                              1,
+                                              0.0f,
+                                              1.0f,
+                                              0.0f,
+                                              0u,
+                                              &echoed_token,
+                                              1,
+                                              NULL,
+                                              0,
+                                              logits,
+                                              &trace_steps,
+                                              &decode_sec_unused,
+                                              err,
+                                              errlen);
+    free(forced_logits);
+    if (rc < 0) {
+        d->local_decode_active = false;
+        return 1;
+    }
+    if (rc != 1 || echoed_token != token || trace_steps != 1) {
+        d->local_decode_active = false;
+        if (errlen) snprintf(err, errlen, "worker local decode returned an unexpected eval result");
+        return 1;
+    }
+    if (dist_coordinator_catch_up_generated_tokens(d,
+                                                   owner,
+                                                   &token,
+                                                   1u,
+                                                   err,
+                                                   errlen) != 0) {
+        d->local_decode_active = false;
+        return 1;
+    }
+    if (ds4_session_set_logits(owner, logits, vocab) != 0) {
+        d->local_decode_active = false;
+        if (errlen) snprintf(err, errlen, "failed to update coordinator logits after local decode eval");
+        return 1;
+    }
+    return 0;
+}
+
 static int dist_receive_snapshot_chunks_to_file(
         int fd,
         uint64_t request_id,
@@ -5999,6 +6184,7 @@ static int dist_session_handoff_generate_trace(
     if (rc > 0) {
         (void)ds4_session_set_logits(owner, logits, vocab);
     }
+    if (rc >= 0) d->local_decode_active = true;
     free(logits);
     if (rc >= 0 && shard_load_sec_out) {
         *shard_load_sec_out = load_sec;
@@ -6262,6 +6448,7 @@ int ds4_dist_session_sync(
         if (errlen) snprintf(err, errlen, "invalid distributed sync request");
         return 1;
     }
+    d->local_decode_active = false;
     if (dist_session_ensure_route(d, err, errlen) != 0) return 1;
 
     if (checkpoint &&
@@ -6396,6 +6583,51 @@ int ds4_dist_session_eval(
         return 1;
     }
     if (dist_session_ensure_route(d, err, errlen) != 0) return 1;
+
+    if (!d->local_decode_active &&
+        dist_session_final_local_decode_entry(d) != NULL) {
+        char activate_err[256] = {0};
+        if (dist_session_activate_local_decode(d, owner, activate_err, sizeof(activate_err)) != 0) {
+            DIST_COORD_DEBUG(&d->state,
+                             "ds4: distributed coordinator: local-decode activation skipped: %s\n",
+                             activate_err[0] ? activate_err : "unknown error");
+            d->local_decode_active = false;
+        }
+    }
+    if (d->local_decode_active) {
+        ds4_tokens transcript = {0};
+        ds4_tokens_copy(&transcript, checkpoint);
+        ds4_tokens_push(&transcript, token);
+        int eval_rc = dist_session_eval_local_decode(d,
+                                                     owner,
+                                                     checkpoint,
+                                                     token,
+                                                     logits,
+                                                     err,
+                                                     errlen);
+        if (eval_rc != 0) {
+            if (dist_coordinator_rebuild_from_transcript(&d->state,
+                                                         owner,
+                                                         &d->plan,
+                                                         &transcript,
+                                                         d->session_id,
+                                                         &d->request_id,
+                                                         logits,
+                                                         &d->plan_generation,
+                                                         true,
+                                                         err,
+                                                         errlen) != 0) {
+                d->plan_ready = false;
+                d->plan_generation = 0;
+                ds4_tokens_free(&transcript);
+                return 1;
+            }
+            d->plan_ready = true;
+            d->local_decode_active = false;
+        }
+        ds4_tokens_free(&transcript);
+        return 0;
+    }
 
     ds4_tokens transcript = {0};
     ds4_tokens_copy(&transcript, checkpoint);
