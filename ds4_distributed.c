@@ -211,6 +211,11 @@ typedef struct {
     uint32_t token_hash_hi;
     uint32_t token_hash_lo;
     uint32_t n_predict;
+    uint32_t seed_hi;
+    uint32_t seed_lo;
+    uint32_t temperature_bits;
+    uint32_t top_p_bits;
+    uint32_t min_p_bits;
     uint32_t logits_bytes;
 } ds4_dist_local_generate_req_fixed;
 
@@ -624,6 +629,18 @@ static double dist_now_sec(void) {
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
     return (double)ts.tv_sec + (double)ts.tv_nsec / 1000000000.0;
+}
+
+static uint32_t dist_f32_bits(float v) {
+    uint32_t bits = 0;
+    memcpy(&bits, &v, sizeof(bits));
+    return bits;
+}
+
+static float dist_f32_from_bits(uint32_t bits) {
+    float v = 0.0f;
+    memcpy(&v, &bits, sizeof(v));
+    return v;
 }
 
 /* =========================================================================
@@ -1794,6 +1811,11 @@ static void dist_local_generate_req_to_wire(ds4_dist_local_generate_req_fixed *r
     r->token_hash_hi = htonl(r->token_hash_hi);
     r->token_hash_lo = htonl(r->token_hash_lo);
     r->n_predict = htonl(r->n_predict);
+    r->seed_hi = htonl(r->seed_hi);
+    r->seed_lo = htonl(r->seed_lo);
+    r->temperature_bits = htonl(r->temperature_bits);
+    r->top_p_bits = htonl(r->top_p_bits);
+    r->min_p_bits = htonl(r->min_p_bits);
     r->logits_bytes = htonl(r->logits_bytes);
 }
 
@@ -1806,6 +1828,11 @@ static void dist_local_generate_req_from_wire(ds4_dist_local_generate_req_fixed 
     r->token_hash_hi = ntohl(r->token_hash_hi);
     r->token_hash_lo = ntohl(r->token_hash_lo);
     r->n_predict = ntohl(r->n_predict);
+    r->seed_hi = ntohl(r->seed_hi);
+    r->seed_lo = ntohl(r->seed_lo);
+    r->temperature_bits = ntohl(r->temperature_bits);
+    r->top_p_bits = ntohl(r->top_p_bits);
+    r->min_p_bits = ntohl(r->min_p_bits);
     r->logits_bytes = ntohl(r->logits_bytes);
 }
 
@@ -4729,6 +4756,10 @@ static int dist_local_generate_remote(
         uint64_t token_hash,
         const float *logits,
         int n_predict,
+        float temperature,
+        float top_p,
+        float min_p,
+        uint64_t seed,
         int *tokens_out,
         int token_cap,
         float *logits_trace_out,
@@ -4764,6 +4795,10 @@ static int dist_local_generate_remote(
     dist_u64_to_halves(request_id, &req.request_hi, &req.request_lo);
     dist_u64_to_halves(token_hash, &req.token_hash_hi, &req.token_hash_lo);
     req.n_predict = (uint32_t)n_predict;
+    dist_u64_to_halves(seed, &req.seed_hi, &req.seed_lo);
+    req.temperature_bits = dist_f32_bits(temperature);
+    req.top_p_bits = dist_f32_bits(top_p);
+    req.min_p_bits = dist_f32_bits(min_p);
     req.logits_bytes = logits_bytes;
     ds4_dist_local_generate_req_fixed wire = req;
     dist_local_generate_req_to_wire(&wire);
@@ -5825,10 +5860,14 @@ cleanup:
     return rc;
 }
 
-static int dist_session_handoff_argmax_trace(
+static int dist_session_handoff_generate_trace(
         ds4_dist_session *d,
         ds4_session *owner,
         int n_predict,
+        float temperature,
+        float top_p,
+        float min_p,
+        uint64_t seed,
         int *tokens_out,
         int token_cap,
         float *logits_trace_out,
@@ -5914,6 +5953,10 @@ static int dist_session_handoff_argmax_trace(
                                     token_hash,
                                     logits,
                                     n_predict,
+                                    temperature,
+                                    top_p,
+                                    min_p,
+                                    seed,
                                     tokens_out,
                                     token_cap,
                                     logits_trace_out,
@@ -5957,18 +6000,54 @@ int ds4_dist_session_handoff_argmax(
         double *decode_sec_out,
         char *err,
         size_t errlen) {
-    return dist_session_handoff_argmax_trace(d,
-                                             owner,
-                                             n_predict,
-                                             tokens_out,
-                                             token_cap,
-                                             NULL,
-                                             0,
-                                             NULL,
-                                             shard_load_sec_out,
-                                             decode_sec_out,
-                                             err,
-                                             errlen);
+    return dist_session_handoff_generate_trace(d,
+                                               owner,
+                                               n_predict,
+                                               0.0f,
+                                               1.0f,
+                                               0.0f,
+                                               0u,
+                                               tokens_out,
+                                               token_cap,
+                                               NULL,
+                                               0,
+                                               NULL,
+                                               shard_load_sec_out,
+                                               decode_sec_out,
+                                               err,
+                                               errlen);
+}
+
+int ds4_dist_session_handoff_generate(
+        ds4_dist_session *d,
+        ds4_session *owner,
+        int n_predict,
+        float temperature,
+        float top_p,
+        float min_p,
+        uint64_t seed,
+        int *tokens_out,
+        int token_cap,
+        double *shard_load_sec_out,
+        double *decode_sec_out,
+        char *err,
+        size_t errlen) {
+    return dist_session_handoff_generate_trace(d,
+                                               owner,
+                                               n_predict,
+                                               temperature,
+                                               top_p,
+                                               min_p,
+                                               seed,
+                                               tokens_out,
+                                               token_cap,
+                                               NULL,
+                                               0,
+                                               NULL,
+                                               shard_load_sec_out,
+                                               decode_sec_out,
+                                               err,
+                                               errlen);
 }
 
 int ds4_dist_session_handoff_argmax_trace(
@@ -5984,18 +6063,22 @@ int ds4_dist_session_handoff_argmax_trace(
         double *decode_sec_out,
         char *err,
         size_t errlen) {
-    return dist_session_handoff_argmax_trace(d,
-                                             owner,
-                                             n_predict,
-                                             tokens_out,
-                                             token_cap,
-                                             logits_trace_out,
-                                             logits_trace_cap,
-                                             logits_trace_steps_out,
-                                             shard_load_sec_out,
-                                             decode_sec_out,
-                                             err,
-                                             errlen);
+    return dist_session_handoff_generate_trace(d,
+                                               owner,
+                                               n_predict,
+                                               0.0f,
+                                               1.0f,
+                                               0.0f,
+                                               0u,
+                                               tokens_out,
+                                               token_cap,
+                                               logits_trace_out,
+                                               logits_trace_cap,
+                                               logits_trace_steps_out,
+                                               shard_load_sec_out,
+                                               decode_sec_out,
+                                               err,
+                                               errlen);
 }
 
 /* =========================================================================
@@ -8129,6 +8212,10 @@ static int dist_worker_handle_local_generate(
     session_id = dist_u64_from_halves(req.session_hi, req.session_lo);
     const uint64_t token_hash = dist_u64_from_halves(req.token_hash_hi,
                                                      req.token_hash_lo);
+    uint64_t rng = dist_u64_from_halves(req.seed_hi, req.seed_lo);
+    const float temperature = dist_f32_from_bits(req.temperature_bits);
+    const float top_p = dist_f32_from_bits(req.top_p_bits);
+    const float min_p = dist_f32_from_bits(req.min_p_bits);
     if (req.model_id != state->model_id || req.logits_bytes != logits_bytes) {
         dist_discard_bytes(upstream->fd, bytes - (uint32_t)sizeof(req));
         snprintf(err, sizeof(err), "local generate request does not match worker state");
@@ -8180,7 +8267,12 @@ static int dist_worker_handle_local_generate(
         } else {
             const double t0 = dist_now_sec();
             for (uint32_t i = 0; i < req.n_predict; i++) {
-                const int tok = ds4_session_argmax(session->session);
+                const int tok = ds4_session_sample(session->session,
+                                                   temperature,
+                                                   0,
+                                                   top_p,
+                                                   min_p,
+                                                   &rng);
                 tokens[i] = tok;
                 if (ds4_session_eval(session->session, tok, err, sizeof(err)) != 0) {
                     session->token_hash_valid = false;

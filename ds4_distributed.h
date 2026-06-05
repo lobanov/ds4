@@ -97,6 +97,20 @@ int ds4_dist_session_handoff_argmax(
         double *decode_sec_out,
         char *err,
         size_t errlen);
+int ds4_dist_session_handoff_generate(
+        ds4_dist_session *d,
+        ds4_session *owner,
+        int n_predict,
+        float temperature,
+        float top_p,
+        float min_p,
+        uint64_t seed,
+        int *tokens_out,
+        int token_cap,
+        double *shard_load_sec_out,
+        double *decode_sec_out,
+        char *err,
+        size_t errlen);
 int ds4_dist_session_handoff_argmax_trace(
         ds4_dist_session *d,
         ds4_session *owner,

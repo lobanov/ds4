@@ -457,7 +457,6 @@ static int run_sampled_generation(ds4_engine *engine, const cli_config *cfg, con
     else if (max_tokens > room - 1) max_tokens = room - 1;
 
     if (cli_distributed_coordinator(cfg) &&
-        cfg->gen.temperature <= 0.0f &&
         max_tokens > 0) {
         int *handoff_tokens = calloc((size_t)max_tokens, sizeof(handoff_tokens[0]));
         if (!handoff_tokens) {
@@ -467,15 +466,21 @@ static int run_sampled_generation(ds4_engine *engine, const cli_config *cfg, con
         }
         double shard_load_s = 0.0;
         double worker_decode_s = 0.0;
+        uint64_t handoff_rng = cfg->gen.seed ? cfg->gen.seed :
+            ((uint64_t)time(NULL) ^ ((uint64_t)getpid() << 32) ^ (uint64_t)clock());
         cli_dist_busy_set(cfg, true);
-        const int handoff_rc = ds4_session_distributed_handoff_argmax(session,
-                                                                      max_tokens,
-                                                                      handoff_tokens,
-                                                                      max_tokens,
-                                                                      &shard_load_s,
-                                                                      &worker_decode_s,
-                                                                      err,
-                                                                      sizeof(err));
+        const int handoff_rc = ds4_session_distributed_handoff_generate(session,
+                                                                        max_tokens,
+                                                                        cfg->gen.temperature,
+                                                                        cfg->gen.top_p,
+                                                                        cfg->gen.min_p,
+                                                                        handoff_rng,
+                                                                        handoff_tokens,
+                                                                        max_tokens,
+                                                                        &shard_load_s,
+                                                                        &worker_decode_s,
+                                                                        err,
+                                                                        sizeof(err));
         cli_dist_busy_set(cfg, false);
         if (handoff_rc >= 0) {
             for (int i = 0; i < handoff_rc; i++) {

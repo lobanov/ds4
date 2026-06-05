@@ -20731,6 +20731,42 @@ int ds4_session_distributed_handoff_argmax(
                                            errlen);
 }
 
+int ds4_session_distributed_handoff_generate(
+        ds4_session *s,
+        int n_predict,
+        float temperature,
+        float top_p,
+        float min_p,
+        uint64_t seed,
+        int *tokens_out,
+        int token_cap,
+        double *shard_load_sec_out,
+        double *decode_sec_out,
+        char *err,
+        size_t errlen) {
+    if (!s || !s->distributed) {
+        if (errlen) snprintf(err, errlen, "session is not a distributed coordinator");
+        return -1;
+    }
+    if (!s->checkpoint_valid) {
+        if (errlen) snprintf(err, errlen, "distributed handoff requires a valid checkpoint");
+        return -1;
+    }
+    return ds4_dist_session_handoff_generate(s->distributed,
+                                             s,
+                                             n_predict,
+                                             temperature,
+                                             top_p,
+                                             min_p,
+                                             seed,
+                                             tokens_out,
+                                             token_cap,
+                                             shard_load_sec_out,
+                                             decode_sec_out,
+                                             err,
+                                             errlen);
+}
+
 int ds4_session_distributed_handoff_argmax_trace(
         ds4_session *s,
         int n_predict,
