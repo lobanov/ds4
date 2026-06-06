@@ -1226,6 +1226,23 @@ typedef struct {
 } eval_think_close_info;
 
 typedef struct {
+    bool distributed;
+    char distributed_role[32];
+    char route_summary[1024];
+    char output_owner[32];
+    char host_role_label[64];
+    uint32_t route_hops;
+    bool local_decode_expected;
+    bool local_decode_active;
+    bool local_decode_active_any_case;
+} eval_trace_metadata;
+
+static void eval_trace_metadata_init(eval_trace_metadata *meta, const eval_config *cfg);
+static void eval_trace_metadata_update(eval_trace_metadata *meta,
+                                       ds4_session *session,
+                                       const eval_config *cfg);
+
+typedef struct {
     int cols;
     int rows;
     int left_w;
@@ -2484,7 +2501,8 @@ static int token_rank_in_top(ds4_session *session, int token, int max_rank) {
 static void trace_write_header(FILE *trace, const eval_config *cfg,
                                const char *model_name,
                                int ncases,
-                               int max_prompt_tokens) {
+                               int max_prompt_tokens,
+                               const eval_trace_metadata *meta) {
     if (!trace) return;
     fprintf(trace,
             "# ds4-eval trace\n"
@@ -2504,6 +2522,14 @@ static void trace_write_header(FILE *trace, const eval_config *cfg,
             "soft_limit_reply_budget: %d\n"
             "hard_limit_reply_budget: %d\n"
             "soft_limit_think_close_rank: %d\n"
+            "distributed: %s\n"
+            "distributed_role: %s\n"
+            "route_summary: %s\n"
+            "route_hops: %u\n"
+            "output_owner: %s\n"
+            "local_decode_expected: %s\n"
+            "local_decode_active: %s\n"
+            "host_role_label: %s\n"
             "\n",
             (long long)time(NULL),
             cfg->model_path,
@@ -2520,7 +2546,15 @@ static void trace_write_header(FILE *trace, const eval_config *cfg,
             ds4_think_mode_name(cfg->think_mode),
             cfg->soft_limit_reply_budget,
             cfg->hard_limit_reply_budget,
-            cfg->soft_limit_think_close_rank);
+            cfg->soft_limit_think_close_rank,
+            meta && meta->distributed ? "yes" : "no",
+            meta ? meta->distributed_role : "local",
+            meta ? meta->route_summary : "local",
+            meta ? meta->route_hops : 0u,
+            meta ? meta->output_owner : "local",
+            meta && meta->local_decode_expected ? "yes" : "no",
+            meta && meta->local_decode_active ? "yes" : "no",
+            meta ? meta->host_role_label : "local-reference");
     fflush(trace);
 }
 
@@ -2537,6 +2571,12 @@ static void trace_write_case(FILE *trace,
                              ds4_think_mode effective_think_mode,
                              int prompt_tokens,
                              int generated_tokens,
+                             int think_tokens,
+                             int answer_tokens,
+                             double prefill_sec,
+                             double think_decode_sec,
+                             double answer_decode_sec,
+                             double decode_sec,
                              double elapsed_sec,
                              const char *picked,
                              const eval_think_close_info *think_close) {
@@ -2554,7 +2594,14 @@ static void trace_write_case(FILE *trace,
             "expected: %s\n"
             "prompt_tokens: %d\n"
             "generated_tokens: %d\n"
+            "think_tokens: %d\n"
+            "answer_tokens: %d\n"
+            "prefill_sec: %.3f\n"
+            "think_decode_sec: %.3f\n"
+            "answer_decode_sec: %.3f\n"
+            "decode_sec: %.3f\n"
             "elapsed_sec: %.3f\n"
+            "generated_tps: %.3f\n"
             "temperature: %.6g\n"
             "top_p: %.6g\n"
             "min_p: %.6g\n"
@@ -2570,7 +2617,14 @@ static void trace_write_case(FILE *trace,
             tc->answer,
             prompt_tokens,
             generated_tokens,
+            think_tokens,
+            answer_tokens,
+            prefill_sec,
+            think_decode_sec,
+            answer_decode_sec,
+            decode_sec,
             elapsed_sec,
+            decode_sec > 0.001 ? (double)generated_tokens / decode_sec : 0.0,
             cfg->temperature,
             cfg->top_p,
             cfg->min_p,
@@ -3318,6 +3372,35 @@ static double tui_wait_if_paused(eval_ui *ui, const char *phase) {
     return now_sec() - start;
 }
 
+static bool eval_can_use_local_decode_handoff(ds4_session *session,
+                                              const eval_config *cfg,
+                                              const eval_ui *ui,
+                                              ds4_think_mode think_mode) {
+    if (!session || !cfg) return false;
+    if (ui && ui->enabled) return false;
+    if (ds4_think_mode_enabled(think_mode)) return false;
+    if (!ds4_session_is_distributed(session)) return false;
+    if (cfg->dist.role != DS4_DISTRIBUTED_COORDINATOR) return false;
+
+    ds4_distributed_route_info info = {0};
+    char summary[256] = {0};
+    char err[256] = {0};
+    int rc = ds4_session_distributed_route_info(session,
+                                                &info,
+                                                summary,
+                                                sizeof(summary),
+                                                err,
+                                                sizeof(err));
+    if (rc <= 0) return false;
+    return info.local_decode_expected && !info.output_on_coordinator;
+}
+
+static uint64_t eval_handoff_next_seed(uint64_t *rng, uint64_t fallback) {
+    uint64_t seed = (rng && *rng) ? *rng : fallback;
+    if (rng) *rng = seed * 6364136223846793005ull + 1ull;
+    return seed;
+}
+
 static void eval_prefill_progress(void *ud, const char *event, int current, int total) {
     eval_ui *ui = ud;
     if (!ui || !event) return;
@@ -3336,7 +3419,8 @@ static void eval_prefill_progress(void *ud, const char *event, int current, int 
 
 static eval_run_result run_one_case(ds4_engine *engine, ds4_session *session,
                                     const eval_config *cfg, eval_ui *ui,
-                                    FILE *trace, int idx, uint64_t *rng) {
+                                    FILE *trace, eval_trace_metadata *trace_meta,
+                                    int idx, uint64_t *rng) {
     const eval_case *tc = &eval_cases[idx];
     const bool tty = ui->enabled;
     const bool use_plain_color = !tty && isatty(STDOUT_FILENO);
@@ -3362,7 +3446,7 @@ static eval_run_result run_one_case(ds4_engine *engine, ds4_session *session,
         tui_refresh(ui, "idle");
         trace_write_case(trace, cfg, tc, idx, ui->ncases, "SKIPPED",
                          "prompt does not fit context", system, question, "",
-                         think_mode, prompt.len, 0, 0.0, "?", NULL);
+                         think_mode, prompt.len, 0, 0, 0, 0.0, 0.0, 0.0, 0.0, 0.0, "?", NULL);
         if (!tty) {
             printf("\n[%d/%d] SKIPPED %s/%s prompt=%d ctx=%d\n",
                    idx + 1, ui->ncases, tc->source, tc->id, prompt.len, cfg->ctx_size);
@@ -3383,7 +3467,7 @@ static eval_run_result run_one_case(ds4_engine *engine, ds4_session *session,
         tui_refresh(ui, "idle");
         trace_write_case(trace, cfg, tc, idx, ui->ncases, "SKIPPED",
                          "prompt leaves no generation room", system, question, "",
-                         think_mode, prompt.len, 0, 0.0, "?", NULL);
+                         think_mode, prompt.len, 0, 0, 0, 0.0, 0.0, 0.0, 0.0, 0.0, "?", NULL);
         if (!tty) {
             printf("\n[%d/%d] SKIPPED %s/%s prompt=%d ctx=%d\n",
                    idx + 1, ui->ncases, tc->source, tc->id, prompt.len, cfg->ctx_size);
@@ -3420,17 +3504,21 @@ static eval_run_result run_one_case(ds4_engine *engine, ds4_session *session,
     char err[256];
     ds4_session_set_progress(session, eval_prefill_progress, ui);
     ds4_session_set_display_progress(session, eval_prefill_progress, ui);
+    double prefill_t0 = now_sec();
     if (ds4_session_sync(session, &prompt, err, sizeof(err)) != 0) {
+        double prefill_sec = now_sec() - prefill_t0;
         ds4_session_set_progress(session, NULL, NULL);
         ds4_session_set_display_progress(session, NULL, NULL);
         tui_run_clock_stop(ui);
         fprintf(stderr, "ds4-eval: prefill failed for %s: %s\n", tc->id, err);
         trace_write_case(trace, cfg, tc, idx, ui->ncases, "ERROR", err,
-                         system, question, "", think_mode, prompt.len, 0, 0.0, "?", NULL);
+                         system, question, "", think_mode, prompt.len, 0,
+                         0, 0, prefill_sec, 0.0, 0.0, 0.0, prefill_sec, "?", NULL);
         free(question);
         ds4_tokens_free(&prompt);
         return EVAL_RUN_ERROR;
     }
+    double prefill_sec = now_sec() - prefill_t0;
     ds4_session_set_progress(session, NULL, NULL);
     ds4_session_set_display_progress(session, NULL, NULL);
     int prompt_tokens = prompt.len;
@@ -3445,7 +3533,8 @@ static eval_run_result run_one_case(ds4_engine *engine, ds4_session *session,
         tui_run_clock_stop(ui);
         tui_refresh(ui, "idle");
         trace_write_case(trace, cfg, tc, idx, ui->ncases, "STOPPED", NULL,
-                         system, question, "", think_mode, prompt_tokens, 0, 0.0, "?", NULL);
+                         system, question, "", think_mode, prompt_tokens, 0,
+                         0, 0, prefill_sec, 0.0, 0.0, 0.0, prefill_sec, "?", NULL);
         free(question);
         return EVAL_RUN_QUIT;
     }
@@ -3454,7 +3543,8 @@ static eval_run_result run_one_case(ds4_engine *engine, ds4_session *session,
         tui_run_clock_stop(ui);
         tui_refresh(ui, "idle");
         trace_write_case(trace, cfg, tc, idx, ui->ncases, "SWITCHED", NULL,
-                         system, question, "", think_mode, prompt_tokens, 0, 0.0, "?", NULL);
+                         system, question, "", think_mode, prompt_tokens, 0,
+                         0, 0, prefill_sec, 0.0, 0.0, 0.0, prefill_sec, "?", NULL);
         free(question);
         return EVAL_RUN_SWITCH;
     }
@@ -3468,6 +3558,9 @@ static eval_run_result run_one_case(ds4_engine *engine, ds4_session *session,
     bool generation_in_think = ds4_think_mode_enabled(think_mode);
     eval_think_close_info think_close = {0};
     ds4_tokens think_close_tokens = {0};
+    int think_tokens_generated = 0;
+    int answer_tokens_generated = 0;
+    double think_decode_sec = 0.0;
     if (generation_in_think) ds4_tokenize_text(engine, "</think>", &think_close_tokens);
     if (!tty && plain_in_think) plain_set_thinking_color(use_plain_color);
     tui_refresh(ui, "thinking");
@@ -3475,6 +3568,115 @@ static eval_run_result run_one_case(ds4_engine *engine, ds4_session *session,
     const int eos = ds4_token_eos(engine);
     double t0 = ui->phase_start_sec;
     int forced_close_pos = -1;
+    if (eval_can_use_local_decode_handoff(session, cfg, ui, think_mode)) {
+        int *tokens = calloc((size_t)generation_limit, sizeof(*tokens));
+        if (!tokens) {
+            fprintf(stderr, "ds4-eval: out of memory allocating handoff token buffer\n");
+            free(question);
+            ds4_tokens_free(&think_close_tokens);
+            buf_free(&raw);
+            return EVAL_RUN_ERROR;
+        }
+        char handoff_err[256] = {0};
+        double shard_load_sec = 0.0;
+        double decode_sec = 0.0;
+        int produced = -1;
+        if (cfg->temperature == 0.0f) {
+            produced = ds4_session_distributed_handoff_argmax(session,
+                                                              generation_limit,
+                                                              tokens,
+                                                              generation_limit,
+                                                              &shard_load_sec,
+                                                              &decode_sec,
+                                                              handoff_err,
+                                                              sizeof(handoff_err));
+        } else {
+            uint64_t handoff_seed = eval_handoff_next_seed(rng, cfg->seed);
+            produced = ds4_session_distributed_handoff_generate(session,
+                                                                generation_limit,
+                                                                cfg->temperature,
+                                                                cfg->top_p,
+                                                                cfg->min_p,
+                                                                handoff_seed,
+                                                                tokens,
+                                                                generation_limit,
+                                                                &shard_load_sec,
+                                                                &decode_sec,
+                                                                handoff_err,
+                                                                sizeof(handoff_err));
+        }
+        if (produced < 0) {
+            free(tokens);
+            plain_reset_color(use_plain_color);
+            ui->generated_tokens[idx] = ui->generated;
+            tui_run_clock_stop(ui);
+            fprintf(stderr, "ds4-eval: distributed local-decode handoff failed for %s: %s\n",
+                    tc->id, handoff_err[0] ? handoff_err : "unknown error");
+            trace_write_case(trace, cfg, tc, idx, ui->ncases, "ERROR",
+                             handoff_err[0] ? handoff_err : "distributed local-decode handoff failed",
+                             system, question, raw.v ? raw.v : "", think_mode,
+                             prompt_tokens, ui->generated,
+                             0, 0,
+                             prefill_sec + shard_load_sec, 0.0, 0.0, decode_sec,
+                             prefill_sec + shard_load_sec + decode_sec, "?",
+                             &think_close);
+            free(question);
+            ds4_tokens_free(&think_close_tokens);
+            buf_free(&raw);
+            return EVAL_RUN_ERROR;
+        }
+
+        for (int i = 0; i < produced; i++) {
+            size_t len = 0;
+            char *text = ds4_token_text(engine, tokens[i], &len);
+            buf_append(&raw, text, len);
+            ui->generated++;
+            ui->generated_tokens[idx] = ui->generated;
+            answer_tokens_generated++;
+            if (!tty) {
+                fwrite(text, 1, len, stdout);
+                fflush(stdout);
+            }
+            free(text);
+            if (tokens[i] == eos) break;
+        }
+        free(tokens);
+        if (!tty) {
+            plain_reset_color(use_plain_color);
+            if (!raw.v || raw.len == 0 || raw.v[raw.len - 1] != '\n') fputc('\n', stdout);
+        }
+
+        char got[EVAL_ANSWER_MAX];
+        find_case_answer(tc, raw.v ? raw.v : "", got, sizeof(got));
+        snprintf(ui->guess[idx], EVAL_ANSWER_MAX, "%s", got);
+        bool pass = answer_matches(tc, got);
+        ui->status[idx] = pass ? EVAL_PASSED : EVAL_FAILED;
+        ui->generated_tokens[idx] = ui->generated;
+        tui_run_clock_stop(ui);
+        prefill_sec += shard_load_sec;
+        double sec = prefill_sec + decode_sec;
+        tui_refresh(ui, pass ? "passed" : "failed");
+        trace_write_case(trace, cfg, tc, idx, ui->ncases, pass ? "PASSED" : "FAILED", NULL,
+                         system, question, raw.v ? raw.v : "", think_mode, prompt_tokens,
+                         ui->generated,
+                         0, answer_tokens_generated,
+                         prefill_sec, 0.0, decode_sec, decode_sec, sec, got, &think_close);
+        eval_trace_metadata_update(trace_meta, session, cfg);
+
+        if (!tty) {
+            printf("%s%s%s got %s expected %s (%.1fs, %d tokens)\n",
+                   use_plain_color ? (pass ? ANSI_GREEN : ANSI_RED) : "",
+                   pass ? "PASSED" : "FAIL",
+                   use_plain_color ? ANSI_RESET : "",
+                   got, tc->answer, sec, ui->generated);
+        }
+
+        if (tty && cfg->pause_ms > 0) usleep((useconds_t)cfg->pause_ms * 1000);
+        free(question);
+        ds4_tokens_free(&think_close_tokens);
+        buf_free(&raw);
+        return EVAL_RUN_OK;
+    }
     for (int i = 0; i < generation_limit; i++) {
         if (tty) {
             tui_consume_input(ui);
@@ -3483,9 +3685,15 @@ static eval_run_result run_one_case(ds4_engine *engine, ds4_session *session,
                 ui->generated_tokens[idx] = ui->generated;
                 tui_run_clock_stop(ui);
                 tui_refresh(ui, "idle");
+                double decode_sec = now_sec() - t0;
+                double answer_decode_sec = decode_sec - think_decode_sec;
+                if (answer_decode_sec < 0.0) answer_decode_sec = 0.0;
                 trace_write_case(trace, cfg, tc, idx, ui->ncases, "STOPPED", NULL,
                                  system, question, raw.v ? raw.v : "", think_mode,
-                                 prompt_tokens, ui->generated, now_sec() - t0, "?",
+                                 prompt_tokens, ui->generated,
+                                 think_tokens_generated, answer_tokens_generated,
+                                 prefill_sec, think_decode_sec, answer_decode_sec, decode_sec,
+                                 prefill_sec + decode_sec, "?",
                                  &think_close);
                 free(question);
                 ds4_tokens_free(&think_close_tokens);
@@ -3497,9 +3705,15 @@ static eval_run_result run_one_case(ds4_engine *engine, ds4_session *session,
                 ui->generated_tokens[idx] = ui->generated;
                 tui_run_clock_stop(ui);
                 tui_refresh(ui, "idle");
+                double decode_sec = now_sec() - t0;
+                double answer_decode_sec = decode_sec - think_decode_sec;
+                if (answer_decode_sec < 0.0) answer_decode_sec = 0.0;
                 trace_write_case(trace, cfg, tc, idx, ui->ncases, "SWITCHED", NULL,
                                  system, question, raw.v ? raw.v : "", think_mode,
-                                 prompt_tokens, ui->generated, now_sec() - t0, "?",
+                                 prompt_tokens, ui->generated,
+                                 think_tokens_generated, answer_tokens_generated,
+                                 prefill_sec, think_decode_sec, answer_decode_sec, decode_sec,
+                                 prefill_sec + decode_sec, "?",
                                  &think_close);
                 free(question);
                 ds4_tokens_free(&think_close_tokens);
@@ -3516,9 +3730,15 @@ static eval_run_result run_one_case(ds4_engine *engine, ds4_session *session,
                 ui->generated_tokens[idx] = ui->generated;
                 tui_run_clock_stop(ui);
                 tui_refresh(ui, "idle");
+                double decode_sec = now_sec() - t0;
+                double answer_decode_sec = decode_sec - think_decode_sec;
+                if (answer_decode_sec < 0.0) answer_decode_sec = 0.0;
                 trace_write_case(trace, cfg, tc, idx, ui->ncases, "STOPPED", NULL,
                                  system, question, raw.v ? raw.v : "", think_mode,
-                                 prompt_tokens, ui->generated, now_sec() - t0, "?",
+                                 prompt_tokens, ui->generated,
+                                 think_tokens_generated, answer_tokens_generated,
+                                 prefill_sec, think_decode_sec, answer_decode_sec, decode_sec,
+                                 prefill_sec + decode_sec, "?",
                                  &think_close);
                 free(question);
                 ds4_tokens_free(&think_close_tokens);
@@ -3530,9 +3750,15 @@ static eval_run_result run_one_case(ds4_engine *engine, ds4_session *session,
                 ui->generated_tokens[idx] = ui->generated;
                 tui_run_clock_stop(ui);
                 tui_refresh(ui, "idle");
+                double decode_sec = now_sec() - t0;
+                double answer_decode_sec = decode_sec - think_decode_sec;
+                if (answer_decode_sec < 0.0) answer_decode_sec = 0.0;
                 trace_write_case(trace, cfg, tc, idx, ui->ncases, "SWITCHED", NULL,
                                  system, question, raw.v ? raw.v : "", think_mode,
-                                 prompt_tokens, ui->generated, now_sec() - t0, "?",
+                                 prompt_tokens, ui->generated,
+                                 think_tokens_generated, answer_tokens_generated,
+                                 prefill_sec, think_decode_sec, answer_decode_sec, decode_sec,
+                                 prefill_sec + decode_sec, "?",
                                  &think_close);
                 free(question);
                 ds4_tokens_free(&think_close_tokens);
@@ -3545,6 +3771,7 @@ static eval_run_result run_one_case(ds4_engine *engine, ds4_session *session,
         int close_rank = 0;
         int token = -1;
         eval_think_close_kind close_kind = EVAL_THINK_CLOSE_NONE;
+        bool was_in_think = generation_in_think;
 
         /* Benchmarks usually cap generation length, but DeepSeek can spend the
          * entire budget in <think>.  This controller only acts while the model is
@@ -3587,9 +3814,15 @@ static eval_run_result run_one_case(ds4_engine *engine, ds4_session *session,
             ui->generated_tokens[idx] = ui->generated;
             tui_run_clock_stop(ui);
             fprintf(stderr, "ds4-eval: decode failed for %s: %s\n", tc->id, err);
+            double decode_sec = now_sec() - t0;
+            double answer_decode_sec = decode_sec - think_decode_sec;
+            if (answer_decode_sec < 0.0) answer_decode_sec = 0.0;
             trace_write_case(trace, cfg, tc, idx, ui->ncases, "ERROR", err,
                              system, question, raw.v ? raw.v : "", think_mode,
-                             prompt_tokens, ui->generated, now_sec() - t0, "?",
+                             prompt_tokens, ui->generated,
+                             think_tokens_generated, answer_tokens_generated,
+                             prefill_sec, think_decode_sec, answer_decode_sec, decode_sec,
+                             prefill_sec + decode_sec, "?",
                              &think_close);
             free(question);
             ds4_tokens_free(&think_close_tokens);
@@ -3602,9 +3835,12 @@ static eval_run_result run_one_case(ds4_engine *engine, ds4_session *session,
         buf_append(&raw, text, len);
         ui->generated++;
         ui->generated_tokens[idx] = ui->generated;
+        if (was_in_think) think_tokens_generated++;
+        else answer_tokens_generated++;
         tui_run_clock_tick(ui);
         if (generation_in_think && raw.v && strstr(raw.v, "</think>")) {
             generation_in_think = false;
+            think_decode_sec = now_sec() - t0;
             if (think_close.kind == EVAL_THINK_CLOSE_NONE) {
                 think_close.kind = EVAL_THINK_CLOSE_NATURAL;
                 think_close.token_index = ui->generated;
@@ -3643,11 +3879,19 @@ static eval_run_result run_one_case(ds4_engine *engine, ds4_session *session,
     ui->status[idx] = pass ? EVAL_PASSED : EVAL_FAILED;
     ui->generated_tokens[idx] = ui->generated;
     tui_run_clock_stop(ui);
-    double sec = now_sec() - t0;
+    double decode_sec = now_sec() - t0;
+    if (think_tokens_generated == 0) think_decode_sec = 0.0;
+    else if (think_decode_sec <= 0.0 || think_decode_sec > decode_sec) think_decode_sec = decode_sec;
+    double answer_decode_sec = decode_sec - think_decode_sec;
+    if (answer_decode_sec < 0.0) answer_decode_sec = 0.0;
+    double sec = prefill_sec + decode_sec;
     tui_refresh(ui, pass ? "passed" : "failed");
     trace_write_case(trace, cfg, tc, idx, ui->ncases, pass ? "PASSED" : "FAILED", NULL,
                      system, question, raw.v ? raw.v : "", think_mode, prompt_tokens,
-                     ui->generated, sec, got, &think_close);
+                     ui->generated,
+                     think_tokens_generated, answer_tokens_generated,
+                     prefill_sec, think_decode_sec, answer_decode_sec, decode_sec, sec, got, &think_close);
+    eval_trace_metadata_update(trace_meta, session, cfg);
 
     if (!tty) {
         printf("%s%s%s got %s expected %s (%.1fs, %d tokens)\n",
@@ -3783,6 +4027,65 @@ static const char *report_status_name(eval_status st) {
     }
 }
 
+static const char *eval_dist_role_name(const eval_config *cfg) {
+    if (!cfg) return "local";
+    switch (cfg->dist.role) {
+    case DS4_DISTRIBUTED_COORDINATOR: return "coordinator";
+    case DS4_DISTRIBUTED_WORKER: return "worker";
+    case DS4_DISTRIBUTED_NONE:
+    default: return "local";
+    }
+}
+
+static const char *eval_host_role_label(const eval_config *cfg) {
+    if (!cfg || cfg->dist.role == DS4_DISTRIBUTED_NONE) return "local-reference";
+    switch (cfg->backend) {
+    case DS4_BACKEND_METAL: return "metal-coordinator";
+    case DS4_BACKEND_CUDA: return "cuda-coordinator";
+    case DS4_BACKEND_CPU: return "cpu-coordinator";
+    }
+    return "distributed-coordinator";
+}
+
+static void eval_trace_metadata_init(eval_trace_metadata *meta, const eval_config *cfg) {
+    if (!meta) return;
+    memset(meta, 0, sizeof(*meta));
+    meta->distributed = cfg && cfg->dist.role != DS4_DISTRIBUTED_NONE;
+    snprintf(meta->distributed_role, sizeof(meta->distributed_role), "%s",
+             eval_dist_role_name(cfg));
+    snprintf(meta->route_summary, sizeof(meta->route_summary), "%s", "local");
+    snprintf(meta->output_owner, sizeof(meta->output_owner), "%s", "local");
+    snprintf(meta->host_role_label, sizeof(meta->host_role_label), "%s",
+             eval_host_role_label(cfg));
+}
+
+static void eval_trace_metadata_update(eval_trace_metadata *meta,
+                                       ds4_session *session,
+                                       const eval_config *cfg) {
+    if (!meta || !session || !cfg || cfg->dist.role != DS4_DISTRIBUTED_COORDINATOR) return;
+
+    ds4_distributed_route_info info = {0};
+    char summary[sizeof(meta->route_summary)] = {0};
+    char err[256] = {0};
+    int rc = ds4_session_distributed_route_info(session,
+                                                &info,
+                                                summary,
+                                                sizeof(summary),
+                                                err,
+                                                sizeof(err));
+    if (rc <= 0) return;
+
+    meta->distributed = true;
+    meta->route_hops = info.route_hops;
+    meta->local_decode_expected = info.local_decode_expected;
+    meta->local_decode_active = info.local_decode_active;
+    if (info.local_decode_active) meta->local_decode_active_any_case = true;
+    snprintf(meta->route_summary, sizeof(meta->route_summary), "%s",
+             summary[0] ? summary : "distributed");
+    snprintf(meta->output_owner, sizeof(meta->output_owner), "%s",
+             info.output_on_coordinator ? "coordinator" : "worker");
+}
+
 static void print_eval_report(const eval_ui *ui, int ncases, int passed, int failed) {
     char elapsed[32];
     format_run_elapsed(elapsed, sizeof(elapsed), tui_run_clock_visible_sec(ui));
@@ -3893,7 +4196,6 @@ int main(int argc, char **argv) {
     }
     fprintf(stderr, "ds4-eval: model shape %s\n", ds4_engine_model_name(engine));
     eval_warn_think_max_downgraded(&cfg);
-    trace_write_header(trace, &cfg, ds4_engine_model_name(engine), ncases, max_prompt_tokens);
     log_context_memory(cfg.backend, cfg.ctx_size);
 
     ds4_session *session = NULL;
@@ -3913,6 +4215,11 @@ int main(int argc, char **argv) {
         free(case_sequence);
         return 1;
     }
+    eval_trace_metadata trace_meta;
+    eval_trace_metadata_init(&trace_meta, &cfg);
+    eval_trace_metadata_update(&trace_meta, session, &cfg);
+    trace_write_header(trace, &cfg, ds4_engine_model_name(engine), ncases, max_prompt_tokens,
+                       &trace_meta);
 
     eval_ui ui;
     bool split_ui = !cfg.plain && isatty(STDOUT_FILENO);
@@ -3939,7 +4246,8 @@ int main(int argc, char **argv) {
             ui.selected_case = next;
         }
 
-        eval_run_result result = run_one_case(engine, session, &cfg, &ui, trace, next, &rng);
+        eval_run_result result = run_one_case(engine, session, &cfg, &ui, trace, &trace_meta,
+                                              next, &rng);
         if (result == EVAL_RUN_ERROR) {
             rc = 1;
             break;
@@ -3967,9 +4275,11 @@ int main(int argc, char **argv) {
 
     int passed = 0;
     int failed = 0;
+    int skipped = 0;
     for (int i = 0; i < ncases; i++) {
         if (ui.status[i] == EVAL_PASSED) passed++;
         else if (ui.status[i] == EVAL_FAILED) failed++;
+        else if (ui.status[i] == EVAL_SKIPPED) skipped++;
     }
 
     if (ui.active) tui_restore();
@@ -3979,8 +4289,14 @@ int main(int argc, char **argv) {
                 "===== SUMMARY =====\n"
                 "passed: %d\n"
                 "failed: %d\n"
-                "total: %d\n",
-                passed, failed, ncases);
+                "total: %d\n"
+                "skipped: %d\n"
+                "runtime_sec: %.3f\n"
+                "local_decode_active_any_case: %s\n",
+                passed, failed, ncases,
+                skipped,
+                tui_run_clock_visible_sec(&ui),
+                trace_meta.local_decode_active_any_case ? "yes" : "no");
         fflush(trace);
     }
 

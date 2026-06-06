@@ -87,6 +87,13 @@ int ds4_dist_session_describe_route(
         bool *output_on_coordinator,
         char *err,
         size_t errlen);
+int ds4_dist_session_describe_route_info(
+        ds4_dist_session *d,
+        ds4_distributed_route_info *info,
+        char *summary,
+        size_t summary_len,
+        char *err,
+        size_t errlen);
 int ds4_dist_session_handoff_argmax(
         ds4_dist_session *d,
         ds4_session *owner,

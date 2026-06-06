@@ -41,6 +41,31 @@ Interpretation:
   first-token latency, but the current data does not justify KV pipelining
   for throughput-oriented Phase 5 benchmarking.
 
+### 2026-06-06 `ds4-eval` local-decode handoff smoke
+
+After the evaluator was patched to use distributed handoff for eligible
+`--nothink` local-decode coordinator cases, a fresh `Q1`
+`CUDA -> Metal --local-decode` smoke produced:
+
+| Surface | Route | Prompt | Prompt tokens | Generated tokens | Prefill sec | Decode sec | Decode tok/s | Result | Notes |
+| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | --- | --- |
+| `ds4-eval` | `CUDA -> Metal`, worker `--local-decode` | `GPQA Diamond/recNu3MXkvWUzHZr9` | 201 | 539 | 3.023 | 54.426 | 9.903 | Pass | evaluator now uses distributed handoff for eligible `--nothink` local-decode |
+
+Interpretation:
+
+- This is no longer the old per-token evaluator loop mistake. The evaluator
+  route now activates the worker-owned local-decode handoff path for the
+  tested `--nothink` case.
+- Even after that fix, evaluator throughput is still well below the plain
+  CLI `CUDA -> Metal` local-decode benchmark (`30.10` to `30.33 tok/s`).
+- Code inspection explains the remaining gap: the current worker
+  `LOCAL_GENERATE` RPC allocates, fills, and returns a full logits trace for
+  every generated token, and the reported `decode_usec` includes that extra
+  work.
+- So the current evaluator-vs-CLI gap should be treated as protocol
+  overhead in the local-generate response path, not as proof that Metal
+  local decode itself only sustains `~10 tok/s`.
+
 ## Phase 4 final-worker handoff timings
 
 Tool:

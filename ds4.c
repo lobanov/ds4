@@ -20703,6 +20703,25 @@ int ds4_session_distributed_route_summary(
                                            errlen);
 }
 
+int ds4_session_distributed_route_info(
+        ds4_session *s,
+        ds4_distributed_route_info *info,
+        char *summary,
+        size_t summary_len,
+        char *err,
+        size_t errlen) {
+    if (!s || !s->distributed) {
+        if (errlen) snprintf(err, errlen, "session is not a distributed coordinator");
+        return -1;
+    }
+    return ds4_dist_session_describe_route_info(s->distributed,
+                                                info,
+                                                summary,
+                                                summary_len,
+                                                err,
+                                                errlen);
+}
+
 int ds4_session_distributed_handoff_argmax(
         ds4_session *s,
         int n_predict,

@@ -57,6 +57,13 @@ typedef struct {
 typedef struct ds4_engine ds4_engine;
 typedef struct ds4_session ds4_session;
 
+typedef struct {
+    uint32_t route_hops;
+    bool output_on_coordinator;
+    bool local_decode_expected;
+    bool local_decode_active;
+} ds4_distributed_route_info;
+
 typedef void (*ds4_session_progress_fn)(void *ud, const char *event, int current, int total);
 
 typedef enum {
@@ -225,6 +232,13 @@ int ds4_session_distributed_route_summary(
         size_t summary_len,
         uint32_t *route_hops,
         bool *output_on_coordinator,
+        char *err,
+        size_t errlen);
+int ds4_session_distributed_route_info(
+        ds4_session *s,
+        ds4_distributed_route_info *info,
+        char *summary,
+        size_t summary_len,
         char *err,
         size_t errlen);
 int ds4_session_distributed_handoff_argmax(

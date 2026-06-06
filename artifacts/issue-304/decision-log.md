@@ -455,3 +455,46 @@ Why this changes the next steps:
   ordinary sampled decode.
 - The remaining work is now primarily about reusable-session parity under
   follow-up sync, not about missing API wiring.
+
+## 2026-06-06: `ds4-eval` must use distributed handoff for `--nothink` local-decode matrices
+
+Decision:
+
+- Treat `ds4-eval` local-decode coordinator runs as invalid unless they use
+  the same worker-owned handoff workflow already exercised by the plain
+  `ds4` CLI.
+- Restrict the first evaluator change to `--nothink` cases, where the
+  evaluator does not need token-by-token think-budget control.
+
+Evidence:
+
+- The first Phase 5 `ds4-eval` matrix runs used the ordinary
+  `ds4_session_sample()` + `ds4_session_eval()` loop even when the route
+  advertised worker local decode.
+- That loop only exercised the already-existing lazy activation plus
+  one-token forced `LOCAL_GENERATE` eval path, not the worker-owned
+  one-shot handoff path used by:
+  - plain `ds4 --role coordinator ... --local-decode` benchmarks,
+  - the runbook validation commands,
+  - and the previously recorded `30.10` to `30.33 tok/s`
+    `CUDA -> Metal` local-decode results.
+- After patching `ds4-eval` to use the distributed handoff API for eligible
+  `--nothink` routes and rebuilding on DGX, a fresh `Q1`
+  `CUDA -> Metal --local-decode` smoke passed through the intended path with:
+  - `local_decode_expected: yes`
+  - summary `local_decode_active_any_case: yes`
+  - `generated_tokens: 539`
+  - `decode_sec: 54.426`
+  - `generated_tps: 9.903`
+
+Why this changes the next steps:
+
+- The evaluator-path bug is fixed: `ds4-eval` is no longer measuring the
+  wrong local-decode workflow for eligible `--nothink` coordinator cases.
+- The remaining throughput gap versus plain CLI (`~9.9 tok/s` in the smoke
+  versus `~30 tok/s` in the CLI benchmark) therefore moves to the protocol
+  level, not the evaluator loop.
+- The next performance fix should target the worker local-generate RPC
+  payload shape, especially the current always-on per-token logits-trace
+  allocation/copy/return path, before drawing backend-level conclusions
+  from evaluator throughput.

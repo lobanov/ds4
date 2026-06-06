@@ -455,12 +455,55 @@ The remaining work should separate:
      - `top5=4/5`, `top10=8/10`, `top20=15/20`
      - turn-two tokens still matched exactly
    - So the remaining reused-session follow-up-sync variance is present in
-     both directions, but it is not equally severe on the sampled path.
+   both directions, but it is not equally severe on the sampled path.
+
+8. The first `ds4-eval` local-decode matrix runs initially measured the
+   wrong workflow.
+   - The original Phase 5 `ds4-eval` matrix used the normal
+     `ds4_session_sample()` + `ds4_session_eval()` loop even when the route
+     advertised worker-owned local decode.
+   - That meant the evaluator was exercising the "forced one-token
+     `LOCAL_GENERATE`" path, not the worker-owned one-shot handoff path used
+     by the plain `ds4` CLI benchmarks.
+   - This explained the misleading early matrix result where
+     `CUDA -> Metal --local-decode` looked materially slower than the plain
+     CLI workflow.
+
+9. `ds4-eval` now uses the proper worker-owned handoff path for eligible
+   `--nothink` local-decode coordinator runs.
+   - The evaluator was updated to call the distributed handoff API instead of
+     always staying in the generic per-token decode loop.
+   - A fresh `Q1` smoke on `CUDA -> Metal --local-decode --nothink` then
+     passed through the intended handoff workflow:
+     - route summary: `local 0:21 -> 192.168.1.218:51924 Q2 22:output`
+     - `local_decode_expected: yes`
+     - summary `local_decode_active_any_case: yes`
+     - `generated_tokens: 539`
+     - `decode_sec: 54.426`
+     - `generated_tps: 9.903`
+
+10. After correcting the evaluator workflow, the remaining throughput gap is
+    in the current handoff RPC payload shape, not in evaluator control flow.
+    - Plain CLI `CUDA -> Metal --local-decode` on the long README prompt had
+      already shown `generation: 30.10 t/s` to `30.33 t/s`.
+    - The corrected `ds4-eval` handoff smoke was still only about
+      `9.9 t/s`.
+    - Code inspection showed why: the worker local-generate RPC currently
+      allocates, fills, and returns a full logits trace for every generated
+      token, and the reported `decode_usec` includes that extra work.
+    - So the remaining performance discrepancy is now best described as a
+      protocol-overhead issue in the current `LOCAL_GENERATE` response path,
+      not as evidence that the Mac local-decode backend is fundamentally
+      slower than the plain local-decode CLI benchmark.
 
 ### Implication
 
 Phase 5 has crossed the implementation threshold: the intended CLI workflow
 is real, benchmarkable, and no longer dependent on the issue harnesses.
-The next work should focus on extending surface coverage and preserving
-correctness for reusable/sample-driven flows, not on adding KV pipelining
-prematurely.
+The next work should focus on:
+
+- preserving correctness for reusable/sample-driven flows,
+- making the evaluator and benchmark surfaces use the same worker-owned
+  local-decode workflow where intended,
+- and reducing local-generate protocol overhead before interpreting
+  `ds4-eval` local-decode throughput as a backend limit.

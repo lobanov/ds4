@@ -1,0 +1,103 @@
+$ ./ds4-eval -m /home/ilo037/ds4/gguf/DeepSeek-V4-Flash-IQ2XXS-w2Q2K-AProjQ8-SExpQ8-OutQ8-chat-v2-imatrix.gguf --nothink --tokens 4096
+ds4: CUDA backend initialized on NVIDIA GB10 (sm_121)
+ds4: CUDA host registration skipped: operation not supported
+ds4: CUDA preparing model tensor mappings: 80.24 GiB
+ds4: CUDA startup model preparation covered 80.76 GiB of tensor spans in 10.337s
+ds4: cuda backend initialized for graph diagnostics
+ds4-eval: context auto-sized to 4873 tokens (largest prompt=777 tokens, case=70, generation budget=4096)
+ds4-eval: model shape DeepSeek V4 Flash
+ds4-eval: context buffers 469.74 MiB (ctx=4873, backend=cuda, prefill_chunk=4096, raw_kv_rows=4352, compressed_kv_rows=1220)
+ds4-eval: 69/92 passed, 23 failed, runtime 01h:39m
+#   state      prompt      gen    total given    correct  test
+  1 PASSED        201      336      537 B        B        GPQA Diamond/recNu3MXkvWUzHZr9
+  2 FAILED        149       79      228 G        C        SuperGPQA/001b51d76b4d422988f2c11f104a2c6c
+  3 PASSED         81      252      333 70       70       AIME2025/aime2025-01
+  4 PASSED        313      170      483 C        C        GPQA Diamond/recoiTJPGUmzAkief
+  5 PASSED        272      115      387 J        J        SuperGPQA/b7e20eac98764fb0bf30e8366d951daa
+  6 PASSED        146     1062     1208 468      468      AIME2025/aime2025-16
+  7 PASSED        156      497      653 B        B        GPQA Diamond/rec4UqStf9WUVif1f
+  8 PASSED        127       64      191 E        E        SuperGPQA/4a1d1780a93f4093b6fb7d3c314cbea8
+  9 PASSED        633     2331     2964 588      588      AIME2025/aime2025-02
+ 10 PASSED        182      486      668 B        B        GPQA Diamond/recgI6tUQ7RLJRWGx
+ 11 PASSED        137       55      192 A        A        SuperGPQA/6082513c8dba4ec68aa68f1bf5854d09
+ 12 PASSED        165      496      661 16       16       AIME2025/aime2025-03
+ 13 PASSED        149      576      725 A        A        GPQA Diamond (modified)/recDytVnNYZe2HuUU
+ 14 PASSED        167       49      216 J        J        SuperGPQA/bebf1ed45ae14ad7b4f205f3909cb58a
+ 15 FAILED        305     4010     4315 78       82       AIME2025/aime2025-18
+ 16 PASSED        131      400      531 D        D        GPQA Diamond/recNFJjE5PPTqVJGv
+ 17 PASSED        175       46      221 I        I        SuperGPQA/7ca71b86327744b78e93185a45bc5cef
+ 18 PASSED        102      696      798 117      117      AIME2025/aime2025-04
+ 19 PASSED        187      371      558 B        B        GPQA Diamond/rec2UlKqC6RFHdcro
+ 20 PASSED        173      242      415 E        E        SuperGPQA/d44b94f7749345a39a65f6312bda8764
+ 21 PASSED        229      840     1069 106      106      AIME2025/aime2025-19
+ 22 PASSED        250      214      464 B        B        GPQA Diamond/recv7GsQg3f0fvB1f
+ 23 PASSED        232       63      295 B        B        SuperGPQA/febe406f44d74a40b50bb5b7c69d5dc1
+ 24 PASSED        126     1460     1586 279      279      AIME2025/aime2025-05
+ 25 FAILED        229     1299     1528 B        C        GPQA Diamond/recrHBEJJoDTV05JR
+ 26 PASSED        160      388      548 C        C        SuperGPQA/31950dc80ded400a9181f50626d1f75c
+ 27 PASSED        124      523      647 504      504      AIME2025/aime2025-06
+ 28 FAILED        198      261      459 B        D        GPQA Diamond/recb80OwMgNnceA9t
+ 29 PASSED        602      594     1196 C        C        SuperGPQA/0f14cd17be174618af6d60227e7dca9f
+ 30 PASSED        753     1221     1974 293      293      AIME2025/aime2025-21
+ 31 PASSED        254      299      553 C        C        GPQA Diamond/recA1i5ZAh0Uzclxp
+ 32 PASSED        394      349      743 J        J        SuperGPQA/cef9bcc087434cc2b4e354a9baef55eb
+ 33 PASSED        196     2794     2990 821      821      AIME2025/aime2025-07
+ 34 FAILED        216      592      808 A        B        GPQA Diamond/recqGD3fxPCI59vPQ
+ 35 PASSED        159       75      234 I        I        SuperGPQA/9f93aa2cfdb547b5b3a4623f80f7fff6
+ 36 PASSED        137     1358     1495 237      237      AIME2025/aime2025-22
+ 37 FAILED        306      507      813 B        A        GPQA Diamond/rechKl68Uc6H7vU0N
+ 38 PASSED        157       45      202 E        E        SuperGPQA/97ad69dda7b2462c98638b79e78aea0b
+ 39 PASSED        156      853     1009 77       77       AIME2025/aime2025-08
+ 40 PASSED        369      525      894 B        B        GPQA Diamond/rec1zl5LvaatzGhFt
+ 41 PASSED        128       67      195 H        H        SuperGPQA/e78e4e539d6f4e379ac140d923d7b1be
+ 42 FAILED        147     4096     4243 9595     62       AIME2025/aime2025-09
+ 43 PASSED        585      111      696 A        A        GPQA Diamond/recTs7qzfJs6kfLUK
+ 44 PASSED        182      147      329 A        A        SuperGPQA/8483667a25e74fdfa3188de4ea734f03
+ 45 FAILED        140     1256     1396 90       149      AIME2025/aime2025-24
+ 46 PASSED        238      258      496 C        C        GPQA Diamond/rec32C1ZEapBnCC0E
+ 47 PASSED        153      451      604 A        A        SuperGPQA/e5ed76ef98144f06843125daf1bccd35
+ 48 FAILED        335     4096     4431 3        81       AIME2025/aime2025-10
+ 49 PASSED        225      332      557 B        B        GPQA Diamond/recZWeueB7lSPR6wN
+ 50 PASSED        127       88      215 H        H        SuperGPQA/fd7924876c4845cd83d95d61dfa0b236
+ 51 PASSED        117     3585     3702 907      907      AIME2025/aime2025-25
+ 52 PASSED        115     4096     4211 C        C        GPQA Diamond/recVvpD8miVjmmyfe
+ 53 PASSED        336      274      610 I        I        SuperGPQA/6bfe7d19299d4b3184636e1f51694306
+ 54 FAILED        106     1490     1596 128      113      AIME2025/aime2025-26
+ 55 PASSED        225     1572     1797 D        D        GPQA Diamond/recAAJoHMW45Lv5je
+ 56 PASSED        410      299      709 J        J        SuperGPQA/e1825d70c5844c22933087eafa89e39c
+ 57 PASSED        160     3271     3431 510      510      AIME2025/aime2025-12
+ 58 FAILED        267      472      739 D        C        GPQA Diamond/reckEnrOPFT9Ru7tW
+ 59 PASSED        239      577      816 A        A        SuperGPQA/ab430ac3f18e4e02a2cb3f35498c6b30
+ 60 PASSED        284     1468     1752 19       19       AIME2025/aime2025-27
+ 61 PASSED        495      380      875 A        A        GPQA Diamond/rec8nshandHARTkrg
+ 62 PASSED        389      306      695 F        F        SuperGPQA/e8c5da5ca40647158b0c91dd695c6243
+ 63 FAILED        129     3924     4053 106      204      AIME2025/aime2025-13
+ 64 PASSED        449      696     1145 A        A        GPQA Diamond/recFaL6j8UMhutXrc
+ 65 PASSED        190      733      923 H        H        SuperGPQA/05efdc6fb2404ddc8dd5729bb68c74e5
+ 66 FAILED        182     4096     4278 3        248      AIME2025/aime2025-28
+ 67 FAILED        207      487      694 B        C        GPQA Diamond/reczQ4I0VpENdMtIj
+ 68 PASSED        470      505      975 H        H        SuperGPQA/ba52e06cbe1a4310a77a7d12cd1db943
+ 69 FAILED        141     4096     4237 54       104      AIME2025/aime2025-29
+ 70 FAILED        777      180      957 A        C        GPQA Diamond/recWxGU8Q4YReJ1tb
+ 71 FAILED        277      720      997 D        F        SuperGPQA/591a77df21324272914be82ac6583399
+ 72 FAILED        127     4096     4223 1        735      AIME2025/aime2025-15
+ 73 FAILED        220      221      441 A        B        GPQA Diamond/recMicVBcqy1xM1jq
+ 74 FAILED        202      110      312 J        H        SuperGPQA/e780f37a5baa4fe094cd9c157486664d
+ 75 FAILED        128     4096     4224 1        240      AIME2025/aime2025-30
+ 76 PASSED        411       94      505 20       17-20    COMPSEC/compsec-076
+ 77 PASSED        350      152      502 18,19,20 18-20    COMPSEC/compsec-077
+ 78 PASSED        358      143      501 11       11       COMPSEC/compsec-078
+ 79 FAILED        383      102      485 10       18-19    COMPSEC/compsec-079
+ 80 FAILED        307       80      387 8        5-6      COMPSEC/compsec-080
+ 81 PASSED        347      124      471 10       10-15    COMPSEC/compsec-081
+ 82 PASSED        296      100      396 10       9-10     COMPSEC/compsec-082
+ 83 PASSED        323      111      434 10       9-11     COMPSEC/compsec-083
+ 84 PASSED        321      108      429 7        6-7      COMPSEC/compsec-084
+ 85 PASSED        247      110      357 5        5        COMPSEC/compsec-085
+ 86 PASSED        372       73      445 3        3,13-15  COMPSEC/compsec-086
+ 87 PASSED        462       77      539 8        8,20-22  COMPSEC/compsec-087
+ 88 PASSED        327       79      406 11       11       COMPSEC/compsec-088
+ 89 PASSED        268       67      335 10       10       COMPSEC/compsec-089
+ 90 PASSED        359      139      498 12       12-13    COMPSEC/compsec-090
+ 91 PASSED        259       80      339 3        3        COMPSEC/compsec-091
+ 92 PASSED        327      180      507 11       10-14    COMPSEC/compsec-092

@@ -206,6 +206,7 @@ static void print_distributed(FILE *fp, const help_colors *c) {
     opt(fp, c, "--layers A:B", "Inclusive layer slice, e.g. 0:20 or 21:output.");
     opt(fp, c, "--listen HOST PORT", "Coordinator listen address; workers may use it for their data listener.");
     opt(fp, c, "--coordinator HOST PORT", "Coordinator address for --role worker.");
+    opt(fp, c, "--local-decode", "Worker-only: keep output ownership remote and run decode there.");
     opt(fp, c, "--dist-prefill-chunk N", "Coordinator prefill pipeline chunk size. Default: session cap.");
     opt(fp, c, "--dist-prefill-window N", "Max prefill chunks in flight. Default: workers+2, capped at 8.");
     opt(fp, c, "--dist-activation-bits N", "Hidden-state transport width: 32, 16, or 8. Default: 32");
@@ -419,7 +420,7 @@ static void print_more_info(FILE *fp, const help_colors *c, ds4_help_tool tool) 
 static void print_examples(FILE *fp, const help_colors *c, ds4_help_tool tool, const char *topic) {
     title(fp, c, "Examples");
     if (topic_is(topic, "distributed")) {
-        opt(fp, c, "worker", "./ds4 --role worker --layers 21:output --coordinator 192.168.0.181 9000 -m ds4flash.gguf");
+        opt(fp, c, "worker", "./ds4 --role worker --layers 21:output --local-decode --coordinator 192.168.0.181 9000 -m ds4flash.gguf");
         opt(fp, c, "coordinator", "./ds4 --role coordinator --layers 0:20 --listen 0.0.0.0 9000 -p \"Hello\" -m ds4flash.gguf");
     } else if (topic_is(topic, "runtime")) {
         if (tool == DS4_HELP_SERVER) {
@@ -451,6 +452,7 @@ static void print_examples(FILE *fp, const help_colors *c, ds4_help_tool tool, c
         opt(fp, c, "prefill only", "./ds4-bench --prompt-file long.txt --gen-tokens 0");
     } else if (tool == DS4_HELP_EVAL || topic_is(topic, "evaluation")) {
         opt(fp, c, "first 10", "./ds4-eval --questions 10 --trace eval.trace");
+        opt(fp, c, "distributed", "./ds4-eval --role coordinator --layers 0:21 --listen 10.77.0.1 1234 --nothink --temp 0 --trace eval.trace");
         opt(fp, c, "plain", "./ds4-eval --plain --nothink --tokens 512");
     } else {
         opt(fp, c, "chat", "./ds4");

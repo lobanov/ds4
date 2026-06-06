@@ -2147,6 +2147,7 @@ static bool dist_coordinator_format_route_summary(
         size_t summary_len,
         uint32_t *route_hops,
         bool *output_on_coordinator,
+        bool *local_decode_expected,
         uint32_t *missing_layer,
         bool *ready,
         char *err,
@@ -2154,6 +2155,7 @@ static bool dist_coordinator_format_route_summary(
     if (summary_len != 0 && summary) summary[0] = '\0';
     if (route_hops) *route_hops = 0;
     if (output_on_coordinator) *output_on_coordinator = false;
+    if (local_decode_expected) *local_decode_expected = false;
     if (missing_layer) *missing_layer = 0;
     if (ready) *ready = false;
     if (!state) {
@@ -2229,6 +2231,7 @@ static bool dist_coordinator_format_route_summary(
                                  end);
     }
     bool local_output = false;
+    bool route_local_decode = false;
     if (complete && path_len != 0 &&
         !path[path_len - 1u]->has_output && state->local_can_output_head) {
         local_output = true;
@@ -2246,6 +2249,10 @@ static bool dist_coordinator_format_route_summary(
                                      " -> local output");
         }
     }
+    if (complete && path_len != 0) {
+        route_local_decode = path[path_len - 1u]->wants_local_decode &&
+                             path[path_len - 1u]->has_output;
+    }
     complete = complete && has_output && next == state->n_layers;
     pthread_mutex_unlock(&state->mu);
 
@@ -2255,6 +2262,7 @@ static bool dist_coordinator_format_route_summary(
     if (missing_layer) *missing_layer = missing;
     if (ready) *ready = complete;
     if (output_on_coordinator) *output_on_coordinator = local_output || local_has_output;
+    if (local_decode_expected) *local_decode_expected = route_local_decode;
     free(path);
     free(workers);
     if (errlen) err[0] = '\0';
@@ -2270,6 +2278,7 @@ static void dist_coordinator_report_plan(ds4_dist_coordinator_state *state) {
     if (!dist_coordinator_format_route_summary(state,
                                                plan,
                                                sizeof(plan),
+                                               NULL,
                                                NULL,
                                                NULL,
                                                &missing,
@@ -6422,6 +6431,7 @@ int ds4_dist_session_describe_route(
                                                summary_len,
                                                route_hops,
                                                output_on_coordinator,
+                                               NULL,
                                                &missing,
                                                &ready,
                                                err,
@@ -6431,6 +6441,50 @@ int ds4_dist_session_describe_route(
     if (!ready) {
         if (errlen) snprintf(err, errlen, "distributed route incomplete: missing layer %u", missing);
         return 0;
+    }
+    if (errlen) err[0] = '\0';
+    return 1;
+}
+
+int ds4_dist_session_describe_route_info(
+        ds4_dist_session *d,
+        ds4_distributed_route_info *info,
+        char *summary,
+        size_t summary_len,
+        char *err,
+        size_t errlen) {
+    if (!d) {
+        if (errlen) snprintf(err, errlen, "missing distributed session");
+        return -1;
+    }
+    if (info) memset(info, 0, sizeof(*info));
+
+    uint32_t missing = 0;
+    bool ready = false;
+    uint32_t route_hops = 0;
+    bool output_on_coordinator = false;
+    bool local_decode_expected = false;
+    if (!dist_coordinator_format_route_summary(&d->state,
+                                               summary,
+                                               summary_len,
+                                               &route_hops,
+                                               &output_on_coordinator,
+                                               &local_decode_expected,
+                                               &missing,
+                                               &ready,
+                                               err,
+                                               errlen)) {
+        return -1;
+    }
+    if (!ready) {
+        if (errlen) snprintf(err, errlen, "distributed route incomplete: missing layer %u", missing);
+        return 0;
+    }
+    if (info) {
+        info->route_hops = route_hops;
+        info->output_on_coordinator = output_on_coordinator;
+        info->local_decode_expected = local_decode_expected;
+        info->local_decode_active = d->local_decode_active;
     }
     if (errlen) err[0] = '\0';
     return 1;
@@ -9182,9 +9236,7 @@ static int dist_worker_read_loop_prefetch(ds4_dist_worker_state *state, int fd, 
     }
 
     int loop_rc = 0;
-    fprintf(stderr,
-            "ds4: distributed worker: receive prefetch depth %u enabled\n",
-            queue.depth);
+    DIST_DEBUG("worker receive prefetch depth %u enabled", queue.depth);
 
     for (;;) {
         uint32_t type = 0, bytes = 0;
