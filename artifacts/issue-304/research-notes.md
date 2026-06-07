@@ -496,6 +496,23 @@ The remaining work should separate:
       not as evidence that the Mac local-decode backend is fundamentally
       slower than the plain local-decode CLI benchmark.
 
+11. The evaluator blocker on longer `--nothink` local-decode runs was the
+    default distributed socket timeout, not a silent coordinator crash.
+    - An explicit `CUDA -> Metal` evaluator repro using the intended
+      worker-owned handoff path failed on case 1 with:
+      `failed to read frame header: Resource temporarily unavailable`.
+    - The worker simultaneously logged:
+      `distributed worker: protocol error: failed to read frame header: Resource temporarily unavailable`.
+    - That failure landed at the old default `60s` socket timeout boundary,
+      while one-shot local-decode answers in this evaluator path were taking
+      about `112-114s` per case.
+    - Re-running the same explicit commands with
+      `DS4_DIST_SOCKET_TIMEOUT_SEC=600` on both ends cleared the blocker and
+      completed `6/6` questions on one long-lived session.
+    - After raising the default distributed socket timeout to `600s`, the
+      same no-env explicit command line also passed a fresh one-question
+      verification where case 1 took `113.8s`.
+
 ### Implication
 
 Phase 5 has crossed the implementation threshold: the intended CLI workflow
@@ -507,3 +524,31 @@ The next work should focus on:
   local-decode workflow where intended,
 - and reducing local-generate protocol overhead before interpreting
   `ds4-eval` local-decode throughput as a backend limit.
+
+### Closeout note
+
+The full `2026-06-06` `92`-question evaluator runs now move Phase 5 from
+"implemented and still under smoke investigation" to "ready to close":
+
+- local Metal: `67/92`
+- local CUDA: `69/92`
+- `CUDA -> Metal --local-decode`: `65/92`
+
+That is close enough that the remaining difference is better treated as normal
+evaluation variance plus known RPC overhead, not as a blocker on the
+worker-owned handoff workflow itself. The remaining reusable-session follow-up
+drift should be carried forward as a post-Phase-5 caveat unless it becomes a
+clear stale-KV or session-integrity failure.
+
+On `2026-06-07`, the last missing closeout item also passed on the real
+DGX/Mac topology:
+
+- `make test` passed locally with the default environment,
+- the opt-in distributed regression passed on the actual two-node route,
+- and the fixed `LOCAL_GENERATE` forced-eval path now survives:
+  - one-shot worker-owned handoff,
+  - one forced-token reuse eval,
+  - and a second short local-decode handoff.
+
+That is sufficient to treat Phase 5 as closed. Any remaining local-decode work
+is now follow-on refinement, not part of the Phase 5 exit gate.

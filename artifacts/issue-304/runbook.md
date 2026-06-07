@@ -86,6 +86,74 @@ Current limitation:
 - the remaining open issue is reusable-session variance, not lack of
   normal eval/server delegation.
 
+### `ds4_test --local-decode-push` regression command
+
+The Phase 5 regression is now runnable on the real DGX/Mac topology.
+
+Local Metal worker:
+
+```sh
+./ds4 --ctx 2048 --role worker --layers 22:output --coordinator dgx-direct 1234 --local-decode
+```
+
+DGX coordinator regression:
+
+```sh
+ssh dgx-direct 'cd ~/ds4 && DS4_RUN_DISTRIBUTED_TEST=1 DS4_TEST_DISTRIBUTED_LISTEN_HOST=0.0.0.0 DS4_TEST_DISTRIBUTED_LISTEN_PORT=1234 DS4_TEST_DISTRIBUTED_ROUTE_WAIT_MS=60000 ./ds4_test --local-decode-push'
+```
+
+Good output now includes:
+
+```text
+ds4-test: local-decode push pass listen=0.0.0.0:1234 route="local 0:21 -> ... Q2 22:output" hops=1 local_decode_active=yes first_handoff=2 reuse_eval=1 second_handoff=1
+```
+
+### `ds4-eval` explicit local-decode commands
+
+Use explicit `ds4-eval` commands, not the matrix helper, when validating the
+evaluator blocker directly.
+
+`CUDA -> Metal` local worker on the Mac:
+
+```sh
+./ds4 -m ./gguf/DeepSeek-V4-Flash-IQ2XXS-w2Q2K-AProjQ8-SExpQ8-OutQ8-chat-v2-imatrix.gguf --ctx 16384 --role worker --layers 22:output --local-decode --coordinator 192.168.1.98 1241
+```
+
+`CUDA -> Metal` coordinator repro on DGX:
+
+```sh
+ssh dgx-direct 'cd ~/ds4 && ./ds4-eval -m ~/ds4/gguf/DeepSeek-V4-Flash-IQ2XXS-w2Q2K-AProjQ8-SExpQ8-OutQ8-chat-v2-imatrix.gguf --ctx 16384 --plain --temp 0 --seed 1 --nothink --tokens 4096 --questions 6 --trace /tmp/2026-06-06-cuda-to-metal-localdecode-q6.trace --role coordinator --layers 0:21 --listen 192.168.1.98 1241'
+```
+
+Historical failure before the timeout fix:
+
+- The command above failed on case 1 after about one minute with:
+  `failed to read frame header: Resource temporarily unavailable`.
+- The root cause was the old default distributed socket timeout of `60s`,
+  which was shorter than a full one-shot local-decode answer generation.
+
+Current rule after the fix:
+
+- The distributed default socket timeout is now `600s`.
+- `DS4_DIST_SOCKET_TIMEOUT_SEC` still overrides it for debugging.
+- The same no-env explicit command line now completes long first-case
+  generations that take about `114s`.
+
+Fresh no-env verification command on DGX:
+
+```sh
+ssh dgx-direct 'cd ~/ds4 && ./ds4-eval -m ~/ds4/gguf/DeepSeek-V4-Flash-IQ2XXS-w2Q2K-AProjQ8-SExpQ8-OutQ8-chat-v2-imatrix.gguf --ctx 16384 --plain --temp 0 --seed 1 --nothink --tokens 4096 --questions 1 --trace /tmp/2026-06-06-cuda-to-metal-localdecode-q1-noenv.trace --role coordinator --layers 0:21 --listen 192.168.1.98 1241'
+```
+
+Captured traces:
+
+- failure before the timeout fix:
+  [2026-06-06-cuda-to-metal-localdecode-q6-timeout-fail.trace](/Users/lobanov/Projects/ds4/artifacts/issue-304/ds4-eval/2026-06-06-cuda-to-metal-localdecode-q6-timeout-fail.trace)
+- pass with `DS4_DIST_SOCKET_TIMEOUT_SEC=600` on both ends:
+  [2026-06-06-cuda-to-metal-localdecode-q6-timeout600-pass.trace](/Users/lobanov/Projects/ds4/artifacts/issue-304/ds4-eval/2026-06-06-cuda-to-metal-localdecode-q6-timeout600-pass.trace)
+- pass after changing the default timeout, with no env override:
+  [2026-06-06-cuda-to-metal-localdecode-q1-noenv-pass.trace](/Users/lobanov/Projects/ds4/artifacts/issue-304/ds4-eval/2026-06-06-cuda-to-metal-localdecode-q1-noenv-pass.trace)
+
 ## Phase 4 closeout rules
 
 Phase 4 is complete. Use these rules for ongoing validation and follow-on work:

@@ -244,3 +244,33 @@ The DGX worker and DGX-side helper were run with `--power 50`.
 - The official API gate is materially weaker than route parity. Three `short_code_completion` routes missed official acceptance, while the longer official cases still passed even when resumed-route parity had already drifted.
 - Resumed payload routes remain the weakest cells. They are the only routes that repeatedly combine nonzero official deltas with visibly looser top-k overlap and RMS on otherwise passing cases.
 - The local-golden fixture itself is also route-sensitive. Pure local Metal (`route 2`) missed the stored fixture while both distributed direct-generation routes (`3` and `4`) passed it exactly against their own references.
+
+## Phase 5 worker-owned local-decode acceptance surface
+
+Phase 5 does not add a new strict token-parity gate. The acceptance surface for
+the worker-owned handoff path is narrower:
+
+- fresh-worker one-shot local-decode runs must complete through the intended
+  handoff path,
+- the handoff frontier must remain valid enough for coordinator catch-up and
+  subsequent decode control flow,
+- and the `ds4-eval --nothink` local-decode path must behave like the same
+  worker-owned handoff workflow rather than the old per-token loop.
+
+For the current Phase 5 closeout evidence:
+
+- plain CLI fresh-worker runs in both directions already establish the intended
+  handoff shape,
+- the full `92`-question `CUDA -> Metal --local-decode` evaluator run completes
+  with `65/92` versus `67/92` local Metal and `69/92` local CUDA,
+- and the remaining reusable-session drift is classified as a follow-up-sync
+  caveat rather than a fresh-worker handoff failure.
+
+Interpretation:
+
+- The authoritative Phase 5 question is now “does worker-owned local decode run
+  correctly as a user-visible workflow?” rather than “does every reused session
+  remain parity-identical to a fresh baseline?”
+- Strict same-token parity on reused worker state remains a post-Phase-5
+  classification item unless it turns into a concrete stale-KV, token-hash, or
+  session-integrity failure.

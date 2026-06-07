@@ -3377,7 +3377,7 @@ static bool eval_can_use_local_decode_handoff(ds4_session *session,
                                               const eval_ui *ui,
                                               ds4_think_mode think_mode) {
     if (!session || !cfg) return false;
-    if (ui && ui->enabled) return false;
+    (void)ui;
     if (ds4_think_mode_enabled(think_mode)) return false;
     if (!ds4_session_is_distributed(session)) return false;
     if (cfg->dist.role != DS4_DISTRIBUTED_COORDINATOR) return false;
@@ -3608,6 +3608,7 @@ static eval_run_result run_one_case(ds4_engine *engine, ds4_session *session,
         if (produced < 0) {
             free(tokens);
             plain_reset_color(use_plain_color);
+            ui->status[idx] = EVAL_FAILED;
             ui->generated_tokens[idx] = ui->generated;
             tui_run_clock_stop(ui);
             fprintf(stderr, "ds4-eval: distributed local-decode handoff failed for %s: %s\n",
@@ -3633,7 +3634,9 @@ static eval_run_result run_one_case(ds4_engine *engine, ds4_session *session,
             ui->generated++;
             ui->generated_tokens[idx] = ui->generated;
             answer_tokens_generated++;
-            if (!tty) {
+            if (tty) {
+                stream_append_token_text(ui, text, len, false);
+            } else {
                 fwrite(text, 1, len, stdout);
                 fflush(stdout);
             }
@@ -3641,7 +3644,9 @@ static eval_run_result run_one_case(ds4_engine *engine, ds4_session *session,
             if (tokens[i] == eos) break;
         }
         free(tokens);
-        if (!tty) {
+        if (tty) {
+            stream_append_token_text(ui, NULL, 0, true);
+        } else {
             plain_reset_color(use_plain_color);
             if (!raw.v || raw.len == 0 || raw.v[raw.len - 1] != '\n') fputc('\n', stdout);
         }

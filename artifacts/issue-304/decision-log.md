@@ -498,3 +498,95 @@ Why this changes the next steps:
   payload shape, especially the current always-on per-token logits-trace
   allocation/copy/return path, before drawing backend-level conclusions
   from evaluator throughput.
+
+## 2026-06-06: Long `ds4-eval --nothink` local-decode runs were failing on the 60s distributed socket timeout
+
+Decision:
+
+- Treat the remaining `ds4-eval` `CUDA -> Metal --local-decode --nothink`
+  blocker as a distributed socket-timeout issue, not as a silent
+  coordinator crash or a broken handoff state.
+- Raise the default distributed socket timeout from `60` to `600` seconds
+  while preserving `DS4_DIST_SOCKET_TIMEOUT_SEC` as an override.
+
+Evidence:
+
+- An explicit DGX coordinator run with the intended evaluator path:
+  - `./ds4-eval --ctx 16384 --plain --temp 0 --seed 1 --nothink`
+  - `--tokens 4096 --questions 6 --role coordinator --layers 0:21`
+  - `--listen 192.168.1.98 1241`
+  - local Metal worker on the Mac:
+    `./ds4 --ctx 16384 --role worker --layers 22:output --local-decode --coordinator 192.168.1.98 1241`
+  failed immediately on case 1 with:
+  - coordinator trace error:
+    `failed to read frame header: Resource temporarily unavailable`
+  - worker stderr:
+    `distributed worker: protocol error: failed to read frame header: Resource temporarily unavailable`
+- The failure reproduced at about the 60-second mark, which matches the
+  existing default set in `dist_set_socket_low_latency()`.
+- Re-running the exact same explicit commands with
+  `DS4_DIST_SOCKET_TIMEOUT_SEC=600` on both coordinator and worker cleared
+  the blocker:
+  - case 1 passed in `113.1 s`
+  - case 2 passed in `112.1 s`
+  - case 3 passed in `112.0 s`
+  - case 4 passed in `113.8 s`
+  - case 5 passed in `113.3 s`
+  - case 6 passed in `111.9 s`
+  - full result: `6/6 passed`, runtime `00h:11m`
+- After changing the default timeout to `600`, the same explicit no-env
+  command line also passed a fresh one-question verification:
+  - `1/1 passed`
+  - case 1 runtime `113.8 s`
+
+Why this changes the next steps:
+
+- Phase 5 is no longer blocked on the evaluator dying in non-thinking
+  distributed-prefill/local-decode mode.
+- The remaining work returns to performance and reusable-session parity:
+  - the evaluator path is now stable enough for longer local-decode runs,
+  - but one-shot local-decode decode time is still large enough that socket
+    policy must account for it,
+  - and the local-generate RPC payload still carries avoidable overhead.
+
+## 2026-06-07: Close Phase 5 on the fresh-worker worker-owned path
+
+Decision:
+
+- Close Phase 5 on the implemented worker-owned `--local-decode` workflow.
+- Treat fresh-worker one-shot and evaluator evidence as the authoritative
+  acceptance surface.
+- Carry forward reusable-session follow-up drift as a post-Phase-5 caveat
+  unless it turns into a concrete stale-KV, token-hash, or session-integrity
+  failure.
+
+Evidence:
+
+- Plain CLI worker-owned local decode already passed in both backend
+  directions with measured KV handoff timing.
+- `ds4-eval --nothink` now uses the intended worker-owned handoff path and the
+  timeout fix lets long answers complete.
+- The real DGX/Mac distributed regression now also passes:
+  - local worker:
+    `./ds4 --ctx 2048 --role worker --layers 22:output --coordinator dgx-direct 1234 --local-decode`
+  - DGX coordinator test:
+    `DS4_RUN_DISTRIBUTED_TEST=1 DS4_TEST_DISTRIBUTED_LISTEN_HOST=0.0.0.0 DS4_TEST_DISTRIBUTED_LISTEN_PORT=1234 DS4_TEST_DISTRIBUTED_ROUTE_WAIT_MS=60000 ./ds4_test --local-decode-push`
+  - observed pass line:
+    `local_decode_active=yes first_handoff=2 reuse_eval=1 second_handoff=1`
+- The authoritative `92`-question evaluator runs on `2026-06-06` scored:
+  - local Metal: `67/92`
+  - local CUDA: `69/92`
+  - `CUDA -> Metal --local-decode`: `65/92`
+- `make test` now passes locally with the default environment, and the new
+  distributed regression remains opt-in as intended.
+- That gap is small enough to treat as evaluation variance for Phase 5
+  closeout rather than as evidence that the worker-owned handoff path is still
+  routing incorrectly.
+
+Why this changes the next steps:
+
+- Phase 5 is now closed.
+- Follow-on work moves out of closeout and into later phases:
+  - reusable-session follow-up parity,
+  - incremental/local-decode streaming UX,
+  - and `LOCAL_GENERATE` protocol overhead reduction.

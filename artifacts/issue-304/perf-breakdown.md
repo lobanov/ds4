@@ -66,6 +66,36 @@ Interpretation:
   overhead in the local-generate response path, not as proof that Metal
   local decode itself only sustains `~10 tok/s`.
 
+### 2026-06-06 explicit `ds4-eval` timeout diagnosis
+
+Explicit `CUDA -> Metal` evaluator repro:
+
+| Surface | Route | Questions | Timeout mode | Result | Key timing / error | Notes |
+| --- | --- | ---: | --- | --- | --- | --- |
+| `ds4-eval` | `CUDA -> Metal`, worker `--local-decode` | 6 | old default `60s` | Fail | case 1 failed after about `60s` with `failed to read frame header: Resource temporarily unavailable` | one-shot local decode had not returned its first response frame before the socket timeout |
+| `ds4-eval` | `CUDA -> Metal`, worker `--local-decode` | 6 | `DS4_DIST_SOCKET_TIMEOUT_SEC=600` | Pass | case runtimes `111.9s` to `113.8s`, full run `6/6 passed` in `00h:11m` | proves the blocker was socket policy, not evaluator control flow |
+| `ds4-eval` | `CUDA -> Metal`, worker `--local-decode` | 1 | new default `600s`, no env override | Pass | case 1 `113.8s`, `1/1 passed` | verifies the code-side timeout change removes the need for a manual env override |
+
+### 2026-06-06 authoritative `ds4-eval` full runs
+
+The authoritative Phase 5 evaluator comparison is now the full `92`-question
+set, not the earlier `4`-question smoke.
+
+| Surface | Route | Score | Runtime | Notes |
+| --- | --- | ---: | --- | --- |
+| `ds4-eval` | local Metal | `67/92` | `00h:47m` | Mac baseline |
+| `ds4-eval` | local CUDA | `69/92` | `01h:39m` | DGX/local CUDA baseline |
+| `ds4-eval` | `CUDA -> Metal`, worker `--local-decode` | `65/92` | `03h:01m` | worker-owned local decode stayed active and completed the full suite |
+
+Interpretation:
+
+- The Phase 5 local-decode route is now stable enough to finish the full
+  evaluator suite instead of failing on timeout or disconnect.
+- Score variance against the fully local baselines is small enough that Phase 5
+  closeout should treat it as evaluator variance, not as a routing regression.
+- The remaining performance gap versus the plain CLI benchmark is still a
+  protocol-overhead question in the current `LOCAL_GENERATE` response path.
+
 ## Phase 4 final-worker handoff timings
 
 Tool:

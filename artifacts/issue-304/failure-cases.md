@@ -64,6 +64,48 @@ This artifact records mismatches that should remain rejected during distributed-
   - Immediate next rerun on the same worker: first mismatch at generated step `0`; `handoff_first_token=5`, reference `2337`.
   - Why rejected: the lifecycle fixes improved the original stale-worker symptom, but they did not make repeated reused-worker parity reliable enough to use as a strict acceptance surface.
 
+- `phase5 ds4-eval CUDA -> Metal local-decode / old 60s socket timeout`
+  - Explicit DGX coordinator command:
+    `./ds4-eval --ctx 16384 --plain --temp 0 --seed 1 --nothink --tokens 4096 --questions 6 --role coordinator --layers 0:21 --listen 192.168.1.98 1241`
+  - Local Metal worker:
+    `./ds4 --ctx 16384 --role worker --layers 22:output --local-decode --coordinator 192.168.1.98 1241`
+  - Observed failure:
+    - coordinator trace error:
+      `failed to read frame header: Resource temporarily unavailable`
+    - worker stderr:
+      `distributed worker: protocol error: failed to read frame header: Resource temporarily unavailable`
+  - Why rejected: the old default distributed socket timeout (`60s`) was shorter than a healthy one-shot local-decode answer generation in `ds4-eval`.
+  - Current status: fixed by raising the default distributed socket timeout to `600s`; keep this recorded as the historical failure class that explained the reported “dies after 5-6 questions” blocker.
+
+## Phase 5 user-visible negative cases
+
+- `--local-decode` on a coordinator process
+  - Diagnostic: `--local-decode requires --role worker`
+  - Status: reject at distributed option validation before runtime.
+
+- `--local-decode` on a worker without `N:output`
+  - Diagnostic: `--local-decode requires --layers N:output`
+  - Status: reject before runtime because the worker would not own the output head.
+
+- local-decode handoff without an advertised local-decode worker
+  - Diagnostic: `distributed handoff requires worker local-decode capability`
+  - Status: reject at handoff time; the route exists, but the final worker did not advertise the needed capability.
+
+- local-decode handoff to a route whose final worker does not own output logits
+  - Diagnostic: `distributed handoff requires worker-owned output head`
+  - Status: reject at handoff time; the workflow only supports final-worker decode.
+
+- pushed-shard token timeline mismatch
+  - Diagnostics seen in protocol handlers:
+    - `worker snapshot token hash mismatch`
+    - `snapshot load token hash mismatch`
+    - `worker local generate token hash mismatch`
+  - Status: fail closed; stale or mismatched worker state must not be reused silently.
+
+- worker/coordinator payload layout mismatch
+  - Diagnostic class: snapshot layout validation rejects mismatched `prefill_cap`, layer range, or payload metadata before accepting the shard.
+  - Status: preserve as a hard rejection; this is an integrity boundary, not a tolerable drift case.
+
 ## Phase 4 closeout classification
 
 - The two Phase 4 `CUDA -> Metal` reused-worker rerun failures remain recorded here because they fail strict token-parity expectations.
@@ -72,6 +114,17 @@ This artifact records mismatches that should remain rejected during distributed-
   - near-matching logits with full `top5`/`top10` overlap at the first divergent step,
   - and no evidence that the final-worker handoff workflow itself is invalid.
 - Treat them as the same practical class of backend-sensitive near-top1 variance already documented in Phase 3.5 unless a later phase proves a concrete stale-state or payload-integrity defect.
+
+## Phase 5 closeout classification
+
+- The fresh-worker worker-owned `--local-decode` path is now considered valid for Phase 5 closeout.
+- The remaining reusable-session follow-up drift does not stay in the Phase 5
+  blocker set unless it reappears as:
+  - stale coordinator KV after catch-up,
+  - token-hash/session-integrity failure,
+  - or a broken subsequent prompt control-flow path.
+- Treat score variance in the full `ds4-eval` runs as evaluation noise for
+  Phase 5 purposes, not as a new rejection case for the handoff workflow.
 
 ## Phase 3 Rejection Criteria
 

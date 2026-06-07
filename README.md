@@ -343,6 +343,14 @@ distributed options are also wired into `ds4-agent`, `ds4-eval`, and
 `ds4-bench`. For benchmarks, workers should already be running; `ds4-bench`
 waits until a complete route is available.
 
+When the final worker owns `N:output`, you can also start that worker with
+`--local-decode`. In that mode the route still does distributed prefill, but
+after prefill the coordinator pushes its KV shard to the final worker and the
+worker finishes generation locally using full model residency. This is the
+Phase 5 handoff workflow: it keeps the distributed prefill speedup while moving
+decode back onto one machine. See `artifacts/issue-304/runbook.md` for the
+authoritative commands and current caveats.
+
 Useful tuning and diagnostics:
 
 ```sh

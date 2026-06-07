@@ -211,6 +211,7 @@ typedef struct {
     uint32_t token_hash_hi;
     uint32_t token_hash_lo;
     uint32_t n_predict;
+    uint32_t flags;
     uint32_t seed_hi;
     uint32_t seed_lo;
     uint32_t temperature_bits;
@@ -234,6 +235,8 @@ typedef struct {
     uint32_t logits_bytes;
     uint32_t message_bytes;
 } ds4_dist_local_generate_res_fixed;
+
+#define DS4_DIST_LOCAL_GENERATE_F_LOGITS_TRACE 0x00000001u
 
 /* =========================================================================
  * Runtime State
@@ -1125,7 +1128,13 @@ static int dist_set_socket_low_latency(int fd) {
     int one = 1;
     int rc = 0;
     int buffer_bytes = dist_socket_buffer_bytes();
-    int timeout_sec = 60;
+    /* One-shot worker local-decode replies are sent only after the whole
+     * generation finishes. In `ds4-eval --nothink` this can legitimately take
+     * well over a minute for a single case, so the old 60s default caused the
+     * coordinator data socket and the worker's idle control socket to time out
+     * during otherwise healthy runs. Keep the env override, but make the
+     * default long enough for benchmark-scale local-decode turns. */
+    int timeout_sec = 600;
     const char *timeout_env = getenv("DS4_DIST_SOCKET_TIMEOUT_SEC");
     if (timeout_env && timeout_env[0]) {
         char *end = NULL;
@@ -1815,6 +1824,7 @@ static void dist_local_generate_req_to_wire(ds4_dist_local_generate_req_fixed *r
     r->token_hash_hi = htonl(r->token_hash_hi);
     r->token_hash_lo = htonl(r->token_hash_lo);
     r->n_predict = htonl(r->n_predict);
+    r->flags = htonl(r->flags);
     r->seed_hi = htonl(r->seed_hi);
     r->seed_lo = htonl(r->seed_lo);
     r->temperature_bits = htonl(r->temperature_bits);
@@ -1832,6 +1842,7 @@ static void dist_local_generate_req_from_wire(ds4_dist_local_generate_req_fixed 
     r->token_hash_hi = ntohl(r->token_hash_hi);
     r->token_hash_lo = ntohl(r->token_hash_lo);
     r->n_predict = ntohl(r->n_predict);
+    r->flags = ntohl(r->flags);
     r->seed_hi = ntohl(r->seed_hi);
     r->seed_lo = ntohl(r->seed_lo);
     r->temperature_bits = ntohl(r->temperature_bits);
@@ -4788,6 +4799,8 @@ static int dist_local_generate_remote(
         if (errlen) snprintf(err, errlen, "invalid distributed local generate request");
         return -1;
     }
+    const bool want_logits_trace =
+        logits_trace_out != NULL && logits_trace_cap > 0;
 
     const uint32_t vocab = (uint32_t)ds4_engine_vocab_size(d->state.engine);
     const uint32_t logits_bytes = (uint32_t)((uint64_t)vocab * sizeof(float));
@@ -4809,6 +4822,7 @@ static int dist_local_generate_remote(
     dist_u64_to_halves(request_id, &req.request_hi, &req.request_lo);
     dist_u64_to_halves(token_hash, &req.token_hash_hi, &req.token_hash_lo);
     req.n_predict = (uint32_t)n_predict;
+    req.flags = want_logits_trace ? DS4_DIST_LOCAL_GENERATE_F_LOGITS_TRACE : 0u;
     dist_u64_to_halves(seed, &req.seed_hi, &req.seed_lo);
     req.temperature_bits = dist_f32_bits(temperature);
     req.top_p_bits = dist_f32_bits(top_p);
@@ -4898,9 +4912,15 @@ static int dist_local_generate_remote(
         if (errlen) snprintf(err, errlen, "distributed local generate returned invalid token payload");
         goto cleanup;
     }
-    const uint32_t expect_logits_bytes =
+    const uint32_t final_logits_bytes = logits_bytes;
+    const uint32_t trace_logits_bytes =
         (uint32_t)((uint64_t)res.generated_count * (uint64_t)vocab * sizeof(float));
-    if (res.logits_bytes != expect_logits_bytes) {
+    const bool wants_final_logits = final_logits_out && res.generated_count != 0;
+    const bool valid_logits_payload =
+        res.logits_bytes == 0 ||
+        (want_logits_trace && res.logits_bytes == trace_logits_bytes) ||
+        (!want_logits_trace && wants_final_logits && res.logits_bytes == final_logits_bytes);
+    if (!valid_logits_payload) {
         dist_discard_bytes(fd, body);
         if (errlen) snprintf(err, errlen, "distributed local generate returned invalid logits payload");
         goto cleanup;
@@ -4916,38 +4936,32 @@ static int dist_local_generate_remote(
     body -= res.token_bytes;
     if (res.logits_bytes != 0) {
         const int logits_trace_values = (int)((uint64_t)res.generated_count * (uint64_t)vocab);
-        if (!logits_trace_out || logits_trace_cap < logits_trace_values) {
-            uint32_t remaining_logits_bytes = res.logits_bytes;
-            if (final_logits_out && res.generated_count != 0) {
-                const uint32_t tail_bytes = logits_bytes;
-                const uint32_t prefix_bytes = res.logits_bytes - tail_bytes;
-                if (prefix_bytes != 0 &&
-                    dist_discard_bytes(fd, prefix_bytes) <= 0) {
-                    if (errlen) snprintf(err, errlen, "failed to discard local generate logits");
-                    goto cleanup;
-                }
-                if (dist_read_full(fd, final_logits_out, tail_bytes) <= 0) {
-                    if (errlen) snprintf(err, errlen, "failed to read final local generate logits");
-                    goto cleanup;
-                }
-                remaining_logits_bytes = 0;
-            }
-            if (remaining_logits_bytes != 0 &&
-                dist_discard_bytes(fd, remaining_logits_bytes) <= 0) {
-                if (errlen) snprintf(err, errlen, "failed to discard local generate logits");
+        if (want_logits_trace) {
+            if (logits_trace_cap < logits_trace_values) {
+                if (errlen) snprintf(err, errlen, "distributed local generate logits trace buffer is too small");
                 goto cleanup;
             }
-        } else if (dist_read_full(fd, logits_trace_out, res.logits_bytes) <= 0) {
-            if (errlen) snprintf(err, errlen, "failed to read local generate logits");
-            goto cleanup;
+            if (dist_read_full(fd, logits_trace_out, res.logits_bytes) <= 0) {
+                if (errlen) snprintf(err, errlen, "failed to read local generate logits");
+                goto cleanup;
+            }
+            if (final_logits_out && res.generated_count != 0) {
+                memcpy(final_logits_out,
+                       logits_trace_out + (size_t)(res.generated_count - 1u) * (size_t)vocab,
+                       (size_t)vocab * sizeof(final_logits_out[0]));
+            }
         } else if (final_logits_out && res.generated_count != 0) {
-            memcpy(final_logits_out,
-                   logits_trace_out + (size_t)(res.generated_count - 1u) * (size_t)vocab,
-                   (size_t)vocab * sizeof(final_logits_out[0]));
+            if (dist_read_full(fd, final_logits_out, res.logits_bytes) <= 0) {
+                if (errlen) snprintf(err, errlen, "failed to read final local generate logits");
+                goto cleanup;
+            }
+        } else if (dist_discard_bytes(fd, res.logits_bytes) <= 0) {
+            if (errlen) snprintf(err, errlen, "failed to discard local generate logits");
+            goto cleanup;
         }
         body -= res.logits_bytes;
-        if (logits_trace_steps_out) *logits_trace_steps_out = (int)res.generated_count;
     }
+    if (logits_trace_steps_out) *logits_trace_steps_out = (int)res.generated_count;
     if (body != 0 && dist_discard_bytes(fd, body) <= 0) {
         if (errlen) snprintf(err, errlen, "failed to discard trailing local generate bytes");
         goto cleanup;
@@ -8518,6 +8532,8 @@ static int dist_worker_handle_local_generate(
     const float temperature = dist_f32_from_bits(req.temperature_bits);
     const float top_p = dist_f32_from_bits(req.top_p_bits);
     const float min_p = dist_f32_from_bits(req.min_p_bits);
+    const bool want_logits_trace =
+        (req.flags & DS4_DIST_LOCAL_GENERATE_F_LOGITS_TRACE) != 0u;
     if (req.model_id != state->model_id || req.logits_bytes != logits_bytes) {
         dist_discard_bytes(upstream->fd, bytes - (uint32_t)sizeof(req));
         snprintf(err, sizeof(err), "local generate request does not match worker state");
@@ -8544,7 +8560,7 @@ static int dist_worker_handle_local_generate(
     if (!err[0] && req.n_predict != 0) {
         tokens = malloc((size_t)req.n_predict * sizeof(tokens[0]));
         if (!tokens) snprintf(err, sizeof(err), "out of memory allocating generated tokens");
-        if (!err[0]) {
+        if (!err[0] && want_logits_trace) {
             const uint64_t trace_values64 = (uint64_t)req.n_predict * (uint64_t)vocab;
             if (trace_values64 > SIZE_MAX / sizeof(float)) {
                 snprintf(err, sizeof(err), "local generate logits trace is too large");
@@ -8597,6 +8613,14 @@ static int dist_worker_handle_local_generate(
             const double t1 = dist_now_sec();
             decode_usec = dist_usec_since(t0, t1);
             if (!err[0]) {
+                if (!want_logits_trace &&
+                    generated != 0 &&
+                    ds4_session_copy_logits(session->session, logits, (int)vocab) != (int)vocab) {
+                    snprintf(err, sizeof(err), "failed to copy final local generate logits");
+                    session->token_hash_valid = false;
+                }
+            }
+            if (!err[0]) {
                 session->token_hash = final_hash;
                 session->token_hash_valid = true;
             }
@@ -8612,9 +8636,11 @@ static int dist_worker_handle_local_generate(
                                            err[0] ? token_hash : final_hash,
                                            tokens,
                                            generated,
-                                           logits_trace,
-                                           (uint32_t)((uint64_t)generated * (uint64_t)vocab *
-                                                      sizeof(float)),
+                                           want_logits_trace ? logits_trace : logits,
+                                           want_logits_trace
+                                               ? (uint32_t)((uint64_t)generated * (uint64_t)vocab *
+                                                            sizeof(float))
+                                               : (generated != 0 ? logits_bytes : 0u),
                                            decode_usec,
                                            err[0] ? 1u : 0u,
                                            err);
