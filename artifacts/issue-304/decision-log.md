@@ -743,3 +743,35 @@ Why this closes the phase:
   replay.
 - The next work belongs to benchmarking and product-level tolerance
   decisions, not to continued correctness chasing under Issue 304.
+
+## 2026-06-08: Re-scope Phase 6 to profiling before any KV-pipeline work
+
+Decision:
+
+- Re-scope Phase 6 from "implement pipelined KV return" to
+  "profile bottlenecks across context lengths and session shapes".
+- Keep `ds4-eval` out of that phase; evaluator-specific performance work
+  is tracked separately.
+
+Evidence:
+
+- Existing Phase 5 CLI timings already show KV handoff is a small tail on
+  the practical long-prompt workflow:
+  - about `0.35 s` for roughly `100 MiB` of returned KV,
+  - versus about `23-25 s` distributed prefill on the full
+    `README.md` frontier.
+- Earlier artifact tables also show merged stage/load overhead remains
+  small relative to prefill on the representative long-frontier cases.
+- Phase 5.5 closed with the explicit conclusion that the next work should
+  be benchmarking and product-level tolerance decisions, not more
+  correctness chasing or protocol expansion.
+
+Why this changes the next steps:
+
+- The remaining unknown is no longer "can pipelining work?" but "what
+  actually dominates user-visible latency on short, medium, long, and
+  follow-up workloads?"
+- The right next artifact is an authoritative benchmark matrix for
+  single-turn and multi-turn worker-owned local-decode sessions.
+- Pipelined KV return should only be reopened later if the profiling pass
+  shows handoff is a material contributor rather than a minor tail.

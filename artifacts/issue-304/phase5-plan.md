@@ -145,10 +145,10 @@ Why this is simpler than a dedicated pull protocol:
 - The decision to push is communicated once, in HELLO, not as a
   separate request after prefill. This avoids a new request-response
   roundtrip and a new message family.
-- The same push channel can later stream KV chunks during prefill instead
-  of after, which is the natural Phase 6 (pipelined KV return) extension.
-  No protocol rework is needed to add KV pipelining; only the timing of
-  the push changes.
+- The same push channel could later stream KV chunks during prefill instead
+  of after. That remains the obvious protocol extension if later profiling
+  shows handoff cost is material, but it is no longer assumed to be the
+  immediate next phase.
 
 Implications for the coordinator:
 
@@ -251,7 +251,8 @@ using the existing snapshot framing, but with a streaming payload path
 `ds4_session_load_layer_payload_stream`) that uses a compile-time
 staging size and eliminates the temp-file detour. No new decode or
 catch-up protocol is required, no disk IO is involved in the handoff,
-and the design naturally extends to pipelined KV return in Phase 6.
+and the design can support later pipelined KV return work if profiling
+shows it is justified.
 
 The existing `ds4_session_distributed_handoff_argmax()` /
 `..._trace()` API remains available as a coordinator-side low-level
@@ -735,15 +736,15 @@ Phase 5 is complete when:
 
 These are explicitly deferred to later phases and should not block Phase 5:
 
-- Pipelined / incremental KV return (Phase 6). The in-memory buffer
-  path from work item 4b is a prerequisite for this: it removes the
-  disk IO so the remaining cost is wire time plus memory copies.
-  Pipelining then re-orders the chunked transfer relative to
-  prefill.
+- Performance profiling across context lengths and session shapes
+  (Phase 6), including whether pipelined / incremental KV return is
+  justified at all. The in-memory buffer path from work item 4b keeps
+  that option open by removing disk IO first.
 - Topology decoupling (Phase 9).
 - Multi-worker route handoff (deferred to topology work).
 - Strict same-token parity on a reused Metal worker (carried forward as a
   Phase 3.5-class caveat).
-- New official/local-golden vector cases (revisit after Phase 6 if needed).
+- New official/local-golden vector cases (revisit after the Phase 6
+  profiling closeout if needed).
 - Wire-to-GPU streaming (defer; the in-memory buffer path is enough
   for current payload sizes).

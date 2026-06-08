@@ -903,65 +903,84 @@ Closeout note:
   - plus local-only Metal and CUDA reproductions showing the same
     prefill-vs-decode split without any distributed handoff path.
 
-### Phase 6: Optimize with pipelined KV return
+### Phase 6: Profile performance bottlenecks across context lengths and session shapes
 
 Goal:
 
-- Why: once correctness is established, the remaining risk is that post-prefill shard fetch/merge/load latency erases the practical benefit of faster distributed prefill.
-- What: measure the residual cost of returning the coordinator-owned missing KV shard to the final worker, then add incremental or pipelined KV return only if it materially reduces latency while preserving token/hash ordering, backend synchronization, and resume equivalence.
+- Why: Phase 5 and Phase 5.5 closed the correctness and attribution work enough to benchmark the practical workflow, and current evidence does not show KV handoff as the dominant cost.
+- What: build an authoritative performance profile for distributed-prefill plus worker-owned local decode across representative context lengths and single-turn/multi-turn usage, then use that profile to decide whether any optimization work, including pipelined KV return, is actually warranted.
 
 Expected artifacts:
 
-- Update `artifacts/issue-304/perf-breakdown.md` with before/after handoff latency and transfer byte counts.
-- Update `artifacts/issue-304/logit-comparisons.md` with correctness results for incremental KV return.
-- Update `artifacts/issue-304/shard-metadata.md` with per-chunk or per-window KV state metadata if chunked return is implemented.
-- Update `artifacts/issue-304/decision-log.md` with protocol decisions and why existing snapshot framing was or was not sufficient.
-- Update `artifacts/issue-304/failure-cases.md` with in-flight/race/stale chunk rejection cases.
-- Update `artifacts/issue-304/research-notes.md` with the optimization-phase findings and whether chunked return is justified versus whole-payload handoff.
+- Update `artifacts/issue-304/perf-breakdown.md` with a benchmark matrix that records:
+  - route direction,
+  - prompt or transcript token count,
+  - context size,
+  - session shape,
+  - distributed prefill sec and tok/s,
+  - KV handoff sec, bytes, and MiB/s,
+  - worker local-decode sec and tok/s,
+  - first-token latency where measurable,
+  - follow-up sync sec for multi-turn runs,
+  - and end-to-end wall time per turn.
+- Update `artifacts/issue-304/runbook.md` with the canonical commands used for the benchmark matrix.
+- Update `artifacts/issue-304/decision-log.md` with bottleneck attribution for each workload class and the explicit rule for whether KV pipelining stays deferred or is reopened later.
+- Update `artifacts/issue-304/research-notes.md` with a concise summary of what workloads are prefill-bound, handoff-bound, decode-bound, or follow-up-sync-bound.
 
 Code touchpoints:
 
-- `ds4_distributed.c`
-  - `dist_coordinator_prefill_prompt_pipelined()`: main place to coordinate pipelined prefill and KV return.
-  - `dist_prefill_sender_main()`: sends queued hidden states to workers.
-  - `dist_prefill_result_reader_main()`: receives chunk ACKs/final result; likely place to coordinate returned KV state.
-  - `dist_worker_process_work_payload()`: worker receives/evaluates prefill work.
-  - `dist_worker_handle_snapshot_save()`: existing shard export reference.
-  - `dist_send_snapshot_file_chunks()`: existing chunked transfer reference.
-  - `dist_write_frame_header()` / `dist_read_frame_header()`: protocol framing if new messages are required.
-  - `DS4_DIST_MSG_SNAPSHOT_*`: existing protocol message family to reuse or extend.
-- `ds4.c`
-  - `ds4_session_save_layer_payload()`: current whole-shard export; may need range/window-aware variant if incremental return is not expressible through existing payloads.
-  - `ds4_session_load_layer_payload()`: current layer-shard restore.
-  - Graph synchronization points before tensor reads.
-- `ds4_gpu.h`
-  - `ds4_gpu_synchronize()` and tensor read APIs if chunk export must avoid racing kernels.
-- `ds4_metal.m` and `ds4_cuda.cu`
-  - Only if incremental reads need backend-specific synchronization or buffer layout fixes.
+- Prefer no transport or protocol redesign in this phase.
+- Reuse existing timing surfaces first:
+  - CLI `--debug` KV handoff timing,
+  - existing issue-304 handoff helpers,
+  - and the existing Phase 5 multi-turn helper.
+- Touch code only for measurement support if current timing is insufficient:
+  - `ds4_distributed.c` for finer-grained handoff or sync timing,
+  - `ds4_cli.c` to expose stage timing cleanly in the user-visible workflow,
+  - and existing issue-304 helpers or scripts to automate the benchmark matrix.
+- Do not implement pipelined or chunked KV return in this phase unless the plan is explicitly revised after profiling.
 
 Other entry points:
 
-- Distributed coordinator/worker wire protocol.
-- Network timing measurements on 2.5 GbE, 5 GbE, and any Thunderbolt/direct-link setup available.
-- Existing `--dist-activation-bits`, `--dist-prefill-chunk`, and `--dist-prefill-window` flags.
+- Network timing measurements on the available DGX/Mac topology and any direct-link setup already used for earlier issue-304 runs.
+- Existing `--dist-activation-bits`, `--dist-prefill-chunk`, and `--dist-prefill-window` flags only as benchmark parameters, not as new feature surface.
+- The fixed Phase 5.5 follow-up transcript pair for reused-session measurements.
 
 Work items:
 
-- Extend `ds4_distributed.c` only after Phase 5 shows payload save/load overhead is material.
-- Investigate returning only the coordinator-owned missing KV alongside prefill chunk boundaries.
-- Define when a chunk's KV is safe to export relative to in-flight kernels and worker forwarding.
-- Preserve ratio-4 compressor/indexer frontier state; do not return only completed compressed rows.
-- Reuse existing snapshot chunk framing where possible: `DS4_DIST_MSG_SNAPSHOT_SAVE_REQ`, `DS4_DIST_MSG_SNAPSHOT_BEGIN`, `DS4_DIST_MSG_SNAPSHOT_CHUNK`, and `DS4_DIST_MSG_SNAPSHOT_DONE`.
-- Add new protocol messages only if existing request/response snapshot framing cannot express incremental return cleanly.
+- Populate a minimum benchmark matrix for both `Metal -> CUDA` and `CUDA -> Metal`.
+- Measure at least two session shapes:
+  - single-turn one-shot handoff,
+  - and multi-turn reused-session follow-up on the worker-owned local-decode path.
+- Measure at least four context buckets where feasible:
+  - short prompt (`~10-100` tokens),
+  - medium prompt (`~1k` tokens),
+  - long prompt (`~4k+` tokens),
+  - and the current very-long `README.md` frontier at `ctx=16384`.
+- Record relevant pure-local decode-backend baselines and continued distributed-decode baselines where those numbers already exist or can be collected cheaply with the current tools.
+- Classify each measured scenario into exactly one dominant bottleneck bucket:
+  - distributed prefill compute,
+  - KV handoff transport,
+  - local decode compute,
+  - or follow-up sync or prefill.
+- Keep `ds4-eval` out of scope for this phase; evaluator-specific performance work is covered separately.
 
 Scope note:
 
-- Phase 6 is no longer about optimizing a whole-session `DSV4` handoff first.
-- It is specifically about shrinking or hiding the cost of moving the coordinator-owned earlier-layer KV into the already-full-resident final worker session.
+- Phase 6 is not a transport redesign phase.
+- It exists to decide, with measurements, whether pipelined KV return is still worth pursuing after the practical worker-owned local-decode workflow is in place.
 
 Exit gate:
 
-- Incremental KV return reduces measured handoff latency without changing resumed logits/tokens beyond the Phase 3 official/local acceptance envelope.
+- The benchmark matrix is populated for the required session shapes and context buckets, with at least one authoritative passing run per route direction where the topology supports it.
+- `artifacts/issue-304/perf-breakdown.md` reports stage-level timing, not just aggregate runtime, for prefill, handoff, decode, and follow-up sync where applicable.
+- `artifacts/issue-304/decision-log.md` identifies the dominant bottleneck for each workload class and names the next optimization target, if any.
+- KV pipelining is explicitly classified into one of two outcomes:
+  - remains deferred because KV handoff is a minor tail relative to end-to-end runtime,
+  - or is reopened as a later optimization because profiling shows it materially limits user-visible latency.
+- Use this default materiality rule unless new data forces a stronger one:
+  - reopen KV pipelining only if handoff is consistently a major contributor, such as roughly `>10%` of end-to-end latency on long-prompt runs or roughly `>25%` of first-token latency on short-prompt runs, or if it is the dominant bottleneck in multi-turn follow-up behavior.
+- Do not close the phase with raw timing tables alone; the closeout must include an explicit bottleneck conclusion and a recommended follow-on target.
 
 ### Phase 7: Failure handling and recovery
 

@@ -14,7 +14,7 @@ This file tracks phase-wise findings for the staged investigation in `PLAN.md`.
 | Phase 4 | Complete | Final-worker full-resident handoff is now proven end to end. Both backend directions work; `Metal -> CUDA` is stable across repeated reused-worker sessions, and `CUDA -> Metal` reused-worker drift is currently classified as a Phase 3.5-style near-top1 variance caveat rather than a workflow blocker. |
 | Phase 5 | Complete | Fresh-worker worker-owned local decode is now implemented on the real DGX/Mac topology, covered by `ds4`, `ds4_server`, `ds4-eval --nothink`, and the distributed regression, and is no longer blocked by the original issue. |
 | Phase 5.5 | Complete | Reused-session differences are now classified as bounded prefill-vs-decode variance. Replay diagnostics ruled out reused-state corruption, and local-only Metal/CUDA reproductions showed the same trajectory split without distributed handoff. |
-| Later phases | Deferred | Pipelined KV return, topology decoupling, and broader optimization work stay deferred until the practical handoff workflow exists and can be benchmarked realistically. |
+| Later phases | Deferred / re-scoped | Phase 6 is now a profiling phase for context-length and session-shape bottlenecks in the practical worker-owned local-decode workflow. Pipelined KV return stays deferred unless that profiling shows handoff is a material bottleneck; topology decoupling remains a later follow-on. |
 
 ## Phase 0: Establish distributed baseline
 

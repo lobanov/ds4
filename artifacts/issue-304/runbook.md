@@ -19,8 +19,8 @@ The coordinator now logs:
 ds4: distributed coordinator: local-decode KV handoff tokens=... layers=... bytes=... total=... MiB/s worker=...
 ```
 
-This is the timing surface to use when deciding whether KV pipelining is
-worth implementing.
+This is the timing surface to use during Phase 6 profiling when deciding
+whether KV pipelining should remain deferred or be reopened later.
 
 ### CLI commands
 
