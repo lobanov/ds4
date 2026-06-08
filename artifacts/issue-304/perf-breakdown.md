@@ -1,5 +1,96 @@
 # Issue 304 Performance Breakdown
 
+## Phase 6 profiling snapshot
+
+These measurements focus on the worker-owned local-decode workflow after the
+Phase 6 re-scope. The authoritative profiling pass was run on June 8, 2026
+over the direct-link route:
+
+- local Mac worker or coordinator: `10.77.0.1`
+- DGX coordinator or worker: `10.77.0.2`
+- helper: `tests/issue304_phase5_multiturn --allow-turn2-mismatch`
+- model context: `ctx=16384`
+- generation window: `8` tokens
+- distributed parameters: `--prefill-chunk 256 --activation-bits 32`
+
+This uses the same direct-link topology family as the earlier Phase 5 CLI
+timings, so the handoff and prefill numbers are directly comparable.
+
+### 2026-06-08 direct-link profiling matrix
+
+Prompt buckets:
+
+- short: helper default one-sentence prompt
+- medium: `README.md` first 4 KiB slice
+- long: `tests/test-vectors/prompts/long_code_audit.txt`
+- very long: full `README.md`
+
+One-shot turn-one timing, `CUDA -> Metal`:
+
+| Prompt bucket | Prompt tokens | Sync sec | Sync tok/s | KV bytes | KV handoff sec | KV MiB/s | Decode sec | Decode tok/s | End-to-end sec | Dominant bottleneck | Notes |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- | --- |
+| short | 18 | 1.189 | 15.13 | 6,975,720 | 0.022 | 305.94 | 0.209 | 38.23 | 1.420 | sync / prefill | handoff was `1.5%` of total |
+| medium | 959 | 3.513 | 273.00 | 18,091,240 | 0.097 | 178.25 | 0.211 | 37.98 | 3.820 | sync / prefill | handoff was `2.5%` of total |
+| long | 3,850 | 9.469 | 406.62 | 37,071,080 | 0.118 | 299.03 | 0.217 | 36.91 | 9.804 | sync / prefill | handoff was `1.2%` of total |
+| very long | 14,435 | 36.979 | 390.35 | 106,488,040 | 0.239 | 425.47 | 0.261 | 30.64 | 37.479 | sync / prefill | handoff was `0.6%` of total |
+
+One-shot turn-one timing, `Metal -> CUDA`:
+
+| Prompt bucket | Prompt tokens | Sync sec | Sync tok/s | KV bytes | KV handoff sec | KV MiB/s | Decode sec | Decode tok/s | End-to-end sec | Dominant bottleneck | Notes |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- | --- |
+| short | 18 | 0.851 | 21.16 | 6,975,720 | 0.022 | 302.09 | 0.526 | 15.21 | 1.399 | sync / prefill | handoff was `1.6%` of total; allowed turn-two variance still appears on this tiny prompt |
+| medium | 959 | 2.955 | 324.53 | 18,091,240 | 0.049 | 351.74 | 0.561 | 14.25 | 3.566 | sync / prefill | handoff was `1.4%` of total |
+| long | 3,850 | 9.099 | 423.14 | 37,071,080 | 0.230 | 153.72 | 0.638 | 12.55 | 9.966 | sync / prefill | handoff was `2.3%` of total |
+| very long | 14,435 | 38.579 | 374.16 | 106,488,040 | 0.338 | 300.77 | 0.601 | 13.32 | 39.517 | sync / prefill | handoff was `0.9%` of total |
+
+Reused-session follow-up timing on the same runs:
+
+| Route | Prompt bucket | Follow-up frontier tokens | Follow-up sync sec | KV handoff sec | Decode sec | End-to-end sec | Dominant bottleneck | Result |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | --- | --- |
+| `CUDA -> Metal` | short | 42 | 0.244 | 0.028 | 0.209 | 0.480 | sync / prefill | fresh-vs-reused turn-two tokens diverged, but this is allowed Phase 5.5 variance |
+| `CUDA -> Metal` | medium | 983 | 0.249 | 0.064 | 0.210 | 0.524 | sync / prefill | reused and fresh turn-two tokens matched |
+| `CUDA -> Metal` | long | 3,874 | 0.255 | 0.120 | 0.216 | 0.591 | sync / prefill | reused and fresh turn-two tokens matched |
+| `CUDA -> Metal` | very long | 14,459 | 0.262 | 0.228 | 0.261 | 0.751 | sync / prefill | reused and fresh turn-two tokens matched |
+| `Metal -> CUDA` | short | 42 | 0.227 | 0.028 | 0.527 | 0.782 | decode | fresh-vs-reused turn-two tokens diverged, but this is allowed Phase 5.5 variance |
+| `Metal -> CUDA` | medium | 983 | 0.238 | 0.049 | 0.560 | 0.847 | decode | reused and fresh turn-two tokens matched |
+| `Metal -> CUDA` | long | 3,874 | 0.236 | 0.237 | 0.637 | 1.110 | decode | reused and fresh turn-two tokens matched |
+| `Metal -> CUDA` | very long | 14,459 | 0.240 | 0.366 | 0.606 | 1.212 | decode | reused and fresh turn-two tokens matched |
+
+Fresh-session follow-up timing from the same helper:
+
+| Route | Prompt bucket | Fresh turn-one sync sec | Fresh follow-up sync sec | Fresh turn-two handoff sec | Fresh turn-two decode sec | Fresh turn-two total sec |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| `CUDA -> Metal` | short | 0.976 | 0.260 | 0.032 | 0.207 | 0.499 |
+| `CUDA -> Metal` | medium | 3.414 | 0.252 | 0.079 | 0.212 | 0.543 |
+| `CUDA -> Metal` | long | 9.365 | 0.263 | 0.112 | 0.217 | 0.592 |
+| `CUDA -> Metal` | very long | 36.660 | 0.254 | 0.234 | 0.262 | 0.750 |
+| `Metal -> CUDA` | short | 0.587 | 0.229 | 0.035 | 0.536 | 0.799 |
+| `Metal -> CUDA` | medium | 2.984 | 0.231 | 0.057 | 0.558 | 0.846 |
+| `Metal -> CUDA` | long | 9.131 | 0.235 | 0.092 | 0.633 | 0.959 |
+| `Metal -> CUDA` | very long | 38.281 | 0.243 | 0.365 | 0.600 | 1.208 |
+
+Interpretation:
+
+- On the direct-link deployment target, one-shot latency is decisively
+  prefill-bound in both route directions.
+- KV handoff stays in the "small tail" category for one-shot work:
+  - `CUDA -> Metal`: about `0.6%` to `2.5%` of end-to-end time
+  - `Metal -> CUDA`: about `0.9%` to `2.3%` of end-to-end time
+- Reused-session follow-up is still not transport-dominated enough to justify
+  pipelining:
+  - `CUDA -> Metal` remains mostly sync-bound
+  - `Metal -> CUDA` is more decode-heavy because the CUDA worker generates
+    the 8-token window at about `12.6` to `15.2 tok/s`, versus about `30.6`
+    to `38.2 tok/s` on the Metal worker
+  - even where follow-up handoff reaches about `20%` to `30%` of total on the
+    longest frontiers, it is still not the dominant stage
+- The practical Phase 6 conclusion on the direct-link deployment target is
+  therefore unchanged from the original intuition:
+  - distributed prefill dominates one-shot runtime,
+  - route-direction differences are more about decode backend cost than KV
+    return cost,
+  - and KV pipelining is not justified by the current direct-link numbers.
+
 ## Phase 5 CLI worker-owned local-decode timings
 
 These measurements use the plain `ds4` CLI and the in-process final-worker

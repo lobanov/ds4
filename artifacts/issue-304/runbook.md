@@ -22,6 +22,182 @@ ds4: distributed coordinator: local-decode KV handoff tokens=... layers=... byte
 This is the timing surface to use during Phase 6 profiling when deciding
 whether KV pipelining should remain deferred or be reopened later.
 
+## Phase 6 profiling commands
+
+The Phase 6 profiling pass on June 8, 2026 used the existing
+`tests/issue304_phase5_multiturn` helper with added sync timing output and
+`--allow-turn2-mismatch`, so bounded Phase 5.5 variance does not block
+timing collection.
+
+Authoritative profiling addresses for that pass:
+
+- local Mac: `10.77.0.1`
+- DGX: `10.77.0.2`
+
+Build and sync the helper first:
+
+```sh
+make tests/issue304_phase5_multiturn
+rsync -az --delete \
+  --exclude=.git/ \
+  --exclude=gguf/ \
+  --exclude='*.o' \
+  --exclude=ds4 \
+  --exclude='ds4-*' \
+  --exclude=ds4_test \
+  ./ dgx-direct:~/ds4/
+ssh dgx-direct 'cd ~/ds4 && make tests/issue304_phase5_multiturn ds4'
+```
+
+Generate the medium prompt slice on both machines:
+
+```sh
+head -c 4096 README.md >/tmp/issue304-readme-4k.md
+ssh dgx-direct 'head -c 4096 ~/ds4/README.md >/tmp/issue304-readme-4k.md'
+```
+
+Authoritative Phase 6 routes:
+
+- `CUDA -> Metal`
+- `Metal -> CUDA`
+
+Start the Mac full-resident worker:
+
+```sh
+./ds4 -m ./gguf/DeepSeek-V4-Flash-IQ2XXS-w2Q2K-AProjQ8-SExpQ8-OutQ8-chat-v2-imatrix.gguf \
+  --ctx 16384 \
+  --role worker \
+  --layers 22:output \
+  --local-decode \
+  --coordinator 10.77.0.2 1243
+```
+
+Run the DGX coordinator helper for the short bucket:
+
+```sh
+ssh dgx-direct 'cd ~/ds4 && ./tests/issue304_phase5_multiturn \
+  --model /home/ilo037/ds4/gguf/DeepSeek-V4-Flash-IQ2XXS-w2Q2K-AProjQ8-SExpQ8-OutQ8-chat-v2-imatrix.gguf \
+  --listen-host 10.77.0.2 \
+  --listen-port 1243 \
+  --ctx 16384 \
+  --gen-tokens 8 \
+  --prefill-chunk 256 \
+  --activation-bits 32 \
+  --allow-turn2-mismatch'
+```
+
+Medium bucket:
+
+```sh
+ssh dgx-direct 'cd ~/ds4 && ./tests/issue304_phase5_multiturn \
+  --model /home/ilo037/ds4/gguf/DeepSeek-V4-Flash-IQ2XXS-w2Q2K-AProjQ8-SExpQ8-OutQ8-chat-v2-imatrix.gguf \
+  --listen-host 10.77.0.2 \
+  --listen-port 1243 \
+  --ctx 16384 \
+  --gen-tokens 8 \
+  --prefill-chunk 256 \
+  --activation-bits 32 \
+  --prompt-file /tmp/issue304-readme-4k.md \
+  --allow-turn2-mismatch'
+```
+
+Long bucket:
+
+```sh
+ssh dgx-direct 'cd ~/ds4 && ./tests/issue304_phase5_multiturn \
+  --model /home/ilo037/ds4/gguf/DeepSeek-V4-Flash-IQ2XXS-w2Q2K-AProjQ8-SExpQ8-OutQ8-chat-v2-imatrix.gguf \
+  --listen-host 10.77.0.2 \
+  --listen-port 1243 \
+  --ctx 16384 \
+  --gen-tokens 8 \
+  --prefill-chunk 256 \
+  --activation-bits 32 \
+  --prompt-file tests/test-vectors/prompts/long_code_audit.txt \
+  --allow-turn2-mismatch'
+```
+
+The raw June 8, 2026 outputs from those commands were saved under:
+
+- [artifacts/issue-304/phase6/raw/cuda-to-metal-short-10.77.txt](/Users/lobanov/Projects/ds4/artifacts/issue-304/phase6/raw/cuda-to-metal-short-10.77.txt)
+- [artifacts/issue-304/phase6/raw/cuda-to-metal-medium-10.77.txt](/Users/lobanov/Projects/ds4/artifacts/issue-304/phase6/raw/cuda-to-metal-medium-10.77.txt)
+- [artifacts/issue-304/phase6/raw/cuda-to-metal-long-10.77.txt](/Users/lobanov/Projects/ds4/artifacts/issue-304/phase6/raw/cuda-to-metal-long-10.77.txt)
+- [artifacts/issue-304/phase6/raw/cuda-to-metal-very-long-10.77.txt](/Users/lobanov/Projects/ds4/artifacts/issue-304/phase6/raw/cuda-to-metal-very-long-10.77.txt)
+
+`Metal -> CUDA` uses the same helper with the coordinator on the Mac and the
+full-resident worker on DGX.
+
+Start the DGX full-resident worker:
+
+```sh
+ssh dgx-direct 'pkill -9 ds4 >/dev/null 2>&1 || true; rm -f /tmp/ds4-phase6-metal-to-cuda-worker.log; sh -c "cd ~/ds4; nohup ./ds4 -m ~/ds4/gguf/DeepSeek-V4-Flash-IQ2XXS-w2Q2K-AProjQ8-SExpQ8-OutQ8-chat-v2-imatrix.gguf --ctx 16384 --role worker --layers 22:output --local-decode --coordinator 10.77.0.1 1243 >/tmp/ds4-phase6-metal-to-cuda-worker.log 2>&1 < /dev/null &"'
+```
+
+Run the Mac coordinator helper for the short bucket:
+
+```sh
+./tests/issue304_phase5_multiturn \
+  --model ./gguf/DeepSeek-V4-Flash-IQ2XXS-w2Q2K-AProjQ8-SExpQ8-OutQ8-chat-v2-imatrix.gguf \
+  --listen-host 10.77.0.1 \
+  --listen-port 1243 \
+  --ctx 16384 \
+  --gen-tokens 8 \
+  --prefill-chunk 256 \
+  --activation-bits 32 \
+  --allow-turn2-mismatch
+```
+
+Medium bucket:
+
+```sh
+./tests/issue304_phase5_multiturn \
+  --model ./gguf/DeepSeek-V4-Flash-IQ2XXS-w2Q2K-AProjQ8-SExpQ8-OutQ8-chat-v2-imatrix.gguf \
+  --listen-host 10.77.0.1 \
+  --listen-port 1243 \
+  --ctx 16384 \
+  --gen-tokens 8 \
+  --prefill-chunk 256 \
+  --activation-bits 32 \
+  --prompt-file /tmp/issue304-readme-4k.md \
+  --allow-turn2-mismatch
+```
+
+Long bucket:
+
+```sh
+./tests/issue304_phase5_multiturn \
+  --model ./gguf/DeepSeek-V4-Flash-IQ2XXS-w2Q2K-AProjQ8-SExpQ8-OutQ8-chat-v2-imatrix.gguf \
+  --listen-host 10.77.0.1 \
+  --listen-port 1243 \
+  --ctx 16384 \
+  --gen-tokens 8 \
+  --prefill-chunk 256 \
+  --activation-bits 32 \
+  --prompt-file tests/test-vectors/prompts/long_code_audit.txt \
+  --allow-turn2-mismatch
+```
+
+Very-long bucket:
+
+```sh
+./tests/issue304_phase5_multiturn \
+  --model ./gguf/DeepSeek-V4-Flash-IQ2XXS-w2Q2K-AProjQ8-SExpQ8-OutQ8-chat-v2-imatrix.gguf \
+  --listen-host 10.77.0.1 \
+  --listen-port 1243 \
+  --ctx 16384 \
+  --gen-tokens 8 \
+  --prefill-chunk 256 \
+  --activation-bits 32 \
+  --prompt-file README.md \
+  --allow-turn2-mismatch
+```
+
+The raw June 8, 2026 outputs from those commands were saved under:
+
+- [artifacts/issue-304/phase6/raw/metal-to-cuda-short-10.77.txt](/Users/lobanov/Projects/ds4/artifacts/issue-304/phase6/raw/metal-to-cuda-short-10.77.txt)
+- [artifacts/issue-304/phase6/raw/metal-to-cuda-medium-10.77.txt](/Users/lobanov/Projects/ds4/artifacts/issue-304/phase6/raw/metal-to-cuda-medium-10.77.txt)
+- [artifacts/issue-304/phase6/raw/metal-to-cuda-long-10.77.txt](/Users/lobanov/Projects/ds4/artifacts/issue-304/phase6/raw/metal-to-cuda-long-10.77.txt)
+- [artifacts/issue-304/phase6/raw/metal-to-cuda-very-long-10.77.txt](/Users/lobanov/Projects/ds4/artifacts/issue-304/phase6/raw/metal-to-cuda-very-long-10.77.txt)
+
 ### CLI commands
 
 `Metal -> CUDA` worker startup on DGX:
@@ -116,13 +292,13 @@ evaluator blocker directly.
 `CUDA -> Metal` local worker on the Mac:
 
 ```sh
-./ds4 -m ./gguf/DeepSeek-V4-Flash-IQ2XXS-w2Q2K-AProjQ8-SExpQ8-OutQ8-chat-v2-imatrix.gguf --ctx 16384 --role worker --layers 22:output --local-decode --coordinator 192.168.1.98 1241
+./ds4 -m ./gguf/DeepSeek-V4-Flash-IQ2XXS-w2Q2K-AProjQ8-SExpQ8-OutQ8-chat-v2-imatrix.gguf --ctx 16384 --role worker --layers 22:output --local-decode --coordinator 10.77.0.2 1241
 ```
 
 `CUDA -> Metal` coordinator repro on DGX:
 
 ```sh
-ssh dgx-direct 'cd ~/ds4 && ./ds4-eval -m ~/ds4/gguf/DeepSeek-V4-Flash-IQ2XXS-w2Q2K-AProjQ8-SExpQ8-OutQ8-chat-v2-imatrix.gguf --ctx 16384 --plain --temp 0 --seed 1 --nothink --tokens 4096 --questions 6 --trace /tmp/2026-06-06-cuda-to-metal-localdecode-q6.trace --role coordinator --layers 0:21 --listen 192.168.1.98 1241'
+ssh dgx-direct 'cd ~/ds4 && ./ds4-eval -m ~/ds4/gguf/DeepSeek-V4-Flash-IQ2XXS-w2Q2K-AProjQ8-SExpQ8-OutQ8-chat-v2-imatrix.gguf --ctx 16384 --plain --temp 0 --seed 1 --nothink --tokens 4096 --questions 6 --trace /tmp/2026-06-06-cuda-to-metal-localdecode-q6.trace --role coordinator --layers 0:21 --listen 10.77.0.2 1241'
 ```
 
 Historical failure before the timeout fix:
@@ -142,7 +318,7 @@ Current rule after the fix:
 Fresh no-env verification command on DGX:
 
 ```sh
-ssh dgx-direct 'cd ~/ds4 && ./ds4-eval -m ~/ds4/gguf/DeepSeek-V4-Flash-IQ2XXS-w2Q2K-AProjQ8-SExpQ8-OutQ8-chat-v2-imatrix.gguf --ctx 16384 --plain --temp 0 --seed 1 --nothink --tokens 4096 --questions 1 --trace /tmp/2026-06-06-cuda-to-metal-localdecode-q1-noenv.trace --role coordinator --layers 0:21 --listen 192.168.1.98 1241'
+ssh dgx-direct 'cd ~/ds4 && ./ds4-eval -m ~/ds4/gguf/DeepSeek-V4-Flash-IQ2XXS-w2Q2K-AProjQ8-SExpQ8-OutQ8-chat-v2-imatrix.gguf --ctx 16384 --plain --temp 0 --seed 1 --nothink --tokens 4096 --questions 1 --trace /tmp/2026-06-06-cuda-to-metal-localdecode-q1-noenv.trace --role coordinator --layers 0:21 --listen 10.77.0.2 1241'
 ```
 
 Captured traces:

@@ -14,7 +14,64 @@ This file tracks phase-wise findings for the staged investigation in `PLAN.md`.
 | Phase 4 | Complete | Final-worker full-resident handoff is now proven end to end. Both backend directions work; `Metal -> CUDA` is stable across repeated reused-worker sessions, and `CUDA -> Metal` reused-worker drift is currently classified as a Phase 3.5-style near-top1 variance caveat rather than a workflow blocker. |
 | Phase 5 | Complete | Fresh-worker worker-owned local decode is now implemented on the real DGX/Mac topology, covered by `ds4`, `ds4_server`, `ds4-eval --nothink`, and the distributed regression, and is no longer blocked by the original issue. |
 | Phase 5.5 | Complete | Reused-session differences are now classified as bounded prefill-vs-decode variance. Replay diagnostics ruled out reused-state corruption, and local-only Metal/CUDA reproductions showed the same trajectory split without distributed handoff. |
-| Later phases | Deferred / re-scoped | Phase 6 is now a profiling phase for context-length and session-shape bottlenecks in the practical worker-owned local-decode workflow. Pipelined KV return stays deferred unless that profiling shows handoff is a material bottleneck; topology decoupling remains a later follow-on. |
+| Phase 6 | Complete | June 8, 2026 profiling now covers both `CUDA -> Metal` and `Metal -> CUDA` on the `10.77.0.1 <-> 10.77.0.2` direct link. One-shot runs remain strongly prefill-bound across short through very-long prompts, follow-up turns are shaped more by sync or decode than by KV return, and pipelined KV return is still not justified by the direct-link data. |
+| Later phases | Deferred / re-scoped | Pipelined KV return stays deferred unless profiling across the intended deployment topology shows handoff cost is still materially limiting. Topology decoupling remains a later follow-on. |
+
+## Phase 6: Profile bottlenecks on the practical workflow
+
+### What was completed
+
+- Added explicit sync timing output to `tests/issue304_phase5_multiturn`.
+- Added `--allow-turn2-mismatch` so bounded Phase 5.5 variance does not
+  block timing collection.
+- Collected fresh June 8, 2026 worker-owned local-decode timing artifacts
+  for the direct-link `CUDA -> Metal` and `Metal -> CUDA` routes on:
+  - a short one-sentence prompt,
+  - a medium `README.md` 4 KiB slice,
+  - a long `long_code_audit` prompt,
+  - and a very-long `README.md` transcript frontier.
+
+### Findings
+
+1. One-shot runs are strongly prefill-bound in both direct-link directions.
+   - `CUDA -> Metal` short through very-long one-shot runs ranged from
+     `1.420 s` to `37.479 s`, with KV handoff only `0.022 s` to `0.239 s`.
+   - `Metal -> CUDA` short through very-long one-shot runs ranged from
+     `1.399 s` to `39.517 s`, with KV handoff only `0.022 s` to `0.338 s`.
+   - In both directions, handoff stayed below about `3%` of end-to-end
+     one-shot time.
+
+2. The direct-link path keeps KV handoff in the "small tail" category.
+   - The longest direct-link handoff to Metal moved about `106 MiB` in about
+     `0.24 s` at about `425 MiB/s`.
+   - The longest direct-link handoff to CUDA moved about `106 MiB` in about
+     `0.34 s` at about `301 MiB/s`.
+   - Those numbers are materially smaller than turn-one prefill cost in both
+     directions.
+
+3. Reused-session follow-up turns are not transport-dominated on the direct-link
+   topology.
+   - `CUDA -> Metal` follow-up remains mostly sync-bound, from about `0.480 s`
+     total on the short bucket to about `0.751 s` on the very-long bucket.
+   - `Metal -> CUDA` follow-up is more decode-heavy, from about `0.782 s`
+     total on the short bucket to about `1.212 s` on the very-long bucket.
+   - Even on the longest frontier, follow-up handoff does not become the
+     single dominant stage.
+
+4. Route direction matters more for decode than for transport.
+   - The Metal worker generated the 8-token local-decode window in about
+     `0.209 s` to `0.261 s`.
+   - The CUDA worker generated the same window in about `0.526 s` to
+     `0.638 s`.
+   - So the major direct-link route difference is decode backend cost, not KV
+     return cost.
+
+5. The practical Phase 6 closeout answer is still "do not build pipelined KV
+   return yet".
+   - The direct-link matrix does not meet the materiality bar for reopening
+     KV pipelining.
+   - If performance work continues, the next higher-value target is the
+     distributed prefill or sync path, not return pipelining.
 
 ## Phase 0: Establish distributed baseline
 
@@ -477,7 +534,7 @@ The remaining work should separate:
      always staying in the generic per-token decode loop.
    - A fresh `Q1` smoke on `CUDA -> Metal --local-decode --nothink` then
      passed through the intended handoff workflow:
-     - route summary: `local 0:21 -> 192.168.1.218:51924 Q2 22:output`
+     - route summary: `local 0:21 -> 10.77.0.1:51924 Q2 22:output`
      - `local_decode_expected: yes`
      - summary `local_decode_active_any_case: yes`
      - `generated_tokens: 539`

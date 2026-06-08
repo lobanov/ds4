@@ -1,0 +1,55 @@
+ds4: Metal device Apple M5 Max, 128.00 GiB RAM
+ds4: Metal 4 tensor API enabled for Tensor kernels
+ds4: drift-patch flags hc_stable=on norm_unify=on kv_raw_f32=off rope_exp2_log2=off math_safe=off tensor_matmul=on
+ds4: restricting metal model map to layers 0:21+output (48 spans, 42.03 GiB tensor span)
+ds4: Metal model views created in 1.274 ms, residency requested in 345.384 ms, warmup 3.697 ms (mapped 43041.81 MiB from offset 5.09 MiB)
+ds4: Metal mapped mmaped model as 48 disjoint shared buffers across 48 tensor spans
+ds4: metal backend initialized for graph diagnostics
+ds4: distributed coordinator API: listening on 10.77.0.1:1243 model_id=0 layers=43 local=0:21 activation_bits=32
+ds4: distributed coordinator: registered worker 10.77.0.2:37704 data_port=41373 model_id=0 quant=Q2 layers=22:output hidden=1 ctx=16384 local_decode=1
+ds4: distributed coordinator: complete route ready: local 0:21 -> 10.77.0.2:41373 Q2 22:output
+ds4: distributed coordinator: pipelined prefill 4 chunks of up to 256 tokens through 1 worker, first hop 10.77.0.2:41373, send depth 2, flow window 3
+ds4: distributed telemetry: request=1 hop=0 layers=22:42 route=0 pos=0 tokens=256 eval=387.041ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=2 hop=0 layers=22:42 route=0 pos=256 tokens=256 eval=365.129ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=3 hop=0 layers=22:42 route=0 pos=512 tokens=256 eval=365.696ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=4 hop=0 layers=22:42 route=0 pos=768 tokens=191 eval=362.440ms downstream_wait=0.000ms forward_send=0.000ms input=11.94MiB output=0.49MiB
+ds4: distributed coordinator: pipelined prefill done tokens=959 chunks=4 total=2.955s 324.53 t/s local=2.557s send=0.074s 809.35 MiB/s
+ds4: distributed coordinator: local-decode KV handoff tokens=959 layers=0:21 bytes=18091240 total=0.049s 351.74 MiB/s worker=10.77.0.2:41373
+ds4: distributed coordinator: local-generate request worker=10.77.0.2:41373 predict=8 trace=no req_bytes=60 logits_bytes=517120
+ds4: distributed telemetry: request=7 hop=0 layers=22:42 route=0 pos=967 tokens=16 eval=121.314ms downstream_wait=0.000ms forward_send=0.000ms input=1.00MiB output=0.49MiB
+ds4: distributed coordinator: local-decode KV handoff tokens=983 layers=0:21 bytes=18244840 total=0.049s 356.90 MiB/s worker=10.77.0.2:41373
+ds4: distributed coordinator: local-generate request worker=10.77.0.2:41373 predict=8 trace=no req_bytes=60 logits_bytes=517120
+ds4: distributed coordinator: accept failed: Software caused connection abort
+ds4: Metal device Apple M5 Max, 128.00 GiB RAM
+ds4: Metal 4 tensor API enabled for Tensor kernels
+ds4: drift-patch flags hc_stable=on norm_unify=on kv_raw_f32=off rope_exp2_log2=off math_safe=off tensor_matmul=on
+ds4: restricting metal model map to layers 0:21+output (48 spans, 42.03 GiB tensor span)
+ds4: Metal model views created in 1.176 ms, residency requested in 334.225 ms, warmup 3.679 ms (mapped 43041.81 MiB from offset 5.09 MiB)
+ds4: Metal mapped mmaped model as 48 disjoint shared buffers across 48 tensor spans
+ds4: metal backend initialized for graph diagnostics
+ds4: distributed coordinator API: listening on 10.77.0.1:1243 model_id=0 layers=43 local=0:21 activation_bits=32
+ds4: distributed coordinator: registered worker 10.77.0.2:37720 data_port=41373 model_id=0 quant=Q2 layers=22:output hidden=1 ctx=16384 local_decode=1
+ds4: distributed coordinator: complete route ready: local 0:21 -> 10.77.0.2:41373 Q2 22:output
+ds4: distributed coordinator: pipelined prefill 4 chunks of up to 256 tokens through 1 worker, first hop 10.77.0.2:41373, send depth 2, flow window 3
+ds4: distributed telemetry: request=1 hop=0 layers=22:42 route=0 pos=0 tokens=256 eval=365.655ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=2 hop=0 layers=22:42 route=0 pos=256 tokens=256 eval=366.577ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=3 hop=0 layers=22:42 route=0 pos=512 tokens=256 eval=369.320ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=4 hop=0 layers=22:42 route=0 pos=768 tokens=199 eval=357.045ms downstream_wait=0.000ms forward_send=0.000ms input=12.44MiB output=0.49MiB
+ds4: distributed coordinator: pipelined prefill done tokens=967 chunks=4 total=2.983s 324.12 t/s local=2.582s send=0.087s 697.22 MiB/s
+ds4: distributed telemetry: request=5 hop=0 layers=22:42 route=0 pos=967 tokens=16 eval=118.655ms downstream_wait=0.000ms forward_send=0.000ms input=1.00MiB output=0.49MiB
+ds4: distributed coordinator: local-decode KV handoff tokens=983 layers=0:21 bytes=18244840 total=0.057s 306.87 MiB/s worker=10.77.0.2:41373
+ds4: distributed coordinator: local-generate request worker=10.77.0.2:41373 predict=8 trace=no req_bytes=60 logits_bytes=517120
+ds4: distributed coordinator: accept failed: Software caused connection abort
+PHASE5_MULTITURN_ROUTE summary=local 0:21 -> 10.77.0.2:41373 Q2 22:output hops=1 prompt1_tokens=959
+PHASE5_MULTITURN_TURN1 tokens=[2337,344,260,1585,82160,40006,10259,362] shard_sec=0.049051 decode_sec=0.561371 checkpoint_pos=967
+PHASE5_MULTITURN_SYNC reused_pos=991 prompt2_tokens=983
+PHASE5_MULTITURN_TIMING turn1_sync_sec=2.955098 turn1_handoff_sec=0.049051 turn1_decode_sec=0.561371 reused_sync_sec=0.238333 reused_handoff_sec=0.048752 reused_decode_sec=0.560000
+PHASE5_MULTITURN_TURN1_ARGMAX reused=2619 fresh=2619 reused_in_fresh_top5=true fresh_in_reused_top5=true
+PHASE5_MULTITURN_TURN1_LOGITS top5=5 top10=10 top20=18 rms=0.26867571 max_abs=1.51823962 top20_max_abs=0.57838440 nonfinite=0
+PHASE5_MULTITURN_TURN1_TOP5 fresh=[{"id":2619,"logit":32.168777,"text":" **"},{"id":260,"logit":31.683929,"text":" a"},{"id":270,"logit":30.988148,"text":" the"},{"id":420,"logit":30.308506,"text":" D"},{"id":782,"logit":29.780718,"text":" your"}] reused=[{"id":2619,"logit":31.981064,"text":" **"},{"id":260,"logit":31.656399,"text":" a"},{"id":270,"logit":31.159166,"text":" the"},{"id":420,"logit":30.170971,"text":" D"},{"id":782,"logit":30.152805,"text":" your"}]
+PHASE5_MULTITURN_ARGMAX reused=3575 fresh=3575 reused_in_fresh_top5=true fresh_in_reused_top5=true
+PHASE5_MULTITURN_LOGITS top5=5 top10=8 top20=17 rms=0.54569000 max_abs=3.07710481 top20_max_abs=0.78477859 nonfinite=0
+PHASE5_MULTITURN_TOP5 fresh=[{"id":3575,"logit":24.149128,"text":"If"},{"id":1613,"logit":23.817204,"text":"..."},{"id":2337,"logit":23.612282,"text":"This"},{"id":671,"logit":23.324015,"text":"The"},{"id":43,"logit":23.098721,"text":"I"}] reused=[{"id":3575,"logit":24.546677,"text":"If"},{"id":2337,"logit":24.173275,"text":"This"},{"id":671,"logit":23.764122,"text":"The"},{"id":1613,"logit":23.735790,"text":"..."},{"id":43,"logit":23.259560,"text":"I"}]
+PHASE5_MULTITURN_FRESH_TIMING turn1_sync_sec=2.983577 followup_sync_sec=0.231467 turn2_handoff_sec=0.056701 turn2_decode_sec=0.557679
+PHASE5_MULTITURN_TURN2 reused=[3575,440,477,554,8846,418,7703,60356] fresh=[3575,440,477,554,8846,418,7703,60356]
+PHASE5_MULTITURN_RESULT ok=true turn1_visible=8 turn2_tokens=8 mismatch_allowed=true

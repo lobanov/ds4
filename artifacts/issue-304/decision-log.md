@@ -514,9 +514,9 @@ Evidence:
 - An explicit DGX coordinator run with the intended evaluator path:
   - `./ds4-eval --ctx 16384 --plain --temp 0 --seed 1 --nothink`
   - `--tokens 4096 --questions 6 --role coordinator --layers 0:21`
-  - `--listen 192.168.1.98 1241`
+  - `--listen 10.77.0.2 1241`
   - local Metal worker on the Mac:
-    `./ds4 --ctx 16384 --role worker --layers 22:output --local-decode --coordinator 192.168.1.98 1241`
+    `./ds4 --ctx 16384 --role worker --layers 22:output --local-decode --coordinator 10.77.0.2 1241`
   failed immediately on case 1 with:
   - coordinator trace error:
     `failed to read frame header: Resource temporarily unavailable`
@@ -775,3 +775,78 @@ Why this changes the next steps:
   single-turn and multi-turn worker-owned local-decode sessions.
 - Pipelined KV return should only be reopened later if the profiling pass
   shows handoff is a material contributor rather than a minor tail.
+
+## 2026-06-08: Phase 6 profiling confirms direct-link bottlenecks in both directions
+
+Decision:
+
+- Close Phase 6 on the direct-link deployment target.
+- Keep KV pipelining deferred for now.
+- Treat distributed prefill and follow-up sync or decode cost as the next
+  higher-value optimization targets if performance work resumes.
+
+Evidence:
+
+- Fresh June 8, 2026 `CUDA -> Metal` one-shot measurements on the direct-link
+  `10.77.0.1 <-> 10.77.0.2` path show:
+  - short:
+    - sync `1.189 s`
+    - handoff `0.022 s`
+    - decode `0.209 s`
+  - medium (`README` 4 KiB slice):
+    - sync `3.513 s`
+    - handoff `0.097 s`
+    - decode `0.211 s`
+  - long (`long_code_audit`):
+    - sync `9.469 s`
+    - handoff `0.118 s`
+    - decode `0.217 s`
+  - very long (`README.md`):
+    - sync `36.979 s`
+    - handoff `0.239 s`
+    - decode `0.261 s`
+- Fresh June 8, 2026 `Metal -> CUDA` one-shot measurements on the same
+  direct-link path show:
+  - short:
+    - sync `0.851 s`
+    - handoff `0.022 s`
+    - decode `0.526 s`
+  - medium (`README` 4 KiB slice):
+    - sync `2.955 s`
+    - handoff `0.049 s`
+    - decode `0.561 s`
+  - long (`long_code_audit`):
+    - sync `9.099 s`
+    - handoff `0.230 s`
+    - decode `0.638 s`
+  - very long (`README.md`):
+    - sync `38.579 s`
+    - handoff `0.338 s`
+    - decode `0.601 s`
+- Reused-session follow-up on the same matrix stays below the KV-pipelining
+  materiality bar in both directions:
+  - `CUDA -> Metal` remains mostly sync-bound
+  - `Metal -> CUDA` is more decode-heavy, not handoff-dominated
+- The longest direct-link handoffs moved about `106 MiB` in about:
+  - `0.239 s` to Metal, about `425 MiB/s`
+  - `0.338 s` to CUDA, about `301 MiB/s`
+
+Why this changes the next steps:
+
+- The direct-link deployment target still behaves like the original Phase 5
+  intuition in both route directions.
+- Distributed prefill remains the dominant one-shot cost by a large margin.
+- Route-direction differences are real, but they are mostly decode-backend
+  differences rather than transport differences.
+- Follow-up turns remain too small, and too mixed between sync and decode, for
+  repeated KV return to be the clearest next bottleneck to attack.
+
+Default follow-on:
+
+- Keep the published research artifacts centered on the direct-link matrix as
+  the authoritative Phase 6 result.
+- Keep KV pipelining deferred for the current worker-owned local-decode
+  workflow.
+- If more optimization work is needed, target distributed prefill or the
+  follow-up sync path first, and only reopen KV pipelining if future data
+  crosses the materiality rule in `PLAN.md`.

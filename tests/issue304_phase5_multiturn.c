@@ -31,6 +31,7 @@ typedef struct {
     float min_p;
     uint64_t seed;
     bool normal_eval;
+    bool allow_turn2_mismatch;
     bool debug;
 } phase5_cfg;
 
@@ -72,6 +73,7 @@ static void die_usage(const char *argv0) {
             "[--prompt-file FILE] [--system TEXT] [--followup TEXT] [--ctx N] "
             "[--gen-tokens N] [--prefill-chunk N] [--prefill-window N] "
             "[--temp F] [--top-p F] [--min-p F] [--seed N] [--normal-eval] "
+            "[--allow-turn2-mismatch] "
             "[--activation-bits N] [--coordinator-layers A:B|A:output] "
             "[--worker-layers A:B|A:output] [--lock-file FILE] [--no-debug]\n",
             argv0);
@@ -487,6 +489,8 @@ static void parse_args(phase5_cfg *cfg, int argc, char **argv) {
             cfg->seed = (uint64_t)strtoull(argv[++i], NULL, 10);
         } else if (!strcmp(argv[i], "--normal-eval")) {
             cfg->normal_eval = true;
+        } else if (!strcmp(argv[i], "--allow-turn2-mismatch")) {
+            cfg->allow_turn2_mismatch = true;
         } else if (!strcmp(argv[i], "--coordinator-layers") && i + 1 < argc) {
             cfg->coordinator_layers = argv[++i];
         } else if (!strcmp(argv[i], "--worker-layers") && i + 1 < argc) {
@@ -588,6 +592,11 @@ int main(int argc, char **argv) {
     float *fresh_seed_logits = NULL;
     int reused_turn1_argmax = -1;
     int reused_argmax = -1;
+    double turn1_sync_sec = 0.0;
+    double reused_followup_sync_sec = 0.0;
+    double fresh_turn1_sync_sec = 0.0;
+    double fresh_followup_sync_sec = 0.0;
+    bool turn2_match = true;
     int rc = 1;
 
     if (ds4_engine_open(&engine, &opt) != 0 || !engine) {
@@ -621,11 +630,13 @@ int main(int argc, char **argv) {
     printf("PHASE5_MULTITURN_ROUTE summary=%s hops=%u prompt1_tokens=%d\n",
            route_summary, route_hops, prompt1.len);
 
+    double t_sync0 = now_sec();
     if (ds4_session_sync(reused, &prompt1, err, sizeof(err)) != 0) {
         fprintf(stderr, "issue304-phase5-multiturn: first sync failed: %s\n",
                 err[0] ? err : "unknown error");
         goto cleanup;
     }
+    turn1_sync_sec = now_sec() - t_sync0;
 
     if (!(cfg.normal_eval
             ? run_normal_eval(engine, reused, &cfg, &turn1)
@@ -674,11 +685,13 @@ int main(int argc, char **argv) {
     }
     reused_turn1_argmax = ds4_session_argmax(reused);
 
+    t_sync0 = now_sec();
     if (ds4_session_sync(reused, &prompt2, err, sizeof(err)) != 0) {
         fprintf(stderr, "issue304-phase5-multiturn: reused-session followup sync failed: %s\n",
                 err[0] ? err : "unknown error");
         goto cleanup;
     }
+    reused_followup_sync_sec = now_sec() - t_sync0;
     if (ds4_session_copy_logits(reused, reused_seed_logits, vocab) != vocab) {
         fprintf(stderr, "issue304-phase5-multiturn: failed to copy reused seed logits\n");
         goto cleanup;
@@ -693,6 +706,13 @@ int main(int argc, char **argv) {
     printf("PHASE5_MULTITURN_SYNC reused_pos=%d prompt2_tokens=%d\n",
            ds4_session_pos(reused),
            prompt2.len);
+    printf("PHASE5_MULTITURN_TIMING turn1_sync_sec=%.6f turn1_handoff_sec=%.6f turn1_decode_sec=%.6f reused_sync_sec=%.6f reused_handoff_sec=%.6f reused_decode_sec=%.6f\n",
+           turn1_sync_sec,
+           turn1.shard_load_sec,
+           turn1.decode_sec,
+           reused_followup_sync_sec,
+           turn2_reused.shard_load_sec,
+           turn2_reused.decode_sec);
     if (ds4_session_pos(reused) != prompt2.len + turn2_reused.token_count) {
         fprintf(stderr, "issue304-phase5-multiturn: reused session did not advance through turn2\n");
         goto cleanup;
@@ -716,11 +736,13 @@ int main(int argc, char **argv) {
                                   &output_on_coordinator)) {
         goto cleanup;
     }
+    t_sync0 = now_sec();
     if (ds4_session_sync(fresh, &prompt1_turn1, err, sizeof(err)) != 0) {
         fprintf(stderr, "issue304-phase5-multiturn: fresh-session turn1 sync failed: %s\n",
                 err[0] ? err : "unknown error");
         goto cleanup;
     }
+    fresh_turn1_sync_sec = now_sec() - t_sync0;
     if (ds4_session_pos(fresh) != prompt1_turn1.len) {
         fprintf(stderr, "issue304-phase5-multiturn: fresh session did not reach turn1 transcript\n");
         goto cleanup;
@@ -753,11 +775,13 @@ int main(int argc, char **argv) {
     printf(" reused=");
     print_topk_json(engine, reused_turn1_logits, vocab, 5);
     printf("\n");
+    t_sync0 = now_sec();
     if (ds4_session_sync(fresh, &prompt2, err, sizeof(err)) != 0) {
         fprintf(stderr, "issue304-phase5-multiturn: fresh-session followup sync failed: %s\n",
                 err[0] ? err : "unknown error");
         goto cleanup;
     }
+    fresh_followup_sync_sec = now_sec() - t_sync0;
     if (ds4_session_pos(fresh) != prompt2.len) {
         fprintf(stderr, "issue304-phase5-multiturn: fresh session did not reach full followup prompt\n");
         goto cleanup;
@@ -795,6 +819,11 @@ int main(int argc, char **argv) {
             : run_handoff(fresh, cfg.gen_tokens, &turn2_fresh))) {
         goto cleanup;
     }
+    printf("PHASE5_MULTITURN_FRESH_TIMING turn1_sync_sec=%.6f followup_sync_sec=%.6f turn2_handoff_sec=%.6f turn2_decode_sec=%.6f\n",
+           fresh_turn1_sync_sec,
+           fresh_followup_sync_sec,
+           turn2_fresh.shard_load_sec,
+           turn2_fresh.decode_sec);
 
     if (replay.enabled) {
         ds4_session_free(fresh);
@@ -880,10 +909,11 @@ int main(int argc, char **argv) {
     print_tokens(turn2_fresh.tokens, turn2_fresh.token_count);
     printf("\n");
 
-    if (!tokens_equal(turn2_reused.tokens,
-                      turn2_reused.token_count,
-                      turn2_fresh.tokens,
-                      turn2_fresh.token_count)) {
+    turn2_match = tokens_equal(turn2_reused.tokens,
+                               turn2_reused.token_count,
+                               turn2_fresh.tokens,
+                               turn2_fresh.token_count);
+    if (!turn2_match) {
         char *reused_text = tokens_render_text(engine, turn2_reused.tokens, turn2_reused.token_count);
         char *fresh_text = tokens_render_text(engine, turn2_fresh.tokens, turn2_fresh.token_count);
         printf("PHASE5_MULTITURN_TEXT reused=");
@@ -893,12 +923,17 @@ int main(int argc, char **argv) {
         printf("\n");
         free(reused_text);
         free(fresh_text);
-        fprintf(stderr, "issue304-phase5-multiturn: turn2 mismatch after catch-up reuse\n");
-        goto cleanup;
+        if (!cfg.allow_turn2_mismatch) {
+            fprintf(stderr, "issue304-phase5-multiturn: turn2 mismatch after catch-up reuse\n");
+            goto cleanup;
+        }
     }
 
-    printf("PHASE5_MULTITURN_RESULT pass turn1_visible=%d turn2_tokens=%d\n",
-           turn1_visible, turn2_reused.token_count);
+    printf("PHASE5_MULTITURN_RESULT ok=%s turn1_visible=%d turn2_tokens=%d mismatch_allowed=%s\n",
+           turn2_match ? "true" : "false",
+           turn1_visible,
+           turn2_reused.token_count,
+           cfg.allow_turn2_mismatch ? "true" : "false");
     rc = 0;
 
 cleanup:
