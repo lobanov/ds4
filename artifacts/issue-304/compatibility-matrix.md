@@ -52,6 +52,34 @@
 | 2026-06-06 | local working tree after `ds4-eval` handoff/timeout fixes, DGX rebuilt from synced tree | `DeepSeek-V4-Flash-IQ2XXS-w2Q2K-AProjQ8-SExpQ8-OutQ8-chat-v2-imatrix.gguf` | `CUDA -> Metal`, `0:21 -> 22:output` | full `ds4-eval --nothink` `92`-question run, worker `--local-decode` | Pass for Phase 5 closeout | The evaluator now uses the intended worker-owned handoff path, completes the full suite without coordinator disconnect, and scores `65/92` versus local baselines `67/92` (Metal) and `69/92` (CUDA). Treat the remaining delta as evaluation variance rather than a local-decode routing failure. |
 | 2026-06-07 | local working tree after `LOCAL_GENERATE` forced-eval fix, DGX rebuilt from synced tree | `DeepSeek-V4-Flash-IQ2XXS-w2Q2K-AProjQ8-SExpQ8-OutQ8-chat-v2-imatrix.gguf` | `CUDA -> Metal`, `0:21 -> 22:output` | `DS4_RUN_DISTRIBUTED_TEST=1 DS4_TEST_DISTRIBUTED_LISTEN_HOST=0.0.0.0 DS4_TEST_DISTRIBUTED_LISTEN_PORT=1234 DS4_TEST_DISTRIBUTED_ROUTE_WAIT_MS=60000 ./ds4_test --local-decode-push`, DGX coordinator + local Metal worker | Pass | The real two-node Phase 5 regression now passes through one-shot handoff, one forced-token reuse eval, and a second short handoff: `local_decode_active=yes`, `first_handoff=2`, `reuse_eval=1`, `second_handoff=1`, `kv=0.019s`, `decode=0.053s`, `decode2=0.026s`. |
 
+## Phase 5.5: Reusable-session accuracy matrix
+
+| Date | Commit | Model | Route | Validation path | Result | Notes |
+| --- | --- | --- | --- | --- | --- | --- |
+| 2026-06-08 | local working tree synced to `dgx-direct:~/ds4`, both ends rebuilt before rerun | `DeepSeek-V4-Flash-IQ2XXS-w2Q2K-AProjQ8-SExpQ8-OutQ8-chat-v2-imatrix.gguf` | `Metal -> CUDA`, reused-session greedy multi-turn `0:21 -> 22:output` | `tests/issue304_phase5_multiturn`, DGX worker, exact turn-two parity vs fresh full-transcript session | Fail | Immediate post-turn1 frontier remained healthy (`top1 1116/1116`, `top5=5/5`, `top10=10/10`, `top20=20/20`, `rms=0.27032664`), but follow-up sync still drifted before turn two (`8474` vs `267`, `top5=4/5`, `top10=6/10`, `top20=16/20`, `rms=0.99836105`). |
+| 2026-06-08 | local working tree synced to `dgx-direct:~/ds4`, both ends rebuilt before rerun | `DeepSeek-V4-Flash-IQ2XXS-w2Q2K-AProjQ8-SExpQ8-OutQ8-chat-v2-imatrix.gguf` | `Metal -> CUDA`, reused-session sampled normal-eval multi-turn `0:21 -> 22:output` | `tests/issue304_phase5_multiturn --normal-eval --temp 0.7 --top-p 0.95 --min-p 0.05 --seed 123`, DGX worker, exact turn-two parity vs fresh full-transcript session | Fail | The sampled route is still weaker on the second-turn handoff boundary: `top1 8474/8474`, `top5=4/5`, `top10=8/10`, `top20=18/20`, `rms=0.75249523`, and the sampled turn-two tokens diverged. |
+| 2026-06-08 | local working tree synced to `dgx-direct:~/ds4`, DGX coordinator rerun with `DS4_DISABLE_STARTUP_MEMORY_GUARD=1` | `DeepSeek-V4-Flash-IQ2XXS-w2Q2K-AProjQ8-SExpQ8-OutQ8-chat-v2-imatrix.gguf` | `CUDA -> Metal`, reused-session greedy multi-turn `0:21 -> 22:output` | `tests/issue304_phase5_multiturn`, DGX coordinator, fresh local Metal worker, exact turn-two parity vs fresh full-transcript session | Fail | This symmetric greedy rerun also still drifts on the follow-up boundary: post-turn1 `top1 1116/1116`, `top5=5/5`, `top10=10/10`, `top20=19/20`, `rms=0.24912345`; after follow-up sync `8474` vs `267`, `top5=4/5`, `top10=7/10`, `top20=15/20`, `rms=0.89044636`. |
+| 2026-06-08 | local working tree synced to `dgx-direct:~/ds4`, DGX coordinator rerun with `DS4_DISABLE_STARTUP_MEMORY_GUARD=1` | `DeepSeek-V4-Flash-IQ2XXS-w2Q2K-AProjQ8-SExpQ8-OutQ8-chat-v2-imatrix.gguf` | `CUDA -> Metal`, reused-session sampled normal-eval multi-turn `0:21 -> 22:output` | `tests/issue304_phase5_multiturn --normal-eval --temp 0.7 --top-p 0.95 --min-p 0.05 --seed 123`, DGX coordinator, fresh local Metal worker | Pass with bounded variance | The current branch still reproduces the earlier mild sampled case: seed frontier stayed loose (`top1 8474/8474`, `top5=4/5`, `top10=8/10`, `top20=15/20`, `rms=0.81043321`), but the tested turn-two sampled tokens matched exactly. |
+| 2026-06-08 | local working tree | `DeepSeek-V4-Flash-IQ2XXS-w2Q2K-AProjQ8-SExpQ8-OutQ8-chat-v2-imatrix.gguf` | pure local Metal | `tests/issue304_phase55_prefill_vs_decode`, greedy local-only `prefill` vs token-by-token `decode replay` | Fail against fresh prefill | With no distributed path involved, local-only Metal still diverged after reconstructing the assistant turn via prefill instead of replay: turn1 `top5=5/5`, `top10=10/10`, `top20=20/20`, `rms=0.21581978`; follow-up seed frontier `267` vs `8474`, `top5=4/5`, `top10=6/10`, `top20=16/20`, `rms=0.94414026`, and turn-two greedy tokens diverged. |
+| 2026-06-08 | local working tree | `DeepSeek-V4-Flash-IQ2XXS-w2Q2K-AProjQ8-SExpQ8-OutQ8-chat-v2-imatrix.gguf` | pure local Metal | `tests/issue304_phase55_prefill_vs_decode --normal-eval --temp 0.7 --top-p 0.95 --min-p 0.05 --seed 123`, sampled local-only `prefill` vs token-by-token `decode replay` | Pass with bounded variance | Same-backend local-only sampled reconstruction still showed loose logits (`top1 8474/8474`, `top5=4/5`, `top10=8/10`, `top20=17/20`, `rms=0.68071556`), but turn-two sampled tokens matched exactly. |
+| 2026-06-08 | local working tree synced to `dgx-direct:~/ds4`, DGX run with `DS4_DISABLE_STARTUP_MEMORY_GUARD=1` | `DeepSeek-V4-Flash-IQ2XXS-w2Q2K-AProjQ8-SExpQ8-OutQ8-chat-v2-imatrix.gguf` | pure local CUDA | `tests/issue304_phase55_prefill_vs_decode`, greedy local-only `prefill` vs token-by-token `decode replay` | Fail against fresh prefill | The same local-only trajectory split reproduced on CUDA with no distributed machinery: turn1 `top5=5/5`, `top10=10/10`, `top20=19/20`, `rms=0.29067111`; follow-up seed frontier `267` vs `8474`, `top5=4/5`, `top10=5/10`, `top20=14/20`, `rms=0.91843081`, and turn-two greedy tokens diverged. |
+| 2026-06-08 | local working tree synced to `dgx-direct:~/ds4`, DGX run with `DS4_DISABLE_STARTUP_MEMORY_GUARD=1` | `DeepSeek-V4-Flash-IQ2XXS-w2Q2K-AProjQ8-SExpQ8-OutQ8-chat-v2-imatrix.gguf` | pure local CUDA | `tests/issue304_phase55_prefill_vs_decode --normal-eval --temp 0.7 --top-p 0.95 --min-p 0.05 --seed 123`, sampled local-only `prefill` vs token-by-token `decode replay` | Pass with bounded variance | Same-backend CUDA sampled reconstruction also stayed loose (`top1 8474/8474`, `top5=4/5`, `top10=8/10`, `top20=15/20`, `rms=0.84279537`), but turn-two sampled tokens matched exactly. |
+
+Phase 5.5 rerun notes:
+
+- An opt-in replay diagnostic on `2026-06-08` showed that the reused greedy session matches a fresh decode-replay reference exactly in both backend directions.
+- `Metal -> CUDA`, greedy replay reference:
+  - post-turn1 `top5=5/5`, `top10=10/10`, `top20=20/20`, `rms=0`
+  - post-followup seed frontier `top5=5/5`, `top10=10/10`, `top20=20/20`, `rms=0`
+- `CUDA -> Metal`, greedy replay reference:
+  - post-turn1 `top5=5/5`, `top10=10/10`, `top20=20/20`, `rms=0`
+  - post-followup seed frontier `top5=5/5`, `top10=10/10`, `top20=20/20`, `rms=0`
+- `Metal -> CUDA`, sampled replay reference:
+  - post-turn1 `top5=5/5`, `top10=10/10`, `top20=20/20`, `rms=0`
+  - post-followup seed frontier `top5=5/5`, `top10=10/10`, `top20=20/20`, `rms=0`
+- That means the current greedy disagreement is not "reused state vs fresh decode replay". It is "decode replay vs fresh full-transcript prefill" over the assistant-generated turn.
+- The `CUDA -> Metal` DGX coordinator reruns on `2026-06-08` needed `DS4_DISABLE_STARTUP_MEMORY_GUARD=1` even though `nvidia-smi` only showed desktop graphics processes. Treat that as a rerun operational caveat, not an accuracy verdict.
+
 ## Representative `DSVL` shard smoke
 
 | Date | Commit | Backend | Layer | Result | Notes |
@@ -63,9 +91,12 @@
 
 ## Matrix status
 
-- Every planned Phase 1 backend pair has now been exercised at least once.
-- The only failing cell is `CUDA -> Metal`, and the current failure is narrower than a restore-point logit mismatch: the loaded Metal session starts from identical logits but diverges during subsequent greedy decode.
-- Forced-token follow-up on the same failing cell shows that logits already diverge after the first identical post-load eval token, so the failure is not explained by token-selection branching alone.
-- Phase 2 now confirms exact handoff checkpoint and matching greedy continuation over the sampled window. The first-step forced-trace drift on resumed Metal decode is a Phase 3 classification item, not automatically a failing compatibility result.
-- Phase 3 now shows the resumed-decode drift is not only a cross-engine phenomenon. The distributed-prefill handoff differs from a fresh same-backend Metal baseline even when the official-vector gate and the local-golden fixture still pass.
-- Phase 3.5 broadens that classification: short official prompts can look acceptable on some route/backend pairings while failing on others, but longer prompts and resumed payload routes still show materially weaker parity than direct generation paths.
+- Phase 5 remains closed on the fresh-worker worker-owned local-decode path.
+- The fixed Phase 5.5 reusable-session matrix is now fully classified.
+- Reused-session mismatches are explained by bounded prefill-vs-decode variance, not by stale reused state or handoff integrity failure.
+- Local-only Metal and local-only CUDA reproduce the same prefill-vs-decode split without any distributed handoff path.
+- Replay diagnostics narrow that further for the greedy cells:
+  the reused session is self-consistent with a fresh decode-replay session, and the disagreement is with fresh full-transcript prefill.
+- No current Phase 5.5 rerun points to payload ABI corruption, token-hash mismatch, or stale-logits bookkeeping as the primary cause.
+- Phase 3 and Phase 3.5 still define the broader attribution context:
+  same-backend parity is already loose on longer prompts, official behavior is route-dependent on short prompts, and the current `local-golden.vec` fixture is not a pure local-Metal oracle.

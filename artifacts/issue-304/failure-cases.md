@@ -126,6 +126,26 @@ This artifact records mismatches that should remain rejected during distributed-
 - Treat score variance in the full `ds4-eval` runs as evaluation noise for
   Phase 5 purposes, not as a new rejection case for the handoff workflow.
 
+## Phase 5.5 closeout classification
+
+- Phase 5.5 no longer carries any open rejection case under Issue 304.
+- The previously failing reusable-session cells are reclassified as bounded
+  prefill-vs-decode variance because:
+  - reused distributed sessions matched fresh decode-replay references
+    exactly on the replay diagnostics,
+  - and pure local Metal/CUDA reproductions showed the same prefill-vs-decode
+    split without any distributed handoff path.
+- Keep the remaining integrity failures as hard blockers:
+  - token-hash mismatch
+  - payload layout mismatch
+  - stale KV/session contamination
+  - missing output-head ownership
+  - or protocol-level corruption
+- Do not reopen Issue 304 merely because fresh full-transcript prefill and
+  decode replay land on different logits or different greedy continuations.
+  That behavior is now accepted as bounded numerical trajectory variance,
+  subject to future benchmarking rather than correctness rejection.
+
 ## Phase 3 Rejection Criteria
 
 A drift case should be recorded here as rejected if it:

@@ -590,3 +590,156 @@ Why this changes the next steps:
   - reusable-session follow-up parity,
   - incremental/local-decode streaming UX,
   - and `LOCAL_GENERATE` protocol overhead reduction.
+
+## 2026-06-08: Start Phase 5.5 from a fixed four-cell reusable-session matrix
+
+Decision:
+
+- Bound Phase 5.5 to a fixed reusable-session surface instead of chasing
+  bit-exact parity everywhere.
+- Keep the authoritative fresh-worker worker-owned local-decode workflow as
+  the primary ship gate.
+- Use this four-cell matrix as the reusable-session accuracy surface:
+  - `Metal -> CUDA` greedy multi-turn
+  - `Metal -> CUDA` sampled normal-eval multi-turn
+  - `CUDA -> Metal` greedy multi-turn
+  - `CUDA -> Metal` sampled normal-eval multi-turn
+- Do not close Phase 5.5 until:
+  - the fresh-worker Phase 5 surface stays green,
+  - every remaining miss on that matrix is attributed as either
+    backend-baseline variance, fixture drift, or handoff/reuse-specific
+    variance,
+  - and no integrity class is involved
+    (`token hash`, `payload layout`, `stale KV`, `session mix-up`).
+- Do not require bit-exact cross-backend logits or perfect agreement with
+  the current `local-golden.vec` fixture as a Phase 5.5 exit condition.
+
+Evidence:
+
+- A clean `2026-06-08` rerun on rebuilt binaries produced:
+  - `Metal -> CUDA` greedy: fail
+    - follow-up frontier `8474` vs `267`
+    - `top5=4/5`, `top10=6/10`, `top20=16/20`
+    - `rms=0.99836105`
+  - `Metal -> CUDA` sampled: fail
+    - follow-up frontier `8474` vs `8474`
+    - `top5=4/5`, `top10=8/10`, `top20=18/20`
+    - `rms=0.75249523`
+    - turn-two sampled tokens diverged
+  - `CUDA -> Metal` greedy: fail
+    - follow-up frontier `8474` vs `267`
+    - `top5=4/5`, `top10=7/10`, `top20=15/20`
+    - `rms=0.89044636`
+  - `CUDA -> Metal` sampled: pass with bounded variance
+    - follow-up frontier `8474` vs `8474`
+    - `top5=4/5`, `top10=8/10`, `top20=15/20`
+    - `rms=0.81043321`
+    - turn-two sampled tokens still matched exactly
+- The DGX coordinator reruns also exposed a separate operational caveat:
+  the CUDA startup memory guard sometimes rejected the `0:21` coordinator
+  slice even while `nvidia-smi` only showed desktop graphics processes.
+  That required `DS4_DISABLE_STARTUP_MEMORY_GUARD=1` for reruns, but it is
+  not itself an accuracy result.
+
+Why this changes the next steps:
+
+- Phase 5.5 should focus on the reused-state follow-up path, not on the
+  already-closed fresh-worker handoff workflow.
+- The current matrix is narrow enough to make progress measurable and broad
+  enough to keep the work from collapsing into one lucky route or seed.
+
+## 2026-06-08: Greedy Phase 5.5 mismatches are currently prefill-vs-decode, not reuse-vs-fresh-decode
+
+Decision:
+
+- Reclassify the current greedy Phase 5.5 mismatch from
+  "reused session drift" to
+  "fresh full-transcript prefill differs from decode replay over the
+  assistant-generated turn".
+- Keep the greedy cells open for Phase 5.5, but do not treat them as
+  evidence of stale reused state or broken catch-up integrity.
+
+Evidence:
+
+- An opt-in replay diagnostic was added to
+  `tests/issue304_phase5_multiturn`.
+- On `Metal -> CUDA`, greedy:
+  - reused vs fresh full-transcript prefill still failed at the follow-up
+    seed frontier (`8474` vs `267`, `rms=0.90186453`)
+  - reused vs fresh decode replay matched exactly:
+    - post-turn1 `top5=5/5`, `top10=10/10`, `top20=20/20`, `rms=0`
+    - post-followup seed frontier `top5=5/5`, `top10=10/10`,
+      `top20=20/20`, `rms=0`
+- On `CUDA -> Metal`, greedy:
+  - reused vs fresh full-transcript prefill still failed at the follow-up
+    seed frontier (`8474` vs `267`, `rms=0.90496105`)
+  - reused vs fresh decode replay also matched exactly:
+    - post-turn1 `top5=5/5`, `top10=10/10`, `top20=20/20`, `rms=0`
+    - post-followup seed frontier `top5=5/5`, `top10=10/10`,
+      `top20=20/20`, `rms=0`
+
+Why this changes the next steps:
+
+- The current four-cell matrix is still the right Phase 5.5 surface, but the
+  leading greedy explanation is now narrower and more actionable.
+- The next investigation should compare full-transcript prefill of
+  assistant-generated tokens against token-by-token decode replay of the
+  same tokens, rather than continuing to frame the issue primarily as
+  reused-session corruption.
+
+## 2026-06-08: Close Phase 5.5 as bounded prefill-vs-decode variance
+
+Decision:
+
+- Close Phase 5.5.
+- Accept the remaining reusable-session differences as bounded
+  prefill-vs-decode variance rather than an open handoff or reused-state
+  correctness defect.
+
+Evidence:
+
+- The authoritative fresh-worker Phase 5 surfaces remain green:
+  - plain `ds4` worker-owned local decode
+  - normal token-by-token local-decode activation
+  - `ds4-eval --nothink`
+  - and `ds4_test --local-decode-push`
+- Distributed replay diagnostics showed the reused session is self-consistent
+  with a fresh decode-replay reference:
+  - `Metal -> CUDA`, greedy: post-turn1 `rms=0`, post-followup seed `rms=0`
+  - `Metal -> CUDA`, sampled: post-turn1 `rms=0`, post-followup seed `rms=0`
+  - `CUDA -> Metal`, greedy: post-turn1 `rms=0`, post-followup seed `rms=0`
+- New local-only same-backend proof removed distributed handoff from the
+  equation entirely:
+  - pure local Metal, greedy:
+    - follow-up seed frontier `267` vs `8474`
+    - `top5=4/5`, `top10=6/10`, `top20=16/20`
+    - `rms=0.94414026`
+    - turn-two greedy tokens diverged
+  - pure local CUDA, greedy:
+    - follow-up seed frontier `267` vs `8474`
+    - `top5=4/5`, `top10=5/10`, `top20=14/20`
+    - `rms=0.91843081`
+    - turn-two greedy tokens diverged
+  - pure local Metal, sampled:
+    - `top5=4/5`, `top10=8/10`, `top20=17/20`
+    - `rms=0.68071556`
+    - turn-two sampled tokens still matched exactly
+  - pure local CUDA, sampled:
+    - `top5=4/5`, `top10=8/10`, `top20=15/20`
+    - `rms=0.84279537`
+    - turn-two sampled tokens still matched exactly
+- No Phase 5.5 rerun localized the remaining differences to:
+  - token-hash mismatch
+  - payload layout mismatch
+  - stale KV/session contamination
+  - or stale-logits bookkeeping
+
+Why this closes the phase:
+
+- The remaining matrix differences are now attributed.
+- They reproduce on the same backend without distributed handoff.
+- They align with the expected consequence of different numerical
+  trajectories between full-transcript prefill and token-by-token decode
+  replay.
+- The next work belongs to benchmarking and product-level tolerance
+  decisions, not to continued correctness chasing under Issue 304.

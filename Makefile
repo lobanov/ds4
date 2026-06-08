@@ -270,6 +270,16 @@ else
 	$(NVCC) $(NVCCFLAGS) -o $@ tests/issue304_phase5_multiturn.o $(CORE_OBJS) $(CUDA_LDLIBS)
 endif
 
+tests/issue304_phase55_prefill_vs_decode.o: tests/issue304_phase55_prefill_vs_decode.c ds4.h
+	$(CC) $(CFLAGS) -c -o $@ tests/issue304_phase55_prefill_vs_decode.c
+
+tests/issue304_phase55_prefill_vs_decode: tests/issue304_phase55_prefill_vs_decode.o $(CORE_OBJS)
+ifeq ($(UNAME_S),Darwin)
+	$(CC) $(CFLAGS) -o $@ tests/issue304_phase55_prefill_vs_decode.o $(CORE_OBJS) $(METAL_LDLIBS)
+else
+	$(NVCC) $(NVCCFLAGS) -o $@ tests/issue304_phase55_prefill_vs_decode.o $(CORE_OBJS) $(CUDA_LDLIBS)
+endif
+
 tests/issue304_phase4_diagnose.o: tests/issue304_phase4_diagnose.c ds4.h ds4_distributed.h
 	$(CC) $(CFLAGS) -c -o $@ tests/issue304_phase4_diagnose.c
 
@@ -299,4 +309,4 @@ q4k-dot-test: tests/test_q4k_dot.c
 	./tests/test_q4k_dot
 
 clean:
-	rm -f ds4 ds4-server ds4-bench ds4-eval ds4-agent ds4_cpu ds4_native ds4_server_test ds4_test tests/test_q4k_dot *.o tests/cuda_long_context_smoke tests/cuda_long_context_smoke.o tests/issue304_phase0_local tests/issue304_phase0_local.o tests/issue304_phase0_dgx tests/issue304_phase0_dgx.o tests/issue304_phase1_matrix tests/issue304_phase1_matrix.o tests/issue304_phase2_handoff tests/issue304_phase2_handoff.o tests/issue304_phase3_vectors tests/issue304_phase3_vectors.o tests/issue304_phase35_vectors tests/issue304_phase35_vectors.o tests/issue304_phase4_handoff tests/issue304_phase4_handoff.o tests/issue304_phase5_multiturn tests/issue304_phase5_multiturn.o
+	rm -f ds4 ds4-server ds4-bench ds4-eval ds4-agent ds4_cpu ds4_native ds4_server_test ds4_test tests/test_q4k_dot *.o tests/cuda_long_context_smoke tests/cuda_long_context_smoke.o tests/issue304_phase0_local tests/issue304_phase0_local.o tests/issue304_phase0_dgx tests/issue304_phase0_dgx.o tests/issue304_phase1_matrix tests/issue304_phase1_matrix.o tests/issue304_phase2_handoff tests/issue304_phase2_handoff.o tests/issue304_phase3_vectors tests/issue304_phase3_vectors.o tests/issue304_phase35_vectors tests/issue304_phase35_vectors.o tests/issue304_phase4_handoff tests/issue304_phase4_handoff.o tests/issue304_phase5_multiturn tests/issue304_phase5_multiturn.o tests/issue304_phase55_prefill_vs_decode tests/issue304_phase55_prefill_vs_decode.o

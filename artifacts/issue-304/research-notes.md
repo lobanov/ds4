@@ -12,6 +12,8 @@ This file tracks phase-wise findings for the staged investigation in `PLAN.md`.
 | Phase 3 | Complete | Same-backend Phase 3 parity was measured and rejected. The official-vector gate kept passing, but distributed-prefill-to-local decode did not match a fresh fully local Metal baseline closely enough, and the long local-golden continuation failed outright on same-backend parity. |
 | Phase 3.5 | Complete | The six-route worst@5 matrix is now measured. Official top-logprob variance is route-dependent on short prompts, resumed payload routes remain the weakest parity cells, and the stored local-golden fixture is not anchored purely to the local Metal route. |
 | Phase 4 | Complete | Final-worker full-resident handoff is now proven end to end. Both backend directions work; `Metal -> CUDA` is stable across repeated reused-worker sessions, and `CUDA -> Metal` reused-worker drift is currently classified as a Phase 3.5-style near-top1 variance caveat rather than a workflow blocker. |
+| Phase 5 | Complete | Fresh-worker worker-owned local decode is now implemented on the real DGX/Mac topology, covered by `ds4`, `ds4_server`, `ds4-eval --nothink`, and the distributed regression, and is no longer blocked by the original issue. |
+| Phase 5.5 | Complete | Reused-session differences are now classified as bounded prefill-vs-decode variance. Replay diagnostics ruled out reused-state corruption, and local-only Metal/CUDA reproductions showed the same trajectory split without distributed handoff. |
 | Later phases | Deferred | Pipelined KV return, topology decoupling, and broader optimization work stay deferred until the practical handoff workflow exists and can be benchmarked realistically. |
 
 ## Phase 0: Establish distributed baseline
@@ -552,3 +554,136 @@ DGX/Mac topology:
 
 That is sufficient to treat Phase 5 as closed. Any remaining local-decode work
 is now follow-on refinement, not part of the Phase 5 exit gate.
+
+## Phase 5.5: Bound reusable-session accuracy follow-up
+
+### What was tested
+
+- Re-ran the fixed reusable-session four-cell matrix on `2026-06-08` with
+  fresh workers and rebuilt binaries on both nodes:
+  - `Metal -> CUDA` greedy
+  - `Metal -> CUDA` sampled normal-eval
+  - `CUDA -> Metal` greedy
+  - `CUDA -> Metal` sampled normal-eval
+- Added targeted `LOCAL_GENERATE` protocol diagnostics so worker-side local
+  decode failures surface with explicit protocol context instead of a
+  generic closed-socket error.
+- Rebuilt DGX `ds4` and `tests/issue304_phase5_multiturn` explicitly before
+  sampled reruns.
+
+### Findings
+
+1. The main reusable-session symptom on current binaries is still
+   follow-up-sync drift, not catch-up failure.
+   - `Metal -> CUDA`, greedy:
+     - immediate post-turn1 frontier stayed strong:
+       `top1 1116/1116`, `top5=5/5`, `top10=10/10`, `top20=20/20`,
+       `rms=0.27032664`
+     - after syncing the next user follow-up:
+       `8474` vs `267`, `top5=4/5`, `top10=6/10`, `top20=16/20`,
+       `rms=0.99836105`
+   - `CUDA -> Metal`, greedy:
+     - immediate post-turn1 frontier also stayed close:
+       `top1 1116/1116`, `top5=5/5`, `top10=10/10`, `top20=19/20`,
+       `rms=0.24912345`
+     - after follow-up sync:
+       `8474` vs `267`, `top5=4/5`, `top10=7/10`, `top20=15/20`,
+       `rms=0.89044636`
+
+2. Sampled normal-eval is currently asymmetric rather than uniformly bad.
+   - `Metal -> CUDA`, sampled:
+     - follow-up frontier `8474` vs `8474`
+     - `top5=4/5`, `top10=8/10`, `top20=18/20`
+     - `rms=0.75249523`
+     - turn-two sampled tokens diverged
+   - `CUDA -> Metal`, sampled:
+     - follow-up frontier `8474` vs `8474`
+     - `top5=4/5`, `top10=8/10`, `top20=15/20`
+     - `rms=0.81043321`
+     - turn-two sampled tokens still matched exactly
+   - So the current four-cell matrix is not "all reused-session flows fail":
+     only one cell still preserves exact second-turn tokens, and it is the
+     sampled `CUDA -> Metal` path.
+
+3. DGX startup guard behavior is now a rerun caveat for Phase 5.5.
+   - Fresh `CUDA -> Metal` coordinator reruns on `2026-06-08` sometimes hit:
+     `cuda startup memory guard rejected model residency request`
+     even while `nvidia-smi` only showed desktop graphics processes.
+   - Using `DS4_DISABLE_STARTUP_MEMORY_GUARD=1` allowed the validation runs
+     to proceed.
+   - Treat that as an operational rerun caveat and a separate heuristic
+     problem, not as evidence about reusable-session accuracy.
+
+4. The current greedy mismatch is not between reused state and a fresh
+   decode-replay reference.
+   - An opt-in replay diagnostic added to
+     `tests/issue304_phase5_multiturn` reopened a third session, synced
+     only the initial user turn, replayed the generated assistant tokens
+     through `ds4_session_eval()`, then compared that session to the reused
+     one.
+   - On `Metal -> CUDA`, greedy:
+     - reused vs fresh full-transcript prefill still failed
+     - reused vs fresh decode replay matched exactly:
+       - post-turn1 `top5=5/5`, `top10=10/10`, `top20=20/20`, `rms=0`
+       - post-followup seed frontier
+         `top5=5/5`, `top10=10/10`, `top20=20/20`, `rms=0`
+   - On `CUDA -> Metal`, greedy:
+     - reused vs fresh full-transcript prefill still failed
+     - reused vs fresh decode replay also matched exactly:
+       - post-turn1 `top5=5/5`, `top10=10/10`, `top20=20/20`, `rms=0`
+       - post-followup seed frontier
+         `top5=5/5`, `top10=10/10`, `top20=20/20`, `rms=0`
+   - That narrows the leading explanation materially:
+     the current greedy Phase 5.5 issue is prefill-vs-decode divergence over
+     the assistant-generated turn, not inherent corruption of reused session
+     state.
+
+5. Local-only same-backend runs reproduce the same phase split without any
+   distributed handoff path.
+   - A new helper, `tests/issue304_phase55_prefill_vs_decode`, compares:
+     - fresh full-transcript prefill through the assistant turn
+     - against fresh token-by-token decode replay of the same assistant tokens
+   - Pure local Metal, greedy:
+     - turn1 `top5=5/5`, `top10=10/10`, `top20=20/20`, `rms=0.21581978`
+     - follow-up seed frontier `267` vs `8474`
+     - `top5=4/5`, `top10=6/10`, `top20=16/20`
+     - `rms=0.94414026`
+     - turn-two greedy tokens diverged
+   - Pure local CUDA, greedy:
+     - turn1 `top5=5/5`, `top10=10/10`, `top20=19/20`, `rms=0.29067111`
+     - follow-up seed frontier `267` vs `8474`
+     - `top5=4/5`, `top10=5/10`, `top20=14/20`
+     - `rms=0.91843081`
+     - turn-two greedy tokens diverged
+   - Pure local Metal, sampled:
+     - `top1 8474/8474`
+     - `top5=4/5`, `top10=8/10`, `top20=17/20`
+     - `rms=0.68071556`
+     - turn-two sampled tokens still matched exactly
+   - Pure local CUDA, sampled:
+     - `top1 8474/8474`
+     - `top5=4/5`, `top10=8/10`, `top20=15/20`
+     - `rms=0.84279537`
+     - turn-two sampled tokens still matched exactly
+   - This is the strongest attribution result in the phase:
+     the remaining differences survive even when the distributed route is
+     removed completely, so they are not caused by payload handoff,
+     coordinator catch-up integrity, or worker session reuse.
+
+### Implication
+
+Phase 5.5 closes on a bounded, defensible surface:
+
+- the fresh-worker Phase 5 ship path stays green,
+- the reusable-session issue is now fixed to a four-cell matrix,
+- and the remaining real misses now localize more specifically to the
+  difference between fresh full-transcript prefill and decode replay over
+  the assistant-generated turn, not to the initial worker-owned handoff
+  itself.
+
+That is sufficient to stop correctness chasing under Issue 304.
+Any follow-on work should be about:
+
+- practical benchmarking of prefill-vs-decode drift,
+- defining user-facing tolerance surfaces,
+- or future numerical-unification work if the product bar ever requires it.

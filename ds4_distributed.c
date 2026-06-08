@@ -4828,6 +4828,14 @@ static int dist_local_generate_remote(
     req.top_p_bits = dist_f32_bits(top_p);
     req.min_p_bits = dist_f32_bits(min_p);
     req.logits_bytes = logits_bytes;
+    DIST_COORD_DEBUG(&d->state,
+                     "ds4: distributed coordinator: local-generate request worker=%s:%u predict=%d trace=%s req_bytes=%zu logits_bytes=%u\n",
+                     entry->host,
+                     entry->port,
+                     n_predict,
+                     want_logits_trace ? "yes" : "no",
+                     sizeof(req),
+                     logits_bytes);
     ds4_dist_local_generate_req_fixed wire = req;
     dist_local_generate_req_to_wire(&wire);
 
@@ -8518,11 +8526,19 @@ static int dist_worker_handle_local_generate(
     const uint32_t logits_bytes = (uint32_t)((uint64_t)vocab * sizeof(float));
 
     if (bytes != sizeof(req) + logits_bytes) {
+        fprintf(stderr,
+                "ds4: distributed worker: invalid local-generate frame bytes=%u expected=%zu+%u\n",
+                bytes,
+                sizeof(req),
+                logits_bytes);
         dist_discard_bytes(upstream->fd, bytes);
         return -1;
     }
     int rc = dist_read_full(upstream->fd, &req, sizeof(req));
-    if (rc <= 0) return rc == 0 ? 0 : -1;
+    if (rc <= 0) {
+        fprintf(stderr, "ds4: distributed worker: failed to read local-generate request header\n");
+        return rc == 0 ? 0 : -1;
+    }
     dist_local_generate_req_from_wire(&req);
     request_id = dist_u64_from_halves(req.request_hi, req.request_lo);
     session_id = dist_u64_from_halves(req.session_hi, req.session_lo);
@@ -8548,6 +8564,7 @@ static int dist_worker_handle_local_generate(
         }
     }
     if (!err[0] && dist_read_full(upstream->fd, logits, logits_bytes) <= 0) {
+        fprintf(stderr, "ds4: distributed worker: failed to read local-generate logits body\n");
         free(logits);
         return -1;
     }
@@ -8645,6 +8662,11 @@ static int dist_worker_handle_local_generate(
                                            err[0] ? 1u : 0u,
                                            err);
     pthread_mutex_unlock(&upstream->write_mu);
+    if (err[0]) {
+        fprintf(stderr, "ds4: distributed worker: local-generate reject: %s\n", err);
+    } else if (rc <= 0) {
+        fprintf(stderr, "ds4: distributed worker: failed to send local-generate response\n");
+    }
     free(tokens);
     free(logits_trace);
     free(logits);

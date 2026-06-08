@@ -824,6 +824,85 @@ Exit gate:
 
 - A user-visible path can run distributed prefill and then local-only decode with measured speedup and correctness artifacts.
 
+### Phase 5.5: Bound accuracy follow-up and reusable-session parity
+
+Goal:
+
+- Why: Phase 5 closed the fresh-worker worker-owned local-decode workflow, but the research artifacts still record unresolved accuracy caveats around reused-session follow-up sync, route-dependent parity drift, and weak attribution between backend variance, fixture drift, and handoff-specific error.
+- What: tighten the acceptance surface for post-Phase-5 accuracy work, improve reusable-session follow-up behavior where practical, and classify the remaining misses well enough that later phases are not blocked on open-ended parity chasing.
+
+Expected artifacts:
+
+- Update `artifacts/issue-304/compatibility-matrix.md` with a Phase 5.5 section covering the fixed reusable-session matrix for both backend directions and both greedy/sampled follow-up runs.
+- Update `artifacts/issue-304/logit-comparisons.md` with reusable-session frontier metrics and any fresh-route versus reused-route parity deltas needed to attribute surviving drift.
+- Update `artifacts/issue-304/failure-cases.md` with any Phase 5.5 accuracy miss that remains a true rejection, and remove any case that is reclassified as bounded backend variance or fixture drift.
+- Update `artifacts/issue-304/decision-log.md` with the chosen Phase 5.5 acceptance thresholds, the final attribution buckets, and the explicit stop rule used to close the phase.
+- Update `artifacts/issue-304/research-notes.md` with what changed after the Phase 5 closeout, especially reusable-session findings and any fixture/baseline revisions.
+- Update `artifacts/issue-304/ds4-eval-matrix.md` only if the authoritative evaluator score delta changes materially after Phase 5.5 fixes.
+
+Code touchpoints:
+
+- `ds4_distributed.c`
+  - Worker-owned local-decode activation, follow-up sync, coordinator catch-up, token-hash/session-integrity checks, and reused-session state transitions.
+- `ds4.c`
+  - Session sync/eval/logits bookkeeping only if the reusable-session mismatch localizes below the distributed handoff layer.
+- `ds4_cli.c`, `ds4_server.c`, and `ds4_eval.c`
+  - Only if one frontend still bypasses the intended worker-owned path or preserves stale state across reused turns.
+- `tests/ds4_test.c`
+  - Extend the distributed local-decode regression surface for reusable-session follow-up parity or integrity failures.
+- Existing issue-304 helpers
+  - Reuse the focused Phase 3/3.5/5 harnesses before creating new broad matrices.
+
+Acceptance surface:
+
+- Fresh-worker one-shot worker-owned local decode remains the authoritative correctness baseline for the shipped workflow.
+- Reused-session follow-up accuracy is measured on a fixed matrix:
+  - `Metal -> CUDA` and `CUDA -> Metal`,
+  - one greedy follow-up path,
+  - one sampled follow-up path with fixed seeds,
+  - and the same prompt/transcript inputs across reused-versus-fresh comparisons.
+- Official-vector acceptance remains necessary but not sufficient.
+- The stored `local-golden` fixture is not treated as a pure local-Metal oracle unless it is first recalibrated and revalidated.
+- Bit-exact cross-backend logits are not a requirement for closure.
+
+Work items:
+
+- Reproduce the current reused-session follow-up drift on the fixed Phase 5.5 matrix and record the exact frontier metrics before changing behavior.
+- Audit the worker-owned follow-up flow for stale logits, stale coordinator KV, token timeline/hash drift, and worker reconnect contamination before treating any mismatch as backend variance.
+- Compare reused-route follow-up results against:
+  - the matching fresh full-transcript route on the same backend,
+  - the direct-generation backend baseline where relevant,
+  - and the known Phase 3.5 backend-variance/fixture-drift surfaces.
+- Fix any concrete state-management defect that explains reused-session drift, starting with the smallest coordinator/worker bookkeeping change that improves parity without weakening fail-closed integrity checks.
+- If a mismatch remains after state-management fixes, classify it into exactly one bucket:
+  - backend-specific long-prompt variance,
+  - `local-golden` fixture drift,
+  - or handoff/reuse-specific variance.
+- Preserve hard rejection for token-hash, payload-layout, reconnect, stale-session, or stale-KV integrity failures even if user-visible text still looks coherent.
+
+Exit gate:
+
+- Fresh-worker one-shot worker-owned local decode still passes the existing authoritative Phase 5 surface, including the full `ds4-eval --nothink` workflow without new official-vector regressions.
+- The fixed reusable-session Phase 5.5 matrix is fully populated for both backend directions and both greedy/sampled follow-up paths.
+- Reused-session follow-up behavior is either:
+  - improved enough to meet the declared Phase 5.5 thresholds on that matrix,
+  - or shown to be bounded non-integrity variance that does not produce prompt-control-flow breakage or clear answer-quality regressions.
+- Every surviving accuracy miss on the fixed matrix is attributed to exactly one bucket: backend variance, fixture drift, or handoff/reuse-specific variance.
+- No open reusable-session issue remains that points to stale coordinator KV, token-hash/session-integrity failure, payload-layout mismatch, or worker-reconnect contamination.
+- Do not block closure on bit-exact parity, elimination of every near-top1 flip, or turning the current `local-golden` fixture into a perfect canonical oracle.
+
+Closeout note:
+
+- Phase 5.5 is complete.
+- Reused-session follow-up differences were attributed to bounded
+  prefill-vs-decode numerical trajectory variance, not to handoff or
+  reused-state integrity failure.
+- The decisive proof was:
+  - replay diagnostics on the distributed matrix, where reused sessions
+    matched fresh decode-replay references exactly,
+  - plus local-only Metal and CUDA reproductions showing the same
+    prefill-vs-decode split without any distributed handoff path.
+
 ### Phase 6: Optimize with pipelined KV return
 
 Goal:

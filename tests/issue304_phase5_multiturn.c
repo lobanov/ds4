@@ -53,6 +53,13 @@ typedef struct {
     float top20_max_abs;
 } parity_metrics;
 
+typedef struct {
+    bool enabled;
+    ds4_session *session;
+    float *turn1_logits;
+    float *seed_logits;
+} replay_diag;
+
 static double now_sec(void) {
     struct timeval tv;
     gettimeofday(&tv, NULL);
@@ -566,6 +573,9 @@ int main(int argc, char **argv) {
     ds4_engine *engine = NULL;
     ds4_session *reused = NULL;
     ds4_session *fresh = NULL;
+    replay_diag replay = {
+        .enabled = getenv("DS4_PHASE5_DIAG_REPLAY") != NULL,
+    };
     ds4_tokens prompt1 = {0};
     ds4_tokens prompt1_turn1 = {0};
     ds4_tokens prompt2 = {0};
@@ -786,6 +796,84 @@ int main(int argc, char **argv) {
         goto cleanup;
     }
 
+    if (replay.enabled) {
+        ds4_session_free(fresh);
+        fresh = NULL;
+        ds4_engine_close(engine);
+        engine = NULL;
+
+        if (ds4_engine_open(&engine, &opt) != 0 || !engine) {
+            fprintf(stderr, "issue304-phase5-multiturn: failed to reopen engine for replay session\n");
+            goto cleanup;
+        }
+        if (!open_distributed_session(&cfg,
+                                      engine,
+                                      &replay.session,
+                                      route_summary,
+                                      sizeof(route_summary),
+                                      &route_hops,
+                                      &output_on_coordinator)) {
+            goto cleanup;
+        }
+        if (ds4_session_sync(replay.session, &prompt1, err, sizeof(err)) != 0) {
+            fprintf(stderr, "issue304-phase5-multiturn: replay-session prompt1 sync failed: %s\n",
+                    err[0] ? err : "unknown error");
+            goto cleanup;
+        }
+        for (int i = 0; i < turn1_visible; i++) {
+            if (ds4_session_eval(replay.session, turn1.tokens[i], err, sizeof(err)) != 0) {
+                fprintf(stderr, "issue304-phase5-multiturn: replay-session turn1 eval failed: %s\n",
+                        err[0] ? err : "unknown error");
+                goto cleanup;
+            }
+        }
+        replay.turn1_logits = malloc((size_t)vocab * sizeof(replay.turn1_logits[0]));
+        replay.seed_logits = malloc((size_t)vocab * sizeof(replay.seed_logits[0]));
+        if (!replay.turn1_logits || !replay.seed_logits) {
+            fprintf(stderr, "issue304-phase5-multiturn: out of memory for replay diagnostics\n");
+            goto cleanup;
+        }
+        if (ds4_session_copy_logits(replay.session, replay.turn1_logits, vocab) != vocab) {
+            fprintf(stderr, "issue304-phase5-multiturn: failed to copy replay turn1 logits\n");
+            goto cleanup;
+        }
+        parity_metrics replay_turn1_cmp =
+            compare_logits(replay.turn1_logits, reused_turn1_logits, vocab);
+        printf("PHASE5_MULTITURN_REPLAY_TURN1_ARGMAX replay=%d reused=%d\n",
+               ds4_session_argmax(replay.session),
+               reused_turn1_argmax);
+        printf("PHASE5_MULTITURN_REPLAY_TURN1_LOGITS top5=%d top10=%d top20=%d rms=%.8f max_abs=%.8f top20_max_abs=%.8f nonfinite=%d\n",
+               replay_turn1_cmp.top5_overlap,
+               replay_turn1_cmp.top10_overlap,
+               replay_turn1_cmp.top20_overlap,
+               replay_turn1_cmp.rms,
+               replay_turn1_cmp.max_abs,
+               replay_turn1_cmp.top20_max_abs,
+               replay_turn1_cmp.nonfinite);
+        if (ds4_session_sync(replay.session, &prompt2, err, sizeof(err)) != 0) {
+            fprintf(stderr, "issue304-phase5-multiturn: replay-session followup sync failed: %s\n",
+                    err[0] ? err : "unknown error");
+            goto cleanup;
+        }
+        if (ds4_session_copy_logits(replay.session, replay.seed_logits, vocab) != vocab) {
+            fprintf(stderr, "issue304-phase5-multiturn: failed to copy replay seed logits\n");
+            goto cleanup;
+        }
+        parity_metrics replay_seed_cmp =
+            compare_logits(replay.seed_logits, reused_seed_logits, vocab);
+        printf("PHASE5_MULTITURN_REPLAY_ARGMAX replay=%d reused=%d\n",
+               ds4_session_argmax(replay.session),
+               reused_argmax);
+        printf("PHASE5_MULTITURN_REPLAY_LOGITS top5=%d top10=%d top20=%d rms=%.8f max_abs=%.8f top20_max_abs=%.8f nonfinite=%d\n",
+               replay_seed_cmp.top5_overlap,
+               replay_seed_cmp.top10_overlap,
+               replay_seed_cmp.top20_overlap,
+               replay_seed_cmp.rms,
+               replay_seed_cmp.max_abs,
+               replay_seed_cmp.top20_max_abs,
+               replay_seed_cmp.nonfinite);
+    }
+
     printf("PHASE5_MULTITURN_TURN2 reused=");
     print_tokens(turn2_reused.tokens, turn2_reused.token_count);
     printf(" fresh=");
@@ -814,6 +902,8 @@ int main(int argc, char **argv) {
     rc = 0;
 
 cleanup:
+    free(replay.seed_logits);
+    free(replay.turn1_logits);
     free(fresh_seed_logits);
     free(reused_seed_logits);
     free(fresh_turn1_logits);
@@ -824,6 +914,7 @@ cleanup:
     ds4_tokens_free(&prompt2);
     ds4_tokens_free(&prompt1_turn1);
     ds4_tokens_free(&prompt1);
+    ds4_session_free(replay.session);
     ds4_session_free(fresh);
     ds4_session_free(reused);
     ds4_engine_close(engine);
