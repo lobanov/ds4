@@ -1181,6 +1181,114 @@ Exit gate:
 - If deferred, the plan records why the current coordinator-first topology is still acceptable after the first implementation lands.
 - If required, the plan identifies exactly which earlier assumptions in Phases 5-7 would need to be revisited.
 
+### Phase 10: Adaptive in-session routing for large appended frontiers
+
+Goal:
+
+- Why: agentic coding sessions do not grow smoothly. Many turns add only a small prompt delta, but some turns append whole files or large tool outputs. A fixed "always distributed prefill" or "always local prefill" policy is therefore likely to leave latency on the table.
+- What: design and validate a routing policy that decides, per turn, whether the new uncached frontier should be prefetched locally on the decode owner or through distributed prefill, using rolling measurements gathered from earlier prefills in the same live instance and topology.
+
+This phase assumes the reused-session state path is already correct enough to move KV ownership in either direction. The question here is not state integrity, but whether the next uncached frontier should stay local or switch to distributed prefill because the expected latency win is material.
+
+Expected artifacts:
+
+- Update `artifacts/issue-304/perf-breakdown.md` with crossover measurements for local-only versus distributed catch-up on appended frontiers.
+- Update `artifacts/issue-304/runbook.md` with the commands or harness needed to sweep appended-frontier sizes in a reused session.
+- Update `artifacts/issue-304/decision-log.md` with the selected routing rule, fallback rule, and any reasons a dynamic policy was rejected or narrowed.
+- Update `artifacts/issue-304/research-notes.md` with the measured crossover behavior and whether the best policy is route-specific, topology-specific, or backend-specific.
+- Create `artifacts/issue-304/adaptive-routing.md` if the design or telemetry model is substantial enough that it should not be buried inside the general notes.
+
+Code touchpoints:
+
+- `ds4_distributed.c`
+  - Reused-session catch-up entry points and route rebuild logic.
+  - Timing/telemetry surfaces for sync, prefill, handoff, and rebuild overhead.
+  - The route-selection point where a reused session decides whether the next uncached frontier stays local or becomes a distributed prefill.
+- `ds4.c`
+  - Session-side telemetry storage if the rolling cost model lives on the session or instance.
+  - Local-only catch-up timing surfaces if they are not already exposed cleanly.
+- `ds4.h`
+  - Any state needed for rolling performance estimates, confidence bands, or hysteresis.
+- `ds4_cli.c`
+  - Optional debug flags for forcing local-only catch-up, forcing distributed catch-up, dumping routing decisions, or disabling adaptive routing for controlled comparison.
+- `tests/issue304_phase5_multiturn.c` or a follow-on helper
+  - Reused-session benchmark harness that varies only the appended uncached frontier.
+
+Other entry points:
+
+- The current direct-link DGX/Mac topology and any later topologies that materially change the local-versus-distributed crossover point.
+- Session shapes where the transcript is mostly cached and a new file read or tool dump appends `100s` to `1000s` of new tokens at once.
+- Existing route directions separately:
+  - `CUDA -> Metal`
+  - `Metal -> CUDA`
+
+Candidate policy shape:
+
+- Base the decision on new uncached tokens, not total session length.
+- Keep a rolling in-instance cost model using recent measured turns:
+  - local-only catch-up throughput
+  - distributed prefill throughput
+  - follow-up sync sec
+  - KV handoff sec and throughput
+  - route rebuild or route-formation overhead where applicable
+- Estimate:
+  - `T_local(new_tokens)`
+  - `T_dist(new_tokens)`
+- Choose distributed only when:
+  - `T_dist + margin < T_local`
+- Use hysteresis so the session does not flap around the crossover point.
+- Bucket or separate the model by route direction and topology rather than assuming one universal threshold.
+
+Scope note:
+
+- Do not hard-code a single global threshold like `N=1000` unless the measurements show that a simple threshold is both stable and good enough.
+- Prefer an online cost model calibrated from the current live instance over a static token heuristic.
+- If the adaptive policy is too noisy or brittle, phase down to a per-route threshold with explicit logging rather than shipping an opaque predictor.
+
+Work items:
+
+- Add the telemetry needed to estimate local-only versus distributed catch-up cost from live turns.
+- Build a reused-session benchmark sweep that appends controlled frontiers, for example:
+  - `64`
+  - `128`
+  - `256`
+  - `512`
+  - `1024`
+  - `2048`
+  - `4096`
+  tokens of new uncached content.
+- Measure the crossover point separately for:
+  - `CUDA -> Metal`
+  - `Metal -> CUDA`
+- Compare at least these policies:
+  - always local catch-up
+  - always distributed catch-up
+  - static threshold policy
+  - rolling-cost adaptive policy
+- Record how often the adaptive policy would have chosen the wrong path relative to observed wall time.
+- Add debug output that makes each routing decision auditable:
+  - observed stats used
+  - predicted local cost
+  - predicted distributed cost
+  - selected path
+  - post-hoc actual cost
+- Define the safe fallback behavior when recent stats are missing, stale, or inconsistent.
+
+Exit gate:
+
+- There is an authoritative crossover matrix for appended uncached frontiers on the intended topology, split by route direction.
+- The plan records whether the best practical rule is:
+  - dynamic rolling-cost routing,
+  - a simple per-route threshold,
+  - or no adaptive switching because the crossover is too small or unstable.
+- The chosen rule is explainable from measured costs and has auditable debug output.
+- If adaptive routing remains justified, the plan identifies exactly where the decision is made in the session lifecycle and what fallback is used when telemetry is insufficient.
+- If adaptive routing is rejected, the artifacts explicitly say why:
+  - crossover too small,
+  - telemetry too noisy,
+  - excessive route flapping risk,
+  - or complexity not justified by measured wins.
+
 ### Current recommended path
 
 Start Phase 4 with the full-resident-final-worker probe and keep the merged `DSV4` payload as the first handoff boundary. Do not move into user-facing API shape, pipelined KV return, or topology decoupling until the final-worker residency workflow is either proven viable or rejected with measured memory/runtime evidence.
