@@ -10,6 +10,68 @@ This artifact records mismatches that should remain rejected during distributed-
 - Phase 4 added two new failure classes that must stay rejected:
   - unsafe second-process accelerator startup when free memory is already below the residency budget,
   - reused-worker lifecycle contamination where a later rerun can inherit stale state from an earlier coordinator connection.
+- Phase 7-8 closeout now treats the worker-owned local-decode workflow itself as
+  implemented and tested.
+- The authoritative remaining blocker set is now the fail-closed integrity and
+  capability boundaries listed below, plus the already-recorded historical fixed
+  failures.
+
+## Phase 7-8 authoritative workflow matrix
+
+### Hard rejects
+
+- `--local-decode` on a coordinator process
+  - Diagnostic: `--local-decode requires --role worker`
+  - Status: reject at distributed option validation before runtime.
+
+- `--local-decode` on a worker without `N:output`
+  - Diagnostic: `--local-decode requires --layers N:output`
+  - Status: reject before runtime because the worker would not own the output head.
+
+- local-decode handoff without an advertised local-decode worker
+  - Diagnostic: `distributed handoff requires worker local-decode capability`
+  - Status: reject at handoff time; the route exists, but the final worker did not advertise the needed capability.
+  - Closeout evidence: `2026-06-12` DGX/Mac `./ds4_test --local-decode-capability-reject` passed on route
+    `local 0:21 -> 10.77.0.1:58761 Q2 22:output`.
+
+- local-decode handoff to a route whose final worker does not own output logits
+  - Diagnostic: `distributed handoff requires worker-owned output head`
+  - Status: reject at handoff time; the workflow only supports final-worker decode.
+
+- pushed-shard or delegated-decode token timeline mismatch
+  - Diagnostics:
+    - `worker snapshot token hash mismatch`
+    - `snapshot load token hash mismatch`
+    - `worker local generate token hash mismatch`
+  - Status: fail closed; stale or mismatched worker state must not be reused silently.
+
+- worker/coordinator payload layout mismatch
+  - Diagnostic class: shard validation rejects mismatched `ctx`, `prefill_cap`, `raw_window`, `comp_cap`, layer range, or related payload metadata before accepting the shard.
+  - Status: preserve as a hard rejection; this is an integrity boundary, not a tolerable drift case.
+
+- worker request-state mismatch
+  - Diagnostic class: worker-side request validation now reports field-specific mismatch text for snapshot save, snapshot load, and local-generate requests, for example:
+    - `snapshot save request does not match worker state: field=model_id request=... worker=...`
+    - `snapshot load request does not match worker state: field=token_count request=... worker_ctx=...`
+    - `local generate request does not match worker state: field=logits_bytes request=... worker=...`
+  - Status: fail closed at the worker boundary; this is the preserved rejection class for stale or malformed request metadata.
+
+### Recovery and replay cases
+
+- worker disconnect after route formation
+  - Coordinator behavior: drop the active route and require a compatible worker to reconnect before the next distributed call can proceed.
+  - Worker behavior: clear stale sessions after coordinator disconnect and reconnect cleanly.
+  - Closeout evidence: the `2026-06-12` DGX/Mac positive and negative reruns logged:
+    - `cleared 1 sessions after coordinator disconnect`
+    - `coordinator disconnected; reconnecting`
+
+### Historical fixed failures
+
+- `phase5 ds4-eval CUDA -> Metal local-decode / old 60s socket timeout`
+  - Current status: fixed by raising the default distributed socket timeout to `600s`.
+
+- `phase4 DGX startup / second CUDA residency request while stale worker is still live`
+  - Current status: fixed by the explicit CUDA startup memory guard.
 
 ## Recorded Rejection Cases
 
@@ -76,35 +138,6 @@ This artifact records mismatches that should remain rejected during distributed-
       `distributed worker: protocol error: failed to read frame header: Resource temporarily unavailable`
   - Why rejected: the old default distributed socket timeout (`60s`) was shorter than a healthy one-shot local-decode answer generation in `ds4-eval`.
   - Current status: fixed by raising the default distributed socket timeout to `600s`; keep this recorded as the historical failure class that explained the reported “dies after 5-6 questions” blocker.
-
-## Phase 5 user-visible negative cases
-
-- `--local-decode` on a coordinator process
-  - Diagnostic: `--local-decode requires --role worker`
-  - Status: reject at distributed option validation before runtime.
-
-- `--local-decode` on a worker without `N:output`
-  - Diagnostic: `--local-decode requires --layers N:output`
-  - Status: reject before runtime because the worker would not own the output head.
-
-- local-decode handoff without an advertised local-decode worker
-  - Diagnostic: `distributed handoff requires worker local-decode capability`
-  - Status: reject at handoff time; the route exists, but the final worker did not advertise the needed capability.
-
-- local-decode handoff to a route whose final worker does not own output logits
-  - Diagnostic: `distributed handoff requires worker-owned output head`
-  - Status: reject at handoff time; the workflow only supports final-worker decode.
-
-- pushed-shard token timeline mismatch
-  - Diagnostics seen in protocol handlers:
-    - `worker snapshot token hash mismatch`
-    - `snapshot load token hash mismatch`
-    - `worker local generate token hash mismatch`
-  - Status: fail closed; stale or mismatched worker state must not be reused silently.
-
-- worker/coordinator payload layout mismatch
-  - Diagnostic class: snapshot layout validation rejects mismatched `prefill_cap`, layer range, or payload metadata before accepting the shard.
-  - Status: preserve as a hard rejection; this is an integrity boundary, not a tolerable drift case.
 
 ## Phase 4 closeout classification
 

@@ -2451,13 +2451,35 @@ static void test_server_unit_group(void) {
     ds4_server_unit_tests_run();
 }
 
-static void test_distributed_cli_parse(void) {
+static void test_distributed_cli_prepare_one(
+        char **argv,
+        int argc,
+        int expect_prep_rc,
+        const char *expect_err) {
     ds4_engine_options engine = {0};
-    char err[160];
+    char err[160] = {0};
+    ds4_dist_options *opt = ds4_dist_options_create();
+    TEST_ASSERT(opt != NULL);
+    if (!opt) return;
 
-    ds4_dist_options *worker = ds4_dist_options_create();
-    TEST_ASSERT(worker != NULL);
-    if (!worker) return;
+    for (int i = 1; i < argc; i++) {
+        ds4_dist_cli_parse_result rc = ds4_dist_parse_cli_arg(argv[i],
+                                                              &i,
+                                                              argc,
+                                                              argv,
+                                                              opt,
+                                                              err,
+                                                              sizeof(err));
+        TEST_ASSERT(rc == DS4_DIST_CLI_MATCHED);
+    }
+
+    const int prep_rc = ds4_dist_prepare_engine_options(opt, &engine, err, sizeof(err));
+    TEST_ASSERT(prep_rc == expect_prep_rc);
+    if (expect_err) TEST_ASSERT(strcmp(err, expect_err) == 0);
+    ds4_dist_options_free(opt);
+}
+
+static void test_distributed_cli_parse(void) {
     char *worker_argv[] = {
         "ds4",
         "--role", "worker",
@@ -2465,42 +2487,43 @@ static void test_distributed_cli_parse(void) {
         "--coordinator", "127.0.0.1", "9000",
         "--local-decode",
     };
-    for (int i = 1; i < (int)(sizeof(worker_argv) / sizeof(worker_argv[0])); i++) {
-        ds4_dist_cli_parse_result rc = ds4_dist_parse_cli_arg(worker_argv[i],
-                                                              &i,
-                                                              (int)(sizeof(worker_argv) / sizeof(worker_argv[0])),
-                                                              worker_argv,
-                                                              worker,
-                                                              err,
-                                                              sizeof(err));
-        TEST_ASSERT(rc == DS4_DIST_CLI_MATCHED);
-    }
-    TEST_ASSERT(worker->local_decode);
-    TEST_ASSERT(ds4_dist_prepare_engine_options(worker, &engine, err, sizeof(err)) == 0);
-    ds4_dist_options_free(worker);
+    test_distributed_cli_prepare_one(worker_argv,
+                                     (int)(sizeof(worker_argv) / sizeof(worker_argv[0])),
+                                     0,
+                                     NULL);
 
-    ds4_dist_options *invalid = ds4_dist_options_create();
-    TEST_ASSERT(invalid != NULL);
-    if (!invalid) return;
-    char *invalid_argv[] = {
+    char *worker_missing_output_argv[] = {
         "ds4",
         "--role", "worker",
         "--layers", "21:42",
         "--coordinator", "127.0.0.1", "9000",
         "--local-decode",
     };
-    for (int i = 1; i < (int)(sizeof(invalid_argv) / sizeof(invalid_argv[0])); i++) {
-        ds4_dist_cli_parse_result rc = ds4_dist_parse_cli_arg(invalid_argv[i],
-                                                              &i,
-                                                              (int)(sizeof(invalid_argv) / sizeof(invalid_argv[0])),
-                                                              invalid_argv,
-                                                              invalid,
-                                                              err,
-                                                              sizeof(err));
-        TEST_ASSERT(rc == DS4_DIST_CLI_MATCHED);
-    }
-    TEST_ASSERT(ds4_dist_prepare_engine_options(invalid, &engine, err, sizeof(err)) != 0);
-    ds4_dist_options_free(invalid);
+    test_distributed_cli_prepare_one(worker_missing_output_argv,
+                                     (int)(sizeof(worker_missing_output_argv) / sizeof(worker_missing_output_argv[0])),
+                                     1,
+                                     "--local-decode requires --layers N:output");
+
+    char *coordinator_local_decode_argv[] = {
+        "ds4",
+        "--role", "coordinator",
+        "--layers", "0:21",
+        "--listen", "127.0.0.1", "9000",
+        "--local-decode",
+    };
+    test_distributed_cli_prepare_one(coordinator_local_decode_argv,
+                                     (int)(sizeof(coordinator_local_decode_argv) / sizeof(coordinator_local_decode_argv[0])),
+                                     1,
+                                     "--local-decode requires --role worker");
+
+    char *missing_role_local_decode_argv[] = {
+        "ds4",
+        "--local-decode",
+    };
+    test_distributed_cli_prepare_one(missing_role_local_decode_argv,
+                                     (int)(sizeof(missing_role_local_decode_argv) / sizeof(missing_role_local_decode_argv[0])),
+                                     1,
+                                     "distributed options require --role coordinator or --role worker");
 }
 
 static bool test_distributed_env_enabled(void) {
@@ -2517,18 +2540,24 @@ static int test_env_int_or(const char *name, int fallback) {
     return (int)parsed;
 }
 
-static void test_distributed_local_decode_push(void) {
+static bool test_open_distributed_session_for_local_decode(
+        ds4_engine **engine_out,
+        ds4_session **session_out,
+        ds4_distributed_route_info *info_out,
+        char *summary,
+        size_t summary_len,
+        char *err,
+        size_t errlen) {
 #ifdef DS4_NO_GPU
-    fprintf(stderr, "ds4-test: local-decode push skip (GPU support is not compiled in)\n");
-    return;
+    (void)engine_out;
+    (void)session_out;
+    (void)info_out;
+    (void)summary;
+    (void)summary_len;
+    (void)err;
+    (void)errlen;
+    return false;
 #else
-    if (!test_distributed_env_enabled()) {
-        fprintf(stderr,
-                "ds4-test: local-decode push skip (set DS4_RUN_DISTRIBUTED_TEST=1 and run a worker for the configured coordinator listen host/port)\n");
-        return;
-    }
-
-    char err[256];
     const char *listen_host = getenv("DS4_TEST_DISTRIBUTED_LISTEN_HOST");
     if (!listen_host || !listen_host[0]) listen_host = "127.0.0.1";
     const int listen_port = test_env_int_or("DS4_TEST_DISTRIBUTED_LISTEN_PORT", 1234);
@@ -2553,48 +2582,81 @@ static void test_distributed_local_decode_push(void) {
         .listen_host = listen_host,
         .listen_port = listen_port,
     };
-    const int prep_rc = ds4_dist_prepare_engine_options(&dist_opt, &engine_opt, err, sizeof(err));
+    const int prep_rc = ds4_dist_prepare_engine_options(&dist_opt, &engine_opt, err, errlen);
     TEST_ASSERT(prep_rc == 0);
-    if (prep_rc != 0) {
-        fprintf(stderr, "ds4-test: local-decode push setup failed: %s\n", err);
+    if (prep_rc != 0) return false;
+
+    ds4_engine *engine = NULL;
+    TEST_ASSERT(ds4_engine_open(&engine, &engine_opt) == 0);
+    if (!engine) return false;
+
+    ds4_session *session = NULL;
+    TEST_ASSERT(ds4_session_create(&session, engine, 2048) == 0);
+    if (!session) {
+        ds4_engine_close(engine);
+        return false;
+    }
+
+    int route_rc = 0;
+    ds4_distributed_route_info info = {0};
+    for (int i = 0; i < route_wait_tries; i++) {
+        route_rc = ds4_session_distributed_route_info(session,
+                                                      &info,
+                                                      summary,
+                                                      summary_len,
+                                                      err,
+                                                      errlen);
+        if (route_rc != 0) break;
+        usleep(100000);
+    }
+    if (route_rc != 1) {
+        ds4_session_free(session);
+        ds4_engine_close(engine);
+        return false;
+    }
+
+    if (engine_out) *engine_out = engine;
+    if (session_out) *session_out = session;
+    if (info_out) *info_out = info;
+    return true;
+#endif
+}
+
+static void test_distributed_local_decode_push(void) {
+#ifdef DS4_NO_GPU
+    fprintf(stderr, "ds4-test: local-decode push skip (GPU support is not compiled in)\n");
+    return;
+#else
+    if (!test_distributed_env_enabled()) {
+        fprintf(stderr,
+                "ds4-test: local-decode push skip (set DS4_RUN_DISTRIBUTED_TEST=1 and run a worker for the configured coordinator listen host/port)\n");
         return;
     }
 
+    char err[256] = {0};
+    const char *listen_host = getenv("DS4_TEST_DISTRIBUTED_LISTEN_HOST");
+    if (!listen_host || !listen_host[0]) listen_host = "127.0.0.1";
+    const int listen_port = test_env_int_or("DS4_TEST_DISTRIBUTED_LISTEN_PORT", 1234);
     ds4_engine *engine = NULL;
     ds4_session *session = NULL;
     ds4_tokens prompt = {0};
     ds4_distributed_route_info info = {0};
     char summary[256] = {0};
-
-    TEST_ASSERT(ds4_engine_open(&engine, &engine_opt) == 0);
-    if (!engine) return;
-
-    TEST_ASSERT(ds4_session_create(&session, engine, 2048) == 0);
-    if (!session) {
-        ds4_engine_close(engine);
-        return;
-    }
-
     int route_rc = 0;
-    for (int i = 0; i < route_wait_tries; i++) {
-        route_rc = ds4_session_distributed_route_info(session,
-                                                      &info,
-                                                      summary,
-                                                      sizeof(summary),
-                                                      err,
-                                                      sizeof(err));
-        if (route_rc != 0) break;
-        usleep(100000);
-    }
-    if (route_rc != 1) {
+
+    if (!test_open_distributed_session_for_local_decode(&engine,
+                                                        &session,
+                                                        &info,
+                                                        summary,
+                                                        sizeof(summary),
+                                                        err,
+                                                        sizeof(err))) {
         fprintf(stderr,
                 "ds4-test: local-decode push skip (%s; listen=%s:%d wait_ms=%d)\n",
                 err[0] ? err : "distributed route is not ready",
-                listen_host,
-                listen_port,
-                route_wait_ms);
-        ds4_session_free(session);
-        ds4_engine_close(engine);
+                getenv("DS4_TEST_DISTRIBUTED_LISTEN_HOST") ? getenv("DS4_TEST_DISTRIBUTED_LISTEN_HOST") : "127.0.0.1",
+                test_env_int_or("DS4_TEST_DISTRIBUTED_LISTEN_PORT", 1234),
+                test_env_int_or("DS4_TEST_DISTRIBUTED_ROUTE_WAIT_MS", 30000));
         return;
     }
 
@@ -2696,6 +2758,89 @@ static void test_distributed_local_decode_push(void) {
 #endif
 }
 
+static void test_distributed_local_decode_capability_reject(void) {
+#ifdef DS4_NO_GPU
+    fprintf(stderr, "ds4-test: local-decode capability reject skip (GPU support is not compiled in)\n");
+    return;
+#else
+    if (!test_distributed_env_enabled()) {
+        fprintf(stderr,
+                "ds4-test: local-decode capability reject skip (set DS4_RUN_DISTRIBUTED_TEST=1 and run a worker without --local-decode for the configured coordinator listen host/port)\n");
+        return;
+    }
+
+    char err[256] = {0};
+    ds4_engine *engine = NULL;
+    ds4_session *session = NULL;
+    ds4_tokens prompt = {0};
+    ds4_distributed_route_info info = {0};
+    char summary[256] = {0};
+
+    if (!test_open_distributed_session_for_local_decode(&engine,
+                                                        &session,
+                                                        &info,
+                                                        summary,
+                                                        sizeof(summary),
+                                                        err,
+                                                        sizeof(err))) {
+        fprintf(stderr,
+                "ds4-test: local-decode capability reject skip (%s; listen=%s:%d wait_ms=%d)\n",
+                err[0] ? err : "distributed route is not ready",
+                getenv("DS4_TEST_DISTRIBUTED_LISTEN_HOST") ? getenv("DS4_TEST_DISTRIBUTED_LISTEN_HOST") : "127.0.0.1",
+                test_env_int_or("DS4_TEST_DISTRIBUTED_LISTEN_PORT", 1234),
+                test_env_int_or("DS4_TEST_DISTRIBUTED_ROUTE_WAIT_MS", 30000));
+        return;
+    }
+
+    TEST_ASSERT(info.route_hops == 1);
+    TEST_ASSERT(!info.local_decode_expected);
+    TEST_ASSERT(!info.local_decode_active);
+
+    ds4_encode_chat_prompt(engine,
+                           "",
+                           "Reply with exactly one short word about distributed inference.",
+                           DS4_THINK_NONE,
+                           &prompt);
+    TEST_ASSERT(prompt.len > 0);
+    const int sync_rc = ds4_session_sync(session, &prompt, err, sizeof(err));
+    TEST_ASSERT(sync_rc == 0);
+    if (sync_rc != 0) {
+        fprintf(stderr, "ds4-test: local-decode capability reject sync failed: %s\n", err);
+        ds4_tokens_free(&prompt);
+        ds4_session_free(session);
+        ds4_engine_close(engine);
+        return;
+    }
+
+    int generated[2] = {0};
+    double shard_load_sec = 0.0;
+    double decode_sec = 0.0;
+    err[0] = '\0';
+    const int produced = ds4_session_distributed_handoff_argmax(session,
+                                                                1,
+                                                                generated,
+                                                                2,
+                                                                &shard_load_sec,
+                                                                &decode_sec,
+                                                                err,
+                                                                sizeof(err));
+    TEST_ASSERT(produced < 0);
+    TEST_ASSERT(strcmp(err, "distributed handoff requires worker local-decode capability") == 0);
+    TEST_ASSERT(!info.local_decode_active);
+
+    fprintf(stderr,
+            "ds4-test: local-decode capability reject pass listen=%s route=\"%s\" hops=%u err=\"%s\"\n",
+            getenv("DS4_TEST_DISTRIBUTED_LISTEN_HOST") ? getenv("DS4_TEST_DISTRIBUTED_LISTEN_HOST") : "127.0.0.1",
+            summary,
+            info.route_hops,
+            err);
+
+    ds4_tokens_free(&prompt);
+    ds4_session_free(session);
+    ds4_engine_close(engine);
+#endif
+}
+
 typedef void (*test_fn)(void);
 
 typedef struct {
@@ -2720,6 +2865,7 @@ static const ds4_test_entry test_entries[] = {
     {"--server", "server", "server parser/rendering/cache unit tests", test_server_unit_group},
     {"--dist-cli-parse", "dist-cli-parse", "distributed CLI parsing and --local-decode validation", test_distributed_cli_parse},
     {"--local-decode-push", "local-decode-push", "distributed worker-owned local-decode handoff smoke (skips unless DS4_RUN_DISTRIBUTED_TEST=1)", test_distributed_local_decode_push},
+    {"--local-decode-capability-reject", "local-decode-capability-reject", "distributed handoff rejects a worker route that does not advertise local-decode capability", test_distributed_local_decode_capability_reject},
 };
 
 static void test_print_help(const char *prog) {

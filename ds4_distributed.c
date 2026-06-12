@@ -8266,6 +8266,78 @@ static int dist_temp_file(const char *prefix, char *path, size_t path_len, FILE 
     return 0;
 }
 
+static int dist_worker_state_field_mismatch_message(
+        const char *scope,
+        const char *field,
+        uint32_t request_value,
+        const char *worker_label,
+        uint32_t worker_value,
+        char *err,
+        size_t errlen) {
+    if (!errlen) return 1;
+    snprintf(err,
+             errlen,
+             "%s does not match worker state: field=%s request=%u %s=%u",
+             scope ? scope : "request",
+             field ? field : "unknown",
+             request_value,
+             worker_label ? worker_label : "worker",
+             worker_value);
+    return 1;
+}
+
+static int dist_worker_snapshot_request_mismatch_message(
+        const char *scope,
+        uint32_t request_model_id,
+        uint32_t worker_model_id,
+        uint32_t request_token_count,
+        uint32_t worker_ctx,
+        bool check_layers,
+        uint32_t request_layer_start,
+        uint32_t request_layer_end,
+        uint32_t worker_layer_start,
+        uint32_t worker_layer_end,
+        char *err,
+        size_t errlen) {
+    if (request_model_id != worker_model_id) {
+        return dist_worker_state_field_mismatch_message(scope,
+                                                        "model_id",
+                                                        request_model_id,
+                                                        "worker",
+                                                        worker_model_id,
+                                                        err,
+                                                        errlen);
+    }
+    if (request_token_count > worker_ctx) {
+        return dist_worker_state_field_mismatch_message(scope,
+                                                        "token_count",
+                                                        request_token_count,
+                                                        "worker_ctx",
+                                                        worker_ctx,
+                                                        err,
+                                                        errlen);
+    }
+    if (check_layers && request_layer_start != worker_layer_start) {
+        return dist_worker_state_field_mismatch_message(scope,
+                                                        "layer_start",
+                                                        request_layer_start,
+                                                        "worker",
+                                                        worker_layer_start,
+                                                        err,
+                                                        errlen);
+    }
+    if (check_layers && request_layer_end != worker_layer_end) {
+        return dist_worker_state_field_mismatch_message(scope,
+                                                        "layer_end",
+                                                        request_layer_end,
+                                                        "worker",
+                                                        worker_layer_end,
+                                                        err,
+                                                        errlen);
+    }
+    return 0;
+}
+
 static int dist_worker_handle_snapshot_save(
         ds4_dist_worker_state *state,
         ds4_dist_worker_upstream *upstream,
@@ -8301,12 +8373,18 @@ static int dist_worker_handle_snapshot_save(
     char tmp_path[PATH_MAX];
     uint64_t payload_bytes = 0;
 
-    if (req.model_id != state->model_id ||
-        req.layer_start != state->layer_start ||
-        req.layer_end != state->layer_end ||
-        req.token_count > (uint32_t)state->ctx_size) {
-        snprintf(err, sizeof(err), "snapshot save request does not match worker state");
-    } else {
+    if (dist_worker_snapshot_request_mismatch_message("snapshot save request",
+                                                      req.model_id,
+                                                      state->model_id,
+                                                      req.token_count,
+                                                      (uint32_t)state->ctx_size,
+                                                      true,
+                                                      req.layer_start,
+                                                      req.layer_end,
+                                                      state->layer_start,
+                                                      state->layer_end,
+                                                      err,
+                                                      sizeof(err)) == 0) {
         pthread_mutex_lock(&state->mu);
         ds4_dist_worker_session *session = dist_worker_find_session_locked(state, session_id);
         if (!session) {
@@ -8446,13 +8524,19 @@ static int dist_worker_handle_snapshot_load(
         snprintf(err, sizeof(err), "snapshot load token hash mismatch");
     }
     const bool full_resident_worker = state->full_resident;
-    if (!err[0] &&
-        (begin.model_id != state->model_id ||
-         begin.token_count > (uint32_t)state->ctx_size ||
-         (!full_resident_worker &&
-          (begin.layer_start != state->layer_start ||
-           begin.layer_end != state->layer_end)))) {
-        snprintf(err, sizeof(err), "snapshot load request does not match worker state");
+    if (!err[0]) {
+        (void)dist_worker_snapshot_request_mismatch_message("snapshot load request",
+                                                            begin.model_id,
+                                                            state->model_id,
+                                                            begin.token_count,
+                                                            (uint32_t)state->ctx_size,
+                                                            !full_resident_worker,
+                                                            begin.layer_start,
+                                                            begin.layer_end,
+                                                            state->layer_start,
+                                                            state->layer_end,
+                                                            err,
+                                                            sizeof(err));
     }
 
     ds4_dist_snapshot_stream_reader reader = {
@@ -8550,9 +8634,24 @@ static int dist_worker_handle_local_generate(
     const float min_p = dist_f32_from_bits(req.min_p_bits);
     const bool want_logits_trace =
         (req.flags & DS4_DIST_LOCAL_GENERATE_F_LOGITS_TRACE) != 0u;
-    if (req.model_id != state->model_id || req.logits_bytes != logits_bytes) {
+    if (req.model_id != state->model_id) {
         dist_discard_bytes(upstream->fd, bytes - (uint32_t)sizeof(req));
-        snprintf(err, sizeof(err), "local generate request does not match worker state");
+        dist_worker_state_field_mismatch_message("local generate request",
+                                                 "model_id",
+                                                 req.model_id,
+                                                 "worker",
+                                                 state->model_id,
+                                                 err,
+                                                 sizeof(err));
+    } else if (req.logits_bytes != logits_bytes) {
+        dist_discard_bytes(upstream->fd, bytes - (uint32_t)sizeof(req));
+        dist_worker_state_field_mismatch_message("local generate request",
+                                                 "logits_bytes",
+                                                 req.logits_bytes,
+                                                 "worker",
+                                                 logits_bytes,
+                                                 err,
+                                                 sizeof(err));
     }
 
     float *logits = NULL;

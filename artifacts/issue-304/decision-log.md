@@ -850,3 +850,53 @@ Default follow-on:
 - If more optimization work is needed, target distributed prefill or the
   follow-up sync path first, and only reopen KV pipelining if future data
   crosses the materiality rule in `PLAN.md`.
+
+## 2026-06-12: Close Phase 7-8 on the shipped worker-owned local-decode workflow
+
+Decision:
+
+- Close the combined Phase 7-8 hardening and documentation pass.
+- Treat Issue 304 as closed on the current worker-owned local-decode workflow.
+- Keep topology decoupling and any later KV-pipeline work explicitly deferred.
+
+Evidence:
+
+- Local `./ds4_test --dist-cli-parse` passed after the CLI validation test was
+  tightened to assert exact `--local-decode` rejection text.
+- DGX `./ds4_test --dist-cli-parse` also passed after syncing the updated test
+  source.
+- Fresh June 12, 2026 DGX/Mac positive handoff smoke passed on the rebuilt
+  code:
+  - route `local 0:21 -> 10.77.0.1:59183 Q2 22:output`
+  - `local_decode_active=yes`
+  - first handoff `2`
+  - reuse eval `1`
+  - second handoff `1`
+  - KV handoff `0.020 s`
+  - decode windows `0.057 s` and `0.026 s`
+- Fresh June 12, 2026 DGX/Mac runtime negative-path smoke also passed:
+  - worker owned `22:output` but did not advertise `--local-decode`
+  - route `local 0:21 -> 10.77.0.1:58761 Q2 22:output`
+  - exact rejection:
+    `distributed handoff requires worker local-decode capability`
+- Worker-side diagnostics for snapshot save, snapshot load, and local-generate
+  mismatches are now field-specific instead of a generic worker-state mismatch.
+- The DGX runbook caveat is now explicit: remote `ds4_test` commands should set
+  `DS4_TEST_MODEL=...` because `ds4flash.gguf` there may be a broken symlink to
+  a macOS path.
+
+Why this closes the phase:
+
+- The shipped workflow now has both:
+  - a passing positive distributed handoff smoke,
+  - and a passing runtime capability reject for a real multi-host negative path.
+- The preserved fail-closed boundaries are documented in one place and match
+  the tested behavior.
+- The remaining work is no longer about closing correctness or integrity gaps in
+  the current workflow.
+
+Deferred follow-on:
+
+- Topology decoupling remains the next architectural follow-on.
+- KV pipelining stays deferred unless future profiling on the intended topology
+  shows the existing handoff cost has become materially limiting.

@@ -349,7 +349,23 @@ after prefill the coordinator pushes its KV shard to the final worker and the
 worker finishes generation locally using full model residency. This is the
 Phase 5 handoff workflow: it keeps the distributed prefill speedup while moving
 decode back onto one machine. See `artifacts/issue-304/runbook.md` for the
-authoritative commands and current caveats.
+authoritative commands and current caveats. The contract for this path is:
+
+- `--local-decode` is worker-only and requires that worker to own `N:output`.
+- The coordinator only activates worker-local decode when the final worker has
+  explicitly advertised that capability during route formation.
+- Distributed participants should be built from the same commit and must agree
+  on the session layout that matters for the handoff: context size, KV layout,
+  layer ownership, and model identity.
+- Stale or mismatched state fails closed. Missing worker capability, missing
+  output-head ownership, token-prefix hash mismatch, and shard-layout mismatch
+  are rejection boundaries, not soft warnings.
+- If a worker disconnects, the coordinator drops the route and can replay the
+  transcript onto a replacement route when available; it must not silently
+  reuse stale worker KV.
+- Deferred follow-on work remains exactly that: topology decoupling and
+  pipelined KV return are not part of the shipped worker-owned local-decode
+  workflow.
 
 Useful tuning and diagnostics:
 

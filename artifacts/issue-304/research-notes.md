@@ -15,7 +15,67 @@ This file tracks phase-wise findings for the staged investigation in `PLAN.md`.
 | Phase 5 | Complete | Fresh-worker worker-owned local decode is now implemented on the real DGX/Mac topology, covered by `ds4`, `ds4_server`, `ds4-eval --nothink`, and the distributed regression, and is no longer blocked by the original issue. |
 | Phase 5.5 | Complete | Reused-session differences are now classified as bounded prefill-vs-decode variance. Replay diagnostics ruled out reused-state corruption, and local-only Metal/CUDA reproductions showed the same trajectory split without distributed handoff. |
 | Phase 6 | Complete | June 8, 2026 profiling now covers both `CUDA -> Metal` and `Metal -> CUDA` on the `10.77.0.1 <-> 10.77.0.2` direct link. One-shot runs remain strongly prefill-bound across short through very-long prompts, follow-up turns are shaped more by sync or decode than by KV return, and pipelined KV return is still not justified by the direct-link data. |
+| Phase 7-8 | Complete | Closeout hardening is now done for the shipped workflow: worker-state mismatch diagnostics are field-specific, exact CLI rejection coverage is locked down, the DGX/Mac runtime capability reject and positive handoff smoke both pass, and the issue artifacts now document the fail-closed boundary and current deferred work. |
 | Later phases | Deferred / re-scoped | Pipelined KV return stays deferred unless profiling across the intended deployment topology shows handoff cost is still materially limiting. Topology decoupling remains a later follow-on. |
+
+## Phase 7-8: Failure hardening and closeout
+
+### What was completed
+
+- Added field-specific worker-state mismatch diagnostics for snapshot save,
+  snapshot load, and local-generate requests.
+- Extended `./ds4_test --dist-cli-parse` so it asserts the exact
+  `--local-decode` validation errors rather than only expecting a generic
+  failure.
+- Added `./ds4_test --local-decode-capability-reject` as the authoritative
+  runtime negative-path check for "worker owns `N:output` but did not advertise
+  local decode".
+- Re-ran the DGX/Mac positive handoff smoke and the new runtime negative-path
+  reject on the direct-link topology.
+- Updated `README.md`, `runbook.md`, `failure-cases.md`, and `decision-log.md`
+  so the worker-owned local-decode contract, rejection boundaries, and deferred
+  work use the same final status language.
+
+### Findings
+
+1. The shipped worker-owned local-decode workflow now has an explicit,
+   tested capability boundary.
+   - DGX coordinator + Mac worker without `--local-decode` now passes the
+     dedicated runtime reject test with the expected exact error:
+     `distributed handoff requires worker local-decode capability`.
+   - That closes the gap between CLI parse coverage and actual handoff-time
+     capability rejection.
+
+2. The positive handoff workflow still passes after the closeout hardening.
+   - Fresh June 12, 2026 DGX/Mac rerun:
+     - route `local 0:21 -> 10.77.0.1:59183 Q2 22:output`
+     - `local_decode_active=yes`
+     - first handoff `2`
+     - reuse eval `1`
+     - second handoff `1`
+   - So the guard and test additions did not regress the proven Phase 5 path.
+
+3. Worker-side mismatch diagnostics are now specific enough to be operationally
+   useful.
+   - Snapshot save, snapshot load, and local-generate request mismatches now
+     identify the first mismatching field rather than only saying the request
+     did not match worker state.
+   - This is the intended Phase 7 hardening outcome for stale or malformed
+     worker-bound request metadata.
+
+4. The DGX test environment has one reproducible caveat that now belongs in the
+   runbook, not in the blocker set.
+   - The DGX-side `ds4flash.gguf` symlink may point at a macOS path and fail
+     under `ds4_test`.
+   - The authoritative remote test commands now set `DS4_TEST_MODEL=...`
+     explicitly.
+
+5. The remaining work after Issue 304 is no longer handoff correctness or
+   closeout hardening.
+   - The active deferred work is still:
+     - topology decoupling,
+     - and any later optimization work such as revisiting KV pipelining only
+       if future measurements justify it.
 
 ## Phase 6: Profile bottlenecks on the practical workflow
 

@@ -9,6 +9,8 @@ validation:
   the user-visible workflow,
 - `--local-decode` belongs on the worker that owns `N:output`,
 - `--local-decode` implies full worker residency,
+- coordinator and worker should be built from the same commit and use matching
+  session layout knobs such as `--ctx`,
 - for strict `CUDA -> Metal` checks, start a fresh Metal worker process,
 - for `Metal -> CUDA`, a reused CUDA worker remains acceptable coverage,
 - pass `--debug` on the coordinator to record the KV handoff timing line.
@@ -266,6 +268,14 @@ Current limitation:
 
 The Phase 5 regression is now runnable on the real DGX/Mac topology.
 
+DGX note:
+
+- The DGX-side `ds4flash.gguf` symlink may point at a macOS path and fail under
+  `ds4_test`.
+- For remote `ds4_test` commands, pass
+  `DS4_TEST_MODEL=/home/ilo037/ds4/gguf/DeepSeek-V4-Flash-IQ2XXS-w2Q2K-AProjQ8-SExpQ8-OutQ8-chat-v2-imatrix.gguf`
+  explicitly.
+
 Local Metal worker:
 
 ```sh
@@ -275,7 +285,7 @@ Local Metal worker:
 DGX coordinator regression:
 
 ```sh
-ssh dgx-direct 'cd ~/ds4 && DS4_RUN_DISTRIBUTED_TEST=1 DS4_TEST_DISTRIBUTED_LISTEN_HOST=0.0.0.0 DS4_TEST_DISTRIBUTED_LISTEN_PORT=1234 DS4_TEST_DISTRIBUTED_ROUTE_WAIT_MS=60000 ./ds4_test --local-decode-push'
+ssh dgx-direct 'cd ~/ds4 && DS4_TEST_MODEL=/home/ilo037/ds4/gguf/DeepSeek-V4-Flash-IQ2XXS-w2Q2K-AProjQ8-SExpQ8-OutQ8-chat-v2-imatrix.gguf DS4_RUN_DISTRIBUTED_TEST=1 DS4_TEST_DISTRIBUTED_LISTEN_HOST=0.0.0.0 DS4_TEST_DISTRIBUTED_LISTEN_PORT=1234 DS4_TEST_DISTRIBUTED_ROUTE_WAIT_MS=60000 ./ds4_test --local-decode-push'
 ```
 
 Good output now includes:
@@ -283,6 +293,59 @@ Good output now includes:
 ```text
 ds4-test: local-decode push pass listen=0.0.0.0:1234 route="local 0:21 -> ... Q2 22:output" hops=1 local_decode_active=yes first_handoff=2 reuse_eval=1 second_handoff=1
 ```
+
+Authoritative 2026-06-12 rerun:
+
+- Route: `local 0:21 -> 10.77.0.1:59183 Q2 22:output`
+- Result: pass
+- KV handoff: `0.020 s`
+- First local decode window: `0.057 s`
+- Second local decode window: `0.026 s`
+
+### `ds4_test --local-decode-capability-reject` regression command
+
+This is the authoritative runtime negative-path check for "worker owns
+`N:output` but did not advertise `--local-decode`".
+
+Local Metal worker without `--local-decode`:
+
+```sh
+./ds4 --ctx 2048 --role worker --layers 22:output --coordinator dgx-direct 1234
+```
+
+DGX coordinator regression:
+
+```sh
+ssh dgx-direct 'cd ~/ds4 && DS4_TEST_MODEL=/home/ilo037/ds4/gguf/DeepSeek-V4-Flash-IQ2XXS-w2Q2K-AProjQ8-SExpQ8-OutQ8-chat-v2-imatrix.gguf DS4_RUN_DISTRIBUTED_TEST=1 DS4_TEST_DISTRIBUTED_LISTEN_HOST=0.0.0.0 DS4_TEST_DISTRIBUTED_LISTEN_PORT=1234 DS4_TEST_DISTRIBUTED_ROUTE_WAIT_MS=60000 ./ds4_test --local-decode-capability-reject'
+```
+
+Good output now includes:
+
+```text
+ds4-test: local-decode capability reject pass listen=0.0.0.0 route="local 0:21 -> ... Q2 22:output" hops=1 err="distributed handoff requires worker local-decode capability"
+```
+
+Authoritative 2026-06-12 rerun:
+
+- Route: `local 0:21 -> 10.77.0.1:58761 Q2 22:output`
+- Result: pass
+- Exact rejection:
+  `distributed handoff requires worker local-decode capability`
+
+### Reconnect cleanup observation
+
+The local worker should explicitly drop stale session state after the DGX test
+coordinator exits. After the 2026-06-12 positive and negative reruns, the Mac
+worker logged:
+
+```text
+ds4: distributed worker: cleared 1 sessions after coordinator disconnect
+ds4: distributed worker: coordinator disconnected; reconnecting
+```
+
+Treat this as the current closeout evidence that disconnect cleanup is active
+on the worker side. It is not a proof of every replay path, but it is the
+expected log signature for the tested one-worker route.
 
 ### `ds4-eval` explicit local-decode commands
 

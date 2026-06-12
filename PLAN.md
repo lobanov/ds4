@@ -982,93 +982,96 @@ Exit gate:
   - reopen KV pipelining only if handoff is consistently a major contributor, such as roughly `>10%` of end-to-end latency on long-prompt runs or roughly `>25%` of first-token latency on short-prompt runs, or if it is the dominant bottleneck in multi-turn follow-up behavior.
 - Do not close the phase with raw timing tables alone; the closeout must include an explicit bottleneck conclusion and a recommended follow-on target.
 
-### Phase 7: Failure handling and recovery
+### Phase 7-8: Failure hardening and closeout documentation
 
 Goal:
 
-- Why: a local decode handoff turns distributed worker KV into trusted local generation state, so stale, incomplete, or mismatched shards must fail closed.
-- What: validate and harden rejection paths for token/hash, model, route, layer range, context, output-head, reconnect, and shard metadata mismatches, with reproducible negative artifacts.
+- Why: the worker-owned local-decode workflow is now implemented and profiled, so the remaining issue-304 work is to make its failure boundaries explicit, fail closed on stale or mismatched state, and leave a durable operator and engineering record of what shipped versus what stayed deferred.
+- What: run one combined closeout pass that hardens rejection and recovery behavior, normalizes the authoritative failure matrix, and updates user-facing and research documentation so the final implementation state is unambiguous.
+
+Scope and non-goals:
+
+- This phase is about the current worker-owned local-decode workflow only.
+- Do not treat bounded Phase 3.5 or Phase 5.5 numerical variance as a fresh correctness blocker unless new evidence shows stale state, payload corruption, or protocol misuse.
+- Do not reopen pipelined KV return here; Phase 6 already re-scoped that decision.
+- Do not let topology decoupling or coordinator-owned local decode work block this closeout phase.
 
 Expected artifacts:
 
-- Update `artifacts/issue-304/failure-cases.md` with each negative case, expected rejection, observed error text, and reproduction command.
-- Update `artifacts/issue-304/runbook.md` with fault-injection or manual failure procedures.
-- Update `artifacts/issue-304/decision-log.md` if a failure mode forces an API or protocol change.
-- Update `artifacts/issue-304/research-notes.md` with any failure findings that materially change the implementation direction.
+- Update `artifacts/issue-304/failure-cases.md` into the authoritative failure matrix for the shipped workflow.
+- Update `artifacts/issue-304/runbook.md` with exact negative-path and recovery commands, alongside the known-good Phase 5 and Phase 6 commands.
+- Update `artifacts/issue-304/decision-log.md` with the final issue-304 closeout decisions, especially which failures remain hard rejects and which open questions are now deferred.
+- Update `artifacts/issue-304/research-notes.md` with a final closeout summary for the issue: implemented workflow, accepted caveats, preserved rejection cases, and deferred follow-on work.
+- Update `README.md` with the final user-visible workflow, required invariants, fail-closed behavior, and the practical "what is deferred" notes.
+- Keep this `PLAN.md` accurate if any closeout finding invalidates a staged assumption.
 
 Code touchpoints:
 
 - `ds4_distributed.c`
-  - `dist_kv_route_validate()`: route/layer coverage validation.
-  - `dist_worker_handle_snapshot_save()`: token hash and worker session validation.
-  - `dist_worker_handle_snapshot_load()`: load rejection behavior.
-  - `dist_coordinator_rebuild_from_transcript()`: route rebuild behavior before/after handoff.
+  - `dist_kv_route_validate()`: route and layout mismatch handling.
+  - `dist_worker_handle_snapshot_save()`: token hash, session identity, and worker-state validation on shard export.
+  - `dist_worker_handle_snapshot_load()`: streamed shard-load rejection behavior.
+  - `dist_worker_handle_local_generate()`: post-handoff token hash validation on delegated local decode.
+  - `dist_coordinator_rebuild_from_transcript()`: replay and rebuild path after route loss or worker replacement.
   - `dist_coordinator_ensure_route()` and route planning helpers.
-  - Error propagation through coordinator save/load and eval paths.
+  - Error propagation through coordinator sync, handoff, save/load, and eval paths.
 - `ds4.c`
-  - `ds4_session_load_payload()`: normal payload rejection behavior.
-  - `ds4_session_load_layer_payload()`: shard metadata validation.
+  - `ds4_session_load_payload()`: normal full-payload rejection behavior.
+  - `ds4_session_load_layer_payload()` and streaming layer-payload helpers: shard metadata and payload-shape validation.
 - `tests/ds4_test.c`
-  - Add focused negative tests where they can run without full distributed hardware.
+  - Extend focused negative and CLI-parse cases that can run without a full distributed topology.
+- Existing issue-304 helpers under `tests/`
+  - Reuse or add one dedicated negative-path harness for reproducible multi-host rejection and reconnect coverage if `ds4_test` alone is too narrow.
 
 Other entry points:
 
-- Worker restart/reconnect workflow.
-- Mismatched coordinator/worker layer split.
-- Mismatched context size or model id.
-- Token transcript mutation between prefill completion and shard fetch.
+- Worker restart or reconnect workflow.
+- Missing or non-advertised local-decode worker capability.
+- Final worker that does not own `N:output`.
+- Mismatched coordinator/worker context or layout metadata.
+- Model id, model family, or layer-count mismatch at worker registration.
+- Token transcript mutation or stale session state between prefill completion and shard fetch or delegated decode.
+- Historical fixed failures that should stay documented but should not be reclassified as open blockers, especially the old `60s` distributed socket timeout and the unsafe second CUDA residency request.
 
 Work items:
 
-- Reject shard fetches when token count/hash, model id, layer range, context, raw window, or compression capacity do not match.
-- Test worker reconnect or route rebuild before shard fetch.
-- Test final-worker/output-head ownership cases.
-- Capture failure artifacts: exact load error, shard header dump, route plan, and first mismatching layer/range.
+- Normalize the failure taxonomy into explicit buckets:
+  - configuration rejects,
+  - route or capability rejects,
+  - shard and session integrity rejects,
+  - reconnect or replay recovery paths,
+  - historical fixed failures.
+- Preserve hard fail-closed behavior for token count or hash mismatch, model or layer mismatch, layout mismatch, payload byte mismatch, stale epoch traffic, and missing output-head ownership.
+- Verify that reconnect or route-loss cases either:
+  - rebuild from transcript,
+  - report an incomplete route,
+  - or reject the handoff,
+  - but never silently reuse stale worker KV.
+- Add or tighten diagnostics where the current error text is too generic to identify the broken boundary.
+- Capture for each preserved negative case:
+  - expected rejection,
+  - observed error text,
+  - reproduction command,
+  - and whether the case is a hard reject, a replay or recovery case, a historical fixed failure, or accepted variance.
+- Update `README.md` to document:
+  - that `--local-decode` is worker-only,
+  - that it requires `--layers N:output`,
+  - that distributed participants must match commit and layout expectations,
+  - that disconnects and stale-state mismatches fail closed,
+  - and that topology decoupling and KV-pipeline work remain deferred.
+- Close the issue-specific documentation loop by aligning `README.md`, `runbook.md`, `failure-cases.md`, `research-notes.md`, `decision-log.md`, and this plan on the same final status language.
 
 Exit gate:
 
-- Known stale/missing/mismatched shard cases fail closed with useful diagnostics.
-
-### Phase 8: Documentation and durable learnings
-
-Goal:
-
-- Why: this change crosses distributed transport, backend serialization, model residency, KV persistence, and user workflow; undocumented learnings will be expensive to rediscover.
-- What: update user docs, runbooks, decision logs, performance notes, failure cases, and this plan so the final implementation state and remaining deferred work are clear to the next engineer.
-
-Expected artifacts:
-
-- Update `README.md` with the final user-visible workflow, constraints, and expected performance behavior.
-- Update `artifacts/issue-304/runbook.md` with final known-good commands.
-- Update `artifacts/issue-304/decision-log.md` with final architecture and remaining deferred work.
-- Update `artifacts/issue-304/perf-breakdown.md` with final benchmark numbers.
-- Update `artifacts/issue-304/topology-decoupling.md` if topology flexibility is deferred or partially implemented.
-- Update `artifacts/issue-304/research-notes.md` with a final phase-by-phase summary of what was learned and what remains deferred.
-- Keep this `PLAN.md` accurate if parts of the staged plan were skipped or invalidated.
-
-Code/documentation touchpoints:
-
-- `README.md`
-  - Distributed inference documentation.
-  - Any new CLI/server workflow.
-- `ds4_cli.c`
-  - Help text and flag descriptions if CLI flags were added.
-- `ds4_server.c`
-  - API/session documentation if server behavior changed.
-- Tests added in prior phases.
-
-Other entry points:
-
-- GitHub issue #304 follow-up comment or PR description.
-- Any local scripts/harnesses created for validation.
-- Artifact files under `artifacts/issue-304/`.
-
-Work items:
-
-- Update `README.md` once the user-visible workflow exists.
-- Keep issue-specific research notes in `artifacts/issue-304/`.
-- Keep this plan current as decisions are made.
-- If an unknown unknown changes the direction, add the new fact, the decision it invalidated, and the replacement hypothesis before continuing implementation.
+- The current worker-owned local-decode workflow has an authoritative documented failure matrix, not just ad hoc notes.
+- Known integrity failures fail closed with useful diagnostics and no silent stale-state reuse path remains accepted.
+- At least one reproducible reconnect or route-recovery scenario is documented alongside the normal known-good commands.
+- The final docs clearly separate:
+  - shipped workflow,
+  - accepted numerical caveats,
+  - preserved hard rejection cases,
+  - and deferred future work.
+- Issue 304 can be treated as closed on the current workflow, with topology decoupling and later optimization work explicitly deferred rather than left ambiguous.
 
 ### Phase 9: Topology decoupling follow-on
 
@@ -1077,7 +1080,7 @@ Goal:
 - Why: practical deployments may want the best GPU machine to own early prefill while a different machine owns later layers and generation, so control-plane role, prefill layer ownership, output-head/logit ownership, KV return destination, and decode owner should not remain permanently coupled.
 - What: document the current coordinator-first topology constraints, then design a route/protocol direction that allows any role to own generation effectively, including cases where a worker prefills early layers while the coordinator owns later layers and generation.
 
-This is intentionally after Phase 8 so the first production handoff path and its caveats are documented before route structure is reopened. Do not let this phase block the first correct local-generation handoff unless later product requirements prove the current topology insufficient.
+This is intentionally after the combined Phase 7-8 closeout so the first production handoff path, its caveats, and its preserved rejection boundaries are documented before route structure is reopened. Do not let this phase block the first correct local-generation handoff unless later product requirements prove the current topology insufficient.
 
 Phase 4 conclusion for this phase:
 
