@@ -22322,6 +22322,43 @@ static DS4_MAYBE_UNUSED int payload_read_u32(FILE *fp, uint32_t *v, uint64_t *re
     return 0;
 }
 
+static int payload_file_write_cb(void *ud, const void *ptr, uint64_t bytes,
+                                 char *err, size_t errlen) {
+    return payload_write_bytes((FILE *)ud, ptr, bytes, err, errlen);
+}
+
+static int payload_file_read_cb(void *ud, void *ptr, uint64_t bytes,
+                                char *err, size_t errlen) {
+    return payload_read_bytes((FILE *)ud, ptr, bytes, NULL, err, errlen);
+}
+
+static int payload_stream_write_u32(ds4_payload_write_fn write_fn,
+                                    void *write_ud,
+                                    uint32_t v,
+                                    char *err,
+                                    size_t errlen) {
+    uint8_t b[4];
+    payload_put_u32(b, v);
+    return write_fn(write_ud, b, sizeof(b), err, errlen);
+}
+
+static int payload_stream_read_u32(ds4_payload_read_fn read_fn,
+                                   void *read_ud,
+                                   uint32_t *v,
+                                   uint64_t *remaining,
+                                   char *err,
+                                   size_t errlen) {
+    uint8_t b[4];
+    if (remaining && *remaining < sizeof(b)) {
+        payload_set_err(err, errlen, "truncated session payload");
+        return 1;
+    }
+    if (read_fn(read_ud, b, sizeof(b), err, errlen) != 0) return 1;
+    if (remaining) *remaining -= sizeof(b);
+    *v = payload_get_u32(b);
+    return 0;
+}
+
 static int payload_copy_file_bytes(FILE *src, FILE *dst, uint64_t bytes, char *err, size_t errlen) {
     uint8_t *buf = xmalloc(DS4_SESSION_IO_CHUNK);
     int rc = 0;
@@ -22414,6 +22451,34 @@ static int payload_write_tensor_span(FILE *fp, const ds4_gpu_tensor *tensor,
     return 0;
 }
 
+static int payload_write_tensor_span_stream(ds4_payload_write_fn write_fn,
+                                            void *write_ud,
+                                            const ds4_gpu_tensor *tensor,
+                                            uint64_t offset,
+                                            uint64_t bytes,
+                                            uint8_t *buf,
+                                            size_t cap,
+                                            char *err,
+                                            size_t errlen) {
+    if (!tensor || offset > ds4_gpu_tensor_bytes(tensor) ||
+        bytes > ds4_gpu_tensor_bytes(tensor) - offset)
+    {
+        payload_set_err(err, errlen, "session tensor is smaller than the payload");
+        return 1;
+    }
+    uint64_t done = 0;
+    while (done < bytes) {
+        const size_t n = bytes - done > (uint64_t)cap ? cap : (size_t)(bytes - done);
+        if (ds4_gpu_tensor_read(tensor, offset + done, buf, n) == 0) {
+            payload_set_err(err, errlen, "failed to read accelerator session tensor");
+            return 1;
+        }
+        if (write_fn(write_ud, buf, n, err, errlen) != 0) return 1;
+        done += n;
+    }
+    return 0;
+}
+
 static int payload_read_tensor_span(FILE *fp, ds4_gpu_tensor *tensor,
                                     uint64_t offset, uint64_t bytes,
                                     uint8_t *buf, size_t cap, uint64_t *remaining,
@@ -22428,6 +22493,40 @@ static int payload_read_tensor_span(FILE *fp, ds4_gpu_tensor *tensor,
     while (done < bytes) {
         const size_t n = bytes - done > (uint64_t)cap ? cap : (size_t)(bytes - done);
         if (payload_read_bytes(fp, buf, n, remaining, err, errlen) != 0) return 1;
+        if (ds4_gpu_tensor_write(tensor, offset + done, buf, n) == 0) {
+            payload_set_err(err, errlen, "failed to restore accelerator session tensor");
+            return 1;
+        }
+        done += n;
+    }
+    return 0;
+}
+
+static int payload_read_tensor_span_stream(ds4_payload_read_fn read_fn,
+                                           void *read_ud,
+                                           ds4_gpu_tensor *tensor,
+                                           uint64_t offset,
+                                           uint64_t bytes,
+                                           uint8_t *buf,
+                                           size_t cap,
+                                           uint64_t *remaining,
+                                           char *err,
+                                           size_t errlen) {
+    if (!tensor || offset > ds4_gpu_tensor_bytes(tensor) ||
+        bytes > ds4_gpu_tensor_bytes(tensor) - offset)
+    {
+        payload_set_err(err, errlen, "session tensor is smaller than the payload");
+        return 1;
+    }
+    uint64_t done = 0;
+    while (done < bytes) {
+        const size_t n = bytes - done > (uint64_t)cap ? cap : (size_t)(bytes - done);
+        if (remaining && *remaining < n) {
+            payload_set_err(err, errlen, "truncated session payload");
+            return 1;
+        }
+        if (read_fn(read_ud, buf, n, err, errlen) != 0) return 1;
+        if (remaining) *remaining -= n;
         if (ds4_gpu_tensor_write(tensor, offset + done, buf, n) == 0) {
             payload_set_err(err, errlen, "failed to restore accelerator session tensor");
             return 1;
@@ -22476,6 +22575,52 @@ static DS4_MAYBE_UNUSED int payload_write_tensor_span_f16_as_f32(FILE *fp, const
     return 0;
 }
 
+static DS4_MAYBE_UNUSED int payload_write_tensor_span_f16_as_f32_stream(
+        ds4_payload_write_fn write_fn,
+        void *write_ud,
+        const ds4_gpu_tensor *tensor,
+        uint64_t offset_f16,
+        uint64_t count,
+        uint8_t *buf,
+        size_t cap,
+        char *err,
+        size_t errlen) {
+    if (!tensor ||
+        count > (UINT64_MAX / sizeof(uint16_t)) ||
+        count > (UINT64_MAX / sizeof(float)) ||
+        offset_f16 > ds4_gpu_tensor_bytes(tensor) ||
+        count * sizeof(uint16_t) > ds4_gpu_tensor_bytes(tensor) - offset_f16)
+    {
+        payload_set_err(err, errlen, "session tensor is smaller than the F16 payload");
+        return 1;
+    }
+
+    size_t cap_elems = cap / (sizeof(uint16_t) + sizeof(float));
+    cap_elems &= ~(size_t)1u;
+    if (cap_elems == 0) {
+        payload_set_err(err, errlen, "session tensor conversion buffer is too small");
+        return 1;
+    }
+    uint16_t *h = (uint16_t *)buf;
+    float *f = (float *)(void *)(buf + cap_elems * sizeof(uint16_t));
+
+    uint64_t done = 0;
+    while (done < count) {
+        const size_t n = count - done > (uint64_t)cap_elems
+            ? cap_elems
+            : (size_t)(count - done);
+        if (ds4_gpu_tensor_read(tensor, offset_f16 + done * sizeof(uint16_t),
+                                h, n * sizeof(uint16_t)) == 0) {
+            payload_set_err(err, errlen, "failed to read Metal F16 session tensor");
+            return 1;
+        }
+        for (size_t i = 0; i < n; i++) f[i] = f16_to_f32(h[i]);
+        if (write_fn(write_ud, f, (uint64_t)n * sizeof(float), err, errlen) != 0) return 1;
+        done += n;
+    }
+    return 0;
+}
+
 static DS4_MAYBE_UNUSED int payload_read_tensor_span_f32_as_f16(FILE *fp, ds4_gpu_tensor *tensor,
                                                                 uint64_t offset_f16, uint64_t count,
                                                                 uint8_t *buf, size_t cap, uint64_t *remaining,
@@ -22505,6 +22650,58 @@ static DS4_MAYBE_UNUSED int payload_read_tensor_span_f32_as_f16(FILE *fp, ds4_gp
             ? cap_elems
             : (size_t)(count - done);
         if (payload_read_bytes(fp, f, (uint64_t)n * sizeof(float), remaining, err, errlen) != 0) return 1;
+        for (size_t i = 0; i < n; i++) h[i] = f32_to_f16(f[i]);
+        if (ds4_gpu_tensor_write(tensor, offset_f16 + done * sizeof(uint16_t),
+                                 h, n * sizeof(uint16_t)) == 0) {
+            payload_set_err(err, errlen, "failed to restore Metal F16 session tensor");
+            return 1;
+        }
+        done += n;
+    }
+    return 0;
+}
+
+static DS4_MAYBE_UNUSED int payload_read_tensor_span_f32_as_f16_stream(
+        ds4_payload_read_fn read_fn,
+        void *read_ud,
+        ds4_gpu_tensor *tensor,
+        uint64_t offset_f16,
+        uint64_t count,
+        uint8_t *buf,
+        size_t cap,
+        uint64_t *remaining,
+        char *err,
+        size_t errlen) {
+    if (!tensor ||
+        count > (UINT64_MAX / sizeof(uint16_t)) ||
+        count > (UINT64_MAX / sizeof(float)) ||
+        offset_f16 > ds4_gpu_tensor_bytes(tensor) ||
+        count * sizeof(uint16_t) > ds4_gpu_tensor_bytes(tensor) - offset_f16)
+    {
+        payload_set_err(err, errlen, "session tensor is smaller than the F16 payload");
+        return 1;
+    }
+
+    size_t cap_elems = cap / (sizeof(uint16_t) + sizeof(float));
+    cap_elems &= ~(size_t)1u;
+    if (cap_elems == 0) {
+        payload_set_err(err, errlen, "session tensor conversion buffer is too small");
+        return 1;
+    }
+    uint16_t *h = (uint16_t *)buf;
+    float *f = (float *)(void *)(buf + cap_elems * sizeof(uint16_t));
+
+    uint64_t done = 0;
+    while (done < count) {
+        const size_t n = count - done > (uint64_t)cap_elems
+            ? cap_elems
+            : (size_t)(count - done);
+        if (remaining && *remaining < (uint64_t)n * sizeof(float)) {
+            payload_set_err(err, errlen, "truncated session payload");
+            return 1;
+        }
+        if (read_fn(read_ud, f, (uint64_t)n * sizeof(float), err, errlen) != 0) return 1;
+        if (remaining) *remaining -= (uint64_t)n * sizeof(float);
         for (size_t i = 0; i < n; i++) h[i] = f32_to_f16(f[i]);
         if (ds4_gpu_tensor_write(tensor, offset_f16 + done * sizeof(uint16_t),
                                  h, n * sizeof(uint16_t)) == 0) {
@@ -22605,10 +22802,14 @@ uint64_t ds4_session_layer_payload_bytes(ds4_session *s,
 #endif
 }
 
-int ds4_session_save_layer_payload(ds4_session *s, FILE *fp,
-                                   uint32_t layer_start, uint32_t layer_end,
-                                   char *err, size_t errlen) {
-    if (!s || !fp || !s->checkpoint_valid ||
+int ds4_session_save_layer_payload_stream(ds4_session *s,
+                                          ds4_payload_write_fn write_fn,
+                                          void *write_ud,
+                                          uint32_t layer_start,
+                                          uint32_t layer_end,
+                                          char *err,
+                                          size_t errlen) {
+    if (!s || !write_fn || !s->checkpoint_valid ||
         !ds4_layer_payload_range_valid(layer_start, layer_end)) {
         payload_set_err(err, errlen, "invalid session layer payload save");
         return 1;
@@ -22645,13 +22846,13 @@ int ds4_session_save_layer_payload(ds4_session *s, FILE *fp,
         raw_live,
     };
     for (uint32_t i = 0; i < DS4_SESSION_LAYER_PAYLOAD_U32_FIELDS; i++) {
-        if (payload_write_u32(fp, header[i], err, errlen) != 0) return 1;
+        if (payload_stream_write_u32(write_fn, write_ud, header[i], err, errlen) != 0) return 1;
     }
     for (uint32_t il = layer_start; il <= layer_end; il++) {
-        if (payload_write_u32(fp, g->layer_n_comp[il], err, errlen) != 0) return 1;
+        if (payload_stream_write_u32(write_fn, write_ud, g->layer_n_comp[il], err, errlen) != 0) return 1;
     }
     for (uint32_t il = layer_start; il <= layer_end; il++) {
-        if (payload_write_u32(fp, g->layer_n_index_comp[il], err, errlen) != 0) return 1;
+        if (payload_stream_write_u32(write_fn, write_ud, g->layer_n_index_comp[il], err, errlen) != 0) return 1;
     }
 
     uint8_t *buf = xmalloc(DS4_SESSION_IO_CHUNK);
@@ -22661,77 +22862,85 @@ int ds4_session_save_layer_payload(ds4_session *s, FILE *fp,
         for (uint32_t r = 0; rc == 0 && r < raw_live; r++) {
             const uint32_t pos = raw_first + r;
             const uint32_t phys = pos % g->raw_cap;
-            rc = payload_write_tensor_span(fp,
-                                           g->layer_raw_cache[il],
-                                           (uint64_t)phys * DS4_N_HEAD_DIM * sizeof(float),
-                                           (uint64_t)DS4_N_HEAD_DIM * sizeof(float),
-                                           buf,
-                                           DS4_SESSION_IO_CHUNK,
-                                           err,
-                                           errlen);
+            rc = payload_write_tensor_span_stream(write_fn,
+                                                  write_ud,
+                                                  g->layer_raw_cache[il],
+                                                  (uint64_t)phys * DS4_N_HEAD_DIM * sizeof(float),
+                                                  (uint64_t)DS4_N_HEAD_DIM * sizeof(float),
+                                                  buf,
+                                                  DS4_SESSION_IO_CHUNK,
+                                                  err,
+                                                  errlen);
         }
         const uint32_t ratio = ds4_layer_compress_ratio(il);
         if (rc != 0 || ratio == 0) continue;
         if (DS4_GPU_ATTN_COMP_CACHE_F16) {
-            rc = payload_write_tensor_span_f16_as_f32(fp,
-                                                      g->layer_attn_comp_cache[il],
-                                                      0,
-                                                      (uint64_t)g->layer_n_comp[il] * DS4_N_HEAD_DIM,
-                                                      buf,
-                                                      DS4_SESSION_IO_CHUNK,
-                                                      err,
-                                                      errlen);
+            rc = payload_write_tensor_span_f16_as_f32_stream(write_fn,
+                                                             write_ud,
+                                                             g->layer_attn_comp_cache[il],
+                                                             0,
+                                                             (uint64_t)g->layer_n_comp[il] * DS4_N_HEAD_DIM,
+                                                             buf,
+                                                             DS4_SESSION_IO_CHUNK,
+                                                             err,
+                                                             errlen);
         } else {
-            rc = payload_write_tensor_span(fp,
-                                           g->layer_attn_comp_cache[il],
-                                           0,
-                                           (uint64_t)g->layer_n_comp[il] * DS4_N_HEAD_DIM * sizeof(float),
-                                           buf,
-                                           DS4_SESSION_IO_CHUNK,
-                                           err,
-                                           errlen);
+            rc = payload_write_tensor_span_stream(write_fn,
+                                                  write_ud,
+                                                  g->layer_attn_comp_cache[il],
+                                                  0,
+                                                  (uint64_t)g->layer_n_comp[il] * DS4_N_HEAD_DIM * sizeof(float),
+                                                  buf,
+                                                  DS4_SESSION_IO_CHUNK,
+                                                  err,
+                                                  errlen);
         }
-        if (rc == 0) rc = payload_write_tensor_span(fp,
-                                                    g->layer_attn_state_kv[il],
-                                                    0,
-                                                    layer_attn_state_bytes(ratio),
-                                                    buf,
-                                                    DS4_SESSION_IO_CHUNK,
-                                                    err,
-                                                    errlen);
-        if (rc == 0) rc = payload_write_tensor_span(fp,
-                                                    g->layer_attn_state_score[il],
-                                                    0,
-                                                    layer_attn_state_bytes(ratio),
-                                                    buf,
-                                                    DS4_SESSION_IO_CHUNK,
-                                                    err,
-                                                    errlen);
+        if (rc == 0) rc = payload_write_tensor_span_stream(write_fn,
+                                                           write_ud,
+                                                           g->layer_attn_state_kv[il],
+                                                           0,
+                                                           layer_attn_state_bytes(ratio),
+                                                           buf,
+                                                           DS4_SESSION_IO_CHUNK,
+                                                           err,
+                                                           errlen);
+        if (rc == 0) rc = payload_write_tensor_span_stream(write_fn,
+                                                           write_ud,
+                                                           g->layer_attn_state_score[il],
+                                                           0,
+                                                           layer_attn_state_bytes(ratio),
+                                                           buf,
+                                                           DS4_SESSION_IO_CHUNK,
+                                                           err,
+                                                           errlen);
         if (rc == 0 && ratio == 4) {
-            rc = payload_write_tensor_span(fp,
-                                           g->layer_index_comp_cache[il],
-                                           0,
-                                           (uint64_t)g->layer_n_index_comp[il] * DS4_N_INDEXER_HEAD_DIM * sizeof(float),
-                                           buf,
-                                           DS4_SESSION_IO_CHUNK,
-                                           err,
-                                           errlen);
-            if (rc == 0) rc = payload_write_tensor_span(fp,
-                                                        g->layer_index_state_kv[il],
-                                                        0,
-                                                        layer_index_state_bytes(ratio),
-                                                        buf,
-                                                        DS4_SESSION_IO_CHUNK,
-                                                        err,
-                                                        errlen);
-            if (rc == 0) rc = payload_write_tensor_span(fp,
-                                                        g->layer_index_state_score[il],
-                                                        0,
-                                                        layer_index_state_bytes(ratio),
-                                                        buf,
-                                                        DS4_SESSION_IO_CHUNK,
-                                                        err,
-                                                        errlen);
+            rc = payload_write_tensor_span_stream(write_fn,
+                                                  write_ud,
+                                                  g->layer_index_comp_cache[il],
+                                                  0,
+                                                  (uint64_t)g->layer_n_index_comp[il] * DS4_N_INDEXER_HEAD_DIM * sizeof(float),
+                                                  buf,
+                                                  DS4_SESSION_IO_CHUNK,
+                                                  err,
+                                                  errlen);
+            if (rc == 0) rc = payload_write_tensor_span_stream(write_fn,
+                                                               write_ud,
+                                                               g->layer_index_state_kv[il],
+                                                               0,
+                                                               layer_index_state_bytes(ratio),
+                                                               buf,
+                                                               DS4_SESSION_IO_CHUNK,
+                                                               err,
+                                                               errlen);
+            if (rc == 0) rc = payload_write_tensor_span_stream(write_fn,
+                                                               write_ud,
+                                                               g->layer_index_state_score[il],
+                                                               0,
+                                                               layer_index_state_bytes(ratio),
+                                                               buf,
+                                                               DS4_SESSION_IO_CHUNK,
+                                                               err,
+                                                               errlen);
         }
     }
     free(buf);
@@ -22739,12 +22948,33 @@ int ds4_session_save_layer_payload(ds4_session *s, FILE *fp,
 #endif
 }
 
-int ds4_session_load_layer_payload(ds4_session *s, FILE *fp,
-                                   uint64_t payload_bytes,
-                                   const int *tokens, uint32_t n_tokens,
+int ds4_session_save_layer_payload(ds4_session *s, FILE *fp,
                                    uint32_t layer_start, uint32_t layer_end,
                                    char *err, size_t errlen) {
-    if (!s || !fp || !tokens ||
+    if (!fp) {
+        payload_set_err(err, errlen, "invalid session layer payload save");
+        return 1;
+    }
+    return ds4_session_save_layer_payload_stream(s,
+                                                 payload_file_write_cb,
+                                                 fp,
+                                                 layer_start,
+                                                 layer_end,
+                                                 err,
+                                                 errlen);
+}
+
+int ds4_session_load_layer_payload_stream(ds4_session *s,
+                                          ds4_payload_read_fn read_fn,
+                                          void *read_ud,
+                                          uint64_t payload_bytes,
+                                          const int *tokens,
+                                          uint32_t n_tokens,
+                                          uint32_t layer_start,
+                                          uint32_t layer_end,
+                                          char *err,
+                                          size_t errlen) {
+    if (!s || !read_fn || !tokens ||
         !ds4_layer_payload_range_valid(layer_start, layer_end)) {
         payload_set_err(err, errlen, "invalid session layer payload load");
         return 1;
@@ -22762,7 +22992,7 @@ int ds4_session_load_layer_payload(ds4_session *s, FILE *fp,
     uint64_t remaining = payload_bytes;
     uint32_t h[DS4_SESSION_LAYER_PAYLOAD_U32_FIELDS];
     for (uint32_t i = 0; i < DS4_SESSION_LAYER_PAYLOAD_U32_FIELDS; i++) {
-        if (payload_read_u32(fp, &h[i], &remaining, err, errlen) != 0) return 1;
+        if (payload_stream_read_u32(read_fn, read_ud, &h[i], &remaining, err, errlen) != 0) return 1;
     }
     if (h[0] != DS4_SESSION_LAYER_PAYLOAD_MAGIC ||
         h[1] != DS4_SESSION_LAYER_PAYLOAD_VERSION) {
@@ -22816,7 +23046,7 @@ int ds4_session_load_layer_payload(ds4_session *s, FILE *fp,
     uint32_t *n_index_comp = xcalloc(n_layers, sizeof(n_index_comp[0]));
     for (uint32_t i = 0; i < n_layers; i++) {
         const uint32_t il = layer_start + i;
-        if (payload_read_u32(fp, &n_comp[i], &remaining, err, errlen) != 0) {
+        if (payload_stream_read_u32(read_fn, read_ud, &n_comp[i], &remaining, err, errlen) != 0) {
             free(n_comp);
             free(n_index_comp);
             return 1;
@@ -22830,7 +23060,7 @@ int ds4_session_load_layer_payload(ds4_session *s, FILE *fp,
     }
     for (uint32_t i = 0; i < n_layers; i++) {
         const uint32_t il = layer_start + i;
-        if (payload_read_u32(fp, &n_index_comp[i], &remaining, err, errlen) != 0) {
+        if (payload_stream_read_u32(read_fn, read_ud, &n_index_comp[i], &remaining, err, errlen) != 0) {
             free(n_comp);
             free(n_index_comp);
             return 1;
@@ -22861,85 +23091,93 @@ int ds4_session_load_layer_payload(ds4_session *s, FILE *fp,
         for (uint32_t r = 0; rc == 0 && r < saved_raw_live; r++) {
             const uint32_t pos = raw_first + r;
             const uint32_t phys = pos % g->raw_cap;
-            rc = payload_read_tensor_span(fp,
-                                          g->layer_raw_cache[il],
-                                          (uint64_t)phys * DS4_N_HEAD_DIM * sizeof(float),
-                                          (uint64_t)DS4_N_HEAD_DIM * sizeof(float),
-                                          buf,
-                                          DS4_SESSION_IO_CHUNK,
-                                          &remaining,
-                                          err,
-                                          errlen);
+            rc = payload_read_tensor_span_stream(read_fn,
+                                                 read_ud,
+                                                 g->layer_raw_cache[il],
+                                                 (uint64_t)phys * DS4_N_HEAD_DIM * sizeof(float),
+                                                 (uint64_t)DS4_N_HEAD_DIM * sizeof(float),
+                                                 buf,
+                                                 DS4_SESSION_IO_CHUNK,
+                                                 &remaining,
+                                                 err,
+                                                 errlen);
         }
         const uint32_t ratio = ds4_layer_compress_ratio(il);
         if (rc != 0 || ratio == 0) continue;
         if (DS4_GPU_ATTN_COMP_CACHE_F16) {
-            rc = payload_read_tensor_span_f32_as_f16(fp,
-                                                     g->layer_attn_comp_cache[il],
-                                                     0,
-                                                     (uint64_t)n_comp[i] * DS4_N_HEAD_DIM,
-                                                     buf,
-                                                     DS4_SESSION_IO_CHUNK,
-                                                     &remaining,
-                                                     err,
-                                                     errlen);
+            rc = payload_read_tensor_span_f32_as_f16_stream(read_fn,
+                                                            read_ud,
+                                                            g->layer_attn_comp_cache[il],
+                                                            0,
+                                                            (uint64_t)n_comp[i] * DS4_N_HEAD_DIM,
+                                                            buf,
+                                                            DS4_SESSION_IO_CHUNK,
+                                                            &remaining,
+                                                            err,
+                                                            errlen);
         } else {
-            rc = payload_read_tensor_span(fp,
-                                          g->layer_attn_comp_cache[il],
-                                          0,
-                                          (uint64_t)n_comp[i] * DS4_N_HEAD_DIM * sizeof(float),
-                                          buf,
-                                          DS4_SESSION_IO_CHUNK,
-                                          &remaining,
-                                          err,
-                                          errlen);
+            rc = payload_read_tensor_span_stream(read_fn,
+                                                 read_ud,
+                                                 g->layer_attn_comp_cache[il],
+                                                 0,
+                                                 (uint64_t)n_comp[i] * DS4_N_HEAD_DIM * sizeof(float),
+                                                 buf,
+                                                 DS4_SESSION_IO_CHUNK,
+                                                 &remaining,
+                                                 err,
+                                                 errlen);
         }
-        if (rc == 0) rc = payload_read_tensor_span(fp,
-                                                   g->layer_attn_state_kv[il],
-                                                   0,
-                                                   layer_attn_state_bytes(ratio),
-                                                   buf,
-                                                   DS4_SESSION_IO_CHUNK,
-                                                   &remaining,
-                                                   err,
-                                                   errlen);
-        if (rc == 0) rc = payload_read_tensor_span(fp,
-                                                   g->layer_attn_state_score[il],
-                                                   0,
-                                                   layer_attn_state_bytes(ratio),
-                                                   buf,
-                                                   DS4_SESSION_IO_CHUNK,
-                                                   &remaining,
-                                                   err,
-                                                   errlen);
+        if (rc == 0) rc = payload_read_tensor_span_stream(read_fn,
+                                                          read_ud,
+                                                          g->layer_attn_state_kv[il],
+                                                          0,
+                                                          layer_attn_state_bytes(ratio),
+                                                          buf,
+                                                          DS4_SESSION_IO_CHUNK,
+                                                          &remaining,
+                                                          err,
+                                                          errlen);
+        if (rc == 0) rc = payload_read_tensor_span_stream(read_fn,
+                                                          read_ud,
+                                                          g->layer_attn_state_score[il],
+                                                          0,
+                                                          layer_attn_state_bytes(ratio),
+                                                          buf,
+                                                          DS4_SESSION_IO_CHUNK,
+                                                          &remaining,
+                                                          err,
+                                                          errlen);
         if (rc == 0 && ratio == 4) {
-            rc = payload_read_tensor_span(fp,
-                                          g->layer_index_comp_cache[il],
-                                          0,
-                                          (uint64_t)n_index_comp[i] * DS4_N_INDEXER_HEAD_DIM * sizeof(float),
-                                          buf,
-                                          DS4_SESSION_IO_CHUNK,
-                                          &remaining,
-                                          err,
-                                          errlen);
-            if (rc == 0) rc = payload_read_tensor_span(fp,
-                                                       g->layer_index_state_kv[il],
-                                                       0,
-                                                       layer_index_state_bytes(ratio),
-                                                       buf,
-                                                       DS4_SESSION_IO_CHUNK,
-                                                       &remaining,
-                                                       err,
-                                                       errlen);
-            if (rc == 0) rc = payload_read_tensor_span(fp,
-                                                       g->layer_index_state_score[il],
-                                                       0,
-                                                       layer_index_state_bytes(ratio),
-                                                       buf,
-                                                       DS4_SESSION_IO_CHUNK,
-                                                       &remaining,
-                                                       err,
-                                                       errlen);
+            rc = payload_read_tensor_span_stream(read_fn,
+                                                 read_ud,
+                                                 g->layer_index_comp_cache[il],
+                                                 0,
+                                                 (uint64_t)n_index_comp[i] * DS4_N_INDEXER_HEAD_DIM * sizeof(float),
+                                                 buf,
+                                                 DS4_SESSION_IO_CHUNK,
+                                                 &remaining,
+                                                 err,
+                                                 errlen);
+            if (rc == 0) rc = payload_read_tensor_span_stream(read_fn,
+                                                              read_ud,
+                                                              g->layer_index_state_kv[il],
+                                                              0,
+                                                              layer_index_state_bytes(ratio),
+                                                              buf,
+                                                              DS4_SESSION_IO_CHUNK,
+                                                              &remaining,
+                                                              err,
+                                                              errlen);
+            if (rc == 0) rc = payload_read_tensor_span_stream(read_fn,
+                                                              read_ud,
+                                                              g->layer_index_state_score[il],
+                                                              0,
+                                                              layer_index_state_bytes(ratio),
+                                                              buf,
+                                                              DS4_SESSION_IO_CHUNK,
+                                                              &remaining,
+                                                              err,
+                                                              errlen);
         }
     }
     free(buf);
@@ -22968,6 +23206,27 @@ int ds4_session_load_layer_payload(ds4_session *s, FILE *fp,
     free(n_index_comp);
     return rc;
 #endif
+}
+
+int ds4_session_load_layer_payload(ds4_session *s, FILE *fp,
+                                   uint64_t payload_bytes,
+                                   const int *tokens, uint32_t n_tokens,
+                                   uint32_t layer_start, uint32_t layer_end,
+                                   char *err, size_t errlen) {
+    if (!fp) {
+        payload_set_err(err, errlen, "invalid session layer payload load");
+        return 1;
+    }
+    return ds4_session_load_layer_payload_stream(s,
+                                                 payload_file_read_cb,
+                                                 fp,
+                                                 payload_bytes,
+                                                 tokens,
+                                                 n_tokens,
+                                                 layer_start,
+                                                 layer_end,
+                                                 err,
+                                                 errlen);
 }
 
 int ds4_engine_routed_quant_bits(ds4_engine *e) {
@@ -24530,8 +24789,12 @@ int ds4_engine_open(ds4_engine **out, const ds4_engine_options *opt) {
     uint32_t load_layer_end = opt->load_layer_end;
     bool load_output = opt->load_output;
     bool load_output_optional = false;
+    const bool full_resident_worker =
+        opt->distributed.role == DS4_DISTRIBUTED_WORKER &&
+        opt->distributed.local_decode;
     if (opt->distributed.role != DS4_DISTRIBUTED_NONE &&
-        opt->distributed.layers.set)
+        opt->distributed.layers.set &&
+        !full_resident_worker)
     {
         load_slice = true;
         load_layer_start = opt->distributed.layers.start;
@@ -24671,72 +24934,9 @@ int ds4_engine_open(ds4_engine **out, const ds4_engine_options *opt) {
         uint64_t *load_offsets = NULL;
         uint64_t *load_sizes = NULL;
         uint32_t load_span_count = 0;
-        if (e->ssd_streaming) {
-            const bool map_output = load_slice &&
-                                    (load_output ||
-                                     (load_output_optional &&
-                                      weights_have_output_head(&e->weights)));
-            ds4_model_map_span_vec spans;
-            bool spans_ok = false;
-            if (load_slice) {
-                spans_ok = weights_model_map_decode_static_slice_spans(
-                        &e->weights,
-                        load_layer_start,
-                        load_layer_end,
-                        true,
-                        map_output,
-                        &spans);
-            } else {
-                spans_ok = weights_model_map_token_spans(&e->weights, &spans);
-            }
-            if (!spans_ok) {
-                fprintf(stderr, "ds4: invalid SSD streaming initial token embedding map\n");
-                ds4_engine_close(e);
-                *out = NULL;
-                return 1;
-            }
-            uint64_t *offsets = xmalloc((size_t)spans.len * sizeof(offsets[0]));
-            uint64_t *sizes = xmalloc((size_t)spans.len * sizeof(sizes[0]));
-            uint64_t span_bytes = 0;
-            for (uint32_t i = 0; i < spans.len; i++) {
-                offsets[i] = spans.v[i].off;
-                sizes[i] = spans.v[i].end - spans.v[i].off;
-                span_bytes += sizes[i];
-            }
-            load_offsets = offsets;
-            load_sizes = sizes;
-            load_span_count = spans.len;
-            if (load_slice) {
-                char load_end[32];
-                if (map_output && load_layer_end == UINT32_MAX) {
-                    snprintf(load_end, sizeof(load_end), "output");
-                } else if (map_output) {
-                    snprintf(load_end, sizeof(load_end), "%u+output", load_layer_end);
-                } else {
-                    snprintf(load_end, sizeof(load_end), "%u", load_layer_end);
-                }
-                fprintf(stderr,
-                        "ds4: SSD streaming initial %s model map restricted to token + non-routed layers %u:%s (%u spans, %.2f GiB tensor span)\n",
-                        ds4_backend_name(e->backend),
-                        load_layer_start,
-                        load_end,
-                        spans.len,
-                        (double)span_bytes / 1073741824.0);
-            } else {
-                fprintf(stderr,
-                        "ds4: SSD streaming initial %s model map restricted to token embedding (%u spans, %.2f GiB tensor span)\n",
-                        ds4_backend_name(e->backend),
-                        spans.len,
-                        (double)span_bytes / 1073741824.0);
-            }
-            model_map_ok = ds4_gpu_set_model_map_spans(e->model.map,
-                                                        e->model.size,
-                                                        load_offsets,
-                                                        load_sizes,
-                                                        load_span_count,
-                                                        spans.max_tensor_bytes);
-            free(spans.v);
-        } else if (load_slice) {
+        if (load_slice) {
+        uint64_t load_max_tensor_bytes = e->model.max_tensor_bytes;
+        if (load_slice) {
             const bool map_output = load_output ||
                                     (load_output_optional &&
                                      weights_have_output_head(&e->weights));
@@ -24774,6 +24974,7 @@ int ds4_engine_open(ds4_engine **out, const ds4_engine_options *opt) {
             load_offsets = offsets;
             load_sizes = sizes;
             load_span_count = spans.len;
+            load_max_tensor_bytes = spans.max_tensor_bytes;
             fprintf(stderr,
                     "ds4: restricting %s model map to layers %u:%s (%u spans, %.2f GiB tensor span)\n",
                     ds4_backend_name(e->backend),
@@ -24781,13 +24982,15 @@ int ds4_engine_open(ds4_engine **out, const ds4_engine_options *opt) {
                     load_end,
                     spans.len,
                     (double)span_bytes / 1073741824.0);
-            model_map_ok = ds4_gpu_set_model_map_spans(e->model.map,
-                                                        e->model.size,
-                                                        load_offsets,
-                                                        load_sizes,
-                                                        load_span_count,
-                                                        spans.max_tensor_bytes);
             free(spans.v);
+        }
+        if (load_slice) {
+            model_map_ok = ds4_gpu_set_model_map_spans(e->model.map,
+                                                       e->model.size,
+                                                       load_offsets,
+                                                       load_sizes,
+                                                       load_span_count,
+                                                       load_max_tensor_bytes);
         } else {
             model_map_ok = ds4_gpu_set_model_map_range(e->model.map,
                                                        e->model.size,
@@ -25032,6 +25235,9 @@ void ds4_session_free(ds4_session *s) {
     }
 #ifndef DS4_NO_GPU
     else {
+        if (ds4_gpu_synchronize() == 0) {
+            fprintf(stderr, "ds4: synchronize before session free failed\n");
+        }
         metal_graph_free(&s->graph);
     }
 #endif
@@ -25047,6 +25253,70 @@ int ds4_session_distributed_route_ready(ds4_session *s, char *err, size_t errlen
         return -1;
     }
     return ds4_dist_session_route_ready(s->distributed, err, errlen);
+}
+
+int ds4_session_distributed_handoff_argmax(
+        ds4_session *s,
+        int n_predict,
+        int *tokens_out,
+        int token_cap,
+        double *shard_load_sec_out,
+        double *decode_sec_out,
+        char *err,
+        size_t errlen) {
+    if (!s || !s->distributed) {
+        if (errlen) snprintf(err, errlen, "session is not a distributed coordinator");
+        return -1;
+    }
+    if (!s->checkpoint_valid) {
+        if (errlen) snprintf(err, errlen, "distributed handoff requires a valid checkpoint");
+        return -1;
+    }
+    return ds4_dist_session_handoff_argmax(s->distributed,
+                                           s,
+                                           n_predict,
+                                           tokens_out,
+                                           token_cap,
+                                           shard_load_sec_out,
+                                           decode_sec_out,
+                                           err,
+                                           errlen);
+}
+
+int ds4_session_distributed_handoff_generate(
+        ds4_session *s,
+        int n_predict,
+        float temperature,
+        float top_p,
+        float min_p,
+        uint64_t seed,
+        int *tokens_out,
+        int token_cap,
+        double *shard_load_sec_out,
+        double *decode_sec_out,
+        char *err,
+        size_t errlen) {
+    if (!s || !s->distributed) {
+        if (errlen) snprintf(err, errlen, "session is not a distributed coordinator");
+        return -1;
+    }
+    if (!s->checkpoint_valid) {
+        if (errlen) snprintf(err, errlen, "distributed handoff requires a valid checkpoint");
+        return -1;
+    }
+    return ds4_dist_session_handoff_generate(s->distributed,
+                                             s,
+                                             n_predict,
+                                             temperature,
+                                             top_p,
+                                             min_p,
+                                             seed,
+                                             tokens_out,
+                                             token_cap,
+                                             shard_load_sec_out,
+                                             decode_sec_out,
+                                             err,
+                                             errlen);
 }
 
 int ds4_session_power(ds4_session *s) {

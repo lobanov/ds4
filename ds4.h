@@ -87,6 +87,7 @@ typedef struct {
     uint32_t prefill_chunk;
     uint32_t prefill_window;
     uint32_t activation_bits;
+    bool local_decode;
     bool replay_check;
     bool debug;
 } ds4_distributed_options;
@@ -143,6 +144,11 @@ typedef struct {
     char *path;
     uint64_t bytes;
 } ds4_session_payload_file;
+
+typedef int (*ds4_payload_write_fn)(void *ud, const void *ptr, uint64_t bytes,
+                                    char *err, size_t errlen);
+typedef int (*ds4_payload_read_fn)(void *ud, void *ptr, uint64_t bytes,
+                                   char *err, size_t errlen);
 
 int ds4_engine_open(ds4_engine **out, const ds4_engine_options *opt);
 void ds4_engine_close(ds4_engine *e);
@@ -234,6 +240,28 @@ void ds4_session_report_progress(ds4_session *s, const char *event, int current,
 /* Distributed coordinator sessions return 1 when the full layer route is
  * available, 0 when it is still incomplete, and -1 for a local API error. */
 int ds4_session_distributed_route_ready(ds4_session *s, char *err, size_t errlen);
+int ds4_session_distributed_handoff_argmax(
+        ds4_session *s,
+        int n_predict,
+        int *tokens_out,
+        int token_cap,
+        double *shard_load_sec_out,
+        double *decode_sec_out,
+        char *err,
+        size_t errlen);
+int ds4_session_distributed_handoff_generate(
+        ds4_session *s,
+        int n_predict,
+        float temperature,
+        float top_p,
+        float min_p,
+        uint64_t seed,
+        int *tokens_out,
+        int token_cap,
+        double *shard_load_sec_out,
+        double *decode_sec_out,
+        char *err,
+        size_t errlen);
 
 typedef enum {
     DS4_SESSION_REWRITE_ERROR = -1,
@@ -323,9 +351,26 @@ void ds4_session_snapshot_free(ds4_session_snapshot *snap);
 uint64_t ds4_session_layer_payload_bytes(ds4_session *s,
                                          uint32_t layer_start,
                                          uint32_t layer_end);
+int ds4_session_save_layer_payload_stream(ds4_session *s,
+                                          ds4_payload_write_fn write_fn,
+                                          void *write_ud,
+                                          uint32_t layer_start,
+                                          uint32_t layer_end,
+                                          char *err,
+                                          size_t errlen);
 int ds4_session_save_layer_payload(ds4_session *s, FILE *fp,
                                    uint32_t layer_start, uint32_t layer_end,
                                    char *err, size_t errlen);
+int ds4_session_load_layer_payload_stream(ds4_session *s,
+                                          ds4_payload_read_fn read_fn,
+                                          void *read_ud,
+                                          uint64_t payload_bytes,
+                                          const int *tokens,
+                                          uint32_t n_tokens,
+                                          uint32_t layer_start,
+                                          uint32_t layer_end,
+                                          char *err,
+                                          size_t errlen);
 int ds4_session_load_layer_payload(ds4_session *s, FILE *fp,
                                    uint64_t payload_bytes,
                                    const int *tokens, uint32_t n_tokens,

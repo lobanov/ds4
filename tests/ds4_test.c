@@ -2174,7 +2174,552 @@ static void test_mtp_verify_depth(void) {
     free(spec);
     ds4_tokens_free(&prompt);
 }
+typedef struct {
+    uint8_t *buf;
+    size_t len;
+    size_t cap;
+    size_t pos;
+} test_payload_stream_buf;
+
+static int test_payload_stream_write(void *ud,
+                                     const void *ptr,
+                                     uint64_t bytes,
+                                     char *err,
+                                     size_t errlen) {
+    test_payload_stream_buf *stream = ud;
+    if (!stream || bytes > (uint64_t)SIZE_MAX) {
+        if (errlen) snprintf(err, errlen, "invalid test payload stream write");
+        return 1;
+    }
+    size_t need = stream->len + (size_t)bytes;
+    if (need > stream->cap) {
+        size_t new_cap = stream->cap ? stream->cap : 4096u;
+        while (new_cap < need) new_cap *= 2u;
+        uint8_t *new_buf = realloc(stream->buf, new_cap);
+        if (!new_buf) {
+            if (errlen) snprintf(err, errlen, "out of memory growing test payload stream");
+            return 1;
+        }
+        stream->buf = new_buf;
+        stream->cap = new_cap;
+    }
+    memcpy(stream->buf + stream->len, ptr, (size_t)bytes);
+    stream->len += (size_t)bytes;
+    return 0;
+}
+
+static int test_payload_stream_read(void *ud,
+                                    void *ptr,
+                                    uint64_t bytes,
+                                    char *err,
+                                    size_t errlen) {
+    test_payload_stream_buf *stream = ud;
+    if (!stream || bytes > (uint64_t)(stream->len - stream->pos)) {
+        if (errlen) snprintf(err, errlen, "truncated test payload stream");
+        return 1;
+    }
+    memcpy(ptr, stream->buf + stream->pos, (size_t)bytes);
+    stream->pos += (size_t)bytes;
+    return 0;
+}
+
+static bool test_save_layer_payload_bytes(ds4_session *session,
+                                          uint32_t layer_start,
+                                          uint32_t layer_end,
+                                          uint8_t **out,
+                                          size_t *len_out) {
+    const uint64_t payload_bytes =
+        ds4_session_layer_payload_bytes(session, layer_start, layer_end);
+    TEST_ASSERT(payload_bytes > 0);
+    TEST_ASSERT(payload_bytes <= (uint64_t)SIZE_MAX);
+    if (payload_bytes == 0 || payload_bytes > (uint64_t)SIZE_MAX) return false;
+
+    FILE *fp = tmpfile();
+    TEST_ASSERT(fp != NULL);
+    if (!fp) return false;
+
+    char err[160];
+    const int rc = ds4_session_save_layer_payload(session,
+                                                  fp,
+                                                  layer_start,
+                                                  layer_end,
+                                                  err,
+                                                  sizeof(err));
+    TEST_ASSERT(rc == 0);
+    TEST_ASSERT(fflush(fp) == 0);
+    TEST_ASSERT(fseeko(fp, 0, SEEK_SET) == 0);
+    if (rc != 0 || fflush(fp) != 0 || fseeko(fp, 0, SEEK_SET) != 0) {
+        fclose(fp);
+        return false;
+    }
+
+    uint8_t *buf = malloc((size_t)payload_bytes);
+    TEST_ASSERT(buf != NULL);
+    if (!buf) {
+        fclose(fp);
+        return false;
+    }
+    TEST_ASSERT(fread(buf, 1, (size_t)payload_bytes, fp) == (size_t)payload_bytes);
+    fclose(fp);
+    *out = buf;
+    *len_out = (size_t)payload_bytes;
+    return true;
+}
+
+static bool test_save_layer_payload_stream_bytes(ds4_session *session,
+                                                 uint32_t layer_start,
+                                                 uint32_t layer_end,
+                                                 uint8_t **out,
+                                                 size_t *len_out) {
+    test_payload_stream_buf stream = {0};
+    char err[160];
+    const int rc = ds4_session_save_layer_payload_stream(session,
+                                                         test_payload_stream_write,
+                                                         &stream,
+                                                         layer_start,
+                                                         layer_end,
+                                                         err,
+                                                         sizeof(err));
+    TEST_ASSERT(rc == 0);
+    if (rc != 0) {
+        free(stream.buf);
+        return false;
+    }
+    *out = stream.buf;
+    *len_out = stream.len;
+    return true;
+}
+
+static bool test_load_layer_payload_stream_bytes(ds4_session *session,
+                                                 const uint8_t *buf,
+                                                 size_t len,
+                                                 const int *tokens,
+                                                 uint32_t n_tokens,
+                                                 uint32_t layer_start,
+                                                 uint32_t layer_end) {
+    test_payload_stream_buf stream = {
+        .buf = (uint8_t *)buf,
+        .len = len,
+    };
+    char err[160];
+    const int rc = ds4_session_load_layer_payload_stream(session,
+                                                         test_payload_stream_read,
+                                                         &stream,
+                                                         (uint64_t)len,
+                                                         tokens,
+                                                         n_tokens,
+                                                         layer_start,
+                                                         layer_end,
+                                                         err,
+                                                         sizeof(err));
+    TEST_ASSERT(rc == 0);
+    TEST_ASSERT(stream.pos == len);
+    return rc == 0 && stream.pos == len;
+}
+
+static void test_local_payload_stream(void) {
+    ds4_engine *engine = test_open_engine(false);
+    if (!engine) return;
+
+    ds4_tokens prompt = {0};
+    ds4_session *base = NULL;
+    ds4_session *restored = NULL;
+    uint8_t *file_buf = NULL;
+    uint8_t *stream_buf = NULL;
+    uint8_t *roundtrip_buf = NULL;
+    size_t file_len = 0;
+    size_t stream_len = 0;
+    size_t roundtrip_len = 0;
+    const uint32_t layer = 0;
+
+    ds4_encode_chat_prompt(engine, "", "payload stream roundtrip", DS4_THINK_NONE, &prompt);
+    TEST_ASSERT(prompt.len > 0);
+
+    TEST_ASSERT(ds4_session_create(&base, engine, 2048) == 0);
+    TEST_ASSERT(base != NULL);
+    if (!base) goto cleanup;
+
+    char err[160];
+    TEST_ASSERT(ds4_session_sync(base, &prompt, err, sizeof(err)) == 0);
+    TEST_ASSERT(test_save_layer_payload_bytes(base, layer, layer, &file_buf, &file_len));
+    TEST_ASSERT(test_save_layer_payload_stream_bytes(base, layer, layer, &stream_buf, &stream_len));
+    TEST_ASSERT(file_len == stream_len);
+    TEST_ASSERT(memcmp(file_buf, stream_buf, file_len) == 0);
+
+    TEST_ASSERT(ds4_session_create(&restored, engine, 2048) == 0);
+    TEST_ASSERT(restored != NULL);
+    if (!restored) goto cleanup;
+
+    TEST_ASSERT(test_load_layer_payload_stream_bytes(restored,
+                                                     stream_buf,
+                                                     stream_len,
+                                                     prompt.v,
+                                                     (uint32_t)prompt.len,
+                                                     layer,
+                                                     layer));
+    TEST_ASSERT(test_save_layer_payload_bytes(restored,
+                                              layer,
+                                              layer,
+                                              &roundtrip_buf,
+                                              &roundtrip_len));
+    TEST_ASSERT(file_len == roundtrip_len);
+    TEST_ASSERT(memcmp(file_buf, roundtrip_buf, file_len) == 0);
+
+cleanup:
+    free(file_buf);
+    free(stream_buf);
+    free(roundtrip_buf);
+    ds4_session_free(restored);
+    ds4_session_free(base);
+    ds4_tokens_free(&prompt);
+    ds4_engine_close(engine);
+}
 #endif
+
+static void test_distributed_cli_prepare_one(
+        char **argv,
+        int argc,
+        int expect_prep_rc,
+        const char *expect_err) {
+    ds4_engine_options engine = {0};
+    char err[160] = {0};
+    ds4_dist_options *opt = ds4_dist_options_create();
+    TEST_ASSERT(opt != NULL);
+    if (!opt) return;
+
+    for (int i = 1; i < argc; i++) {
+        ds4_dist_cli_parse_result rc = ds4_dist_parse_cli_arg(argv[i],
+                                                              &i,
+                                                              argc,
+                                                              argv,
+                                                              opt,
+                                                              err,
+                                                              sizeof(err));
+        TEST_ASSERT(rc == DS4_DIST_CLI_MATCHED);
+    }
+
+    const int prep_rc = ds4_dist_prepare_engine_options(opt, &engine, err, sizeof(err));
+    TEST_ASSERT(prep_rc == expect_prep_rc);
+    if (expect_err) TEST_ASSERT(strcmp(err, expect_err) == 0);
+    ds4_dist_options_free(opt);
+}
+
+static void test_distributed_cli_parse(void) {
+    char *worker_argv[] = {
+        "ds4",
+        "--role", "worker",
+        "--layers", "21:output",
+        "--coordinator", "127.0.0.1", "9000",
+        "--local-decode",
+    };
+    test_distributed_cli_prepare_one(worker_argv,
+                                     (int)(sizeof(worker_argv) / sizeof(worker_argv[0])),
+                                     0,
+                                     NULL);
+
+    char *worker_missing_output_argv[] = {
+        "ds4",
+        "--role", "worker",
+        "--layers", "21:42",
+        "--coordinator", "127.0.0.1", "9000",
+        "--local-decode",
+    };
+    test_distributed_cli_prepare_one(worker_missing_output_argv,
+                                     (int)(sizeof(worker_missing_output_argv) / sizeof(worker_missing_output_argv[0])),
+                                     1,
+                                     "--local-decode requires --layers N:output");
+
+    char *coordinator_local_decode_argv[] = {
+        "ds4",
+        "--role", "coordinator",
+        "--layers", "0:21",
+        "--listen", "127.0.0.1", "9000",
+        "--local-decode",
+    };
+    test_distributed_cli_prepare_one(coordinator_local_decode_argv,
+                                     (int)(sizeof(coordinator_local_decode_argv) / sizeof(coordinator_local_decode_argv[0])),
+                                     1,
+                                     "--local-decode requires --role worker");
+
+    char *missing_role_local_decode_argv[] = {
+        "ds4",
+        "--local-decode",
+    };
+    test_distributed_cli_prepare_one(missing_role_local_decode_argv,
+                                     (int)(sizeof(missing_role_local_decode_argv) / sizeof(missing_role_local_decode_argv[0])),
+                                     1,
+                                     "distributed options require --role coordinator or --role worker");
+}
+
+static bool test_distributed_env_enabled(void) {
+    const char *value = getenv("DS4_RUN_DISTRIBUTED_TEST");
+    return value && value[0] && strcmp(value, "0") != 0;
+}
+
+static int test_env_int_or(const char *name, int fallback) {
+    const char *value = getenv(name);
+    if (!value || !value[0]) return fallback;
+    char *end = NULL;
+    long parsed = strtol(value, &end, 10);
+    if (!end || *end != '\0' || parsed <= 0 || parsed > INT_MAX) return fallback;
+    return (int)parsed;
+}
+
+static bool test_open_distributed_session_for_local_decode(
+        ds4_engine **engine_out,
+        ds4_session **session_out,
+        char *err,
+        size_t errlen) {
+#ifdef DS4_NO_GPU
+    (void)engine_out;
+    (void)session_out;
+    (void)err;
+    (void)errlen;
+    return false;
+#else
+    const char *listen_host = getenv("DS4_TEST_DISTRIBUTED_LISTEN_HOST");
+    if (!listen_host || !listen_host[0]) listen_host = "127.0.0.1";
+    const int listen_port = test_env_int_or("DS4_TEST_DISTRIBUTED_LISTEN_PORT", 1234);
+    const int route_wait_ms = test_env_int_or("DS4_TEST_DISTRIBUTED_ROUTE_WAIT_MS", 30000);
+    const int route_wait_tries = route_wait_ms < 100 ? 1 : route_wait_ms / 100;
+    ds4_engine_options engine_opt = {
+        .model_path = test_model_path(),
+#ifdef __APPLE__
+        .backend = DS4_BACKEND_METAL,
+#else
+        .backend = DS4_BACKEND_CUDA,
+#endif
+    };
+    ds4_dist_options dist_opt = {
+        .role = DS4_DISTRIBUTED_COORDINATOR,
+        .layers = {
+            .start = 0,
+            .end = 21,
+            .has_output = false,
+            .set = true,
+        },
+        .listen_host = listen_host,
+        .listen_port = listen_port,
+    };
+    const int prep_rc = ds4_dist_prepare_engine_options(&dist_opt, &engine_opt, err, errlen);
+    TEST_ASSERT(prep_rc == 0);
+    if (prep_rc != 0) return false;
+
+    ds4_engine *engine = NULL;
+    TEST_ASSERT(ds4_engine_open(&engine, &engine_opt) == 0);
+    if (!engine) return false;
+
+    ds4_session *session = NULL;
+    TEST_ASSERT(ds4_session_create(&session, engine, 2048) == 0);
+    if (!session) {
+        ds4_engine_close(engine);
+        return false;
+    }
+
+    int route_rc = 0;
+    for (int i = 0; i < route_wait_tries; i++) {
+        route_rc = ds4_session_distributed_route_ready(session, err, errlen);
+        if (route_rc != 0) break;
+        usleep(100000);
+    }
+    if (route_rc != 1) {
+        ds4_session_free(session);
+        ds4_engine_close(engine);
+        return false;
+    }
+
+    if (engine_out) *engine_out = engine;
+    if (session_out) *session_out = session;
+    return true;
+#endif
+}
+
+static void test_distributed_local_decode_push(void) {
+#ifdef DS4_NO_GPU
+    fprintf(stderr, "ds4-test: local-decode push skip (GPU support is not compiled in)\n");
+    return;
+#else
+    if (!test_distributed_env_enabled()) {
+        fprintf(stderr,
+                "ds4-test: local-decode push skip (set DS4_RUN_DISTRIBUTED_TEST=1 and run a worker for the configured coordinator listen host/port)\n");
+        return;
+    }
+
+    char err[256] = {0};
+    const char *listen_host = getenv("DS4_TEST_DISTRIBUTED_LISTEN_HOST");
+    if (!listen_host || !listen_host[0]) listen_host = "127.0.0.1";
+    const int listen_port = test_env_int_or("DS4_TEST_DISTRIBUTED_LISTEN_PORT", 1234);
+    ds4_engine *engine = NULL;
+    ds4_session *session = NULL;
+    ds4_tokens prompt = {0};
+
+    if (!test_open_distributed_session_for_local_decode(&engine,
+                                                        &session,
+                                                        err,
+                                                        sizeof(err))) {
+        fprintf(stderr,
+                "ds4-test: local-decode push skip (%s; listen=%s:%d wait_ms=%d)\n",
+                err[0] ? err : "distributed route is not ready",
+                listen_host,
+                listen_port,
+                test_env_int_or("DS4_TEST_DISTRIBUTED_ROUTE_WAIT_MS", 30000));
+        return;
+    }
+
+    ds4_encode_chat_prompt(engine,
+                           "",
+                           "Reply with exactly one short word about distributed inference.",
+                           DS4_THINK_NONE,
+                           &prompt);
+    TEST_ASSERT(prompt.len > 0);
+    const int sync_rc = ds4_session_sync(session, &prompt, err, sizeof(err));
+    TEST_ASSERT(sync_rc == 0);
+    if (sync_rc != 0) {
+        fprintf(stderr, "ds4-test: local-decode push sync failed: %s\n", err);
+        ds4_tokens_free(&prompt);
+        ds4_session_free(session);
+        ds4_engine_close(engine);
+        return;
+    }
+
+    int generated[4] = {0};
+    double shard_load_sec = 0.0;
+    double decode_sec = 0.0;
+    const int produced = ds4_session_distributed_handoff_argmax(session,
+                                                                2,
+                                                                generated,
+                                                                4,
+                                                                &shard_load_sec,
+                                                                &decode_sec,
+                                                                err,
+                                                                sizeof(err));
+    TEST_ASSERT(produced > 0);
+    TEST_ASSERT(shard_load_sec > 0.0);
+    TEST_ASSERT(decode_sec >= 0.0);
+    if (produced <= 0) {
+        fprintf(stderr, "ds4-test: local-decode push handoff failed: %s\n", err);
+        ds4_tokens_free(&prompt);
+        ds4_session_free(session);
+        ds4_engine_close(engine);
+        return;
+    }
+
+    const int forced = ds4_session_argmax(session);
+    TEST_ASSERT(forced >= 0);
+    const int eval_rc = ds4_session_eval(session, forced, err, sizeof(err));
+    TEST_ASSERT(eval_rc == 0);
+    if (eval_rc != 0) {
+        fprintf(stderr, "ds4-test: local-decode push reuse eval failed: %s\n", err);
+        ds4_tokens_free(&prompt);
+        ds4_session_free(session);
+        ds4_engine_close(engine);
+        return;
+    }
+
+    int second_token = -1;
+    double second_shard_sec = 0.0;
+    double second_decode_sec = 0.0;
+    const int produced_second = ds4_session_distributed_handoff_argmax(session,
+                                                                       1,
+                                                                       &second_token,
+                                                                       1,
+                                                                       &second_shard_sec,
+                                                                       &second_decode_sec,
+                                                                       err,
+                                                                       sizeof(err));
+    TEST_ASSERT(produced_second == 1);
+    TEST_ASSERT(second_shard_sec > 0.0);
+    TEST_ASSERT(second_decode_sec >= 0.0);
+
+    fprintf(stderr,
+            "ds4-test: local-decode push pass listen=%s:%d first_handoff=%d reuse_eval=%d second_handoff=%d kv=%.3fs decode=%.3fs decode2=%.3fs\n",
+            listen_host,
+            listen_port,
+            produced,
+            forced,
+            produced_second,
+            shard_load_sec,
+            decode_sec,
+            second_decode_sec);
+
+    ds4_tokens_free(&prompt);
+    ds4_session_free(session);
+    ds4_engine_close(engine);
+#endif
+}
+
+static void test_distributed_local_decode_capability_reject(void) {
+#ifdef DS4_NO_GPU
+    fprintf(stderr, "ds4-test: local-decode capability reject skip (GPU support is not compiled in)\n");
+    return;
+#else
+    if (!test_distributed_env_enabled()) {
+        fprintf(stderr,
+                "ds4-test: local-decode capability reject skip (set DS4_RUN_DISTRIBUTED_TEST=1 and run a worker without --local-decode for the configured coordinator listen host/port)\n");
+        return;
+    }
+
+    char err[256] = {0};
+    const char *listen_host = getenv("DS4_TEST_DISTRIBUTED_LISTEN_HOST");
+    if (!listen_host || !listen_host[0]) listen_host = "127.0.0.1";
+    ds4_engine *engine = NULL;
+    ds4_session *session = NULL;
+    ds4_tokens prompt = {0};
+
+    if (!test_open_distributed_session_for_local_decode(&engine,
+                                                        &session,
+                                                        err,
+                                                        sizeof(err))) {
+        fprintf(stderr,
+                "ds4-test: local-decode capability reject skip (%s; listen=%s:%d wait_ms=%d)\n",
+                err[0] ? err : "distributed route is not ready",
+                listen_host,
+                test_env_int_or("DS4_TEST_DISTRIBUTED_LISTEN_PORT", 1234),
+                test_env_int_or("DS4_TEST_DISTRIBUTED_ROUTE_WAIT_MS", 30000));
+        return;
+    }
+
+    ds4_encode_chat_prompt(engine,
+                           "",
+                           "Reply with exactly one short word about distributed inference.",
+                           DS4_THINK_NONE,
+                           &prompt);
+    TEST_ASSERT(prompt.len > 0);
+    const int sync_rc = ds4_session_sync(session, &prompt, err, sizeof(err));
+    TEST_ASSERT(sync_rc == 0);
+    if (sync_rc != 0) {
+        fprintf(stderr, "ds4-test: local-decode capability reject sync failed: %s\n", err);
+        ds4_tokens_free(&prompt);
+        ds4_session_free(session);
+        ds4_engine_close(engine);
+        return;
+    }
+
+    int generated[2] = {0};
+    double shard_load_sec = 0.0;
+    double decode_sec = 0.0;
+    err[0] = '\0';
+    const int produced = ds4_session_distributed_handoff_argmax(session,
+                                                                1,
+                                                                generated,
+                                                                2,
+                                                                &shard_load_sec,
+                                                                &decode_sec,
+                                                                err,
+                                                                sizeof(err));
+    TEST_ASSERT(produced < 0);
+    TEST_ASSERT(strcmp(err, "distributed handoff requires worker local-decode capability") == 0);
+
+    fprintf(stderr,
+            "ds4-test: local-decode capability reject pass listen=%s err=\"%s\"\n",
+            listen_host,
+            err);
+
+    ds4_tokens_free(&prompt);
+    ds4_session_free(session);
+    ds4_engine_close(engine);
+#endif
+}
 
 static void test_server_unit_group(void) {
     ds4_server_unit_tests_run();
@@ -2196,6 +2741,7 @@ static const ds4_test_entry test_entries[] = {
     {"--think-tool-recovery", "think-tool-recovery", "forced </think> recovery when a tool call starts inside thinking", test_think_tool_recovery},
     {"--logprob-vectors", "logprob-vectors", "official API top-logprob vector comparison on the standard Metal path", test_official_logprob_vectors},
     {"--metal-ssd-streaming-cache-pressure", "metal-ssd-streaming-cache-pressure", "Metal SSD-streaming layer-batched decode cache-pressure repro for issue #384", test_metal_ssd_streaming_cache_pressure},
+    {"--local-payload-stream", "local-payload-stream", "stream-vs-file DSVL payload roundtrip smoke", test_local_payload_stream},
     {"--local-golden-vectors", "local-golden-vectors", "local top-k/logit drift regression for long Metal prefill", test_local_golden_vectors},
     {"--metal-short-prefill", "metal-short-prefill", "Metal ratio-4 short prefill regression", test_metal_short_prefill_ratio4},
     {"--metal-kernels", "metal-kernels", "isolated Metal kernel numeric regressions", test_metal_kernel_group},
@@ -2204,6 +2750,9 @@ static const ds4_test_entry test_entries[] = {
     {"--mtp-verify-depth", "mtp-verify-depth", "MTP speculative verify commits autoregressive-identical tokens at draft depth > 2", test_mtp_verify_depth},
 #endif
     {"--server", "server", "server parser/rendering/cache unit tests", test_server_unit_group},
+    {"--dist-cli-parse", "dist-cli-parse", "distributed CLI parsing and --local-decode validation", test_distributed_cli_parse},
+    {"--local-decode-push", "local-decode-push", "distributed worker-owned local-decode handoff smoke (skips unless DS4_RUN_DISTRIBUTED_TEST=1)", test_distributed_local_decode_push},
+    {"--local-decode-capability-reject", "local-decode-capability-reject", "distributed handoff rejects a worker route that does not advertise local-decode capability", test_distributed_local_decode_capability_reject},
 };
 
 static void test_print_help(const char *prog) {
@@ -2233,6 +2782,10 @@ static void test_print_help(const char *prog) {
     puts("  DS4_TEST_VECTOR_FILE=FILE  Simple official-vector fixture.");
     puts("  DS4_TEST_LOCAL_GOLDEN_FILE=FILE  Local top-k golden-vector fixture.");
     puts("  DS4_TEST_MPP_EQ_CASE=NAME  Run only Tensor equivalence cases whose id contains NAME.");
+    puts("  DS4_RUN_DISTRIBUTED_TEST=1  Enable the local-decode distributed tests.");
+    puts("  DS4_TEST_DISTRIBUTED_LISTEN_HOST=HOST  Coordinator listen host for distributed tests. Default: 127.0.0.1");
+    puts("  DS4_TEST_DISTRIBUTED_LISTEN_PORT=PORT  Coordinator listen port for distributed tests. Default: 1234");
+    puts("  DS4_TEST_DISTRIBUTED_ROUTE_WAIT_MS=N  Route wait budget for distributed tests. Default: 30000");
 }
 
 static const ds4_test_entry *test_find_entry(const char *arg) {
