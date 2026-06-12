@@ -385,6 +385,29 @@ slow or metered links, `--layers 20:42` is also supported: the coordinator will
 load the output head and compute logits locally, trading extra coordinator work
 for smaller per-token replies.
 
+When the final worker owns `N:output`, you can also start that worker with
+`--local-decode`. In that mode the route still does distributed prefill, but
+after prefill the coordinator pushes its KV shard to the final worker and the
+worker finishes generation locally using full model residency. This is the
+worker-local handoff workflow: it keeps the distributed prefill speedup while
+moving decode back onto one machine.
+
+For example, using M5 Max 128GB as a final worker with `--layers 22:output --local-decode` and running DGX Spark as coordinator with `--layers 0:21` over 5GbE direct link provides `prefill: 602.78 t/s, generation: 30.10 t/s`.
+
+The contract for this path is:
+
+- The coordinator only activates worker-local decode when the final worker has
+  explicitly advertised that capability during route formation.
+- Distributed participants should be built from the same commit and must agree
+  on the session layout that matters for the handoff: context size, KV layout,
+  layer ownership, and model identity.
+- Stale or mismatched state fails closed. Missing worker capability, missing
+  output-head ownership, token-prefix hash mismatch, and shard-layout mismatch
+  cause rejections.
+- If a worker disconnects, the coordinator drops the route and can replay the
+  transcript onto a replacement route when available, it will not silently
+  reuse stale worker KV.
+
 ### Network Link Comparison
 
 The table below shows the same two M5 Max hosts, the same 91 GB Flash quant,
