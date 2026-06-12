@@ -24934,7 +24934,6 @@ int ds4_engine_open(ds4_engine **out, const ds4_engine_options *opt) {
         uint64_t *load_offsets = NULL;
         uint64_t *load_sizes = NULL;
         uint32_t load_span_count = 0;
-        if (load_slice) {
         uint64_t load_max_tensor_bytes = e->model.max_tensor_bytes;
         if (load_slice) {
             const bool map_output = load_output ||
