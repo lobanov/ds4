@@ -25554,6 +25554,15 @@ int ds4_engine_open(ds4_engine **out, const ds4_engine_options *opt) {
     e->distributed = opt->distributed;
     e->power_percent = opt->power_percent > 0 ? opt->power_percent : 100;
     e->prefill_chunk = opt->prefill_chunk;
+    const bool distributed_reverse_coordinator =
+        e->distributed.role == DS4_DISTRIBUTED_COORDINATOR &&
+        e->distributed.layers.set &&
+        e->distributed.layers.has_output &&
+        e->distributed.layers.start > 0u;
+    if (e->prefill_chunk == 0 && distributed_reverse_coordinator) {
+        e->prefill_chunk = 2048u;
+        e->distributed.prefill_chunk = 2048u;
+    }
     e->ssd_streaming_cache_experts = opt->ssd_streaming_cache_experts;
     e->ssd_streaming_cache_bytes = opt->ssd_streaming_cache_bytes;
     e->ssd_streaming_preload_experts = opt->ssd_streaming_preload_experts;

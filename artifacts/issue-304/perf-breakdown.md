@@ -108,6 +108,39 @@ Interpretation:
   these first-turn measurements, because it does not run until the next
   distributed-prefill frontier.
 
+### 2026-06-17 reverse-topology optimization pass
+
+Follow-up changes on the rebased reverse path:
+
+- reverse pipelined prefill no longer computes coordinator logits on
+  non-final chunks,
+- reverse hidden-state receive and coordinator suffix application are now split
+  into separate stages so the worker can keep sending while the coordinator is
+  still applying earlier chunks,
+- reverse distributed coordinators now default to `prefill_chunk=2048`, which
+  also shrinks the coordinator graph/session prefill buffers instead of only
+  changing transport chunking.
+
+Full `README.md` (`15,505` prompt tokens), same DGX/Mac route:
+
+| Surface | Coordinator graph prefill chunk | Reverse chunk cap | Prefill tok/s | Notes |
+| --- | ---: | ---: | ---: | --- |
+| reverse default before tuning | 4096 | 4096 | 472-539 | large run-to-run variance, but still well below the older worker-owned path |
+| reverse manual sweep | 2048 | 2048 | 607.46 | best measured full-README point on June 17 |
+| reverse manual sweep | 1024 | 1024 | 420.92 | too many chunks; coordinator suffix launch overhead dominates |
+| reverse default after tuning | 2048 | 2048 | 603.42 | new automatic path, no explicit `--prefill-chunk` override |
+
+Takeaway:
+
+- The reverse path can get back to roughly the earlier `~600 tok/s` class on
+  this topology, but it needs both:
+  - less per-chunk coordinator work,
+  - and a smaller reverse default chunk than the old `4096` local-graph
+    default.
+- Simply lowering the distributed transport chunk without also changing the
+  coordinator's own session/graph `prefill_chunk` is not enough; that mixed
+  configuration still fell back to about `474 tok/s`.
+
 ## Phase 6 profiling snapshot
 
 These measurements focus on the worker-owned local-decode workflow after the
