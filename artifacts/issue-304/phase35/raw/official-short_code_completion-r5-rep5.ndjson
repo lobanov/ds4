@@ -1,0 +1,10 @@
+{"mode":"payload","suite":"official","case":"short_code_completion","ctx":4096,"repeat":1,"ok":true,"route_summary":"payload","payload_bytes":15423992,"prefill_sec":0.000000,"stage_sec":0.000000,"load_sec":0.002125,"parity":{"envelope":"fail","first_top1_mismatch_step":1,"top1_ref":69,"top1_cand":37,"top5_overlap":3,"top20_overlap":14,"top64_overlap":54,"rms":1.25698996,"max_abs":6.82095432,"top20_max_abs":3.86825752,"nonfinite":0},"official":{"pass":false,"selected_mismatch_step":1,"missing_top_count":0,"max_logprob_delta":0.774877012},"golden":{"pass":false,"top1":0,"top5_overlap":0,"top20_overlap":0,"top64_overlap":0,"top20_max_abs":0},"error":""}
+{"mode":"payload","suite":"official","case":"short_code_completion","ctx":4096,"worst_at_1":{"passes":1,"route_summary":"payload","payload_bytes_max":15423992,"prefill_sec_max":0.000000,"stage_sec_max":0.000000,"load_sec_max":0.002125,"parity":{"envelope":"fail","first_top1_mismatch_step":1,"top1_ref":69,"top1_cand":37,"top5_overlap":3,"top20_overlap":14,"top64_overlap":54,"rms":1.25698996,"max_abs":6.82095432,"top20_max_abs":3.86825752,"nonfinite":0},"official":{"pass":false,"selected_mismatch_step":1,"missing_top_count":0,"max_logprob_delta":0.774877012},"golden":{"pass":false,"top1":0,"top5_overlap":0,"top20_overlap":0,"top64_overlap":0,"top20_max_abs":0}}}
+
+# STDERR
+ds4: Metal device Apple M5 Max, 128.00 GiB RAM
+ds4: Metal 4 tensor API enabled for Tensor kernels
+ds4: drift-patch flags hc_stable=on norm_unify=on kv_raw_f32=off rope_exp2_log2=off math_safe=off tensor_matmul=on
+ds4: Metal model views created in 1.725 ms, residency requested in 343.774 ms, warmup 3.740 ms (mapped 82697.67 MiB from offset 5.09 MiB)
+ds4: Metal mapped mmaped model as 2 overlapping shared buffers
+ds4: metal backend initialized for graph diagnostics

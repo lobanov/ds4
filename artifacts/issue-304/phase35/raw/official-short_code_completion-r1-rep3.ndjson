@@ -1,0 +1,20 @@
+{"mode":"local","suite":"official","case":"short_code_completion","ctx":4096,"repeat":1,"ok":true,"route_summary":"local","payload_bytes":0,"prefill_sec":0.752710,"stage_sec":0.000000,"load_sec":0.000000,"parity":{"envelope":"strict","first_top1_mismatch_step":-1,"top1_ref":9854,"top1_cand":9854,"top5_overlap":5,"top20_overlap":20,"top64_overlap":64,"rms":0,"max_abs":0,"top20_max_abs":0,"nonfinite":0},"official":{"pass":false,"selected_mismatch_step":1,"missing_top_count":0,"max_logprob_delta":1.42368603},"golden":{"pass":false,"top1":0,"top5_overlap":0,"top20_overlap":0,"top64_overlap":0,"top20_max_abs":0},"error":""}
+{"mode":"local","suite":"official","case":"short_code_completion","ctx":4096,"worst_at_1":{"passes":1,"route_summary":"local","payload_bytes_max":0,"prefill_sec_max":0.752710,"stage_sec_max":0.000000,"load_sec_max":0.000000,"parity":{"envelope":"strict","first_top1_mismatch_step":-1,"top1_ref":9854,"top1_cand":9854,"top5_overlap":5,"top20_overlap":20,"top64_overlap":64,"rms":0,"max_abs":0,"top20_max_abs":0,"nonfinite":0},"official":{"pass":false,"selected_mismatch_step":1,"missing_top_count":0,"max_logprob_delta":1.42368603},"golden":{"pass":false,"top1":0,"top5_overlap":0,"top20_overlap":0,"top64_overlap":0,"top20_max_abs":0}}}
+
+# STDERR
+ds4: CUDA backend initialized on NVIDIA GB10 (sm_121)
+ds4: CUDA host registration skipped: operation not supported
+ds4: CUDA preparing model tensor mappings
+ds4: CUDA loading model tensors into device cache
+ds4: CUDA loading model tensors 16.02 GiB cached
+ds4: CUDA prepared model tensor mappings 16.37 GiB
+ds4: CUDA loading model tensors 32.06 GiB cached
+ds4: CUDA prepared model tensor mappings 32.07 GiB
+ds4: CUDA loading model tensors 48.02 GiB cached
+ds4: CUDA prepared model tensor mappings 48.43 GiB
+ds4: CUDA loading model tensors 64.06 GiB cached
+ds4: CUDA prepared model tensor mappings 64.13 GiB
+ds4: CUDA loading model tensors 80.04 GiB cached
+ds4: CUDA prepared model tensor mappings 80.24 GiB
+ds4: CUDA startup model preparation covered 80.76 GiB of tensor spans in 10.404s
+ds4: cuda backend initialized for graph diagnostics

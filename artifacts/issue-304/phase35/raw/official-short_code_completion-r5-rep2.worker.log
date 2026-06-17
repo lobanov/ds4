@@ -1,0 +1,13 @@
+ds4: Metal device Apple M5 Max, 128.00 GiB RAM
+ds4: Metal 4 tensor API enabled for Tensor kernels
+ds4: drift-patch flags hc_stable=on norm_unify=on kv_raw_f32=off rope_exp2_log2=off math_safe=off tensor_matmul=on
+ds4: restricting metal model map to layers 22:output (46 spans, 39.25 GiB tensor span)
+ds4: Metal model views created in 1.232 ms, residency requested in 175.953 ms, warmup 4.288 ms (mapped 40194.02 MiB from offset 38029.96 MiB)
+ds4: Metal mapped mmaped model as 46 disjoint shared buffers across 46 tensor spans
+ds4: metal backend initialized for graph diagnostics
+ds4: distributed worker: layers 22:output model_id=0 data_listen=*:60353 connecting to coordinator 192.168.1.98:1234
+ds4: distributed worker: connected to coordinator 192.168.1.98:1234
+ds4: distributed worker: receive prefetch depth 2 enabled
+ds4: distributed worker: receive prefetch depth 2 enabled
+ds4: distributed worker: cleared 1 sessions after coordinator disconnect
+ds4: distributed worker: coordinator disconnected; reconnecting

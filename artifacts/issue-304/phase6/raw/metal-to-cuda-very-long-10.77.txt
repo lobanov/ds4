@@ -1,0 +1,161 @@
+ds4: Metal device Apple M5 Max, 128.00 GiB RAM
+ds4: Metal 4 tensor API enabled for Tensor kernels
+ds4: drift-patch flags hc_stable=on norm_unify=on kv_raw_f32=off rope_exp2_log2=off math_safe=off tensor_matmul=on
+ds4: restricting metal model map to layers 0:21+output (48 spans, 42.03 GiB tensor span)
+ds4: Metal model views created in 1.339 ms, residency requested in 351.053 ms, warmup 3.750 ms (mapped 43041.81 MiB from offset 5.09 MiB)
+ds4: Metal mapped mmaped model as 48 disjoint shared buffers across 48 tensor spans
+ds4: metal backend initialized for graph diagnostics
+ds4: distributed coordinator API: listening on 10.77.0.1:1243 model_id=0 layers=43 local=0:21 activation_bits=32
+ds4: distributed coordinator: registered worker 10.77.0.2:56608 data_port=41373 model_id=0 quant=Q2 layers=22:output hidden=1 ctx=16384 local_decode=1
+ds4: distributed coordinator: complete route ready: local 0:21 -> 10.77.0.2:41373 Q2 22:output
+ds4: distributed coordinator: pipelined prefill 57 chunks of up to 256 tokens through 1 worker, first hop 10.77.0.2:41373, send depth 2, flow window 3
+ds4: distributed telemetry: request=1 hop=0 layers=22:42 route=0 pos=0 tokens=256 eval=362.791ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=2 hop=0 layers=22:42 route=0 pos=256 tokens=256 eval=366.922ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=3 hop=0 layers=22:42 route=0 pos=512 tokens=256 eval=371.179ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=4 hop=0 layers=22:42 route=0 pos=768 tokens=256 eval=374.092ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=5 hop=0 layers=22:42 route=0 pos=1024 tokens=256 eval=373.815ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=6 hop=0 layers=22:42 route=0 pos=1280 tokens=256 eval=385.760ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=7 hop=0 layers=22:42 route=0 pos=1536 tokens=256 eval=386.870ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=8 hop=0 layers=22:42 route=0 pos=1792 tokens=256 eval=398.809ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=9 hop=0 layers=22:42 route=0 pos=2048 tokens=256 eval=399.424ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=10 hop=0 layers=22:42 route=0 pos=2304 tokens=256 eval=402.580ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=11 hop=0 layers=22:42 route=0 pos=2560 tokens=256 eval=397.494ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=12 hop=0 layers=22:42 route=0 pos=2816 tokens=256 eval=405.665ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=13 hop=0 layers=22:42 route=0 pos=3072 tokens=256 eval=403.832ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=14 hop=0 layers=22:42 route=0 pos=3328 tokens=256 eval=399.311ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=15 hop=0 layers=22:42 route=0 pos=3584 tokens=256 eval=399.973ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=16 hop=0 layers=22:42 route=0 pos=3840 tokens=256 eval=404.252ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=17 hop=0 layers=22:42 route=0 pos=4096 tokens=256 eval=413.808ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=18 hop=0 layers=22:42 route=0 pos=4352 tokens=256 eval=406.377ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=19 hop=0 layers=22:42 route=0 pos=4608 tokens=256 eval=415.088ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=20 hop=0 layers=22:42 route=0 pos=4864 tokens=256 eval=414.802ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=21 hop=0 layers=22:42 route=0 pos=5120 tokens=256 eval=405.945ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=22 hop=0 layers=22:42 route=0 pos=5376 tokens=256 eval=412.885ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=23 hop=0 layers=22:42 route=0 pos=5632 tokens=256 eval=402.387ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=24 hop=0 layers=22:42 route=0 pos=5888 tokens=256 eval=399.170ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=25 hop=0 layers=22:42 route=0 pos=6144 tokens=256 eval=402.618ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=26 hop=0 layers=22:42 route=0 pos=6400 tokens=256 eval=409.286ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=27 hop=0 layers=22:42 route=0 pos=6656 tokens=256 eval=402.749ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=28 hop=0 layers=22:42 route=0 pos=6912 tokens=256 eval=415.512ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=29 hop=0 layers=22:42 route=0 pos=7168 tokens=256 eval=411.818ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=30 hop=0 layers=22:42 route=0 pos=7424 tokens=256 eval=409.837ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=31 hop=0 layers=22:42 route=0 pos=7680 tokens=256 eval=418.338ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=32 hop=0 layers=22:42 route=0 pos=7936 tokens=256 eval=414.002ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=33 hop=0 layers=22:42 route=0 pos=8192 tokens=256 eval=410.182ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=34 hop=0 layers=22:42 route=0 pos=8448 tokens=256 eval=418.311ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=35 hop=0 layers=22:42 route=0 pos=8704 tokens=256 eval=418.696ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=36 hop=0 layers=22:42 route=0 pos=8960 tokens=256 eval=410.627ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=37 hop=0 layers=22:42 route=0 pos=9216 tokens=256 eval=415.865ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=38 hop=0 layers=22:42 route=0 pos=9472 tokens=256 eval=418.785ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=39 hop=0 layers=22:42 route=0 pos=9728 tokens=256 eval=408.568ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=40 hop=0 layers=22:42 route=0 pos=9984 tokens=256 eval=431.282ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=41 hop=0 layers=22:42 route=0 pos=10240 tokens=256 eval=414.052ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=42 hop=0 layers=22:42 route=0 pos=10496 tokens=256 eval=416.962ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=43 hop=0 layers=22:42 route=0 pos=10752 tokens=256 eval=413.536ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=44 hop=0 layers=22:42 route=0 pos=11008 tokens=256 eval=422.051ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=45 hop=0 layers=22:42 route=0 pos=11264 tokens=256 eval=421.743ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=46 hop=0 layers=22:42 route=0 pos=11520 tokens=256 eval=416.350ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=47 hop=0 layers=22:42 route=0 pos=11776 tokens=256 eval=421.634ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=48 hop=0 layers=22:42 route=0 pos=12032 tokens=256 eval=422.847ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=49 hop=0 layers=22:42 route=0 pos=12288 tokens=256 eval=421.250ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=50 hop=0 layers=22:42 route=0 pos=12544 tokens=256 eval=425.052ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=51 hop=0 layers=22:42 route=0 pos=12800 tokens=256 eval=421.654ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=52 hop=0 layers=22:42 route=0 pos=13056 tokens=256 eval=420.979ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=53 hop=0 layers=22:42 route=0 pos=13312 tokens=256 eval=424.772ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=54 hop=0 layers=22:42 route=0 pos=13568 tokens=256 eval=421.406ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=55 hop=0 layers=22:42 route=0 pos=13824 tokens=256 eval=430.815ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=56 hop=0 layers=22:42 route=0 pos=14080 tokens=256 eval=428.525ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=57 hop=0 layers=22:42 route=0 pos=14336 tokens=99 eval=416.907ms downstream_wait=0.000ms forward_send=0.000ms input=6.19MiB output=0.49MiB
+ds4: distributed coordinator: pipelined prefill done tokens=14435 chunks=57 total=38.579s 374.17 t/s local=38.138s send=1.177s 766.29 MiB/s
+ds4: distributed coordinator: local-decode KV handoff tokens=14435 layers=0:21 bytes=106488040 total=0.338s 300.77 MiB/s worker=10.77.0.2:41373
+ds4: distributed coordinator: local-generate request worker=10.77.0.2:41373 predict=8 trace=no req_bytes=60 logits_bytes=517120
+ds4: distributed telemetry: request=60 hop=0 layers=22:42 route=0 pos=14443 tokens=16 eval=119.502ms downstream_wait=0.000ms forward_send=0.000ms input=1.00MiB output=0.49MiB
+ds4: distributed coordinator: local-decode KV handoff tokens=14459 layers=0:21 bytes=106641640 total=0.366s 277.63 MiB/s worker=10.77.0.2:41373
+ds4: distributed coordinator: local-generate request worker=10.77.0.2:41373 predict=8 trace=no req_bytes=60 logits_bytes=517120
+ds4: distributed coordinator: accept failed: Software caused connection abort
+ds4: Metal device Apple M5 Max, 128.00 GiB RAM
+ds4: Metal 4 tensor API enabled for Tensor kernels
+ds4: drift-patch flags hc_stable=on norm_unify=on kv_raw_f32=off rope_exp2_log2=off math_safe=off tensor_matmul=on
+ds4: restricting metal model map to layers 0:21+output (48 spans, 42.03 GiB tensor span)
+ds4: Metal model views created in 1.238 ms, residency requested in 357.741 ms, warmup 3.317 ms (mapped 43041.81 MiB from offset 5.09 MiB)
+ds4: Metal mapped mmaped model as 48 disjoint shared buffers across 48 tensor spans
+ds4: metal backend initialized for graph diagnostics
+ds4: distributed coordinator API: listening on 10.77.0.1:1243 model_id=0 layers=43 local=0:21 activation_bits=32
+ds4: distributed coordinator: registered worker 10.77.0.2:46666 data_port=41373 model_id=0 quant=Q2 layers=22:output hidden=1 ctx=16384 local_decode=1
+ds4: distributed coordinator: complete route ready: local 0:21 -> 10.77.0.2:41373 Q2 22:output
+ds4: distributed coordinator: pipelined prefill 57 chunks of up to 256 tokens through 1 worker, first hop 10.77.0.2:41373, send depth 2, flow window 3
+ds4: distributed telemetry: request=1 hop=0 layers=22:42 route=0 pos=0 tokens=256 eval=365.934ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=2 hop=0 layers=22:42 route=0 pos=256 tokens=256 eval=367.074ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=3 hop=0 layers=22:42 route=0 pos=512 tokens=256 eval=368.394ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=4 hop=0 layers=22:42 route=0 pos=768 tokens=256 eval=374.623ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=5 hop=0 layers=22:42 route=0 pos=1024 tokens=256 eval=378.366ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=6 hop=0 layers=22:42 route=0 pos=1280 tokens=256 eval=387.910ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=7 hop=0 layers=22:42 route=0 pos=1536 tokens=256 eval=387.253ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=8 hop=0 layers=22:42 route=0 pos=1792 tokens=256 eval=401.775ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=9 hop=0 layers=22:42 route=0 pos=2048 tokens=256 eval=399.799ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=10 hop=0 layers=22:42 route=0 pos=2304 tokens=256 eval=406.241ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=11 hop=0 layers=22:42 route=0 pos=2560 tokens=256 eval=401.819ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=12 hop=0 layers=22:42 route=0 pos=2816 tokens=256 eval=404.937ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=13 hop=0 layers=22:42 route=0 pos=3072 tokens=256 eval=406.029ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=14 hop=0 layers=22:42 route=0 pos=3328 tokens=256 eval=399.591ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=15 hop=0 layers=22:42 route=0 pos=3584 tokens=256 eval=404.439ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=16 hop=0 layers=22:42 route=0 pos=3840 tokens=256 eval=409.490ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=17 hop=0 layers=22:42 route=0 pos=4096 tokens=256 eval=413.039ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=18 hop=0 layers=22:42 route=0 pos=4352 tokens=256 eval=410.273ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=19 hop=0 layers=22:42 route=0 pos=4608 tokens=256 eval=415.314ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=20 hop=0 layers=22:42 route=0 pos=4864 tokens=256 eval=415.420ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=21 hop=0 layers=22:42 route=0 pos=5120 tokens=256 eval=405.762ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=22 hop=0 layers=22:42 route=0 pos=5376 tokens=256 eval=414.691ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=23 hop=0 layers=22:42 route=0 pos=5632 tokens=256 eval=402.845ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=24 hop=0 layers=22:42 route=0 pos=5888 tokens=256 eval=402.071ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=25 hop=0 layers=22:42 route=0 pos=6144 tokens=256 eval=405.396ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=26 hop=0 layers=22:42 route=0 pos=6400 tokens=256 eval=410.811ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=27 hop=0 layers=22:42 route=0 pos=6656 tokens=256 eval=405.825ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=28 hop=0 layers=22:42 route=0 pos=6912 tokens=256 eval=418.993ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=29 hop=0 layers=22:42 route=0 pos=7168 tokens=256 eval=415.930ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=30 hop=0 layers=22:42 route=0 pos=7424 tokens=256 eval=410.597ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=31 hop=0 layers=22:42 route=0 pos=7680 tokens=256 eval=419.196ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=32 hop=0 layers=22:42 route=0 pos=7936 tokens=256 eval=411.184ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=33 hop=0 layers=22:42 route=0 pos=8192 tokens=256 eval=411.492ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=34 hop=0 layers=22:42 route=0 pos=8448 tokens=256 eval=417.675ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=35 hop=0 layers=22:42 route=0 pos=8704 tokens=256 eval=419.893ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=36 hop=0 layers=22:42 route=0 pos=8960 tokens=256 eval=412.642ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=37 hop=0 layers=22:42 route=0 pos=9216 tokens=256 eval=414.492ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=38 hop=0 layers=22:42 route=0 pos=9472 tokens=256 eval=419.133ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=39 hop=0 layers=22:42 route=0 pos=9728 tokens=256 eval=408.997ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=40 hop=0 layers=22:42 route=0 pos=9984 tokens=256 eval=433.553ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=41 hop=0 layers=22:42 route=0 pos=10240 tokens=256 eval=415.659ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=42 hop=0 layers=22:42 route=0 pos=10496 tokens=256 eval=419.611ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=43 hop=0 layers=22:42 route=0 pos=10752 tokens=256 eval=413.291ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=44 hop=0 layers=22:42 route=0 pos=11008 tokens=256 eval=425.348ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=45 hop=0 layers=22:42 route=0 pos=11264 tokens=256 eval=419.541ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=46 hop=0 layers=22:42 route=0 pos=11520 tokens=256 eval=422.003ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=47 hop=0 layers=22:42 route=0 pos=11776 tokens=256 eval=424.368ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=48 hop=0 layers=22:42 route=0 pos=12032 tokens=256 eval=424.745ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=49 hop=0 layers=22:42 route=0 pos=12288 tokens=256 eval=421.637ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=50 hop=0 layers=22:42 route=0 pos=12544 tokens=256 eval=425.466ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=51 hop=0 layers=22:42 route=0 pos=12800 tokens=256 eval=423.576ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=52 hop=0 layers=22:42 route=0 pos=13056 tokens=256 eval=416.602ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=53 hop=0 layers=22:42 route=0 pos=13312 tokens=256 eval=428.230ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=54 hop=0 layers=22:42 route=0 pos=13568 tokens=256 eval=420.178ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=55 hop=0 layers=22:42 route=0 pos=13824 tokens=256 eval=434.705ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=56 hop=0 layers=22:42 route=0 pos=14080 tokens=256 eval=425.316ms downstream_wait=0.000ms forward_send=0.000ms input=16.00MiB output=0.00MiB
+ds4: distributed telemetry: request=57 hop=0 layers=22:42 route=0 pos=14336 tokens=107 eval=433.514ms downstream_wait=0.000ms forward_send=0.000ms input=6.69MiB output=0.49MiB
+ds4: distributed coordinator: pipelined prefill done tokens=14443 chunks=57 total=38.281s 377.29 t/s local=37.821s send=1.186s 761.43 MiB/s
+ds4: distributed telemetry: request=58 hop=0 layers=22:42 route=0 pos=14443 tokens=16 eval=121.523ms downstream_wait=0.000ms forward_send=0.000ms input=1.00MiB output=0.49MiB
+ds4: distributed coordinator: local-decode KV handoff tokens=14459 layers=0:21 bytes=106641640 total=0.365s 278.32 MiB/s worker=10.77.0.2:41373
+ds4: distributed coordinator: local-generate request worker=10.77.0.2:41373 predict=8 trace=no req_bytes=60 logits_bytes=517120
+ds4: distributed coordinator: accept failed: Software caused connection abort
+PHASE5_MULTITURN_ROUTE summary=local 0:21 -> 10.77.0.2:41373 Q2 22:output hops=1 prompt1_tokens=14435
+PHASE5_MULTITURN_TURN1 tokens=[39111,509,566,40006,10259,14,342,588] shard_sec=0.337650 decode_sec=0.600685 checkpoint_pos=14443
+PHASE5_MULTITURN_SYNC reused_pos=14467 prompt2_tokens=14459
+PHASE5_MULTITURN_TIMING turn1_sync_sec=38.578749 turn1_handoff_sec=0.337650 turn1_decode_sec=0.600685 reused_sync_sec=0.239665 reused_handoff_sec=0.366322 reused_decode_sec=0.606177
+PHASE5_MULTITURN_TURN1_ARGMAX reused=1762 fresh=1762 reused_in_fresh_top5=true fresh_in_reused_top5=true
+PHASE5_MULTITURN_TURN1_LOGITS top5=5 top10=9 top20=19 rms=0.31305659 max_abs=1.44987559 top20_max_abs=0.51217270 nonfinite=0
+PHASE5_MULTITURN_TURN1_TOP5 fresh=[{"id":1762,"logit":36.405895,"text":" see"},{"id":45706,"logit":33.428371,"text":" summarize"},{"id":1694,"logit":33.101711,"text":" help"},{"id":3052,"logit":32.742466,"text":" provide"},{"id":10532,"logit":31.919197,"text":" extract"}] reused=[{"id":1762,"logit":36.538162,"text":" see"},{"id":45706,"logit":33.268490,"text":" summarize"},{"id":1694,"logit":33.102879,"text":" help"},{"id":3052,"logit":32.769665,"text":" provide"},{"id":10532,"logit":32.136894,"text":" extract"}]
+PHASE5_MULTITURN_ARGMAX reused=2337 fresh=2337 reused_in_fresh_top5=true fresh_in_reused_top5=true
+PHASE5_MULTITURN_LOGITS top5=5 top10=9 top20=18 rms=0.38085523 max_abs=2.35336113 top20_max_abs=0.60962677 nonfinite=0
+PHASE5_MULTITURN_TOP5 fresh=[{"id":2337,"logit":27.274326,"text":"This"},{"id":671,"logit":26.982445,"text":"The"},{"id":43,"logit":26.343403,"text":"I"},{"id":6534,"logit":25.731178,"text":"see"},{"id":39111,"logit":24.311968,"text":"Looking"}] reused=[{"id":2337,"logit":27.234413,"text":"This"},{"id":671,"logit":26.837955,"text":"The"},{"id":43,"logit":26.509766,"text":"I"},{"id":6534,"logit":25.897146,"text":"see"},{"id":39111,"logit":24.606638,"text":"Looking"}]
+PHASE5_MULTITURN_FRESH_TIMING turn1_sync_sec=38.281284 followup_sync_sec=0.242849 turn2_handoff_sec=0.365409 turn2_decode_sec=0.599551
+PHASE5_MULTITURN_TURN2 reused=[2337,344,260,10501,40006,10259,362,270] fresh=[2337,344,260,10501,40006,10259,362,270]
+PHASE5_MULTITURN_RESULT ok=true turn1_visible=8 turn2_tokens=8 mismatch_allowed=true
