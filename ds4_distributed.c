@@ -237,6 +237,7 @@ typedef struct {
     ds4_dist_topology topology;
     bool local_has_output;
     bool local_can_output_head;
+    bool local_decode_requested;
     bool replay_check;
     bool debug;
     bool use_control_for_work;
@@ -5411,6 +5412,7 @@ static int dist_kv_route_build_owners(
 
 static bool dist_session_supports_local_decode(const ds4_dist_session *d) {
     return d &&
+           d->state.local_decode_requested &&
            d->state.topology == DS4_DIST_TOPOLOGY_REVERSE &&
            d->state.local_has_output &&
            d->state.local_start > 0u;
@@ -6200,6 +6202,7 @@ int ds4_dist_session_create(
     d->state.topology = topology;
     d->state.local_has_output = opt->layers.has_output;
     d->state.local_can_output_head = ds4_engine_has_output_head(engine);
+    d->state.local_decode_requested = opt->local_decode;
     d->state.replay_check = opt->replay_check;
     d->state.debug = opt->debug;
     d->state.use_control_for_work = true;
@@ -8976,6 +8979,9 @@ void ds4_dist_usage(FILE *fp) {
         "      Coordinator TCP listen address. Workers may later use it to force their data listener.\n"
         "  --coordinator HOST PORT\n"
         "      Coordinator TCP address for --role worker.\n"
+        "  --local-decode\n"
+        "      Coordinator-only opt-in: keep a reverse --layers N:output coordinator\n"
+        "      fully resident and switch to local decode after distributed prefill.\n"
         "  --dist-prefill-chunk N\n"
         "      Coordinator prefill pipeline chunk size. Default: session cap, normally 4096.\n"
         "      Non-default values are experimental and can change logits unless validated.\n"
@@ -9061,6 +9067,14 @@ ds4_dist_cli_parse_result ds4_dist_parse_cli_arg(
         opt->coordinator_host = host;
         return DS4_DIST_CLI_MATCHED;
     }
+    if (!strcmp(arg, "--local-decode")) {
+        if (!opt) {
+            if (errlen) snprintf(err, errlen, "missing distributed options");
+            return DS4_DIST_CLI_ERROR;
+        }
+        opt->local_decode = true;
+        return DS4_DIST_CLI_MATCHED;
+    }
     if (!strcmp(arg, "--dist-prefill-chunk")) {
         if (!opt) {
             if (errlen) snprintf(err, errlen, "missing distributed options");
@@ -9136,6 +9150,7 @@ static int dist_validate_options(const ds4_dist_options *opt, char *err, size_t 
         if (opt->layers.set || opt->listen_host || opt->listen_port ||
             opt->coordinator_host || opt->coordinator_port ||
             opt->prefill_chunk != 0 || opt->prefill_window != 0 ||
+            opt->local_decode ||
             opt->activation_bits != 0) {
             if (errlen) snprintf(err, errlen, "distributed options require --role coordinator or --role worker");
             return 1;
@@ -9157,6 +9172,15 @@ static int dist_validate_options(const ds4_dist_options *opt, char *err, size_t 
     }
 
     if (opt->role == DS4_DISTRIBUTED_COORDINATOR) {
+        if (opt->local_decode &&
+            (!opt->layers.has_output || opt->layers.start == 0u)) {
+            if (errlen) {
+                snprintf(err,
+                         errlen,
+                         "--local-decode requires reverse --role coordinator --layers N:output");
+            }
+            return 1;
+        }
         if (!opt->listen_host || opt->listen_port <= 0) {
             if (errlen) snprintf(err, errlen, "--role coordinator requires --listen HOST PORT");
             return 1;
@@ -9169,6 +9193,14 @@ static int dist_validate_options(const ds4_dist_options *opt, char *err, size_t 
     }
 
     if (opt->role == DS4_DISTRIBUTED_WORKER) {
+        if (opt->local_decode) {
+            if (errlen) {
+                snprintf(err,
+                         errlen,
+                         "--local-decode requires --role coordinator");
+            }
+            return 1;
+        }
         if (!opt->coordinator_host || opt->coordinator_port <= 0) {
             if (errlen) snprintf(err, errlen, "--role worker requires --coordinator HOST PORT");
             return 1;
@@ -9207,6 +9239,7 @@ int ds4_dist_prepare_engine_options(
         if (ds4_dist_enabled(opt)) {
             const bool reverse_coordinator_full_resident =
                 opt->role == DS4_DISTRIBUTED_COORDINATOR &&
+                opt->local_decode &&
                 opt->layers.set &&
                 opt->layers.has_output &&
                 opt->layers.start > 0u;

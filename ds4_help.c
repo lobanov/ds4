@@ -220,6 +220,7 @@ static void print_distributed(FILE *fp, const help_colors *c) {
     opt(fp, c, "--layers A:B", "Inclusive layer slice, e.g. 0:20, 21:42, or 21:output.");
     opt(fp, c, "--listen HOST PORT", "Coordinator listen address; workers may use it for their data listener.");
     opt(fp, c, "--coordinator HOST PORT", "Coordinator address for --role worker.");
+    opt(fp, c, "--local-decode", "Coordinator-only opt-in for reverse N:output local decode with full local model residency.");
     opt(fp, c, "--dist-prefill-chunk N", "Coordinator prefill pipeline chunk size. Default: session cap.");
     opt(fp, c, "--dist-prefill-window N", "Max prefill chunks in flight. Default: workers+2, capped at 8.");
     opt(fp, c, "--dist-activation-bits N", "Hidden-state transport width: 32, 16, or 8. Default: 32");

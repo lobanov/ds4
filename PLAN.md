@@ -812,6 +812,7 @@ Goal:
 
 - Why: the worker-owned local-decode implementation proved the handoff mechanics, but it is the wrong product boundary. It requires explicit handoff APIs and frontend-specific generation branches. `reverse-topology-pr` changes the baseline: the coordinator can now own a final `K:output` suffix, which is the natural place for local decode for `ds4`, `ds4-server`, and `ds4-eval`.
 - What: rebase the local-decode work on reverse topology, make coordinator-owned reverse `K:output` the only supported local-decode configuration, and hide the distributed-prefill-to-local-decode transition behind the normal `ds4_session_sync()` / sample / `ds4_session_eval()` loop.
+  - Local decode should remain explicit opt-in because the coordinator must stay fully resident when it is enabled.
 
 Expected artifacts:
 
@@ -845,6 +846,7 @@ Work items:
 
 1. Rebase the local-decode branch on `reverse-topology-pr` and treat reverse topology as the new base reality.
 2. Move full-resident local decode from worker to coordinator for reverse `K:output`.
+   - Keep it as an explicit opt-in rather than an automatic consequence of reverse topology, because it changes model residency and memory requirements on the coordinator.
 3. Replace explicit handoff calls with internal activation in the distributed session backend.
    - Keep the activation reversible: the coordinator should retain the generated suffix locally during a turn, flush it back to workers before the next distributed-prefill frontier, and still be able to fall back to transcript replay if that deferred flush fails.
 4. Remove frontend-specific local-decode paths so every frontend continues to use the normal session loop.

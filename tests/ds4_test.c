@@ -2257,6 +2257,14 @@ static void test_distributed_topology_logic_group(void) {
     TEST_ASSERT(topology == 1);
     memset(&engine_opt, 0, sizeof(engine_opt));
     TEST_ASSERT(ds4_dist_prepare_engine_options(&reverse, &engine_opt, err, sizeof(err)) == 0);
+    TEST_ASSERT(engine_opt.load_slice);
+    TEST_ASSERT(engine_opt.load_layer_start == 20u);
+    TEST_ASSERT(engine_opt.load_layer_end == UINT32_MAX);
+    TEST_ASSERT(engine_opt.load_output);
+
+    reverse.local_decode = true;
+    memset(&engine_opt, 0, sizeof(engine_opt));
+    TEST_ASSERT(ds4_dist_prepare_engine_options(&reverse, &engine_opt, err, sizeof(err)) == 0);
     TEST_ASSERT(!engine_opt.load_slice);
     TEST_ASSERT(!engine_opt.load_output);
 
@@ -2272,6 +2280,10 @@ static void test_distributed_topology_logic_group(void) {
     TEST_ASSERT(engine_opt.load_slice);
     TEST_ASSERT(engine_opt.load_layer_start == 0u);
     TEST_ASSERT(engine_opt.load_layer_end == 19u);
+
+    worker.local_decode = true;
+    memset(&engine_opt, 0, sizeof(engine_opt));
+    TEST_ASSERT(ds4_dist_prepare_engine_options(&worker, &engine_opt, err, sizeof(err)) != 0);
 
     ds4_dist_coordinator_state state;
     memset(&state, 0, sizeof(state));

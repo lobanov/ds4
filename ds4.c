@@ -25592,6 +25592,7 @@ int ds4_engine_open(ds4_engine **out, const ds4_engine_options *opt) {
     bool load_output_optional = false;
     const bool distributed_reverse_coordinator_full_resident =
         opt->distributed.role == DS4_DISTRIBUTED_COORDINATOR &&
+        opt->distributed.local_decode &&
         opt->distributed.layers.set &&
         opt->distributed.layers.has_output &&
         opt->distributed.layers.start > 0u;

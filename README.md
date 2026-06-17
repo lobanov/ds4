@@ -410,8 +410,9 @@ Reverse `K:42` is intentionally unsupported. Reverse mode only supports
 `K:output`, because the coordinator must own the output head.
 
 Reverse `K:output` is also the only supported topology for automatic
-distributed-prefill plus local decode. In that mode the coordinator keeps
-full-model residency, workers handle the lower-layer prefill prefix, and the
+distributed-prefill plus local decode, but it is an explicit opt-in via
+`--local-decode` because the coordinator must keep the full model resident in
+memory. In that mode workers handle the lower-layer prefill prefix, and the
 normal `ds4_session_sync()` / sample / `ds4_session_eval()` loop switches to
 pure local coordinator decode on the first generated token after prefill. No
 frontend-specific handoff API is required: `ds4`, `ds4-server`, and
