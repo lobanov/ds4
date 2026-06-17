@@ -408,6 +408,9 @@ struct ds4_dist_session {
     uint64_t session_id;
     uint64_t request_id;
     uint64_t snapshot_request_id;
+    bool local_decode_active;
+    bool local_decode_remote_flushable;
+    uint32_t local_decode_remote_pos;
 };
 
 typedef struct {
@@ -483,6 +486,17 @@ typedef struct {
 /* =========================================================================
  * Small Utilities And Forward Declarations
  * ========================================================================= */
+
+static int dist_session_ensure_route(ds4_dist_session *d, char *err, size_t errlen);
+static int dist_save_remote_shard_to_file(
+        ds4_dist_session *d,
+        const ds4_dist_route_entry *entry,
+        const ds4_tokens *tokens,
+        uint64_t token_hash,
+        FILE *fp,
+        uint64_t *payload_bytes_out,
+        char *err,
+        size_t errlen);
 
 static uint32_t dist_prefill_send_depth(uint32_t chunk_count) {
     uint32_t depth = 2;
@@ -2842,6 +2856,7 @@ static int dist_coordinator_request_remote_on_fd(
         uint64_t prefix_hash,
         uint64_t expected_result_hash,
         bool reset_session,
+        bool ack_only,
         const float *hidden_hc,
         uint32_t hidden_hc_bytes,
         uint32_t *kind,
@@ -2863,7 +2878,7 @@ static int dist_coordinator_request_remote_on_fd(
                                                      prefix_hash,
                                                      expected_result_hash,
                                                      reset_session,
-                                                     false,
+                                                     ack_only,
                                                      hidden_hc,
                                                      hidden_hc_bytes,
                                                      err,
@@ -2948,6 +2963,7 @@ static int dist_coordinator_eval_remote_on_fd(
                                                    prefix_hash,
                                                    expected_result_hash,
                                                    reset_session,
+                                                   false,
                                                    hidden_hc,
                                                    hidden_hc_bytes,
                                                    &kind,
@@ -3110,6 +3126,7 @@ static int dist_coordinator_eval_span(
                                                    prefix_hash,
                                                    result_hash,
                                                    reset_session,
+                                                   false,
                                                    NULL,
                                                    0u,
                                                    &kind,
@@ -5392,6 +5409,241 @@ static int dist_kv_route_build_owners(
     return 0;
 }
 
+static bool dist_session_supports_local_decode(const ds4_dist_session *d) {
+    return d &&
+           d->state.topology == DS4_DIST_TOPOLOGY_REVERSE &&
+           d->state.local_has_output &&
+           d->state.local_start > 0u;
+}
+
+static int dist_session_activate_local_decode(
+        ds4_dist_session *d,
+        ds4_session *owner,
+        const ds4_tokens *tokens,
+        char *err,
+        size_t errlen) {
+    if (!d || !owner || !tokens || tokens->len <= 0) {
+        if (errlen) snprintf(err, errlen, "invalid local decode activation request");
+        return 1;
+    }
+    if (d->local_decode_active) return 0;
+    if (!dist_session_supports_local_decode(d)) {
+        if (errlen) snprintf(err, errlen, "distributed route does not support coordinator local decode");
+        return 1;
+    }
+    if (!d->plan_ready && dist_session_ensure_route(d, err, errlen) != 0) return 1;
+
+    const uint32_t owner_count = dist_kv_route_owner_count(d);
+    ds4_dist_kv_route_owner *owners = calloc(owner_count, sizeof(owners[0]));
+    if (!owners) {
+        if (errlen) snprintf(err, errlen, "out of memory activating coordinator local decode");
+        return 1;
+    }
+    if (dist_kv_route_build_owners(d, owners, owner_count, err, errlen) != 0) {
+        free(owners);
+        return 1;
+    }
+
+    const uint64_t token_hash = dist_token_hash_prefix(tokens->v, (uint32_t)tokens->len);
+    const double t0 = dist_now_sec();
+    for (uint32_t i = 0; i < owner_count; i++) {
+        const ds4_dist_kv_route_owner *owner_desc = &owners[i];
+        if (owner_desc->is_local) continue;
+        FILE *tmp = dist_tmpfile_or_err("coordinator local-decode shard", err, errlen);
+        if (!tmp) {
+            free(owners);
+            return 1;
+        }
+        uint64_t shard_bytes = 0;
+        int rc = dist_save_remote_shard_to_file(d,
+                                                owner_desc->entry,
+                                                tokens,
+                                                token_hash,
+                                                tmp,
+                                                &shard_bytes,
+                                                err,
+                                                errlen);
+        if (rc == 0 && shard_bytes != 0) {
+            rc = dist_rewind_file(tmp, "coordinator local-decode shard", err, errlen);
+        }
+        if (rc == 0) {
+            rc = ds4_session_load_layer_payload(owner,
+                                                tmp,
+                                                shard_bytes,
+                                                tokens->v,
+                                                (uint32_t)tokens->len,
+                                                owner_desc->layer_start,
+                                                owner_desc->layer_end,
+                                                err,
+                                                errlen);
+        }
+        fclose(tmp);
+        if (rc != 0) {
+            free(owners);
+            return 1;
+        }
+    }
+    free(owners);
+    d->local_decode_active = true;
+    d->local_decode_remote_flushable = true;
+    d->local_decode_remote_pos = (uint32_t)tokens->len;
+    DIST_COORD_DEBUG(&d->state,
+                     "ds4: distributed coordinator: activated reverse-topology local decode tokens=%d local=%u:%u total=%.3fs\n",
+                     tokens->len,
+                     d->state.local_start,
+                     d->state.local_end,
+                     dist_now_sec() - t0);
+    return 0;
+}
+
+static int dist_session_restore_distributed_checkpoint(
+        ds4_dist_session *d,
+        ds4_session *owner,
+        const ds4_tokens *checkpoint,
+        float *logits,
+        char *err,
+        size_t errlen) {
+    if (!d || !owner || !checkpoint || checkpoint->len <= 0 || !logits) {
+        if (errlen) snprintf(err, errlen, "invalid distributed checkpoint restore request");
+        return 1;
+    }
+    if (!d->local_decode_active) return 0;
+    if (dist_coordinator_rebuild_from_transcript(&d->state,
+                                                 owner,
+                                                 &d->plan,
+                                                 checkpoint,
+                                                 d->session_id,
+                                                 &d->request_id,
+                                                 logits,
+                                                 &d->plan_generation,
+                                                 false,
+                                                 err,
+                                                 errlen) != 0) {
+        char rebuild_err[256];
+        snprintf(rebuild_err,
+                 sizeof(rebuild_err),
+                 "%s",
+                 err && err[0] ? err : "distributed checkpoint replay failed");
+        if (dist_coordinator_rebuild_from_transcript(&d->state,
+                                                     owner,
+                                                     &d->plan,
+                                                     checkpoint,
+                                                     d->session_id,
+                                                     &d->request_id,
+                                                     logits,
+                                                     &d->plan_generation,
+                                                     true,
+                                                     err,
+                                                     errlen) != 0) {
+            if (errlen && (!err || !err[0])) {
+                snprintf(err, errlen, "%s", rebuild_err);
+            }
+            d->plan_ready = false;
+            d->plan_generation = 0;
+            return 1;
+        }
+    }
+    d->plan_ready = true;
+    d->local_decode_active = false;
+    d->local_decode_remote_flushable = false;
+    d->local_decode_remote_pos = 0;
+    DIST_COORD_DEBUG(&d->state,
+                     "ds4: distributed coordinator: restored distributed checkpoint from local decode transcript tokens=%d\n",
+                     checkpoint->len);
+    return 0;
+}
+
+static int dist_session_flush_local_decode_remote(
+        ds4_dist_session *d,
+        ds4_session *owner,
+        char *err,
+        size_t errlen) {
+    if (!d || !owner) {
+        if (errlen) snprintf(err, errlen, "invalid local decode remote flush request");
+        return 1;
+    }
+    if (!d->local_decode_active || !d->local_decode_remote_flushable) {
+        if (errlen) snprintf(err, errlen, "local decode remote flush is inactive");
+        return 1;
+    }
+    if (d->state.topology != DS4_DIST_TOPOLOGY_REVERSE || d->plan.count == 0) {
+        if (errlen) snprintf(err, errlen, "local decode remote flush requires a reverse remote prefix route");
+        return 1;
+    }
+    const int remote_fd = d->plan.entry[0].fd;
+    if (remote_fd < 0) {
+        if (errlen) snprintf(err, errlen, "reverse distributed route has no live remote prefix worker");
+        return 1;
+    }
+
+    const ds4_tokens *timeline = ds4_session_tokens(owner);
+    if (!timeline || timeline->len < 0 || (uint64_t)timeline->len > UINT32_MAX) {
+        if (errlen) snprintf(err, errlen, "local decode remote flush has no valid token timeline");
+        return 1;
+    }
+    const uint32_t token_count = (uint32_t)timeline->len;
+    if (d->local_decode_remote_pos > token_count) {
+        if (errlen) snprintf(err, errlen, "local decode remote flush position exceeds current transcript");
+        return 1;
+    }
+
+    uint32_t chunk_cap = 0;
+    if (dist_coordinator_prefill_chunk_cap(&d->state, owner, &chunk_cap, err, errlen) != 0) {
+        return 1;
+    }
+
+    uint32_t pos = d->local_decode_remote_pos;
+    while (pos < token_count) {
+        const uint32_t remaining = token_count - pos;
+        const uint32_t chunk = remaining < chunk_cap ? remaining : chunk_cap;
+        uint64_t prefix_hash = 0;
+        if (dist_session_token_hash_prefix(owner, pos, &prefix_hash, err, errlen) != 0) {
+            return 1;
+        }
+        const uint64_t result_hash =
+            dist_token_hash_update_span(prefix_hash, timeline->v + pos, chunk);
+        uint32_t kind = 0, payload_bytes = 0;
+        int rc = dist_coordinator_request_remote_on_fd(&d->state,
+                                                       &d->plan,
+                                                       remote_fd,
+                                                       timeline->v + pos,
+                                                       chunk,
+                                                       pos,
+                                                       d->session_id,
+                                                       d->request_id++,
+                                                       prefix_hash,
+                                                       result_hash,
+                                                       false,
+                                                       true,
+                                                       NULL,
+                                                       0u,
+                                                       &kind,
+                                                       NULL,
+                                                       &payload_bytes,
+                                                       err,
+                                                       errlen);
+        if (rc != 0) return rc;
+        if (kind != DS4_DIST_RESULT_ACK || payload_bytes != 0) {
+            if (errlen) snprintf(err, errlen, "unexpected local decode remote flush result");
+            return 1;
+        }
+        pos += chunk;
+    }
+    d->local_decode_remote_pos = token_count;
+    return 0;
+}
+
+static int dist_session_eval_local_decode_token(
+        ds4_session *owner,
+        int token,
+        char *err,
+        size_t errlen) {
+    if (ds4_session_eval_local_only(owner, token, err, errlen) != 0) {
+        return 1;
+    }
+    return 0;
+}
+
 static void dist_kv_shards_close(ds4_dist_kv_shard_file *shards, uint32_t count) {
     if (!shards) return;
     for (uint32_t i = 0; i < count; i++) {
@@ -5574,7 +5826,8 @@ int ds4_dist_session_save_payload(
         if (errlen) snprintf(err, errlen, "invalid distributed payload save");
         return 1;
     }
-    if (dist_session_ensure_route(d, err, errlen) != 0) return 1;
+    if (!d->local_decode_active &&
+        dist_session_ensure_route(d, err, errlen) != 0) return 1;
     const uint32_t shard_count = dist_kv_route_owner_count(d);
     ds4_dist_kv_route_owner *owners = calloc(shard_count, sizeof(owners[0]));
     if (!owners) {
@@ -5631,7 +5884,7 @@ int ds4_dist_session_save_payload(
         const uint32_t layer_end = owner_desc->layer_end;
         shards[shard].fp = dist_tmpfile_or_err("distributed KV shard", err, errlen);
         if (!shards[shard].fp) goto cleanup;
-        if (owner_desc->is_local) {
+        if (owner_desc->is_local || d->local_decode_active) {
             if (ds4_session_save_layer_payload(owner, shards[shard].fp,
                                                layer_start, layer_end,
                                                err, errlen) != 0)
@@ -5960,6 +6213,9 @@ int ds4_dist_session_create(
      * WORK results are outstanding.  Keep them out of the WORK request-id stream
      * so progress callbacks cannot perturb the reader's contiguous expectations. */
     d->snapshot_request_id = UINT64_C(1) << 63;
+    d->local_decode_active = false;
+    d->local_decode_remote_flushable = false;
+    d->local_decode_remote_pos = 0;
 
     char local_end[32];
     if (opt->layers.has_output) snprintf(local_end, sizeof(local_end), "output");
@@ -6035,6 +6291,44 @@ int ds4_dist_session_sync(
     if (!d || !owner || !prompt || prompt->len <= 0 || !logits) {
         if (errlen) snprintf(err, errlen, "invalid distributed sync request");
         return 1;
+    }
+    if (d->local_decode_active) {
+        if (checkpoint &&
+            checkpoint->len >= 0 &&
+            checkpoint->len <= prompt->len &&
+            ds4_tokens_starts_with(prompt, checkpoint)) {
+            if (checkpoint->len == prompt->len) return 0;
+            const uint64_t plan_generation = d->plan_generation;
+            if (dist_session_ensure_route(d, err, errlen) != 0) return 1;
+            if (d->local_decode_remote_flushable &&
+                d->plan_generation == plan_generation &&
+                dist_session_flush_local_decode_remote(d, owner, err, errlen) == 0) {
+                d->local_decode_active = false;
+                d->local_decode_remote_flushable = false;
+                d->local_decode_remote_pos = 0;
+            } else {
+                if (d->local_decode_remote_flushable) {
+                    DIST_COORD_DEBUG(&d->state,
+                                     "ds4: distributed coordinator: deferred local decode flush failed; rebuilding worker KV from transcript: %s\n",
+                                     err && err[0] ? err : "route changed");
+                }
+                d->local_decode_remote_flushable = false;
+                d->local_decode_remote_pos = 0;
+                if (errlen) err[0] = '\0';
+                if (dist_session_restore_distributed_checkpoint(d,
+                                                                owner,
+                                                                checkpoint,
+                                                                logits,
+                                                                err,
+                                                                errlen) != 0) {
+                    return 1;
+                }
+            }
+        } else {
+            d->local_decode_active = false;
+            d->local_decode_remote_flushable = false;
+            d->local_decode_remote_pos = 0;
+        }
     }
     if (dist_session_ensure_route(d, err, errlen) != 0) return 1;
 
@@ -6168,6 +6462,15 @@ int ds4_dist_session_eval(
     if (!d || !owner || !checkpoint || checkpoint->len < 0 || !logits) {
         if (errlen) snprintf(err, errlen, "invalid distributed decode request");
         return 1;
+    }
+    if (d->local_decode_active) {
+        return dist_session_eval_local_decode_token(owner, token, err, errlen);
+    }
+    if (dist_session_supports_local_decode(d)) {
+        if (dist_session_activate_local_decode(d, owner, checkpoint, err, errlen) != 0) {
+            return 1;
+        }
+        return dist_session_eval_local_decode_token(owner, token, err, errlen);
     }
     if (dist_session_ensure_route(d, err, errlen) != 0) return 1;
 
@@ -8902,10 +9205,17 @@ int ds4_dist_prepare_engine_options(
     if (engine && opt) {
         engine->distributed = *opt;
         if (ds4_dist_enabled(opt)) {
-            engine->load_slice = true;
-            engine->load_layer_start = opt->layers.start;
-            engine->load_layer_end = opt->layers.has_output ? UINT32_MAX : opt->layers.end;
-            engine->load_output = opt->layers.has_output;
+            const bool reverse_coordinator_full_resident =
+                opt->role == DS4_DISTRIBUTED_COORDINATOR &&
+                opt->layers.set &&
+                opt->layers.has_output &&
+                opt->layers.start > 0u;
+            if (!reverse_coordinator_full_resident) {
+                engine->load_slice = true;
+                engine->load_layer_start = opt->layers.start;
+                engine->load_layer_end = opt->layers.has_output ? UINT32_MAX : opt->layers.end;
+                engine->load_output = opt->layers.has_output;
+            }
         }
     }
     return 0;

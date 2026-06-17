@@ -409,6 +409,18 @@ output locally. For example:
 Reverse `K:42` is intentionally unsupported. Reverse mode only supports
 `K:output`, because the coordinator must own the output head.
 
+Reverse `K:output` is also the only supported topology for automatic
+distributed-prefill plus local decode. In that mode the coordinator keeps
+full-model residency, workers handle the lower-layer prefill prefix, and the
+normal `ds4_session_sync()` / sample / `ds4_session_eval()` loop switches to
+pure local coordinator decode on the first generated token after prefill. No
+frontend-specific handoff API is required: `ds4`, `ds4-server`, and
+`ds4-eval` all use the same session path. While local decode is active, the
+coordinator accumulates the generated suffix locally and flushes it back
+through the reverse route once the session needs distributed prefill again for
+a later turn. Transcript replay remains the fallback when that deferred flush
+fails or the route changed underneath the coordinator.
+
 ### Network Link Comparison
 
 The table below shows the same two M5 Max hosts, the same 91 GB Flash quant,

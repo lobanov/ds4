@@ -9976,7 +9976,7 @@ static bool should_canonicalize_tool_checkpoint(const server *s, const tool_call
     return true;
 }
 
-/* Execute one request on the worker-owned session.
+/* Execute one request on the live server session.
  *
  * Clients resend full prompts as text.  The worker first tries the old exact
  * token-prefix hit, then a rendered-text prefix hit for the live checkpoint,

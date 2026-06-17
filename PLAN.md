@@ -806,45 +806,55 @@ Exit gate:
 - If deferred, the plan records why the current coordinator-first topology is acceptable for the first local-generation implementation.
 - If required, Phases 4 and 5 must be revisited before user-facing implementation.
 
-### Phase 9: Documentation and durable learnings
+### Phase 9: Rebase On Reverse Topology And Collapse Local Decode Into The Normal Session Loop
 
 Goal:
 
-- Why: this change crosses distributed transport, backend serialization, model residency, KV persistence, and user workflow; undocumented learnings will be expensive to rediscover.
-- What: update user docs, runbooks, decision logs, performance notes, failure cases, and this plan so the final implementation state and remaining deferred work are clear to the next engineer.
+- Why: the worker-owned local-decode implementation proved the handoff mechanics, but it is the wrong product boundary. It requires explicit handoff APIs and frontend-specific generation branches. `reverse-topology-pr` changes the baseline: the coordinator can now own a final `K:output` suffix, which is the natural place for local decode for `ds4`, `ds4-server`, and `ds4-eval`.
+- What: rebase the local-decode work on reverse topology, make coordinator-owned reverse `K:output` the only supported local-decode configuration, and hide the distributed-prefill-to-local-decode transition behind the normal `ds4_session_sync()` / sample / `ds4_session_eval()` loop.
 
 Expected artifacts:
 
-- Update `README.md` with the final user-visible workflow, constraints, and expected performance behavior.
-- Update `artifacts/issue-304/runbook.md` with final known-good commands.
-- Update `artifacts/issue-304/decision-log.md` with final architecture and remaining deferred work.
-- Update `artifacts/issue-304/perf-breakdown.md` with final benchmark numbers.
-- Update `artifacts/issue-304/topology-decoupling.md` if topology flexibility is deferred or partially implemented.
-- Keep this `PLAN.md` accurate if parts of the staged plan were skipped or invalidated.
+- Update `README.md` and `artifacts/issue-304/runbook.md` with the reverse-topology coordinator-local workflow.
+- Update `artifacts/issue-304/decision-log.md` with the API-shape change:
+  - local decode is coordinator-owned,
+  - reverse `K:output` is the only supported topology,
+  - frontend-specific handoff calls are removed from the primary workflow.
+- Update `artifacts/issue-304/perf-breakdown.md` with like-for-like measurements against forward distributed decode and the older worker-owned handoff.
+- Keep this `PLAN.md` aligned with the actual public API after the rebase and cleanup land.
 
 Code/documentation touchpoints:
 
+- `ds4_distributed.c`
+  - preserve reverse-topology planning
+  - move local-decode activation to the coordinator
+  - keep activation internal to the distributed session backend
+- `ds4.c`
+  - allow reverse-topology coordinators to stay full-resident
+  - keep the public session loop unchanged while distributed sessions transition internally
+- `ds4.h` and `ds4_distributed.h`
+  - narrow or remove public handoff entry points if they are no longer needed
 - `README.md`
-  - Distributed inference documentation.
-  - Any new CLI/server workflow.
-- `ds4_cli.c`
-  - Help text and flag descriptions if CLI flags were added.
-- `ds4_server.c`
-  - API/session documentation if server behavior changed.
-- Tests added in prior phases.
-
-Other entry points:
-
-- GitHub issue #304 follow-up comment or PR description.
-- Any local scripts/harnesses created for validation.
-- Artifact files under `artifacts/issue-304/`.
+  - distributed reverse-topology and local-decode workflow
+- `ds4_cli.c`, `ds4_server.c`, and `ds4_eval.c`
+  - no separate inference path should be required once the runtime hides the transition
+- `tests/ds4_test.c`
+  - replace worker-owned assumptions with reverse-topology coordinator-local coverage
 
 Work items:
 
-- Update `README.md` once the user-visible workflow exists.
-- Keep issue-specific research notes in `artifacts/issue-304/`.
-- Keep this plan current as decisions are made.
-- If an unknown unknown changes the direction, add the new fact, the decision it invalidated, and the replacement hypothesis before continuing implementation.
+1. Rebase the local-decode branch on `reverse-topology-pr` and treat reverse topology as the new base reality.
+2. Move full-resident local decode from worker to coordinator for reverse `K:output`.
+3. Replace explicit handoff calls with internal activation in the distributed session backend.
+   - Keep the activation reversible: the coordinator should retain the generated suffix locally during a turn, flush it back to workers before the next distributed-prefill frontier, and still be able to fall back to transcript replay if that deferred flush fails.
+4. Remove frontend-specific local-decode paths so every frontend continues to use the normal session loop.
+5. Rebuild docs and tests around the coordinator-owned reverse-topology workflow.
+
+Exit gate:
+
+- The branch is based on `reverse-topology-pr`.
+- Reverse `K:output` is the only supported local-decode topology.
+- `ds4`, `ds4-server`, and `ds4-eval` all obtain local decode through the normal session loop without a dedicated handoff API path.
 
 ### Initial recommended path
 
