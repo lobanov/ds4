@@ -1,5 +1,62 @@
 # Issue 304 Decision Log
 
+## 2026-06-17: Rebase local decode on reverse topology and make coordinator local decode explicit opt-in
+
+Decision:
+
+- Treat `reverse-topology-pr` as the new implementation base for Issue 304 follow-on work.
+- Drop the old worker-owned `--local-decode` execution model from the active design.
+- Support local decode only on a reverse-topology coordinator that owns `N:output`.
+- Keep `--local-decode` as an explicit coordinator-side opt-in rather than automatic behavior, because it requires full model residency on the coordinator.
+- Hide the distributed-prefill to local-decode transition behind the normal `ds4_session_sync()` / sample / `ds4_session_eval()` loop so `ds4`, `ds4-server`, and `ds4-eval` do not need separate inference paths.
+
+Evidence:
+
+- The reverse-topology baseline now lets the coordinator own the final suffix and output head, which is the natural place for local decode in the current frontends.
+- The earlier worker-owned path required explicit handoff APIs and frontend-specific branching.
+- Current validation on the direct-link DGX/Mac route succeeded with the plain `ds4` CLI:
+  - coordinator: Mac `10.77.0.1`, `--role coordinator --layers 22:output --local-decode`
+  - worker: DGX `10.77.0.2`, `--role worker --layers 0:21`
+  - prompt frontier: `905` tokens from the 4 KiB `README.md` slice
+  - measured prefill: `291.40 tok/s`
+  - measured generation after activation: `23.38 tok/s`
+  - coordinator log:
+    - `complete reverse route ready: 10.77.0.2:46571 Q2 0:21 -> local 22:output`
+    - `activated reverse-topology local decode tokens=905 local=22:42 total=0.124s`
+
+Why this changes the active artifact set:
+
+- Historical worker-owned notes remain useful as research history, but they are no longer the current product boundary.
+- The active workflow is now:
+  - reverse distributed prefill,
+  - coordinator-owned local decode,
+  - explicit `--local-decode` opt-in on the coordinator,
+  - normal session loop only.
+
+Follow-up:
+
+- Update the runbook and research notes to mark the worker-owned path as historical.
+- Refresh performance notes around the new reverse-topology CLI smoke and later compare it like-for-like against forward distributed decode on the same deployment link.
+
+## 2026-06-17: Use deferred suffix flush, not token-by-token remote catch-up
+
+Decision:
+
+- Do not keep worker KV current by synchronously replaying every locally generated token.
+- During coordinator local decode, retain the generated suffix locally and flush it back to the reverse route when a later turn needs distributed prefill again.
+- Keep transcript replay as the fallback if that deferred flush fails or the route changed.
+
+Evidence:
+
+- The token-by-token implementation added a synchronous remote `WORK` + `ACK` round-trip after every local token.
+- The worker still had to evaluate its lower-layer slice for that token even though no hidden state or logits were returned.
+- Worker session mutation is serialized under the worker state mutex, so true same-session asynchronous replay requires explicit pending-sync/barrier machinery rather than a simple background send.
+
+Why this changes the implementation direction:
+
+- The deferred flush preserves local decode latency while keeping the path reversible for future distributed-prefill turns.
+- It also keeps the implementation within the current worker session ordering model.
+
 ## 2026-06-03: Correct the earlier Phase 0 save-path conclusion
 
 Decision:

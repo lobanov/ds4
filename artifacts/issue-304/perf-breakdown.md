@@ -1,5 +1,113 @@
 # Issue 304 Performance Breakdown
 
+## Phase 9 reverse-topology coordinator local-decode smoke
+
+This is the current branch-direction smoke for the rebased reverse-topology
+implementation. It is intentionally a narrow real-topology check, not yet a
+full replacement for the older worker-owned profiling matrix.
+
+Route:
+
+- Mac coordinator `10.77.0.1`, `--layers 22:output --local-decode`
+- DGX worker `10.77.0.2`, `--layers 0:21`
+- direct link `10.77.0.1 <-> 10.77.0.2`
+- prompt: local `README.md` 4 KiB slice
+- context: `16384`
+- generation window: `8` tokens
+
+Observed 2026-06-17 plain-CLI result:
+
+| Surface | Prompt tokens | Prefill tok/s | Local generation tok/s | Activation timing | Notes |
+| --- | ---: | ---: | ---: | --- | --- |
+| reverse `CUDA -> Metal` coordinator-local | 905 | 291.40 | 23.38 | `activated reverse-topology local decode tokens=905 local=22:42 total=0.124s` | worker retried until the full-resident coordinator finished loading; route then formed cleanly |
+
+Interpretation:
+
+- The current rebased path is functionally live on the intended DGX/Mac
+  topology through the plain `ds4` frontend.
+- This number should not yet be compared directly to the older worker-owned
+  matrix as a final performance claim; Phase 9 still needs a like-for-like
+  reverse-vs-forward and opt-in-vs-non-opt-in comparison pass.
+
+### 2026-06-17 focused profiling pass
+
+To explain the regression relative to the earlier worker-owned implementation,
+the same direct-link `CUDA -> Metal` reverse-topology route was rerun from a
+fresh DGX checkout of the current branch. The coordinator stayed on the local
+Mac with `--layers 22:output --local-decode`; the worker stayed on the DGX with
+`--layers 0:21`.
+
+Commands:
+
+```sh
+# remote worker, fresh profiling checkout
+ssh dgx-direct 'cd ~/ds4-profile-current && \
+  DS4_LOCK_FILE=/tmp/ds4-profile-worker-1256.lock \
+  nohup ./ds4 -m ~/ds4/gguf/DeepSeek-V4-Flash-IQ2XXS-w2Q2K-AProjQ8-SExpQ8-OutQ8-chat-v2-imatrix.gguf \
+    --ctx 16384 --role worker --layers 0:21 --coordinator 10.77.0.1 1256 \
+    >/tmp/ds4-profile-worker-1256.log 2>&1 < /dev/null &'
+
+# current reverse-topology coordinator, default prefill chunking
+DS4_LOCK_FILE=/tmp/ds4-profile-coord-default.lock \
+DS4_DIST_DECODE_PROFILE=1 \
+./ds4 -m ./gguf/DeepSeek-V4-Flash-IQ2XXS-w2Q2K-AProjQ8-SExpQ8-OutQ8-chat-v2-imatrix.gguf \
+  --ctx 16384 --temp 0 --nothink \
+  --role coordinator --layers 22:output --local-decode \
+  --listen 10.77.0.1 1256 \
+  --prompt-file /tmp/issue304-readme-4k.md \
+  -n 8 --debug
+
+# same run, force reverse pipelined prefill
+DS4_LOCK_FILE=/tmp/ds4-profile-coord-chunk256.lock \
+DS4_DIST_DECODE_PROFILE=1 \
+./ds4 -m ./gguf/DeepSeek-V4-Flash-IQ2XXS-w2Q2K-AProjQ8-SExpQ8-OutQ8-chat-v2-imatrix.gguf \
+  --ctx 16384 --temp 0 --nothink \
+  --role coordinator --layers 22:output --local-decode \
+  --listen 10.77.0.1 1256 \
+  --prefill-chunk 256 \
+  --prompt-file /tmp/issue304-readme-4k.md \
+  -n 8 --debug
+```
+
+Measured results on the `README.md` 4 KiB slice (`905` prompt tokens):
+
+| Surface | Gen tokens | Prefill tok/s | Generation tok/s | Extra profiling signal |
+| --- | ---: | ---: | ---: | --- |
+| reverse `CUDA -> Metal`, default chunking | 8 | 302.44 | 23.79 | worker `0:21` eval `1.216 s`, returned `56.56 MiB` hidden state, activation `0.124 s` |
+| reverse `CUDA -> Metal`, `--prefill-chunk 256` | 8 | 305.42 | 23.73 | worker eval sum `1.815 s`; coordinator local suffix `2.170 s`; same `56.56 MiB` total hidden-state return |
+| local Mac baseline | 8 | 313.47 | 42.73 | no distributed activation or hidden-state return |
+| reverse `CUDA -> Metal`, default chunking | 64 | 311.42 | 35.27 | activation `0.127 s` amortized over a longer decode window |
+| local Mac baseline | 64 | 313.61 | 38.58 | steady-state local decode reference |
+
+Interpretation:
+
+- The Phase 5 "`~600 tok/s` prefill" comparison point from
+  `2026-06-05` was the old worker-owned `CUDA -> Metal` route on the full
+  `README.md` frontier (`14,524` prompt tokens), not the 4 KiB slice. The
+  more comparable older medium-prompt number in this artifact was
+  `314.80 tok/s` on the worker-owned `Metal -> CUDA` 4 KiB slice.
+- The new reverse-topology bottleneck is visible in the `--prefill-chunk 256`
+  run:
+  - the worker must now return hidden state for every reverse prefill chunk
+    (`56.56 MiB` total on this prompt),
+  - and the coordinator must execute its own `22:output` suffix during prefill
+    (`2.170 s` of local suffix work on this run).
+- That means reverse prefill is no longer able to use the old forward-topology
+  fast path where non-final chunks are `ACK`-only and only the final chunk has
+  to produce the user-visible result.
+- The apparent decode collapse on the 8-token run is mostly an accounting
+  artifact from the one-time activation being included in the generation window:
+  - reverse route, `8` tokens: `23.79 tok/s`
+  - reverse route, `64` tokens: `35.27 tok/s`
+  - local Mac baseline, `64` tokens: `38.58 tok/s`
+- So the steady-state coordinator-local decode backend is only modestly below
+  pure local Metal on this prompt; the larger introduced regression is prefill
+  work moving onto the coordinator plus the hidden-state return now sitting on
+  the prefill critical path.
+- The deferred worker catch-up / transcript flush path is not implicated by
+  these first-turn measurements, because it does not run until the next
+  distributed-prefill frontier.
+
 ## Phase 6 profiling snapshot
 
 These measurements focus on the worker-owned local-decode workflow after the

@@ -16,7 +16,60 @@ This file tracks phase-wise findings for the staged investigation in `PLAN.md`.
 | Phase 5.5 | Complete | Reused-session differences are now classified as bounded prefill-vs-decode variance. Replay diagnostics ruled out reused-state corruption, and local-only Metal/CUDA reproductions showed the same trajectory split without distributed handoff. |
 | Phase 6 | Complete | June 8, 2026 profiling now covers both `CUDA -> Metal` and `Metal -> CUDA` on the `10.77.0.1 <-> 10.77.0.2` direct link. One-shot runs remain strongly prefill-bound across short through very-long prompts, follow-up turns are shaped more by sync or decode than by KV return, and pipelined KV return is still not justified by the direct-link data. |
 | Phase 7-8 | Complete | Closeout hardening is now done for the shipped workflow: worker-state mismatch diagnostics are field-specific, exact CLI rejection coverage is locked down, the DGX/Mac runtime capability reject and positive handoff smoke both pass, and the issue artifacts now document the fail-closed boundary and current deferred work. |
+| Phase 9 | In progress | The branch is now rebased on reverse topology, local decode moved to the coordinator, `--local-decode` is explicit coordinator-side opt-in for reverse `N:output`, and the plain `ds4` DGX/Mac smoke passed on June 17, 2026. |
 | Later phases | Deferred / re-scoped | Pipelined KV return stays deferred unless profiling across the intended deployment topology shows handoff cost is still materially limiting. Topology decoupling remains a later follow-on. |
+
+## Phase 9: Reverse-topology coordinator local decode
+
+### What was completed
+
+- Rebased the active implementation work on `reverse-topology-pr`.
+- Moved local decode from the old worker-owned path to the reverse-topology
+  coordinator.
+- Collapsed the transition into the normal session loop so frontends keep using
+  `ds4_session_sync()` / sample / `ds4_session_eval()`.
+- Restored `--local-decode` as a real explicit opt-in, now coordinator-only.
+- Switched worker catch-up from synchronous token-by-token replay to deferred
+  suffix flush before the next distributed-prefill frontier.
+- Re-ran a plain `ds4` DGX/Mac direct-link smoke on June 17, 2026.
+
+### Findings
+
+1. Reverse topology gives the right ownership boundary for local decode.
+   - The coordinator can own `N:output`, keep the output head local, and reuse
+     the normal frontend loop without dedicated handoff APIs.
+
+2. Explicit opt-in is the correct current UX boundary.
+   - Reverse `N:output` by itself does not imply local decode on this branch.
+   - `--local-decode` remains necessary because the coordinator must stay fully
+     resident when the feature is enabled.
+
+3. The plain-CLI smoke passed on the intended deployment link.
+   - Route:
+     - DGX worker `0:21`
+     - Mac coordinator `22:output --local-decode`
+   - Prompt frontier:
+     - `905` tokens from the 4 KiB `README.md` slice
+   - Throughput:
+     - prefill `291.40 tok/s`
+     - generation `23.38 tok/s`
+   - Activation:
+     - `activated reverse-topology local decode tokens=905 local=22:42 total=0.124s`
+
+4. Deferred suffix flush is a better fit than synchronous per-token replay.
+   - Per-token remote catch-up would have added a blocking reverse-route
+     request after every locally generated token.
+   - The current deferred flush keeps decode latency local and preserves a
+     clean fallback to transcript replay if the worker frontier cannot be
+     advanced on the existing route.
+
+### Current interpretation
+
+- The active product boundary has changed:
+  - older worker-owned `--local-decode` notes are now historical evidence,
+  - current implementation work is coordinator-owned reverse-topology local
+    decode,
+  - and memory residency remains a deliberate operator choice.
 
 ## Phase 7-8: Failure hardening and closeout
 

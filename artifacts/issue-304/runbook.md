@@ -1,5 +1,79 @@
 # Issue 304 Runbook
 
+## Phase 9 current workflow: reverse-topology coordinator local decode
+
+This is the current authoritative workflow on this branch.
+
+- Use the plain `ds4` CLI and the normal session loop.
+- Local decode is only supported on a reverse-topology coordinator that owns
+  `N:output`.
+- `--local-decode` is an explicit coordinator-side opt-in because it changes
+  coordinator memory residency.
+- Workers do not use `--local-decode`.
+- The generated suffix is flushed back to workers before a later turn needs
+  distributed prefill again; transcript replay remains the fallback if that
+  flush fails.
+
+Authoritative direct-link addresses for the current smoke:
+
+- local Mac: `10.77.0.1`
+- DGX: `10.77.0.2`
+
+Current plain-CLI smoke, `CUDA -> Metal`:
+
+Start the DGX prefix worker:
+
+```sh
+ssh dgx-direct 'pkill -9 -x ds4 >/dev/null 2>&1 || true; rm -f /tmp/ds4-reverse-worker.log; cd ~/ds4 && nohup ./ds4 -m ~/ds4/gguf/DeepSeek-V4-Flash-IQ2XXS-w2Q2K-AProjQ8-SExpQ8-OutQ8-chat-v2-imatrix.gguf --ctx 16384 --role worker --layers 0:21 --coordinator 10.77.0.1 1243 >/tmp/ds4-reverse-worker.log 2>&1 < /dev/null &'
+```
+
+Generate a 4 KiB prompt slice locally:
+
+```sh
+head -c 4096 README.md >/tmp/issue304-readme-4k.md
+```
+
+Run the Mac reverse-topology coordinator with explicit local-decode opt-in:
+
+```sh
+./ds4 -m ./gguf/DeepSeek-V4-Flash-IQ2XXS-w2Q2K-AProjQ8-SExpQ8-OutQ8-chat-v2-imatrix.gguf \
+  --ctx 16384 \
+  --temp 0 \
+  --nothink \
+  --role coordinator \
+  --layers 22:output \
+  --local-decode \
+  --listen 10.77.0.1 1243 \
+  --prompt-file /tmp/issue304-readme-4k.md \
+  -n 8 \
+  --debug
+```
+
+Observed 2026-06-17 result:
+
+- route formation succeeded:
+  - `complete reverse route ready: 10.77.0.2:46571 Q2 0:21 -> local 22:output`
+- distributed prefill covered `905` prompt tokens
+- local decode activated on the coordinator:
+  - `activated reverse-topology local decode tokens=905 local=22:42 total=0.124s`
+- measured throughput:
+  - prefill `291.40 tok/s`
+  - generation `23.38 tok/s`
+
+Validation notes:
+
+- A few worker-side `Connection refused` retries are expected if the worker
+  comes up before the full-resident coordinator finishes loading.
+- The coordinator-side `accept failed: Software caused connection abort` line
+  was observed at shutdown after the successful smoke and is currently treated
+  as benign close noise, not a route-formation failure.
+
+## Historical workflow notes
+
+The rest of this file preserves older worker-owned local-decode runs and
+profiling notes as research history. Those sections are no longer the current
+product boundary on this branch.
+
 ## Phase 5 worker-owned local-decode workflow
 
 Phase 5 now has a CLI-visible path. Use these rules for authoritative
