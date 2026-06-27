@@ -1,0 +1,125 @@
+# DSpark drafter tensor inventory (authoritative, from safetensors headers)
+# source: deepseek-ai/DeepSeek-V4-Flash-DSpark
+# total tensors: 4705
+
+===== mtp.0 (1568 tensors) =====
+  mtp.0.attn.attn_sink                             F32        [64]                   model-00046-of-00048.safetensors
+  mtp.0.attn.kv_norm.weight                        BF16       [512]                  model-00046-of-00048.safetensors
+  mtp.0.attn.q_norm.weight                         BF16       [1024]                 model-00046-of-00048.safetensors
+  mtp.0.attn.wkv.scale                             F8_E8M0    [4, 32]                model-00046-of-00048.safetensors
+  mtp.0.attn.wkv.weight                            F8_E4M3    [512, 4096]            model-00046-of-00048.safetensors
+  mtp.0.attn.wo_a.scale                            F8_E8M0    [64, 32]               model-00046-of-00048.safetensors
+  mtp.0.attn.wo_a.weight                           F8_E4M3    [8192, 4096]           model-00046-of-00048.safetensors
+  mtp.0.attn.wo_b.scale                            F8_E8M0    [32, 64]               model-00046-of-00048.safetensors
+  mtp.0.attn.wo_b.weight                           F8_E4M3    [4096, 8192]           model-00046-of-00048.safetensors
+  mtp.0.attn.wq_a.scale                            F8_E8M0    [8, 32]                model-00046-of-00048.safetensors
+  mtp.0.attn.wq_a.weight                           F8_E4M3    [1024, 4096]           model-00046-of-00048.safetensors
+  mtp.0.attn.wq_b.scale                            F8_E8M0    [256, 8]               model-00046-of-00048.safetensors
+  mtp.0.attn.wq_b.weight                           F8_E4M3    [32768, 1024]          model-00046-of-00048.safetensors
+  mtp.0.attn_norm.weight                           BF16       [4096]                 model-00046-of-00048.safetensors
+  mtp.0.ffn.experts.*.w1.scale                     F8_E8M0    [2048, 128]            model-00046-of-00048.safetensors  (x256)
+  mtp.0.ffn.experts.*.w1.weight                    I8         [2048, 2048]           model-00046-of-00048.safetensors  (x256)
+  mtp.0.ffn.experts.*.w2.scale                     F8_E8M0    [4096, 64]             model-00046-of-00048.safetensors  (x256)
+  mtp.0.ffn.experts.*.w2.weight                    I8         [4096, 1024]           model-00046-of-00048.safetensors  (x256)
+  mtp.0.ffn.experts.*.w3.scale                     F8_E8M0    [2048, 128]            model-00046-of-00048.safetensors  (x256)
+  mtp.0.ffn.experts.*.w3.weight                    I8         [2048, 2048]           model-00046-of-00048.safetensors  (x256)
+  mtp.0.ffn.gate.bias                              F32        [256]                  model-00046-of-00048.safetensors
+  mtp.0.ffn.gate.weight                            BF16       [256, 4096]            model-00046-of-00048.safetensors
+  mtp.0.ffn.shared_experts.w1.scale                F8_E8M0    [16, 32]               model-00046-of-00048.safetensors
+  mtp.0.ffn.shared_experts.w1.weight               F8_E4M3    [2048, 4096]           model-00046-of-00048.safetensors
+  mtp.0.ffn.shared_experts.w2.scale                F8_E8M0    [32, 16]               model-00046-of-00048.safetensors
+  mtp.0.ffn.shared_experts.w2.weight               F8_E4M3    [4096, 2048]           model-00046-of-00048.safetensors
+  mtp.0.ffn.shared_experts.w3.scale                F8_E8M0    [16, 32]               model-00046-of-00048.safetensors
+  mtp.0.ffn.shared_experts.w3.weight               F8_E4M3    [2048, 4096]           model-00046-of-00048.safetensors
+  mtp.0.ffn_norm.weight                            BF16       [4096]                 model-00046-of-00048.safetensors
+  mtp.0.hc_attn_base                               F32        [24]                   model-00046-of-00048.safetensors
+  mtp.0.hc_attn_fn                                 F32        [24, 16384]            model-00046-of-00048.safetensors
+  mtp.0.hc_attn_scale                              F32        [3]                    model-00046-of-00048.safetensors
+  mtp.0.hc_ffn_base                                F32        [24]                   model-00046-of-00048.safetensors
+  mtp.0.hc_ffn_fn                                  F32        [24, 16384]            model-00046-of-00048.safetensors
+  mtp.0.hc_ffn_scale                               F32        [3]                    model-00046-of-00048.safetensors
+  mtp.0.main_norm.weight                           BF16       [4096]                 model-00046-of-00048.safetensors
+  mtp.0.main_proj.scale                            F8_E8M0    [32, 96]               model-00046-of-00048.safetensors
+  mtp.0.main_proj.weight                           F8_E4M3    [4096, 12288]          model-00046-of-00048.safetensors
+
+===== mtp.1 (1565 tensors) =====
+  mtp.1.attn.attn_sink                             F32        [64]                   model-00047-of-00048.safetensors
+  mtp.1.attn.kv_norm.weight                        BF16       [512]                  model-00047-of-00048.safetensors
+  mtp.1.attn.q_norm.weight                         BF16       [1024]                 model-00047-of-00048.safetensors
+  mtp.1.attn.wkv.scale                             F8_E8M0    [4, 32]                model-00047-of-00048.safetensors
+  mtp.1.attn.wkv.weight                            F8_E4M3    [512, 4096]            model-00047-of-00048.safetensors
+  mtp.1.attn.wo_a.scale                            F8_E8M0    [64, 32]               model-00047-of-00048.safetensors
+  mtp.1.attn.wo_a.weight                           F8_E4M3    [8192, 4096]           model-00047-of-00048.safetensors
+  mtp.1.attn.wo_b.scale                            F8_E8M0    [32, 64]               model-00047-of-00048.safetensors
+  mtp.1.attn.wo_b.weight                           F8_E4M3    [4096, 8192]           model-00047-of-00048.safetensors
+  mtp.1.attn.wq_a.scale                            F8_E8M0    [8, 32]                model-00047-of-00048.safetensors
+  mtp.1.attn.wq_a.weight                           F8_E4M3    [1024, 4096]           model-00047-of-00048.safetensors
+  mtp.1.attn.wq_b.scale                            F8_E8M0    [256, 8]               model-00047-of-00048.safetensors
+  mtp.1.attn.wq_b.weight                           F8_E4M3    [32768, 1024]          model-00047-of-00048.safetensors
+  mtp.1.attn_norm.weight                           BF16       [4096]                 model-00047-of-00048.safetensors
+  mtp.1.ffn.experts.*.w1.scale                     F8_E8M0    [2048, 128]            model-00047-of-00048.safetensors  (x256)
+  mtp.1.ffn.experts.*.w1.weight                    I8         [2048, 2048]           model-00047-of-00048.safetensors  (x256)
+  mtp.1.ffn.experts.*.w2.scale                     F8_E8M0    [4096, 64]             model-00047-of-00048.safetensors  (x256)
+  mtp.1.ffn.experts.*.w2.weight                    I8         [4096, 1024]           model-00047-of-00048.safetensors  (x256)
+  mtp.1.ffn.experts.*.w3.scale                     F8_E8M0    [2048, 128]            model-00047-of-00048.safetensors  (x256)
+  mtp.1.ffn.experts.*.w3.weight                    I8         [2048, 2048]           model-00047-of-00048.safetensors  (x256)
+  mtp.1.ffn.gate.bias                              F32        [256]                  model-00047-of-00048.safetensors
+  mtp.1.ffn.gate.weight                            BF16       [256, 4096]            model-00047-of-00048.safetensors
+  mtp.1.ffn.shared_experts.w1.scale                F8_E8M0    [16, 32]               model-00047-of-00048.safetensors
+  mtp.1.ffn.shared_experts.w1.weight               F8_E4M3    [2048, 4096]           model-00047-of-00048.safetensors
+  mtp.1.ffn.shared_experts.w2.scale                F8_E8M0    [32, 16]               model-00047-of-00048.safetensors
+  mtp.1.ffn.shared_experts.w2.weight               F8_E4M3    [4096, 2048]           model-00047-of-00048.safetensors
+  mtp.1.ffn.shared_experts.w3.scale                F8_E8M0    [16, 32]               model-00047-of-00048.safetensors
+  mtp.1.ffn.shared_experts.w3.weight               F8_E4M3    [2048, 4096]           model-00047-of-00048.safetensors
+  mtp.1.ffn_norm.weight                            BF16       [4096]                 model-00047-of-00048.safetensors
+  mtp.1.hc_attn_base                               F32        [24]                   model-00047-of-00048.safetensors
+  mtp.1.hc_attn_fn                                 F32        [24, 16384]            model-00047-of-00048.safetensors
+  mtp.1.hc_attn_scale                              F32        [3]                    model-00047-of-00048.safetensors
+  mtp.1.hc_ffn_base                                F32        [24]                   model-00047-of-00048.safetensors
+  mtp.1.hc_ffn_fn                                  F32        [24, 16384]            model-00047-of-00048.safetensors
+  mtp.1.hc_ffn_scale                               F32        [3]                    model-00047-of-00048.safetensors
+
+===== mtp.2 (1572 tensors) =====
+  mtp.2.attn.attn_sink                             F32        [64]                   model-00048-of-00048.safetensors
+  mtp.2.attn.kv_norm.weight                        BF16       [512]                  model-00048-of-00048.safetensors
+  mtp.2.attn.q_norm.weight                         BF16       [1024]                 model-00048-of-00048.safetensors
+  mtp.2.attn.wkv.scale                             F8_E8M0    [4, 32]                model-00048-of-00048.safetensors
+  mtp.2.attn.wkv.weight                            F8_E4M3    [512, 4096]            model-00048-of-00048.safetensors
+  mtp.2.attn.wo_a.scale                            F8_E8M0    [64, 32]               model-00048-of-00048.safetensors
+  mtp.2.attn.wo_a.weight                           F8_E4M3    [8192, 4096]           model-00048-of-00048.safetensors
+  mtp.2.attn.wo_b.scale                            F8_E8M0    [32, 64]               model-00048-of-00048.safetensors
+  mtp.2.attn.wo_b.weight                           F8_E4M3    [4096, 8192]           model-00048-of-00048.safetensors
+  mtp.2.attn.wq_a.scale                            F8_E8M0    [8, 32]                model-00048-of-00048.safetensors
+  mtp.2.attn.wq_a.weight                           F8_E4M3    [1024, 4096]           model-00048-of-00048.safetensors
+  mtp.2.attn.wq_b.scale                            F8_E8M0    [256, 8]               model-00048-of-00048.safetensors
+  mtp.2.attn.wq_b.weight                           F8_E4M3    [32768, 1024]          model-00048-of-00048.safetensors
+  mtp.2.attn_norm.weight                           BF16       [4096]                 model-00048-of-00048.safetensors
+  mtp.2.confidence_head.proj.weight                BF16       [1, 4352]              model-00048-of-00048.safetensors
+  mtp.2.ffn.experts.*.w1.scale                     F8_E8M0    [2048, 128]            model-00048-of-00048.safetensors  (x256)
+  mtp.2.ffn.experts.*.w1.weight                    I8         [2048, 2048]           model-00048-of-00048.safetensors  (x256)
+  mtp.2.ffn.experts.*.w2.scale                     F8_E8M0    [4096, 64]             model-00048-of-00048.safetensors  (x256)
+  mtp.2.ffn.experts.*.w2.weight                    I8         [4096, 1024]           model-00048-of-00048.safetensors  (x256)
+  mtp.2.ffn.experts.*.w3.scale                     F8_E8M0    [2048, 128]            model-00048-of-00048.safetensors  (x256)
+  mtp.2.ffn.experts.*.w3.weight                    I8         [2048, 2048]           model-00048-of-00048.safetensors  (x256)
+  mtp.2.ffn.gate.bias                              F32        [256]                  model-00048-of-00048.safetensors
+  mtp.2.ffn.gate.weight                            BF16       [256, 4096]            model-00048-of-00048.safetensors
+  mtp.2.ffn.shared_experts.w1.scale                F8_E8M0    [16, 32]               model-00048-of-00048.safetensors
+  mtp.2.ffn.shared_experts.w1.weight               F8_E4M3    [2048, 4096]           model-00048-of-00048.safetensors
+  mtp.2.ffn.shared_experts.w2.scale                F8_E8M0    [32, 16]               model-00048-of-00048.safetensors
+  mtp.2.ffn.shared_experts.w2.weight               F8_E4M3    [4096, 2048]           model-00048-of-00048.safetensors
+  mtp.2.ffn.shared_experts.w3.scale                F8_E8M0    [16, 32]               model-00048-of-00048.safetensors
+  mtp.2.ffn.shared_experts.w3.weight               F8_E4M3    [2048, 4096]           model-00048-of-00048.safetensors
+  mtp.2.ffn_norm.weight                            BF16       [4096]                 model-00048-of-00048.safetensors
+  mtp.2.hc_attn_base                               F32        [24]                   model-00048-of-00048.safetensors
+  mtp.2.hc_attn_fn                                 F32        [24, 16384]            model-00048-of-00048.safetensors
+  mtp.2.hc_attn_scale                              F32        [3]                    model-00048-of-00048.safetensors
+  mtp.2.hc_ffn_base                                F32        [24]                   model-00048-of-00048.safetensors
+  mtp.2.hc_ffn_fn                                  F32        [24, 16384]            model-00048-of-00048.safetensors
+  mtp.2.hc_ffn_scale                               F32        [3]                    model-00048-of-00048.safetensors
+  mtp.2.hc_head_base                               F32        [4]                    model-00048-of-00048.safetensors
+  mtp.2.hc_head_fn                                 F32        [4, 16384]             model-00048-of-00048.safetensors
+  mtp.2.hc_head_scale                              F32        [1]                    model-00048-of-00048.safetensors
+  mtp.2.markov_head.markov_w1.weight               BF16       [129280, 256]          model-00048-of-00048.safetensors
+  mtp.2.markov_head.markov_w2.weight               BF16       [129280, 256]          model-00048-of-00048.safetensors
+  mtp.2.norm.weight                                BF16       [4096]                 model-00048-of-00048.safetensors
+
