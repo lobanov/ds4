@@ -29,6 +29,15 @@ Secondary gates:
 - avoid pathological memory overhead or replay overhead.
 - show a plausible path to server-side gains after local single-request gains are proven.
 
+> **Phase 0 note (exactness is the crux).** On local Metal the only verifier
+> that preserves exact greedy output (`--quality`) is a −28% regression, while
+> the fast `--mtp` path that beats baseline does so by perturbing near-tied
+> logits. The "exact greedy output preservation" requirement is therefore the
+> binding constraint of this whole effort. Two deferred branches (see Decision
+> Rule) address it: (A) make the exact verifier cheap, or (B) relax exactness
+> and validate via real-world task benchmarks. Phase 1 collects data to choose
+> between them.
+
 ## Non-Goals For The First Research Cycle
 
 - full DSpark training pipeline.
@@ -64,11 +73,72 @@ for at least one meaningful prompt class on at least one intended local machine.
 
 The main risk is that `ds4`'s verifier and state-management overhead erase the benefit of longer accepted prefixes.
 
-## Phase 0: Baseline Measurement And Instrumentation
+> **Working hypothesis status after Phase 0: CONFIRMED.** The risk materialized
+> exactly as written — verifier cost dominates and, under the exactness
+> constraint, erases the gain. See Phase 0 Outcome below.
+
+## Phase 0 Outcome (EXECUTED — full data in `issue468/`)
+
+Machine: Apple M5 Max / 128 GB / Metal, git `c7ef1bf`. Backend: Metal.
+
+**Where a speculative cycle is spent.** Draft ≈ 2 ms; snapshot/prefix/replay
+≈ sub-millisecond (±0.5 ms across all replay strategies); **the verifier owns
+the cycle**: ~33 ms/cycle (fast batch) to ~67 ms/cycle (exact), against a
+~28 ms baseline target decode step. State-management overhead is *not* the
+problem; verifier kernel cost is.
+
+**Current `--mtp` vs baseline (depth 2, greedy, `-n 256 -c 8192`):**
+
+| path | gen t/s | vs target-only | exact greedy? |
+|---|---|---|---|
+| target-only (chat / code) | 35.60 / 35.78 | — | yes |
+| `--mtp` default fast (chat / code) | 37.76 / 38.21 | **+6% / +7%** | **no** |
+| `--mtp --quality` exact (chat) | 25.65 | **−28%** | yes |
+
+Default depth-2 MTP is far under the 20% primary gate, and the only exact path
+is a net loss. So on local Metal, MTP at depth 2 is **not** a real win under the
+success criteria.
+
+**Verifier economics at L=2 (the Phase 1 input):**
+
+| verify | cost | vs 2× sequential (~56 ms) |
+|---|---|---|
+| 1 token (margin-skip) | 26 ms | — |
+| 2 tokens (batch, layer-fused) | 40 ms | 0.71× (sub-linear; saves only on full accept) |
+| 2 tokens (exact, decode-kernel ×2) | 58–67 ms | 1.04–1.20× (**slower than baseline**) |
+
+**Draft quality.** Default MTP position-2 conditional acceptance is only
+**0.41–0.42** (paper DFlash ≈ 0.63–0.72). Even a free verifier caps gains at
+current acceptance.
+
+**Critical structural fact for Phase 1.** The exact fused verifier
+(`metal_graph_verify_decode2_exact`, `ds4.c:21218`) exists **only for N=2**.
+For L>2 there is no exact-fused kernel: the code falls back to the batch
+verifier + snapshot/replay, or to the linear sequential path (one decode kernel
+per token, ~28 ms × L). So the exact verifier is *both* super-linear at L=2 and
+*non-existent* as a fused kernel for L>2.
+
+**Instrumentation.** No engine change was needed. The existing `DS4_MTP_TIMING`
+surface plus a small parser (`issue468/parse_spec_log.py`) produced the full
+breakdown. The aggregate-counter delta proposed in `issue468/02_gap_and_spec.md`
+is **deferred to Phase 4**. Two documentation corrections: `ds4-bench` cannot
+drive the spec path (biggest harness gap), and `DS4_DECODE_PROFILE_DETAIL` is
+CPU-only on this build.
+
+**Phase 0 decision: PROCEED to Phase 1 — narrowed to the exact-verifier
+question.** See the updated Phase 1 below and the Decision Rule for the two
+deferred branches.
+
+## Phase 0: Baseline Measurement And Instrumentation  — STATUS: EXECUTED
 
 ### Objective
 
 Build the measurement harness needed to reason about speedup before adding DSpark.
+
+> **Outcome:** see "Phase 0 Outcome" above. The stop/go gate was met — baseline
+> timing clearly identifies the verifier as the dominant cost. Work items 1, 2,
+> and 3 were largely satisfied by the pre-existing `DS4_MTP_TIMING` surface;
+> work item 4 (machine-readable spec output) is deferred to Phase 4.
 
 ### Code Touchpoints
 
@@ -107,40 +177,84 @@ Build the measurement harness needed to reason about speedup before adding DSpar
 
 Do not implement DSpark execution until baseline timing clearly identifies where `ds4` spends time in speculative decode.
 
-## Phase 1: Verifier Cost Curve Study
+## Phase 1: Verifier Cost Curve Study  — NOW THE MAKE-OR-BREAK PHASE
 
 ### Objective
 
-Measure the actual cost of verification on `ds4`, because DSpark viability depends on verifier economics.
+Quantify `verify(L)` for L=1..5 on **both** exactness regimes, because Phase 0
+showed the exact verifier is the binding constraint. This phase decides whether
+the effort proceeds, narrows (Branch A), or relaxes exactness (Branch B).
+
+### Why this changed (from Phase 0)
+
+- The fast batch verifier (`metal_graph_verify_suffix_tops`, `ds4.c:21117`) is
+  sub-linear at L=2 (40 ms ≈ 0.71× of 2× sequential) but **not bit-exact**.
+- The exact fused verifier (`metal_graph_verify_decode2_exact`, `ds4.c:21218`)
+  is super-linear at L=2 (58–67 ms ≈ 1.04–1.20× of 2× sequential) and
+  **exists only for N=2**.
+- The only exact option for L>2 today is the linear sequential path
+  (`metal_graph_eval_token_raw_swa` per token, ~28 ms × L).
 
 ### Code Touchpoints
 
-- `ds4.c`, especially the existing speculative verifier path around [ds4.c](/Users/lobanov/Projects/ds4-dspark/ds4.c:27195) and [ds4.c](/Users/lobanov/Projects/ds4-dspark/ds4.c:27466)
-- `ds4_bench.c` or a new benchmark entrypoint
+- `ds4.c` — the three verifier kernels above and the path selection in
+  `ds4_session_eval_speculative_argmax()` (`ds4.c:27167`, decision at
+  `ds4.c:27346`).
+- a microbenchmark entrypoint. **Recommended: a new research-only function in
+  `ds4.c` (mirroring the `ds4_engine_metal_graph_*_test` family), invoked by a
+  CLI/test flag — not a `ds4-bench` overhaul.** The latter is the Phase 0
+  harness gap but is larger and riskier; defer unless the microbench proves
+  insufficient.
 
 ### Work
 
-1. Add a microbenchmark that exercises `metal_graph_verify_suffix_tops()` for suffix lengths `1..N`.
-2. Measure verifier wall time as a function of:
-   - suffix length
-   - context size
-   - prompt class
-3. For local research, derive a simple `SPS(B)` or equivalent throughput/cost curve from actual measured verifier behavior.
+1. Build a microbenchmark that calls each verifier kernel directly on
+   synthetic suffixes of length L=1..5, isolated from drafter/accept logic:
+   - batch (`metal_graph_verify_suffix_tops`)
+   - exact fused N=2 (`metal_graph_verify_decode2_exact`) — L=2 only
+   - sequential exact (`metal_graph_eval_token_raw_swa` × L) — the exact
+     baseline at any L
+2. Sweep L=1..5 × context sizes (2k/4k/8k) × prompt classes (code, chat).
+3. **Internal phase breakdown of the exact verifier at L=2** (Branch A data):
+   separate the cost of the 2× single-token layer dispatches, the per-layer
+   prefix-1 capture, and the 2× output-head + 2× full-vocab readbacks. This is
+   where the headroom candidates live.
+4. Derive a `verify(L)` curve per kernel and an `SPS(B)`-equivalent from the
+   batch kernel for the simulator.
 
 ### Deliverables
 
-- verifier cost curve for local target setups.
-- a short note explaining whether verifier cost is close to linear, sublinear, or cliffy.
+- `verify(L)` curves for **three kernels** (batch / exact-fused-N2 /
+  sequential-exact), L=1..5, for code and chat.
+- the internal cost breakdown of the exact verifier at L=2.
+- a one-paragraph verdict: is the exact curve sub-linear, linear, or cliffy,
+  and where is the headroom.
 
 ### Stop/Go Gate
 
-If verifier cost grows too aggressively with suffix length, DSpark may still be useful, but only with strong prefix pruning. That changes the implementation priority order.
+Phase 1 no longer just "changes priority order." It selects a branch:
+
+- If an exact `verify(L)` curve can be made sub-linear (Branch A viable) →
+  proceed to Phase 2 with exact costs.
+- If only the batch curve is sub-linear and exact stays linear/super-linear →
+  Branch B becomes the path: Phase 2 must add a benchmark-quality methodology,
+  and exact-greedy preservation is dropped from the primary gate (see Decision
+  Rule).
+- If even the batch curve is cliffy at low L → stop local work; reconsider
+  server-side only.
 
 ## Phase 2: Offline Feasibility Simulator
 
 ### Objective
 
 Test whether DSpark can plausibly win on `ds4` timings before implementing kernels or loaders.
+
+> **Phase 0/1 dependency.** The simulator must use the cost curve from the
+> branch selected in Phase 1: exact costs if Branch A, batch costs if Branch B.
+> If Branch B is chosen, this phase also stands up the real-world task
+> benchmark methodology (HumanEval/MBPP/MT-Bench/Arena-Hard-style evals) needed
+> to prove the batch verifier's logit drift is quality-neutral — promoted here
+> from Phase 7, because it becomes load-bearing rather than a robustness check.
 
 ### Code Touchpoints
 
@@ -380,20 +494,18 @@ Record:
 
 ## Proposed File-Level Execution Order
 
-### Step 1: Instrumentation
+### Step 1: Instrumentation  — DONE (Phase 0)
 
-- `ds4.c`
-- `ds4_cli.c`
-- `ds4_bench.c`
-- `tests/ds4_test.c`
+- `ds4.c` / `ds4_cli.c` already carry `DS4_MTP_TIMING` + `DS4_MTP_*` diagnostics.
+- Aggregate counters / `ds4-bench --spec` deferred to Phase 4 (see
+  `issue468/02_gap_and_spec.md`); not needed for Phase 1.
 
-### Step 2: Verifier Microbench
+### Step 2: Verifier Microbench  — NEXT (Phase 1, make-or-break)
 
-- `ds4.c`
-- `ds4_bench.c`
-- optionally `speed-bench/`
+- `ds4.c` (three verifier kernels + path selection)
+- a new focused microbench entrypoint (not a `ds4-bench` overhaul)
 
-### Step 3: DSpark Auxiliary Loader
+### Step 3: DSpark Auxiliary Loader  — CAN RUN IN PARALLEL with Step 2
 
 - `ds4.h`
 - `ds4.c`
@@ -437,21 +549,23 @@ Record:
 - accepted tokens/cycle
 - conditional acceptance by position
 
-## Risks To Watch Early
+## Risks To Watch Early  (status after Phase 0)
 
-- hidden-state extraction from target layers may cost too much.
-- the Markov head may be cheap in FLOPs but expensive in host-device orchestration.
-- verifier replay/commit overhead may erase accepted-prefix gains.
-- DSpark auxiliary GGUF loading may require broader format work than expected.
-- local single-request workloads may benefit less from scheduling than the paper suggests.
+- hidden-state extraction from target layers may cost too much. — *open; first tested in Phase 4.*
+- the Markov head may be cheap in FLOPs but expensive in host-device orchestration. — *open; Phase 4.*
+- verifier replay/commit overhead may erase accepted-prefix gains. — **DISPROVEN by Phase 0**: replay/snapshot is sub-ms; the verifier *kernel*, not state management, is the cost.
+- DSpark auxiliary GGUF loading may require broader format work than expected. — *open; Phase 3 (can run in parallel with Phase 1).*
+- local single-request workloads may benefit less from scheduling than the paper suggests. — *accepted in advance; the paper's scheduler is a server-concurrency win (Phase 6 note).*
+- **NEW (Phase 0):** exact verification is super-linear at L=2 and non-existent as a fused kernel for L>2. This is now the dominant risk and the subject of Phase 1.
+- **NEW (Phase 0):** MTP suffix acceptance is weak (pos-2 ≈ 0.41–0.42 vs paper DFlash ≈ 0.63–0.72). Even a free verifier caps gains until drafting improves.
 
-## Recommended First Concrete Tasks
+## Recommended First Concrete Tasks  (status after Phase 0)
 
-1. Add speculative timing counters and structured benchmark output.
-2. Add a verifier cost microbench for suffix lengths `1..5`.
-3. Build the offline feasibility simulator from those measured timings.
-4. Inspect DSpark checkpoint metadata and draft a ds4-native auxiliary GGUF schema.
-5. Implement a draft-only Markov-head DSpark runner on Metal.
+1. ~~Add speculative timing counters and structured benchmark output.~~ — **DONE** (pre-existing `DS4_MTP_TIMING` + `issue468/parse_spec_log.py`; aggregate counters deferred to Phase 4).
+2. Add a verifier cost microbench for suffix lengths `1..5`, **on both exact and batch kernels, plus an internal breakdown of the exact verifier at L=2.** — **NEXT (Phase 1).**
+3. Build the offline feasibility simulator from those measured timings. — Phase 2 (use the curve from the Phase 1 branch decision).
+4. Inspect DSpark checkpoint metadata and draft a ds4-native auxiliary GGUF schema. — Phase 3 (**can start in parallel with task 2**).
+5. Implement a draft-only Markov-head DSpark runner on Metal. — Phase 4 (gated on Phase 1).
 
 ## Decision Rule
 
@@ -460,3 +574,25 @@ Proceed to full integration only if all three are true:
 - measured verifier costs leave room for speculative gain,
 - draft-only DSpark quality and latency look plausible,
 - fixed-length DSpark beats baseline materially in end-to-end greedy local decode.
+
+### Deferred decision branches (decide after Phase 1, not now)
+
+Phase 0 made "exact greedy output preservation" the binding constraint. Two
+branches address it; Phase 1 collects the data to choose:
+
+- **Branch A — keep exactness, find exact-verifier headroom.** Attack the exact
+  verifier's cost (2× single-token layer dispatches, per-layer prefix-1 capture,
+  2× output-head + 2× full-vocab readbacks; possibly bit-stable batched
+  reductions or a single exact-fused-N kernel). Keeps the primary gate as
+  written. Chosen if an exact `verify(L)` curve can be made sub-linear.
+- **Branch B — relax exactness, validate via real-world task benchmarks.** Accept
+  the fast batch verifier's near-tied logit drift and prove it is quality-neutral
+  on HumanEval/MBPP/MT-Bench/Arena-Hard-style evals. The batch curve (already
+  sub-linear at L=2) becomes load-bearing; benchmark-quality methodology is
+  promoted to Phase 2. Chosen if only the batch curve is sub-linear and the
+  drift is shown to be quality-neutral. Risk to retire: default `--mtp` is
+  currently *token-different* from target-only, so Branch B must show the drift
+  is harmless, not merely small.
+
+If neither branch yields a sub-linear verifier curve at realistic L, stop local
+work and reconsider server-side only (where the paper's gains actually live).
