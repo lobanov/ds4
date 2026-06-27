@@ -18,6 +18,8 @@ DSpark itself.
 | `02_gap_and_spec.md` | Gap analysis vs. `PLAN.md` Phase 0 work items, plus the **minimal instrumentation spec** (counters, CSV schema, exact code touchpoints). |
 | `03_baseline_command_set.md` | The repeatable command set for local Metal: target-only and `--mtp`, plus machine/thermal protocol. |
 | `04_run_matrix.md` | The run matrix and result tables, **filled with measured baseline numbers + Phase 0 conclusion**. |
+| `05_phase1_plan.md` | **Phase 1 execution plan — EXECUTED (Branch B selected).** Microbench design, placement, matrix, commands. |
+| `06_phase1_results.md` | **Phase 1 results — verify(L) curves + exact-verifier breakdown + Branch B verdict.** |
 | `parse_spec_log.py` | Parser for `DS4_MTP_TIMING` logs → aggregate T3/T4/T5 tables (reusable). |
 | `prompts/` | Fixed, version-controlled prompts so baseline runs are reproducible. |
 | `baseline/` | Raw run outputs (CSV, logs, machine fingerprint, parsed summary). |
@@ -35,9 +37,15 @@ DSpark itself.
 - [x] Phase 0 sign-off: we can see *where* `ds4` spends time in spec decode →
       **PROCEED to Phase 1, narrowed to the exact-verifier cost curve**.
 - [x] Update `PLAN.md` with Phase 0 outcome + deferred Branch A/B.
-- [x] Prepare Phase 1 plan (`05_phase1_plan.md`) — **PAUSED before execution**.
-- [ ] Phase 1: confirm placement (§3) + internal-breakdown sign-off (§8), then
-      build `ds4_engine_verifier_curve_test` and run the sweep.
+- [x] Prepare Phase 1 plan (`05_phase1_plan.md`).
+- [x] **Execute Phase 1**: `ds4_engine_verifier_curve_test` + `--verifier-curve-test`
+      + `DS4_VERIFY_CURVE_BREAKDOWN`; verify(L) for L=1..8 on all three kernels
+      at ctx {2k,4k,8k}, chat + code (`06_phase1_results.md`).
+- [x] **Phase 1 decision: Branch B.** Only the batch verifier is sub-linear;
+      exact is linear-or-worse (95% of exact cost is the 2× layer dispatches).
+      Phase 2 proceeds on Branch B; exact-greedy dropped from the primary gate.
+- [ ] Phase 2: offline simulator on the batch curve + benchmark-quality
+      validation that the non-exact drift is quality-neutral.
 
 ## Headline findings (measured: Apple M5 Max / 128 GB / Metal, SHA `c7ef1bf`)
 

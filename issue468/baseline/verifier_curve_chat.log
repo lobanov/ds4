@@ -1,0 +1,96 @@
+ds4: MTP support model loaded: ../ds4/gguf/DeepSeek-V4-Flash-MTP-Q4K-Q8_0-F32.gguf (draft=1)
+ds4: Metal device Apple M5 Max, 128.00 GiB RAM
+ds4: Metal 4 tensor API enabled for Tensor kernels
+ds4: drift-patch flags hc_stable=on norm_unify=on kv_raw_f32=off rope_exp2_log2=off math_safe=off tensor_matmul=on
+ds4: Metal model views created in 1.799 ms, residency requested in 312.728 ms, warmup 4.183 ms (mapped 82697.67 MiB from offset 5.09 MiB)
+ds4: Metal mapped mmaped model as 2 overlapping shared buffers
+ds4: Metal model views created in 0.117 ms, residency requested in 552.273 ms, warmup 1.269 ms (mapped 3631.22 MiB from offset 0.00 MiB)
+ds4: Metal mapped mmaped model as 3 overlapping shared buffers
+ds4: metal backend initialized for graph diagnostics
+ds4: context buffers 495.92 MiB (ctx=8192, backend=metal, prefill_chunk=4096, raw_kv_rows=4352, compressed_kv_rows=2050)
+ds4: verifier curve test start (session_ctx=8208, warmup=3, timed=20, L=1..8, ctx in {2048,4096,8192})
+ds4: verifier curve ctx=2048 (checkpoint.len=2048)
+ds4: vcb decode2_exact start=2048 layers=53.762 out0=1.333 out1=1.215 total=56.697 ms
+ds4: vcb decode2_exact start=2048 layers=53.436 out0=1.326 out1=1.244 total=56.328 ms
+ds4: vcb decode2_exact start=2048 layers=53.284 out0=1.344 out1=1.194 total=56.234 ms
+ds4: vcb decode2_exact start=2048 layers=53.279 out0=1.300 out1=1.241 total=56.132 ms
+ds4: vcb decode2_exact start=2048 layers=53.440 out0=1.256 out1=1.122 total=56.128 ms
+ds4: vcb decode2_exact start=2048 layers=53.244 out0=1.295 out1=1.190 total=56.030 ms
+ds4: vcb decode2_exact start=2048 layers=53.222 out0=1.293 out1=1.227 total=56.054 ms
+ds4: vcb decode2_exact start=2048 layers=53.324 out0=1.249 out1=1.165 total=56.095 ms
+ds4: vcb decode2_exact start=2048 layers=53.664 out0=1.305 out1=1.207 total=56.547 ms
+ds4: vcb decode2_exact start=2048 layers=53.004 out0=1.298 out1=1.150 total=55.817 ms
+ds4: vcb decode2_exact start=2048 layers=52.876 out0=1.340 out1=1.211 total=55.741 ms
+ds4: vcb decode2_exact start=2048 layers=53.283 out0=1.293 out1=1.233 total=56.167 ms
+ds4: vcb decode2_exact start=2048 layers=53.122 out0=1.260 out1=1.139 total=55.917 ms
+ds4: vcb decode2_exact start=2048 layers=53.118 out0=1.283 out1=1.277 total=55.971 ms
+ds4: vcb decode2_exact start=2048 layers=53.029 out0=1.223 out1=1.137 total=55.755 ms
+ds4: vcb decode2_exact start=2048 layers=53.167 out0=1.255 out1=1.219 total=55.962 ms
+ds4: vcb decode2_exact start=2048 layers=53.420 out0=1.267 out1=1.233 total=56.265 ms
+ds4: vcb decode2_exact start=2048 layers=52.751 out0=1.339 out1=1.276 total=55.718 ms
+ds4: vcb decode2_exact start=2048 layers=53.477 out0=1.290 out1=1.241 total=56.301 ms
+ds4: vcb decode2_exact start=2048 layers=53.275 out0=1.290 out1=1.196 total=56.116 ms
+ds4: vcb decode2_exact start=2048 layers=53.101 out0=1.308 out1=1.245 total=55.972 ms
+ds4: vcb decode2_exact start=2048 layers=53.275 out0=1.289 out1=1.203 total=56.080 ms
+ds4: vcb decode2_exact start=2048 layers=52.867 out0=1.503 out1=1.198 total=55.930 ms
+ds4: verifier curve breakdown ctx=2048 L=2 (3 calls):
+ds4: vcb decode2_exact start=2048 layers=54.410 out0=1.404 out1=1.286 total=58.725 ms
+ds4: vcb decode2_exact start=2048 layers=54.204 out0=1.340 out1=1.245 total=57.082 ms
+ds4: vcb decode2_exact start=2048 layers=53.692 out0=1.376 out1=1.300 total=56.718 ms
+ds4: verifier curve ctx=4096 (checkpoint.len=4096)
+ds4: vcb decode2_exact start=4096 layers=53.731 out0=1.325 out1=1.269 total=56.677 ms
+ds4: vcb decode2_exact start=4096 layers=53.855 out0=1.291 out1=1.229 total=56.731 ms
+ds4: vcb decode2_exact start=4096 layers=53.806 out0=1.290 out1=1.204 total=56.691 ms
+ds4: vcb decode2_exact start=4096 layers=54.410 out0=1.291 out1=1.232 total=57.285 ms
+ds4: vcb decode2_exact start=4096 layers=54.454 out0=1.311 out1=1.151 total=57.232 ms
+ds4: vcb decode2_exact start=4096 layers=53.449 out0=1.304 out1=1.196 total=56.274 ms
+ds4: vcb decode2_exact start=4096 layers=53.939 out0=1.270 out1=1.158 total=56.704 ms
+ds4: vcb decode2_exact start=4096 layers=53.913 out0=1.311 out1=1.179 total=56.693 ms
+ds4: vcb decode2_exact start=4096 layers=53.538 out0=1.340 out1=1.222 total=56.505 ms
+ds4: vcb decode2_exact start=4096 layers=54.302 out0=1.334 out1=1.167 total=57.116 ms
+ds4: vcb decode2_exact start=4096 layers=54.010 out0=1.370 out1=1.213 total=56.957 ms
+ds4: vcb decode2_exact start=4096 layers=53.905 out0=1.288 out1=1.233 total=56.811 ms
+ds4: vcb decode2_exact start=4096 layers=53.817 out0=1.248 out1=1.211 total=56.586 ms
+ds4: vcb decode2_exact start=4096 layers=54.244 out0=1.348 out1=1.218 total=57.156 ms
+ds4: vcb decode2_exact start=4096 layers=53.586 out0=1.247 out1=1.176 total=56.349 ms
+ds4: vcb decode2_exact start=4096 layers=53.596 out0=1.320 out1=1.190 total=56.467 ms
+ds4: vcb decode2_exact start=4096 layers=53.821 out0=1.307 out1=1.190 total=56.670 ms
+ds4: vcb decode2_exact start=4096 layers=54.106 out0=1.298 out1=1.484 total=57.209 ms
+ds4: vcb decode2_exact start=4096 layers=54.034 out0=1.279 out1=1.203 total=56.890 ms
+ds4: vcb decode2_exact start=4096 layers=53.775 out0=1.309 out1=1.185 total=56.685 ms
+ds4: vcb decode2_exact start=4096 layers=53.582 out0=1.427 out1=1.246 total=56.561 ms
+ds4: vcb decode2_exact start=4096 layers=54.062 out0=1.313 out1=1.277 total=56.941 ms
+ds4: vcb decode2_exact start=4096 layers=53.769 out0=1.291 out1=1.275 total=56.654 ms
+ds4: verifier curve breakdown ctx=4096 L=2 (3 calls):
+ds4: vcb decode2_exact start=4096 layers=56.240 out0=1.280 out1=1.157 total=60.328 ms
+ds4: vcb decode2_exact start=4096 layers=53.544 out0=1.265 out1=1.258 total=56.437 ms
+ds4: vcb decode2_exact start=4096 layers=53.868 out0=1.295 out1=1.181 total=56.687 ms
+ds4: verifier curve ctx=8192 (checkpoint.len=8192)
+ds4: vcb decode2_exact start=8192 layers=63.594 out0=1.283 out1=1.195 total=66.435 ms
+ds4: vcb decode2_exact start=8192 layers=63.562 out0=1.241 out1=1.193 total=66.357 ms
+ds4: vcb decode2_exact start=8192 layers=63.315 out0=1.308 out1=1.248 total=66.220 ms
+ds4: vcb decode2_exact start=8192 layers=63.235 out0=1.227 out1=1.187 total=65.994 ms
+ds4: vcb decode2_exact start=8192 layers=63.401 out0=1.332 out1=1.169 total=66.206 ms
+ds4: vcb decode2_exact start=8192 layers=63.625 out0=1.339 out1=1.219 total=66.599 ms
+ds4: vcb decode2_exact start=8192 layers=63.583 out0=1.328 out1=1.184 total=66.447 ms
+ds4: vcb decode2_exact start=8192 layers=63.522 out0=1.316 out1=1.230 total=66.414 ms
+ds4: vcb decode2_exact start=8192 layers=63.317 out0=1.316 out1=1.228 total=66.157 ms
+ds4: vcb decode2_exact start=8192 layers=63.313 out0=1.306 out1=1.178 total=66.100 ms
+ds4: vcb decode2_exact start=8192 layers=63.687 out0=1.339 out1=1.230 total=66.584 ms
+ds4: vcb decode2_exact start=8192 layers=63.254 out0=1.324 out1=1.258 total=66.179 ms
+ds4: vcb decode2_exact start=8192 layers=63.390 out0=1.316 out1=1.217 total=66.296 ms
+ds4: vcb decode2_exact start=8192 layers=63.284 out0=1.306 out1=1.230 total=66.141 ms
+ds4: vcb decode2_exact start=8192 layers=63.507 out0=1.307 out1=1.213 total=66.368 ms
+ds4: vcb decode2_exact start=8192 layers=63.349 out0=1.296 out1=1.245 total=66.225 ms
+ds4: vcb decode2_exact start=8192 layers=63.212 out0=1.335 out1=1.227 total=66.111 ms
+ds4: vcb decode2_exact start=8192 layers=63.623 out0=1.239 out1=1.170 total=66.368 ms
+ds4: vcb decode2_exact start=8192 layers=63.210 out0=1.326 out1=1.212 total=66.083 ms
+ds4: vcb decode2_exact start=8192 layers=63.592 out0=1.318 out1=1.204 total=66.405 ms
+ds4: vcb decode2_exact start=8192 layers=63.003 out0=1.233 out1=1.155 total=65.760 ms
+ds4: vcb decode2_exact start=8192 layers=63.644 out0=1.339 out1=1.214 total=66.502 ms
+ds4: vcb decode2_exact start=8192 layers=63.388 out0=1.298 out1=1.195 total=66.221 ms
+ds4: verifier curve breakdown ctx=8192 L=2 (3 calls):
+ds4: vcb decode2_exact start=8192 layers=64.387 out0=1.278 out1=1.190 total=68.799 ms
+ds4: vcb decode2_exact start=8192 layers=63.788 out0=1.311 out1=1.193 total=66.612 ms
+ds4: vcb decode2_exact start=8192 layers=63.479 out0=1.311 out1=1.219 total=66.384 ms
+ds4: verifier curve test complete

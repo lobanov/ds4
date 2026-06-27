@@ -259,6 +259,7 @@ static void print_cli_diagnostics(FILE *fp, const help_colors *c) {
     opt(fp, c, "--metal-graph-test", "Compare first GPU-resident graph stages with CPU.");
     opt(fp, c, "--metal-graph-full-test", "Run the GPU-resident self-token graph across all layers.");
     opt(fp, c, "--metal-graph-prompt-test", "Compare CPU and GPU graph logits for the full prompt.");
+    opt(fp, c, "--verifier-curve-test", "Phase 1 microbench: verify(L) cost curve for L=1..8 (issue468).");
     fputc('\n', fp);
 }
 

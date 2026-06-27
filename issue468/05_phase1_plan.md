@@ -1,9 +1,14 @@
 # Phase 1 — Verifier Cost Curve Study: Execution Plan (PAUSED, awaiting go-ahead)
 
-Status: **prepared, not started.** This doc defines the microbench, its
-placement, the measurement matrix, and the exact commands. No engine code has
-been written and no benchmark has been run. Confirm the placement decision in
-§3 before I touch `ds4.c`.
+Status: **EXECUTED — Branch B selected** (see `06_phase1_results.md`). Phase 1
+ran the microbench on all three kernels, L=1..8, ctx {2k,4k,8k}, chat + code.
+Only the batch verifier is sub-linear (and context-flat); every exact path is
+linear-or-worse, and exact-fused N=2 is slower than plain sequential. The
+exact-verifier breakdown shows 95% of cost is the 2× single-token layer
+dispatches (readback overhead ≈ 2.5 ms / 5%), so Branch A needs new bit-exact
+batched kernels — deferred. **Phase 2 proceeds on Branch B.** The design notes
+below are retained for reference. This doc was originally the pre-execution
+plan; the executed results live in `06_phase1_results.md`.
 
 Goal (from updated `PLAN.md`): produce `verify(L)` curves for L=1..5 on **all
 three** verifier kernels, plus the internal cost breakdown of the exact verifier

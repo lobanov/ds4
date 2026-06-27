@@ -177,11 +177,11 @@ Build the measurement harness needed to reason about speedup before adding DSpar
 
 Do not implement DSpark execution until baseline timing clearly identifies where `ds4` spends time in speculative decode.
 
-## Phase 1: Verifier Cost Curve Study  — NOW THE MAKE-OR-BREAK PHASE
+## Phase 1: Verifier Cost Curve Study  — STATUS: EXECUTED (Branch B selected)
 
 ### Objective
 
-Quantify `verify(L)` for L=1..5 on **both** exactness regimes, because Phase 0
+Quantify `verify(L)` for L=1..8 on **both** exactness regimes, because Phase 0
 showed the exact verifier is the binding constraint. This phase decides whether
 the effort proceeds, narrows (Branch A), or relaxes exactness (Branch B).
 
@@ -209,12 +209,12 @@ the effort proceeds, narrows (Branch A), or relaxes exactness (Branch B).
 ### Work
 
 1. Build a microbenchmark that calls each verifier kernel directly on
-   synthetic suffixes of length L=1..5, isolated from drafter/accept logic:
+   synthetic suffixes of length L=1..8, isolated from drafter/accept logic:
    - batch (`metal_graph_verify_suffix_tops`)
    - exact fused N=2 (`metal_graph_verify_decode2_exact`) — L=2 only
    - sequential exact (`metal_graph_eval_token_raw_swa` × L) — the exact
      baseline at any L
-2. Sweep L=1..5 × context sizes (2k/4k/8k) × prompt classes (code, chat).
+2. Sweep L=1..8 × context sizes (2k/4k/8k) × prompt classes (code, chat).
 3. **Internal phase breakdown of the exact verifier at L=2** (Branch A data):
    separate the cost of the 2× single-token layer dispatches, the per-layer
    prefix-1 capture, and the 2× output-head + 2× full-vocab readbacks. This is
@@ -225,7 +225,7 @@ the effort proceeds, narrows (Branch A), or relaxes exactness (Branch B).
 ### Deliverables
 
 - `verify(L)` curves for **three kernels** (batch / exact-fused-N2 /
-  sequential-exact), L=1..5, for code and chat.
+  sequential-exact), L=1..8, for code and chat.
 - the internal cost breakdown of the exact verifier at L=2.
 - a one-paragraph verdict: is the exact curve sub-linear, linear, or cliffy,
   and where is the headroom.
@@ -242,6 +242,27 @@ Phase 1 no longer just "changes priority order." It selects a branch:
   Rule).
 - If even the batch curve is cliffy at low L → stop local work; reconsider
   server-side only.
+
+> **RESOLVED (Phase 1, full data in `issue468/06_phase1_results.md`): Branch B.**
+> Measured `verify(L)` for L=1..8 on all three kernels at ctx {2k,4k,8k}:
+> - **Batch is strongly sub-linear AND context-flat** (per-token 36 ms at L=1 →
+>   12 ms at L=8; batch(L) nearly identical at 2k/4k/8k). Smooth, not cliffy.
+> - **Every exact path is linear-or-worse.** Sequential is ~26–31 ms × L. The
+>   exact-fused N=2 kernel (56–66 ms) is *slower than plain sequential* (1.07–
+>   1.09×) — it dispatches two single-token decode-layer passes with capture
+>   overhead and **zero** actual fusion.
+> - **Branch A headroom disproven:** the exact-verifier breakdown shows 95% of
+>   cost is the 2× single-token layer dispatches (layers = 53 ms @2k/4k, 64 ms
+>   @8k); the output-head + vocab readbacks are only ~2.5 ms (5%). Making exact
+>   sub-linear requires new *bit-exact batched layer kernels* (the batch verifier
+>   is batched but not bit-exact) — a research kernel project, deferred.
+>
+> **→ Phase 2 proceeds on Branch B**, using the batch `verify(L)` curve as the
+> simulator input and standing up benchmark-quality validation that the batch
+> verifier's logit drift is quality-neutral. Exact-greedy preservation is
+> dropped from the primary gate. Scheduler rule (empirically grounded): verify
+> at L=0 (plain decode) or L∈[2,γ]; **never L=1 via batch** (batch L=1 is slower
+> than sequential).
 
 ## Phase 2: Offline Feasibility Simulator
 
@@ -575,24 +596,27 @@ Proceed to full integration only if all three are true:
 - draft-only DSpark quality and latency look plausible,
 - fixed-length DSpark beats baseline materially in end-to-end greedy local decode.
 
-### Deferred decision branches (decide after Phase 1, not now)
+### Deferred decision branches (status after Phase 1: **Branch B selected**)
 
-Phase 0 made "exact greedy output preservation" the binding constraint. Two
-branches address it; Phase 1 collects the data to choose:
+Phase 0 made "exact greedy output preservation" the binding constraint. Phase 1
+measured the data to choose, and selected Branch B:
 
-- **Branch A — keep exactness, find exact-verifier headroom.** Attack the exact
-  verifier's cost (2× single-token layer dispatches, per-layer prefix-1 capture,
-  2× output-head + 2× full-vocab readbacks; possibly bit-stable batched
-  reductions or a single exact-fused-N kernel). Keeps the primary gate as
-  written. Chosen if an exact `verify(L)` curve can be made sub-linear.
-- **Branch B — relax exactness, validate via real-world task benchmarks.** Accept
-  the fast batch verifier's near-tied logit drift and prove it is quality-neutral
-  on HumanEval/MBPP/MT-Bench/Arena-Hard-style evals. The batch curve (already
-  sub-linear at L=2) becomes load-bearing; benchmark-quality methodology is
-  promoted to Phase 2. Chosen if only the batch curve is sub-linear and the
-  drift is shown to be quality-neutral. Risk to retire: default `--mtp` is
-  currently *token-different* from target-only, so Branch B must show the drift
-  is harmless, not merely small.
+- **Branch A — keep exactness, find exact-verifier headroom. DEFERRED.** Phase 1
+  disproved the hypothesized headroom: the exact-verifier breakdown shows 95% of
+  cost is the 2× single-token layer dispatches, and the output-head/readback
+  overhead is only ~2.5 ms (5%). The exact-fused N=2 kernel is slower than plain
+  sequential. Making exact sub-linear requires new bit-exact batched layer
+  kernels (the existing batch verifier is batched but not bit-exact) — a
+  research kernel project. Revisit only if Branch B's quality validation fails
+  *and* a bit-exact batched layer kernel becomes feasible.
+- **Branch B — relax exactness, validate via real-world task benchmarks.
+  SELECTED.** The batch verifier is strongly sub-linear and context-flat, so it
+  is the simulator's load-bearing curve. The binding question becomes: is the
+  batch verifier's logit drift quality-neutral? Phase 2 stands up the
+  benchmark-quality methodology (HumanEval/MBPP/MT-Bench/Arena-Hard-style evals).
+  Risk to retire: default `--mtp` is currently *token-different* from
+  target-only, so Branch B must show the drift is harmless, not merely small.
 
-If neither branch yields a sub-linear verifier curve at realistic L, stop local
-work and reconsider server-side only (where the paper's gains actually live).
+If Branch B's benchmark validation fails, fall back to Branch A (new kernels)
+or stop local work and reconsider server-side only (where the paper's gains
+actually live).

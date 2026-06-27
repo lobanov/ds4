@@ -21227,6 +21227,15 @@ static bool metal_graph_verify_decode2_exact(
         float                 *logits1) {
     if (!g || !top0 || !logits1 || g->raw_cap == 0) return false;
 
+    /* Phase 1 research probe (issue468): per-phase breakdown of the exact
+     * verifier, gated so production is untouched.  layers = the 2x single-token
+     * layer dispatches + per-layer prefix-1 capture (the dominant cost);
+     * out0 = output head + argmax + 2 full-vocab readbacks for token0;
+     * out1 = output head + 1 readback for token1. */
+    const bool vcb = getenv("DS4_VERIFY_CURVE_BREAKDOWN") != NULL;
+    double vcb_t0 = 0.0, vcb_t_embed = 0.0, vcb_t_layers = 0.0, vcb_t_out0 = 0.0;
+    if (vcb) vcb_t0 = now_sec();
+
     const uint64_t hc_dim = (uint64_t)DS4_N_HC * DS4_N_EMBD;
     ds4_gpu_tensor *cur0 = metal_graph_tensor_row_view(g->batch_cur_hc, 0, hc_dim);
     ds4_gpu_tensor *cur1 = metal_graph_tensor_row_view(g->batch_cur_hc, 1, hc_dim);
@@ -21250,6 +21259,7 @@ static bool metal_graph_verify_decode2_exact(
                                                   (uint32_t)token1,
                                                   DS4_N_EMBD,
                                                   DS4_N_HC) != 0;
+    if (vcb) vcb_t_embed = now_sec();
 
     ds4_gpu_tensor *saved_cur = g->cur_hc;
     ds4_gpu_tensor *saved_after = g->after_ffn_hc;
@@ -21299,6 +21309,7 @@ static bool metal_graph_verify_decode2_exact(
     g->spec_capture_prefix1 = saved_capture;
     g->cur_hc = saved_cur;
     g->after_ffn_hc = saved_after;
+    if (vcb) vcb_t_layers = now_sec();
 
     if (ok) {
         g->cur_hc = cur0;
@@ -21318,6 +21329,7 @@ static bool metal_graph_verify_decode2_exact(
                                        (uint64_t)DS4_N_VOCAB * sizeof(logits0[0])) != 0;
         }
     }
+    if (vcb) vcb_t_out0 = now_sec();
 
     if (ok) {
         g->cur_hc = cur1;
@@ -21336,6 +21348,17 @@ static bool metal_graph_verify_decode2_exact(
     g->cur_hc = saved_cur;
     g->after_ffn_hc = saved_after;
     g->spec_capture_prefix1 = saved_capture;
+
+    if (vcb) {
+        const double vcb_t_out1 = now_sec();
+        fprintf(stderr,
+                "ds4: vcb decode2_exact start=%u layers=%.3f out0=%.3f out1=%.3f total=%.3f ms\n",
+                start,
+                (vcb_t_layers - vcb_t_embed) * 1000.0,
+                (vcb_t_out0 - vcb_t_layers) * 1000.0,
+                (vcb_t_out1 - vcb_t_out0) * 1000.0,
+                (vcb_t_out1 - vcb_t0) * 1000.0);
+    }
 
     ds4_gpu_tensor_free(next1);
     ds4_gpu_tensor_free(next0);
@@ -27789,3 +27812,298 @@ int ds4_session_ctx(ds4_session *s) {
 int ds4_session_prefill_cap(ds4_session *s) {
     return s ? (int)s->prefill_cap : 0;
 }
+
+#ifndef DS4_NO_GPU
+/* =========================================================================
+ * Phase 1 verifier cost-curve microbench (issue468/05_phase1_plan.md).
+ *
+ * Research-only: invoked by the --verifier-curve-test CLI flag.  It measures
+ * verify(L) for L=1..8 on the three verifier kernels in isolation, at context
+ * sizes 2k/4k/8k, using spec_frontier_snapshot/restore so every iteration
+ * starts from an identical frontier.  No effect on any production path.
+ *
+ *   batch             metal_graph_verify_suffix_tops    (sub-linear, non-exact)
+ *   exact_fused_n2    metal_graph_verify_decode2_exact  (exact, N=2 only)
+ *   sequential_exact  metal_graph_eval_token_raw_swa *L (exact, linear)
+ *
+ * Set DS4_VERIFY_CURVE_BREAKDOWN to also emit an internal phase breakdown of
+ * decode2_exact (Branch A headroom data).  Probe cost is zero in production
+ * because the flag is unset there.
+ * ========================================================================= */
+
+static int verifier_curve_cmp_double(const void *a, const void *b) {
+    const double da = *(const double *)a;
+    const double db = *(const double *)b;
+    return (da > db) - (da < db);
+}
+
+static double verifier_curve_pct(const double *sorted, int n, double p) {
+    int idx = (int)((p / 100.0) * (double)(n - 1) + 0.5);
+    if (idx < 0) idx = 0;
+    if (idx >= n) idx = n - 1;
+    return sorted[idx];
+}
+
+static void verifier_curve_emit_row(const char *kernel, int L, int ctx,
+                                    const double *samples, int n,
+                                    double *sorted_scratch) {
+    memcpy(sorted_scratch, samples, (size_t)n * sizeof(double));
+    qsort(sorted_scratch, (size_t)n, sizeof(double), verifier_curve_cmp_double);
+    printf("%s,%d,%d,%d,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f\n",
+           kernel, L, ctx, n,
+           sorted_scratch[0],
+           verifier_curve_pct(sorted_scratch, n, 10.0),
+           verifier_curve_pct(sorted_scratch, n, 25.0),
+           verifier_curve_pct(sorted_scratch, n, 50.0),
+           verifier_curve_pct(sorted_scratch, n, 75.0),
+           verifier_curve_pct(sorted_scratch, n, 90.0),
+           verifier_curve_pct(sorted_scratch, n, 99.0),
+           sorted_scratch[n - 1]);
+    fflush(stdout);
+}
+
+/* Dispatch one verifier kernel call.  Returns wall-clock ms, or -1 on failure. */
+static double verifier_curve_call(ds4_session *s, ds4_engine *e,
+                                  int kernel_id, int L, uint32_t start,
+                                  const int *suffix, bool capture_prefix1,
+                                  int *row_tops,
+                                  float *logits_scratch, float *logits0) {
+    ds4_gpu_graph *g = &s->graph;
+    const double t0 = now_sec();
+    bool ok = true;
+    if (kernel_id == 0) {
+        ok = metal_graph_verify_suffix_tops(g, &e->model, &e->weights,
+                                            &s->checkpoint, start, (uint32_t)L,
+                                            capture_prefix1, row_tops, NULL);
+    } else if (kernel_id == 1) {
+        int top0 = -1;
+        ok = metal_graph_verify_decode2_exact(g, &e->model, &e->weights,
+                                              suffix[0], suffix[1], start,
+                                              &top0, logits0, logits_scratch);
+    } else {
+        for (int i = 0; i < L && ok; i++) {
+            ok = metal_graph_eval_token_raw_swa(g, &e->model, &e->weights,
+                                                suffix[i], start + (uint32_t)i,
+                                                logits_scratch);
+        }
+    }
+    const double t1 = now_sec();
+    if (!ok) return -1.0;
+    return (t1 - t0) * 1000.0;
+}
+
+/* Warmup + timed loop with frontier restore between iterations.  Returns 0 on
+ * success, -1 on failure. */
+static int verifier_curve_measure(ds4_session *s, ds4_engine *e,
+                                  int kernel_id, int L, uint32_t start,
+                                  const int *suffix, bool capture_prefix1,
+                                  int *row_tops, float *logits_scratch,
+                                  float *logits0, ds4_spec_frontier *base,
+                                  int warmup, int timed, double *out) {
+    for (int it = 0; it < warmup + timed; it++) {
+        /* the batch kernel reads the suffix from checkpoint[start, start+L) */
+        if (kernel_id == 0) s->checkpoint.len = (int)start + L;
+        const double ms = verifier_curve_call(s, e, kernel_id, L, start, suffix,
+                                              capture_prefix1, row_tops,
+                                              logits_scratch, logits0);
+        if (!spec_frontier_restore(base, s)) return -1;
+        s->checkpoint.len = (int)start;
+        if (ms < 0.0) return -1;
+        if (it >= warmup) out[it - warmup] = ms;
+    }
+    return 0;
+}
+
+static int verifier_curve_measure_ctx(ds4_session *s, ds4_engine *e,
+                                      int target, int L_max,
+                                      const int *L_vals, int n_L,
+                                      int warmup, int timed,
+                                      double *samples, double *sorted,
+                                      float *logits_save, float *logits_scratch,
+                                      float *logits0, int *row_tops) {
+    char err[160];
+    /* Greedy-generate from the current checkpoint up to `target`. */
+    while (s->checkpoint.len < target) {
+        const int tok = sample_argmax(s->logits, DS4_N_VOCAB);
+        if (ds4_session_eval(s, tok, err, sizeof(err)) != 0) {
+            fprintf(stderr, "ds4: verifier curve: greedy gen failed at %d: %s\n",
+                    s->checkpoint.len, err);
+            return -1;
+        }
+    }
+    const uint32_t start = (uint32_t)target;
+    /* base logits predict the token at `start` (first suffix token) */
+    memcpy(logits_save, s->logits, (size_t)DS4_N_VOCAB * sizeof(float));
+
+    ds4_spec_frontier base;
+    memset(&base, 0, sizeof(base));
+    if (!spec_frontier_snapshot(&base, s)) {
+        fprintf(stderr, "ds4: verifier curve: snapshot failed at ctx=%d\n", target);
+        return -1;
+    }
+
+    /* Generate L_max real greedy suffix tokens (advances the cache). */
+    int suffix[16];
+    for (int i = 0; i < L_max; i++) {
+        suffix[i] = sample_argmax(s->logits, DS4_N_VOCAB);
+        if (ds4_session_eval(s, suffix[i], err, sizeof(err)) != 0) {
+            fprintf(stderr, "ds4: verifier curve: suffix gen failed: %s\n", err);
+            spec_frontier_free(&base);
+            return -1;
+        }
+    }
+    /* Restore base; suffix tokens remain in checkpoint buffer at [start, ...). */
+    if (!spec_frontier_restore(&base, s)) {
+        spec_frontier_free(&base);
+        return -1;
+    }
+    s->checkpoint.len = (int)start;
+
+    fprintf(stderr, "ds4: verifier curve ctx=%d (checkpoint.len=%d)\n",
+            target, s->checkpoint.len);
+
+    for (int li = 0; li < n_L; li++) {
+        const int L = L_vals[li];
+
+        /* batch = production fast path; capture_prefix1 only matters at L==2. */
+        if (verifier_curve_measure(s, e, 0, L, start, suffix, (L == 2),
+                                   row_tops, logits_scratch, logits0, &base,
+                                   warmup, timed, samples) == 0) {
+            verifier_curve_emit_row("batch", L, target, samples, timed, sorted);
+        } else {
+            fprintf(stderr, "ds4: verifier curve: batch L=%d FAILED\n", L);
+            spec_frontier_free(&base);
+            return -1;
+        }
+
+        /* exact-fused verifier exists only for N=2. */
+        if (L == 2) {
+            if (verifier_curve_measure(s, e, 1, L, start, suffix, false,
+                                       row_tops, logits_scratch, logits0, &base,
+                                       warmup, timed, samples) == 0) {
+                verifier_curve_emit_row("exact_fused_n2", L, target, samples, timed, sorted);
+            } else {
+                fprintf(stderr, "ds4: verifier curve: exact-fused L=2 FAILED\n");
+                spec_frontier_free(&base);
+                return -1;
+            }
+        }
+
+        /* sequential exact: the exact baseline at any L. */
+        if (verifier_curve_measure(s, e, 2, L, start, suffix, false,
+                                   row_tops, logits_scratch, logits0, &base,
+                                   warmup, timed, samples) == 0) {
+            verifier_curve_emit_row("sequential_exact", L, target, samples, timed, sorted);
+        } else {
+            fprintf(stderr, "ds4: verifier curve: seq L=%d FAILED\n", L);
+            spec_frontier_free(&base);
+            return -1;
+        }
+    }
+
+    /* decode2_exact internal phase breakdown (Branch A headroom data). */
+    if (getenv("DS4_VERIFY_CURVE_BREAKDOWN")) {
+        const int n_brk = timed < 3 ? timed : 3;
+        fprintf(stderr, "ds4: verifier curve breakdown ctx=%d L=2 (%d calls):\n",
+                target, n_brk);
+        for (int it = 0; it < n_brk; it++) {
+            int top0 = -1;
+            const bool ok = metal_graph_verify_decode2_exact(
+                    &s->graph, &e->model, &e->weights,
+                    suffix[0], suffix[1], start, &top0, logits0, logits_scratch);
+            if (!spec_frontier_restore(&base, s)) {
+                spec_frontier_free(&base);
+                return -1;
+            }
+            s->checkpoint.len = (int)start;
+            if (!ok) fprintf(stderr, "ds4: verifier curve: breakdown call %d failed\n", it);
+        }
+    }
+
+    spec_frontier_free(&base);
+    /* Resume greedy generation to the next ctx_target. */
+    memcpy(s->logits, logits_save, (size_t)DS4_N_VOCAB * sizeof(float));
+    return 0;
+}
+
+int ds4_engine_verifier_curve_test(ds4_engine *e, const ds4_tokens *prompt, int ctx_size) {
+    if (!e || !prompt || prompt->len <= 0) {
+        fprintf(stderr, "ds4: verifier curve test requires an engine and a non-empty prompt\n");
+        return 1;
+    }
+    if (!e->metal_ready) {
+        fprintf(stderr, "ds4: verifier curve test requires the %s graph backend\n",
+                ds4_backend_name(e->backend));
+        return 1;
+    }
+
+    static const int ctx_targets[] = {2048, 4096, 8192};
+    static const int L_vals[] = {1, 2, 3, 4, 5, 6, 7, 8};
+    const int n_ctx = (int)(sizeof(ctx_targets) / sizeof(ctx_targets[0]));
+    const int n_L = (int)(sizeof(L_vals) / sizeof(L_vals[0]));
+    const int L_max = L_vals[n_L - 1];
+    const int warmup = 3;
+    const int timed = 20;
+
+    int session_ctx = 8192 + L_max + 8;
+    if (ctx_size > session_ctx) session_ctx = ctx_size;
+
+    ds4_session *s = NULL;
+    if (ds4_session_create(&s, e, session_ctx) != 0) {
+        fprintf(stderr, "ds4: verifier curve test: session create failed (ctx=%d)\n", session_ctx);
+        return 1;
+    }
+    char err[160];
+    if (ds4_session_sync(s, prompt, err, sizeof(err)) != 0) {
+        fprintf(stderr, "ds4: verifier curve test: prefill failed: %s\n", err);
+        ds4_session_free(s);
+        return 1;
+    }
+
+    float *logits_save = xmalloc((size_t)DS4_N_VOCAB * sizeof(float));
+    float *logits_scratch = xmalloc((size_t)DS4_N_VOCAB * sizeof(float));
+    float *logits0 = xmalloc((size_t)DS4_N_VOCAB * sizeof(float));
+    int *row_tops = xmalloc((size_t)(L_max + 1) * sizeof(int));
+    double *samples = xmalloc((size_t)timed * sizeof(double));
+    double *sorted = xmalloc((size_t)timed * sizeof(double));
+
+    fprintf(stderr, "ds4: verifier curve test start (session_ctx=%d, warmup=%d, timed=%d, "
+                    "L=1..%d, ctx in {2048,4096,8192})\n", session_ctx, warmup, timed, L_max);
+    printf("kernel,L,ctx,n,min_ms,p10_ms,p25_ms,median_ms,p75_ms,p90_ms,p99_ms,max_ms\n");
+    fflush(stdout);
+
+    int rc = 0;
+    for (int ci = 0; ci < n_ctx; ci++) {
+        const int target = ctx_targets[ci];
+        if (target + L_max >= session_ctx) {
+            fprintf(stderr, "ds4: verifier curve: skip ctx=%d (exceeds session)\n", target);
+            continue;
+        }
+        if (verifier_curve_measure_ctx(s, e, target, L_max, L_vals, n_L,
+                                       warmup, timed, samples, sorted,
+                                       logits_save, logits_scratch, logits0,
+                                       row_tops) != 0) {
+            rc = 1;
+            break;
+        }
+    }
+
+    free(sorted);
+    free(samples);
+    free(row_tops);
+    free(logits0);
+    free(logits_scratch);
+    free(logits_save);
+    ds4_session_free(s);
+    if (rc == 0) fprintf(stderr, "ds4: verifier curve test complete\n");
+    return rc;
+}
+#else
+int ds4_engine_verifier_curve_test(ds4_engine *e, const ds4_tokens *prompt, int ctx_size) {
+    (void)e;
+    (void)prompt;
+    (void)ctx_size;
+    fprintf(stderr, "ds4: verifier curve test requires a graph backend (rebuilt without DS4_NO_GPU)\n");
+    return 1;
+}
+#endif

@@ -49,6 +49,7 @@ typedef struct {
     bool metal_graph_test;
     bool metal_graph_full_test;
     bool metal_graph_prompt_test;
+    bool verifier_curve_test;
 } cli_generation_options;
 
 typedef struct {
@@ -890,6 +891,11 @@ static int run_generation(ds4_engine *engine, const cli_config *cfg) {
         ds4_tokens_free(&prompt);
         return rc;
     }
+    if (cfg->gen.verifier_curve_test) {
+        rc = ds4_engine_verifier_curve_test(engine, &prompt, cfg->gen.ctx_size);
+        ds4_tokens_free(&prompt);
+        return rc;
+    }
     if (cfg->gen.dump_logits_path) {
         rc = run_logits_dump(engine, cfg, &prompt);
         ds4_tokens_free(&prompt);
@@ -1588,6 +1594,13 @@ static cli_config parse_options(int argc, char **argv) {
 #endif
         } else if (!strcmp(arg, "--metal-graph-prompt-test")) {
             c.gen.metal_graph_prompt_test = true;
+#ifdef DS4_ROCM_BUILD
+            c.engine.backend = DS4_BACKEND_CUDA;
+#else
+            c.engine.backend = DS4_BACKEND_METAL;
+#endif
+        } else if (!strcmp(arg, "--verifier-curve-test")) {
+            c.gen.verifier_curve_test = true;
 #ifdef DS4_ROCM_BUILD
             c.engine.backend = DS4_BACKEND_CUDA;
 #else
