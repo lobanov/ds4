@@ -1,0 +1,7 @@
+# Raw Phase 0 baseline outputs land here:
+#   bench_target_only.csv, bench_target_only.stderr.log
+#   cli_target_only_chat.log, cli_target_only_code.log
+#   cli_mtp_chat.{out,log}, cli_mtp_code.{out,log}
+#   cli_mtp_chat_{strict,batch,prefix1,snapshot}.log  (optional)
+#   target_decode_profile.log
+#   machine.txt

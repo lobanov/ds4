@@ -1,0 +1,1 @@
+Explain, in 3-4 short paragraphs, the difference between speculative and non-speculative CPU execution, why branch mispredictions are expensive, and how a branch predictor uses history to reduce mispredictions. Then give two concrete everyday analogies.
