@@ -21,6 +21,8 @@ DSpark itself.
 | `05_phase1_plan.md` | **Phase 1 execution plan — EXECUTED (Branch B selected).** Microbench design, placement, matrix, commands. |
 | `06_phase1_results.md` | **Phase 1 results — verify(L) curves + exact-verifier breakdown + Branch B verdict.** |
 | `07_branch_b_options.md` | **Branch B refinements: B1 margin-gated fallback vs B2 rejection sampling**, with the temp=0 non-determinism premise that tilts the choice. |
+| `08_phase2_quality_results.md` | **Phase 2a quality baseline — EXECUTED.** batch=61/92 vs exact=67/92 (both reproducible): the batch verifier's drift is a real greedy-argmax regression → **confirms B2.** |
+| `09_dspark_integration_plan.md` | **Phase 3+ plan: DSpark official-tensor integration on Branch B (B2)** — extract mtp.* from DeepSeek-V4-Flash-DSpark, port the drafter, implement rejection sampling, measure acceptance + speedup. |
 | `run_quality_baseline.sh` / `diff_quality.py` | **Branch B precision baseline harness.** Runs batch + exact ×R, diffs against the reference target-only run via per-case consensus + run-to-run flip rates. Uses the **exact path (--quality, same decode kernel) as the Metal-non-determinism noise floor.** |
 | `run_determinism_probe.sh` | **Determinism probe** (`07` §5.1): two identical target-only temp=0 runs, `cmp` — confirms/quantifies Metal temp=0 non-determinism at the token level, feeding the B1-vs-B2 choice. |
 | `parse_spec_log.py` | Parser for `DS4_MTP_TIMING` logs → aggregate T3/T4/T5 tables (reusable). |
@@ -55,11 +57,19 @@ DSpark itself.
       against the reference target-only run (67/92). **Accounts for Metal temp=0
       non-determinism** by using the exact path as the noise floor — batch
       drift is Branch-B-attributable only if batch's flip rate exceeds exact's.
-- [ ] Determinism probe (`07` §5.1, `run_determinism_probe.sh`): two target-only
-      temp=0 runs, same seed, `cmp` — queued after the quality baseline (instance
-      lock); confirms baseline non-determinism, which tilts B1-vs-B2.
-- [ ] Phase 2: offline simulator on the batch curve + benchmark-quality
-      validation that the non-exact drift is quality-neutral.
+- [x] **Phase 2a result (`08`): batch=61/92 vs exact=67/92, both reproducible**
+      → minimal Branch B (greedy-argmax on batch verifier) is a real regression,
+      NOT Metal nondeterminism. **Confirms B2 (rejection sampling).**
+- [x] **Phase 3+ plan (`09`): DSpark official-tensor integration on B2** —
+      extract mtp.* from deepseek-ai/DeepSeek-V4-Flash-DSpark, port the 3-layer
+      parallel-backbone + Markov drafter, implement rejection sampling over the
+      batch verifier, measure acceptance + speedup.
+- [ ] Determinism probe (`07` §5.1, `run_determinism_probe.sh`): running now
+      (after the target control runs release the instance lock).
+- [ ] Phase 3: drafter tensor extraction + GGUF conversion.
+- [ ] Phase 4: DSpark drafter forward in ds4 (Metal).
+- [ ] Phase 5: B2 rejection-sampling verification.
+- [ ] Phase 6: empirical acceptance + speedup.
 
 ## Headline findings (measured: Apple M5 Max / 128 GB / Metal, SHA `c7ef1bf`)
 

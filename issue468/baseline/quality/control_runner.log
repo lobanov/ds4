@@ -1,0 +1,10 @@
+=== [target.r1] 22:24:23 ===
+[target.r1] ds4-eval: 67/92 passed, 25 failed, runtime 00h:45m
+=== [target.r2] 23:09:37 ===
+[target.r2] ds4-eval: 67/92 passed, 25 failed, runtime 00h:47m
+
+=== DETERMINISM PROBE 23:56:45 ===
+  probe run 1:        0 bytes
+  probe run 2:        0 bytes
+  IDENTICAL (bit-reproducible this pair; non-determinism can be rare)
+=== ALL DONE 23:56:45 ===

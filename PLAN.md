@@ -264,7 +264,7 @@ Phase 1 no longer just "changes priority order." It selects a branch:
 > at L=0 (plain decode) or L∈[2,γ]; **never L=1 via batch** (batch L=1 is slower
 > than sequential).
 
-## Phase 2: Offline Feasibility Simulator
+## Phase 2: Offline Feasibility Simulator — quality baseline DONE (Phase 2a); simulator deferred to Phase 6
 
 ### Objective
 
@@ -276,6 +276,14 @@ Test whether DSpark can plausibly win on `ds4` timings before implementing kerne
 > benchmark methodology (HumanEval/MBPP/MT-Bench/Arena-Hard-style evals) needed
 > to prove the batch verifier's logit drift is quality-neutral — promoted here
 > from Phase 7, because it becomes load-bearing rather than a robustness check.
+>
+> **Phase 2a RESOLVED (see `issue468/08_phase2_quality_results.md`):** the
+> quality question is answered empirically, not by a simulator. Greedy-argmax
+> on the batch verifier is a reproducible −6-case regression (batch 61/92 vs
+> exact/target 67/92), routing Branch B to **B2 (rejection sampling)**, under
+> which drift is benign by construction. The offline simulator is therefore
+> **deferred to Phase 6** (acceptance + speedup are now measured directly from
+> the real DSpark drafter per `09_dspark_integration_plan.md`, not modeled).
 
 ### Code Touchpoints
 
@@ -315,6 +323,16 @@ If the simulator says DSpark needs unrealistic draft latency or unrealistic acce
 ### Objective
 
 Determine the minimum work needed to load DSpark auxiliary tensors into `ds4`.
+
+> **Phase 3 RESOLVED into a concrete plan — see `issue468/09_dspark_integration_plan.md`.**
+> The official source is `deepseek-ai/DeepSeek-V4-Flash-DSpark`. Drafter tensors
+> are `mtp.*` in shards 46–48 (~11 GB; NOT the full 165 GB). Structure: 3
+> drafter layers, each a mini-DeepSeek-V4 (MLA attn + 256-expert MoE + HC gating),
+> with DSpark-specific additions — mtp.0 `main_proj` (target-hidden → drafter),
+> mtp.2 `markov_head` + `confidence_head`. Config: γ=5
+> (`dspark_block_size`), reads target layers [40,41,42], Markov rank 256. FP8
+> e4m3 / fp4 source quant → convert to ds4 GGUF block types. The shipped
+> `generate.py` is a plain autoregressive baseline; verification is left to us.
 
 ### Code Touchpoints
 
@@ -610,13 +628,29 @@ measured the data to choose, and selected Branch B:
   research kernel project. Revisit only if Branch B's quality validation fails
   *and* a bit-exact batched layer kernel becomes feasible.
 - **Branch B — relax exactness, validate via real-world task benchmarks.
-  SELECTED.** The batch verifier is strongly sub-linear and context-flat, so it
-  is the simulator's load-bearing curve. The binding question becomes: is the
-  batch verifier's logit drift quality-neutral? Phase 2 stands up the
-  benchmark-quality methodology (HumanEval/MBPP/MT-Bench/Arena-Hard-style evals).
-  Risk to retire: default `--mtp` is currently *token-different* from
-  target-only, so Branch B must show the drift is harmless, not merely small.
+  SELECTED; refined to B2 after Phase 2a.** The batch verifier is strongly
+  sub-linear and context-flat, so it is the load-bearing curve. **Phase 2a
+  (`08_phase2_quality_results.md`) measured the quality question directly:**
+  minimal Branch B (greedy-argmax on the batch verifier) is a **reproducible
+  −6-case regression** (batch 61/92 vs exact/target 67/92; exact reproduces
+  target, so the drop is batch drift, not Metal nondeterminism). The failures
+  are the greedy-argmax cascade on long-chain math. This selects **B2 —
+  rejection sampling** (the paper's own protocol; `generation_config.json`
+  confirms temp=1.0), under which the batch verifier's drift is benign by
+  construction. The benchmark-validation question becomes: does B2 restore
+  67/92 (it should, by distribution-exactness), and what acceptance/speedup
+  does the real DSpark drafter deliver?
 
 If Branch B's benchmark validation fails, fall back to Branch A (new kernels)
 or stop local work and reconsider server-side only (where the paper's gains
 actually live).
+
+> **Phase 2a RESOLVED the Branch-B sub-choice: B2 (rejection sampling).**
+> Next is the official DSpark drafter integration (`09_dspark_integration_plan.md`):
+> extract the `mtp.*` tensors from `deepseek-ai/DeepSeek-V4-Flash-DSpark`
+> (shards 46–48, ~11 GB; γ=5, reads target layers [40,41,42], Markov rank 256),
+> port the 3-layer parallel-backbone + Markov drafter to Metal, implement
+> rejection sampling over the batch verifier, and empirically measure
+> acceptance rate + speedup. The shipped `generate.py` is a plain autoregressive
+> baseline — verification is left to the integrator, which is exactly the B2
+> gap ds4 fills.

@@ -1,0 +1,10 @@
+=== start 19:05:44  R=2 runs/config  (each ~40-55 min) ===
+=== [batch]   run 1/2  19:05:44 ===
+[batch.r1] ds4-eval: 61/92 passed, 31 failed, runtime 00h:42m
+=== [exact]   run 1/2  19:56:02 ===
+[exact.r1] ds4-eval: 67/92 passed, 25 failed, runtime 00h:52m
+=== [batch]   run 2/2  20:48:25 ===
+[batch.r2] ds4-eval: 61/92 passed, 31 failed, runtime 00h:41m
+=== [exact]   run 2/2  21:30:23 ===
+[exact.r2] ds4-eval: 67/92 passed, 25 failed, runtime 00h:52m
+=== ALL DONE 22:22:51 ===

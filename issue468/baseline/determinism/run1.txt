@@ -1,0 +1,45 @@
+Sure! Here's a step-by-step explanation of how gradient descent works, followed by two concrete examples.
+
+---
+
+## Step-by-Step Explanation of Gradient Descent
+
+**Goal:** Minimize a loss function \( J(\theta) \) by iteratively adjusting parameters \( \theta \) in the direction that reduces the loss most quickly.
+
+### Step 1: Define the Loss Function
+Choose a differentiable function that measures error (e.g., mean squared error for regression, cross-entropy for classification). The parameters \( \theta \) (e.g., weights and biases) are what we want to optimize.
+
+### Step 2: Compute the Gradient
+Calculate the derivative (or partial derivatives) of the loss function with respect to each parameter. The gradient \( \nabla J(\theta) \) points in the direction of steepest *increase* of the loss.
+
+### Step 3: Move Opposite to the Gradient
+Since we want to *minimize* the loss, we update parameters in the opposite direction of the gradient:
+\[
+\theta_{\text{new}} = \theta_{\text{old}} - \alpha \cdot \nabla J(\theta_{\text{old}})
+\]
+Here \( \alpha \) is the **learning rate** – a small positive number that controls step size.
+
+### Step 4: Repeat
+Recompute the gradient at the new parameter values, then update again. Continue until:
+- The gradient becomes very close to zero (minimum reached), or
+- A maximum number of iterations is reached, or
+- The loss stops decreasing significantly.
+
+### Step 5: Convergence
+At the optimum, the gradient is zero (or near zero). The algorithm may oscillate around the minimum if the learning rate is too large, or converge slowly if too small.
+
+---
+
+## Example 1: Minimizing a Simple Quadratic Function
+
+**Problem:** Find the minimum of \( f(x) = x^2 + 2 \).  
+We know the answer is \( x = 0 \), but let's use gradient descent.
+
+- **Loss:** \( J(x) = x^2 + 2 \)  
+- **Gradient:** \( \frac{dJ}{dx} = 2x \)  
+- **Initial guess:** \( x = 3 \)  
+- **Learning rate:** \( \alpha = 0.1 \)
+
+**Iteration 1:**  
+Gradient = \( 2 \times 3 = 6 \)  
+Update: \( x_{\text{new}} = 3 - 0.1
