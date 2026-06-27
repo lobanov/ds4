@@ -1,19 +1,22 @@
 # DSpark Feasibility — Research Update
 
-**Status:** Phase 0 complete (executed) · Phase 1 prepared, paused for go-ahead
+**Status:** Phase 0 + Phase 1 complete (executed) · **Branch B selected** → Phase 2
 **As of:** 2026-06-27
 **Scope:** local decode speedup of a DSpark-style speculative path on `ds4`/Metal
-**Machine:** Apple M5 Max / 128 GB / Metal · git `c7ef1bf`
+**Machine:** Apple M5 Max / 128 GB / Metal · git `d385d8b` (Phase 1 microbench)
 
 ## TL;DR
 
-The headline speedup target (≥20% greedy throughput **with exact greedy output
-preservation**) is **not yet achievable** on local Metal, and Phase 0 isolated
-exactly why: the **exact verifier is the binding constraint**, not drafting, not
-state management, not the scheduler. The working hypothesis risk materialized
-verbatim. The work is **proceeding — narrowed to the verifier-cost-curve
-question** — with two off-ramps (keep-exactness vs relax-exactness) held open
-until Phase 1 produces data.
+Phase 0 isolated the binding constraint (exact verifier cost) and Phase 1
+resolved the branch decision: **only the batch verifier is sub-linear; every
+exact path is linear-or-worse, and exact-fused N=2 is slower than plain
+sequential.** The exact-verifier breakdown disproved the Branch A headroom
+hypothesis (95% of exact cost is the 2× single-token layer dispatches; readback
+overhead is ~2.5 ms / 5%). **Decision: Branch B** — drop exact-greedy
+preservation from the primary gate, use the sub-linear context-flat batch
+`verify(L)` curve as the simulator input, and validate the non-exact logit drift
+is quality-neutral on real-world benchmarks. Branch A is deferred (would need
+new bit-exact batched layer kernels). Full data: `06_phase1_results.md`.
 
 ## What Phase 0 measured
 
@@ -77,42 +80,43 @@ acceptance substantially *and* keep the draft pass ≈ today's 2 ms.
 - **Two levers, both must move:** (a) make `verify(L)` sub-linear under
   exactness, and (b) raise suffix acceptance toward DFlash/DSpark levels.
 
-## Decision: PROCEED to Phase 1 — narrowed
+## Decision: Phase 1 executed — Branch B selected
 
-Phase 0 cleared its stop/go gate (the harness *does* show where time goes).
-Decision is **proceed**, with scope narrowed to one make-or-break question and
-two deferred branches held open:
+Phase 1 ran the verifier microbench (`ds4_engine_verifier_curve_test`, behind
+`--verifier-curve-test`) for L=1..8 on all three kernels at ctx {2k,4k,8k},
+chat + code. Verdict (`06_phase1_results.md`):
 
-- **Branch A (keep exactness):** find headroom in the exact verifier —
-  2× single-token layer dispatches, per-layer prefix-1 capture, 2× output-head
-  + 2× full-vocab readbacks (`metal_graph_verify_decode2_exact`, `ds4.c:21218`).
-- **Branch B (relax exactness):** accept the batch verifier's near-tied logit
-  drift and prove it is *quality-neutral* on HumanEval/MBPP/MT-Bench/Arena-Hard.
-  Risk to retire: default `--mtp` is currently *token-different*, so Branch B
-  must show the drift is harmless, not merely small.
-- **Stop local** if even the batch curve is cliffy at low L.
+- **Batch verifier is strongly sub-linear AND context-flat** — per-token
+  amortized 36 ms (L=1) → 12 ms (L=8); batch(L) nearly identical at 2k/4k/8k.
+  Smooth, not cliffy. Batch beats sequential at every L≥2.
+- **Every exact path is linear-or-worse.** Sequential ≈ 26–31 ms × L. The
+  exact-fused N=2 kernel (56–66 ms) is *slower than plain sequential*
+  (1.07–1.09×) — it dispatches two single-token decode-layer passes with
+  capture overhead and **zero** actual fusion.
+- **Branch A disproven by the breakdown:** layers = 53 ms @2k/4k, 64 ms @8k
+  (95% of cost); output-head + readbacks ≈ 2.5 ms (5%). The hypothesized
+  readback headroom is negligible; the cost is the 2× layer dispatches, which
+  need new *bit-exact batched* kernels (the existing batch verifier is batched
+  but not bit-exact) — a research kernel project. **Branch A deferred.**
 
-## What happens next (Phase 1, prepared, not yet executed)
-
-A research-only verifier microbench (`ds4_engine_verifier_curve_test`,
-mirroring the existing `*_test` family) producing `verify(L)` for L=1..5 across
-**three** kernels (batch / exact-fused-N2 / sequential-exact), × {2k/4k/8k
-context} × {chat, code}, plus the internal-phase breakdown of the exact
-verifier at L=2. Output: a one-paragraph verdict (sub-linear / linear / cliffy)
-that selects A / B / stop. Plan and placement in `05_phase1_plan.md`; paused at
-"awaiting go-ahead" on four open questions before any engine code is touched.
+**→ Phase 2 proceeds on Branch B:** the batch `verify(L)` curve is the
+simulator input; benchmark-quality methodology (HumanEval/MBPP/MT-Bench/
+Arena-Hard) is now load-bearing to prove the batch drift is quality-neutral.
+Exact-greedy preservation is dropped from the primary gate. Scheduler rule
+(grounded in data): verify at L=0 (plain decode) or L∈[2,γ]; **never L=1 via
+batch** (batch L=1 is slower than sequential).
 
 Phase 3 (DSpark auxiliary GGUF loader/schema) can run in parallel — it is
 independent of the verifier question.
 
 ## Net feasibility assessment
 
-**Not disproven; materially harder than the paper's numbers suggest for local
-single-request use.** The paper's gains are realized server-side by routing
-idle batch capacity — a lever that is largely absent locally. On local Metal,
-the binding constraint is exact verifier cost, and that constraint is currently
-a net 28% loss. The honest read is: **feasibility is contingent on Phase 1
-finding exact-verifier headroom (Branch A) or on a quality-neutrality result for
-logit drift (Branch B).** If neither holds, the local case does not close and
-the effort should refocus server-side only, where the paper's gains actually
-live.
+**Not disproven; the local win now hinges entirely on Branch B's quality
+neutrality.** Phase 1 established that the batch verifier's economics are good
+(sub-linear, context-flat) but it is *not* bit-exact, and every exact path is a
+loss. So the local case closes **only if** the batch verifier's logit drift is
+shown quality-neutral on real tasks (Phase 2). The paper's headline gains
+remain a server-concurrency result (routing idle batch capacity), largely absent
+locally. If Branch B's validation fails, the fallback is Branch A (new bit-exact
+batched layer kernels — uncertain) or refocusing server-side only, where the
+paper's gains actually live.
