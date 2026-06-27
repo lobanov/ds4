@@ -20,6 +20,7 @@ DSpark itself.
 | `04_run_matrix.md` | The run matrix and result tables, **filled with measured baseline numbers + Phase 0 conclusion**. |
 | `05_phase1_plan.md` | **Phase 1 execution plan — EXECUTED (Branch B selected).** Microbench design, placement, matrix, commands. |
 | `06_phase1_results.md` | **Phase 1 results — verify(L) curves + exact-verifier breakdown + Branch B verdict.** |
+| `07_branch_b_options.md` | **Branch B refinements: B1 margin-gated fallback vs B2 rejection sampling**, with the temp=0 non-determinism premise that tilts the choice. |
 | `parse_spec_log.py` | Parser for `DS4_MTP_TIMING` logs → aggregate T3/T4/T5 tables (reusable). |
 | `prompts/` | Fixed, version-controlled prompts so baseline runs are reproducible. |
 | `baseline/` | Raw run outputs (CSV, logs, machine fingerprint, parsed summary). |
@@ -44,6 +45,10 @@ DSpark itself.
 - [x] **Phase 1 decision: Branch B.** Only the batch verifier is sub-linear;
       exact is linear-or-worse (95% of exact cost is the 2× layer dispatches).
       Phase 2 proceeds on Branch B; exact-greedy dropped from the primary gate.
+- [x] Branch B refinement analysis (`07_branch_b_options.md`) — B1 vs B2, with
+      the temp=0 non-determinism premise that tilts the choice.
+- [ ] Determinism probe (`07` §1): two target-only temp=0 runs, same seed,
+      `cmp` — cheap, run before settling B1 vs B2.
 - [ ] Phase 2: offline simulator on the batch curve + benchmark-quality
       validation that the non-exact drift is quality-neutral.
 
