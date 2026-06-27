@@ -1220,6 +1220,8 @@ typedef struct {
     bool plain;
     bool warm_weights;
     bool quality;
+    int mtp_draft_tokens;
+    float mtp_margin;
     bool ssd_streaming;
     bool ssd_streaming_cold;
     bool self_test_extractors;
@@ -1511,6 +1513,8 @@ static eval_config parse_options(int argc, char **argv) {
         .hard_limit_reply_budget = 512,
         .soft_limit_think_close_rank = 3,
         .think_mode = DS4_THINK_HIGH,
+        .mtp_draft_tokens = 1,
+        .mtp_margin = 3.0f,
     };
 
     for (int i = 1; i < argc; i++) {
@@ -1542,6 +1546,10 @@ static eval_config parse_options(int argc, char **argv) {
             c.model_path = need_arg(&i, argc, argv, arg);
         } else if (!strcmp(arg, "--mtp")) {
             c.mtp_path = need_arg(&i, argc, argv, arg);
+        } else if (!strcmp(arg, "--mtp-draft")) {
+            c.mtp_draft_tokens = parse_int_arg(need_arg(&i, argc, argv, arg), arg);
+        } else if (!strcmp(arg, "--mtp-margin")) {
+            c.mtp_margin = parse_float_arg(need_arg(&i, argc, argv, arg), arg, 0.0f, 1000.0f);
         } else if (!strcmp(arg, "-c") || !strcmp(arg, "--ctx")) {
             c.ctx_size = parse_int_arg(need_arg(&i, argc, argv, arg), arg);
         } else if (!strcmp(arg, "-n") || !strcmp(arg, "--tokens")) {
@@ -3759,6 +3767,19 @@ static eval_run_result run_one_case(ds4_engine *engine, ds4_session *session,
     const int eos = ds4_token_eos(engine);
     double t0 = ui->phase_start_sec;
     int forced_close_pos = -1;
+    /* Speculative MTP accept buffer (issue468 Branch B quality baseline).
+     * ds4_session_eval_speculative_argmax advances the session by ntok accepted
+     * tokens in one call; we consume them one per loop iteration without a
+     * redundant ds4_session_eval (token_evaled skips it). Active only for
+     * greedy --nothink runs with MTP loaded and draft>1 -- the regime where the
+     * forced-token path above is inert and the argmax verifier is valid. */
+    const bool spec_active =
+        cfg->temperature <= 0.0f && think_mode == DS4_THINK_NONE &&
+        ds4_engine_mtp_draft_tokens(engine) > 1 &&
+        getenv("DS4_MTP_SPEC_DISABLE") == NULL;
+    int spec_tok[17];
+    int spec_n = 0;
+    int spec_i = 0;
     for (int i = 0; i < generation_limit; i++) {
         if (tty) {
             tui_consume_input(ui);
@@ -3828,6 +3849,7 @@ static eval_run_result run_one_case(ds4_engine *engine, ds4_session *session,
         int remaining_budget = generation_limit - ui->generated;
         int close_rank = 0;
         int token = -1;
+        bool token_evaled = false;
         eval_think_close_kind close_kind = EVAL_THINK_CLOSE_NONE;
 
         /* Benchmarks usually cap generation length, but DeepSeek can spend the
@@ -3855,9 +3877,42 @@ static eval_run_result run_one_case(ds4_engine *engine, ds4_session *session,
                 }
             }
         }
-        if (token < 0)
-            token = ds4_session_sample(session, cfg->temperature, 0,
-                                       cfg->top_p, cfg->min_p, rng);
+        if (token < 0) {
+            if (spec_i < spec_n) {
+                /* Consume the next speculatively-accepted token verbatim; the
+                 * session was already advanced by eval_speculative_argmax. */
+                token = spec_tok[spec_i++];
+                token_evaled = true;
+            } else if (spec_active) {
+                int first = ds4_session_sample(session, cfg->temperature, 0,
+                                               cfg->top_p, cfg->min_p, rng);
+                int ntok = ds4_session_eval_speculative_argmax(session, first,
+                                remaining_budget, eos, spec_tok,
+                                (int)(sizeof(spec_tok) / sizeof(spec_tok[0])),
+                                err, sizeof(err));
+                if (ntok < 0) {
+                    plain_reset_color(use_plain_color);
+                    ui->generated_tokens[idx] = ui->generated;
+                    tui_run_clock_stop(ui);
+                    fprintf(stderr, "ds4-eval: decode failed for %s: %s\n", tc->id, err);
+                    trace_write_case(trace, cfg, tc, idx, ui->ncases, "ERROR", err,
+                                     system, question, raw.v ? raw.v : "", think_mode,
+                                     prompt_tokens, ui->generated, now_sec() - t0, "?",
+                                     &think_close);
+                    free(question);
+                    ds4_tokens_free(&think_close_tokens);
+                    buf_free(&raw);
+                    return EVAL_RUN_ERROR;
+                }
+                spec_n = ntok;
+                spec_i = 0;
+                token = spec_tok[spec_i++];
+                token_evaled = true;
+            } else {
+                token = ds4_session_sample(session, cfg->temperature, 0,
+                                           cfg->top_p, cfg->min_p, rng);
+            }
+        }
         if (token == eos) break;
         if (close_kind != EVAL_THINK_CLOSE_NONE &&
             think_close.kind == EVAL_THINK_CLOSE_NONE) {
@@ -3866,7 +3921,7 @@ static eval_run_result run_one_case(ds4_engine *engine, ds4_session *session,
             think_close.remaining_budget = remaining_budget;
             think_close.rank = close_rank;
         }
-        if (ds4_session_eval(session, token, err, sizeof(err)) != 0) {
+        if (!token_evaled && ds4_session_eval(session, token, err, sizeof(err)) != 0) {
             plain_reset_color(use_plain_color);
             ui->generated_tokens[idx] = ui->generated;
             tui_run_clock_stop(ui);
@@ -4139,8 +4194,8 @@ int main(int argc, char **argv) {
         .mtp_path = cfg.mtp_path,
         .backend = cfg.backend,
         .n_threads = cfg.threads,
-        .mtp_draft_tokens = 1,
-        .mtp_margin = 3.0f,
+        .mtp_draft_tokens = cfg.mtp_draft_tokens,
+        .mtp_margin = cfg.mtp_margin,
         .power_percent = cfg.power_percent,
         .prefill_chunk = cfg.prefill_chunk,
         .ssd_streaming_cache_experts = cfg.ssd_streaming_cache_experts,

@@ -21,6 +21,8 @@ DSpark itself.
 | `05_phase1_plan.md` | **Phase 1 execution plan — EXECUTED (Branch B selected).** Microbench design, placement, matrix, commands. |
 | `06_phase1_results.md` | **Phase 1 results — verify(L) curves + exact-verifier breakdown + Branch B verdict.** |
 | `07_branch_b_options.md` | **Branch B refinements: B1 margin-gated fallback vs B2 rejection sampling**, with the temp=0 non-determinism premise that tilts the choice. |
+| `run_quality_baseline.sh` / `diff_quality.py` | **Branch B precision baseline harness.** Runs batch + exact ×R, diffs against the reference target-only run via per-case consensus + run-to-run flip rates. Uses the **exact path (--quality, same decode kernel) as the Metal-non-determinism noise floor.** |
+| `run_determinism_probe.sh` | **Determinism probe** (`07` §5.1): two identical target-only temp=0 runs, `cmp` — confirms/quantifies Metal temp=0 non-determinism at the token level, feeding the B1-vs-B2 choice. |
 | `parse_spec_log.py` | Parser for `DS4_MTP_TIMING` logs → aggregate T3/T4/T5 tables (reusable). |
 | `prompts/` | Fixed, version-controlled prompts so baseline runs are reproducible. |
 | `baseline/` | Raw run outputs (CSV, logs, machine fingerprint, parsed summary). |
@@ -47,8 +49,15 @@ DSpark itself.
       Phase 2 proceeds on Branch B; exact-greedy dropped from the primary gate.
 - [x] Branch B refinement analysis (`07_branch_b_options.md`) — B1 vs B2, with
       the temp=0 non-determinism premise that tilts the choice.
-- [ ] Determinism probe (`07` §1): two target-only temp=0 runs, same seed,
-      `cmp` — cheap, run before settling B1 vs B2.
+- [~] **Branch B precision baseline** (`run_quality_baseline.sh` +
+      `diff_quality.py`): `ds4-eval` wired to exercise the `--mtp` speculative
+      path (it previously loaded MTP but never called it); runs batch + exact ×R
+      against the reference target-only run (67/92). **Accounts for Metal temp=0
+      non-determinism** by using the exact path as the noise floor — batch
+      drift is Branch-B-attributable only if batch's flip rate exceeds exact's.
+- [ ] Determinism probe (`07` §5.1, `run_determinism_probe.sh`): two target-only
+      temp=0 runs, same seed, `cmp` — queued after the quality baseline (instance
+      lock); confirms baseline non-determinism, which tilts B1-vs-B2.
 - [ ] Phase 2: offline simulator on the batch curve + benchmark-quality
       validation that the non-exact drift is quality-neutral.
 
