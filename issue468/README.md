@@ -34,6 +34,10 @@ DSpark itself.
       existing `DS4_MTP_TIMING` + `parse_spec_log.py` are sufficient for Phase 1.
 - [x] Phase 0 sign-off: we can see *where* `ds4` spends time in spec decode →
       **PROCEED to Phase 1, narrowed to the exact-verifier cost curve**.
+- [x] Update `PLAN.md` with Phase 0 outcome + deferred Branch A/B.
+- [x] Prepare Phase 1 plan (`05_phase1_plan.md`) — **PAUSED before execution**.
+- [ ] Phase 1: confirm placement (§3) + internal-breakdown sign-off (§8), then
+      build `ds4_engine_verifier_curve_test` and run the sweep.
 
 ## Headline findings (measured: Apple M5 Max / 128 GB / Metal, SHA `c7ef1bf`)
 
