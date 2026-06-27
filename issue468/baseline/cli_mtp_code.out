@@ -1,0 +1,15 @@
+We need to complete the Python functions and then write a short paragraph about Merkle trees. The user asked to output only code for the functions, but also a paragraph. The instruction says "Output only code." but then asks for a paragraph. Possibly they want the code first, then the paragraph? The user says "Complete the following Python functions. Output only code." and then "Now write a short paragraph explaining when you would use a Merkle tree." So they want both: the code for the functions, and then a paragraph. But the first part says "Output only code." That might be a mistake. I'll output the code for the functions, and then the paragraph separately. However, to be safe, I'll provide the code and then the paragraph. The user likely expects both.
+
+I'll implement the functions:
+
+- fib: iterative or recursive with memoization. Use iterative for efficiency.
+- is_prime: check divisibility up to sqrt.
+- merge_sorted: two-pointer merge.
+- flatten: recursion or stack.
+- group_by: use dict to preserve order.
+
+Then paragraph about Merkle trees: used for verifying data integrity, efficient synchronization, blockchain, etc.
+
+I'll output code first, then paragraph.
+def fib(n):
+    a,

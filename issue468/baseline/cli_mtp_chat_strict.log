@@ -1,0 +1,141 @@
+ds4: MTP support model loaded: ../ds4/gguf/DeepSeek-V4-Flash-MTP-Q4K-Q8_0-F32.gguf (draft=2)
+ds4: Metal device Apple M5 Max, 128.00 GiB RAM
+ds4: Metal 4 tensor API enabled for Tensor kernels
+ds4: drift-patch flags hc_stable=on norm_unify=on kv_raw_f32=off rope_exp2_log2=off math_safe=off tensor_matmul=on
+ds4: Metal model views created in 5.094 ms, residency requested in 313.565 ms, warmup 3.689 ms (mapped 82697.67 MiB from offset 5.09 MiB)
+ds4: Metal mapped mmaped model as 2 overlapping shared buffers
+ds4: Metal model views created in 0.115 ms, residency requested in 530.221 ms, warmup 1.192 ms (mapped 3631.22 MiB from offset 0.00 MiB)
+ds4: Metal mapped mmaped model as 3 overlapping shared buffers
+ds4: metal backend initialized for graph diagnostics
+ds4: context buffers 495.92 MiB (ctx=8192, backend=metal, prefill_chunk=4096, raw_kv_rows=4352, compressed_kv_rows=2050)
+ds4: mtp timing decode2 drafted=2 committed=2 draft=2.293 ms snapshot=0.699 ms verify=57.867 ms total=60.867 ms
+ds4: mtp spec miss first draft=264
+ds4: mtp timing decode2 drafted=2 committed=2 draft=2.238 ms snapshot=0.348 ms verify=57.880 ms total=60.479 ms
+ds4: mtp spec miss first draft=16846
+ds4: mtp timing decode2 drafted=2 committed=2 draft=2.387 ms snapshot=0.309 ms verify=57.388 ms total=60.108 ms
+ds4: mtp timing decode2 drafted=2 committed=1 draft=2.204 ms snapshot=0.281 ms verify=57.653 ms prefix=0.298 ms total=60.437 ms
+ds4: mtp timing decode2 drafted=2 committed=2 draft=2.253 ms snapshot=0.274 ms verify=61.138 ms total=63.673 ms
+ds4: mtp timing decode2 drafted=2 committed=2 draft=2.422 ms snapshot=0.278 ms verify=61.989 ms total=64.705 ms
+ds4: mtp timing decode2 drafted=2 committed=2 draft=2.322 ms snapshot=0.367 ms verify=60.280 ms total=62.982 ms
+ds4: mtp timing decode2 drafted=2 committed=1 draft=2.382 ms snapshot=0.326 ms verify=62.865 ms prefix=0.325 ms total=65.899 ms
+ds4: mtp spec miss first draft=260
+ds4: mtp timing decode2 drafted=2 committed=2 draft=2.499 ms snapshot=0.309 ms verify=62.281 ms total=65.109 ms
+ds4: mtp spec miss first draft=14
+ds4: mtp timing decode2 drafted=2 committed=2 draft=2.228 ms snapshot=0.387 ms verify=65.209 ms total=67.834 ms
+ds4: mtp timing decode2 drafted=2 committed=1 draft=2.470 ms snapshot=0.330 ms verify=66.944 ms prefix=0.384 ms total=70.129 ms
+ds4: mtp timing decode2 drafted=2 committed=1 draft=2.507 ms snapshot=0.371 ms verify=68.063 ms prefix=0.341 ms total=71.283 ms
+ds4: mtp spec miss first draft=20586
+ds4: mtp timing decode2 drafted=2 committed=2 draft=2.335 ms snapshot=0.269 ms verify=62.173 ms total=64.793 ms
+ds4: mtp timing decode2 drafted=2 committed=2 draft=2.372 ms snapshot=0.348 ms verify=64.468 ms total=67.211 ms
+ds4: mtp timing decode2 drafted=2 committed=2 draft=2.334 ms snapshot=0.388 ms verify=65.257 ms total=67.987 ms
+ds4: mtp timing decode2 drafted=2 committed=2 draft=2.337 ms snapshot=0.338 ms verify=66.186 ms total=68.885 ms
+ds4: mtp timing decode2 drafted=2 committed=1 draft=2.497 ms snapshot=0.270 ms verify=63.338 ms prefix=0.360 ms total=66.466 ms
+ds4: mtp spec miss first draft=339
+ds4: mtp timing decode2 drafted=2 committed=2 draft=2.407 ms snapshot=0.315 ms verify=64.856 ms total=67.602 ms
+ds4: mtp timing decode2 drafted=2 committed=1 draft=2.573 ms snapshot=0.367 ms verify=63.999 ms prefix=0.377 ms total=67.317 ms
+ds4: mtp timing decode2 drafted=2 committed=1 draft=2.497 ms snapshot=0.300 ms verify=69.262 ms prefix=0.245 ms total=72.305 ms
+ds4: mtp spec miss first draft=19
+ds4: mtp timing decode2 drafted=2 committed=2 draft=2.378 ms snapshot=0.287 ms verify=65.049 ms total=67.737 ms
+ds4: mtp spec miss first draft=305
+ds4: mtp spec miss first draft=16846
+ds4: mtp timing decode2 drafted=2 committed=2 draft=2.221 ms snapshot=0.457 ms verify=70.382 ms total=73.078 ms
+ds4: mtp timing decode2 drafted=2 committed=2 draft=2.460 ms snapshot=0.346 ms verify=68.253 ms total=71.083 ms
+ds4: mtp timing decode2 drafted=2 committed=2 draft=2.185 ms snapshot=0.359 ms verify=68.462 ms total=71.017 ms
+ds4: mtp timing decode2 drafted=2 committed=1 draft=2.299 ms snapshot=0.349 ms verify=64.715 ms prefix=0.331 ms total=67.694 ms
+ds4: mtp spec miss first draft=1353
+ds4: mtp timing decode2 drafted=2 committed=2 draft=2.452 ms snapshot=0.369 ms verify=68.451 ms total=71.295 ms
+ds4: mtp spec miss first draft=6361
+ds4: mtp timing decode2 drafted=2 committed=1 draft=2.509 ms snapshot=0.373 ms verify=67.949 ms prefix=0.334 ms total=71.165 ms
+ds4: mtp timing decode2 drafted=2 committed=2 draft=2.475 ms snapshot=0.327 ms verify=67.692 ms total=70.518 ms
+ds4: mtp timing decode2 drafted=2 committed=2 draft=2.531 ms snapshot=0.360 ms verify=68.666 ms total=71.566 ms
+ds4: mtp spec miss first draft=1936
+ds4: mtp timing decode2 drafted=2 committed=2 draft=2.267 ms snapshot=0.315 ms verify=69.707 ms total=72.311 ms
+ds4: mtp timing decode2 drafted=2 committed=2 draft=2.525 ms snapshot=0.345 ms verify=67.847 ms total=70.737 ms
+ds4: mtp timing decode2 drafted=2 committed=1 draft=2.382 ms snapshot=0.293 ms verify=67.679 ms prefix=0.334 ms total=70.689 ms
+ds4: mtp spec miss first draft=339
+ds4: mtp spec miss first draft=28231
+ds4: mtp timing decode2 drafted=2 committed=1 draft=2.509 ms snapshot=0.347 ms verify=66.915 ms prefix=0.386 ms total=70.158 ms
+ds4: mtp spec miss first draft=14220
+ds4: mtp spec miss first draft=339
+ds4: mtp spec miss first draft=3851
+ds4: mtp spec miss first draft=339
+ds4: mtp timing decode2 drafted=2 committed=1 draft=2.504 ms snapshot=0.338 ms verify=67.192 ms prefix=0.291 ms total=70.326 ms
+ds4: mtp spec miss first draft=7139
+ds4: mtp spec miss first draft=23490
+ds4: mtp timing decode2 drafted=2 committed=1 draft=2.371 ms snapshot=0.327 ms verify=67.985 ms prefix=0.312 ms total=70.996 ms
+ds4: mtp spec miss first draft=99832
+ds4: mtp timing decode2 drafted=2 committed=2 draft=2.235 ms snapshot=0.442 ms verify=68.473 ms total=71.158 ms
+ds4: mtp spec miss first draft=6521
+ds4: mtp timing decode2 drafted=2 committed=2 draft=2.311 ms snapshot=0.297 ms verify=66.932 ms total=69.563 ms
+ds4: mtp spec miss first draft=477
+ds4: mtp timing decode2 drafted=2 committed=2 draft=2.313 ms snapshot=0.320 ms verify=63.321 ms total=65.963 ms
+ds4: mtp timing decode2 drafted=2 committed=1 draft=2.366 ms snapshot=0.359 ms verify=66.935 ms prefix=0.335 ms total=69.996 ms
+ds4: mtp timing decode2 drafted=2 committed=1 draft=2.532 ms snapshot=0.365 ms verify=68.106 ms prefix=0.341 ms total=71.345 ms
+ds4: mtp spec miss first draft=3083
+ds4: mtp spec miss first draft=1116
+ds4: mtp timing decode2 drafted=2 committed=1 draft=2.546 ms snapshot=0.370 ms verify=70.690 ms prefix=0.304 ms total=73.911 ms
+ds4: mtp spec miss first draft=82
+ds4: mtp timing decode2 drafted=2 committed=1 draft=2.347 ms snapshot=0.383 ms verify=65.181 ms prefix=0.432 ms total=68.344 ms
+ds4: mtp timing decode2 drafted=2 committed=1 draft=2.189 ms snapshot=0.343 ms verify=68.828 ms prefix=0.415 ms total=71.776 ms
+ds4: mtp timing decode2 drafted=2 committed=2 draft=2.515 ms snapshot=0.284 ms verify=69.817 ms total=72.641 ms
+ds4: mtp timing decode2 drafted=2 committed=1 draft=2.408 ms snapshot=0.279 ms verify=64.999 ms prefix=0.338 ms total=68.025 ms
+ds4: mtp spec miss first draft=588
+ds4: mtp timing decode2 drafted=2 committed=1 draft=2.497 ms snapshot=0.342 ms verify=68.145 ms prefix=0.285 ms total=71.269 ms
+ds4: mtp timing decode2 drafted=2 committed=2 draft=2.478 ms snapshot=0.281 ms verify=70.977 ms total=73.751 ms
+ds4: mtp spec miss first draft=5212
+ds4: mtp spec miss first draft=26373
+ds4: mtp timing decode2 drafted=2 committed=2 draft=2.282 ms snapshot=0.378 ms verify=67.833 ms total=70.504 ms
+ds4: mtp timing decode2 drafted=2 committed=2 draft=2.339 ms snapshot=0.421 ms verify=67.358 ms total=70.127 ms
+ds4: mtp spec miss first draft=14531
+ds4: mtp spec miss first draft=53510
+ds4: mtp timing decode2 drafted=2 committed=2 draft=2.365 ms snapshot=0.335 ms verify=69.202 ms total=71.912 ms
+ds4: mtp timing decode2 drafted=2 committed=1 draft=2.392 ms snapshot=0.351 ms verify=69.094 ms prefix=0.337 ms total=72.177 ms
+ds4: mtp spec miss first draft=294
+ds4: mtp timing decode2 drafted=2 committed=2 draft=2.274 ms snapshot=0.357 ms verify=69.033 ms total=71.673 ms
+ds4: mtp timing decode2 drafted=2 committed=2 draft=2.330 ms snapshot=0.370 ms verify=68.545 ms total=71.254 ms
+ds4: mtp timing decode2 drafted=2 committed=1 draft=2.298 ms snapshot=0.365 ms verify=71.902 ms prefix=0.344 ms total=74.911 ms
+ds4: mtp timing decode2 drafted=2 committed=2 draft=2.274 ms snapshot=0.348 ms verify=70.644 ms total=73.274 ms
+ds4: mtp timing decode2 drafted=2 committed=1 draft=2.311 ms snapshot=0.343 ms verify=69.586 ms prefix=0.418 ms total=72.659 ms
+ds4: mtp spec miss first draft=8804
+ds4: mtp timing decode2 drafted=2 committed=1 draft=2.362 ms snapshot=0.327 ms verify=73.017 ms prefix=0.345 ms total=76.053 ms
+ds4: mtp timing decode2 drafted=2 committed=2 draft=2.415 ms snapshot=0.325 ms verify=71.148 ms total=73.896 ms
+ds4: mtp timing decode2 drafted=2 committed=2 draft=2.416 ms snapshot=0.307 ms verify=69.839 ms total=72.571 ms
+ds4: mtp timing decode2 drafted=2 committed=2 draft=2.311 ms snapshot=0.334 ms verify=71.806 ms total=74.459 ms
+ds4: mtp spec miss first draft=14
+ds4: mtp timing decode2 drafted=2 committed=1 draft=2.273 ms snapshot=0.286 ms verify=72.925 ms prefix=0.362 ms total=75.847 ms
+ds4: mtp timing decode2 drafted=2 committed=2 draft=2.419 ms snapshot=0.335 ms verify=70.612 ms total=73.376 ms
+ds4: mtp spec miss first draft=1635
+ds4: mtp timing decode2 drafted=2 committed=1 draft=2.355 ms snapshot=0.351 ms verify=68.998 ms prefix=0.322 ms total=72.028 ms
+ds4: mtp timing decode2 drafted=2 committed=1 draft=2.334 ms snapshot=0.309 ms verify=72.265 ms prefix=0.367 ms total=75.276 ms
+ds4: mtp timing decode2 drafted=2 committed=1 draft=2.685 ms snapshot=0.311 ms verify=68.119 ms prefix=0.351 ms total=71.467 ms
+ds4: mtp spec miss first draft=14116
+ds4: mtp spec miss first draft=5720
+ds4: mtp spec miss first draft=339
+ds4: mtp timing decode2 drafted=2 committed=1 draft=2.304 ms snapshot=0.384 ms verify=69.642 ms prefix=0.370 ms total=72.701 ms
+ds4: mtp spec miss first draft=47773
+ds4: mtp spec miss first draft=339
+ds4: mtp timing decode2 drafted=2 committed=1 draft=2.279 ms snapshot=0.362 ms verify=69.355 ms prefix=0.366 ms total=72.363 ms
+ds4: mtp spec miss first draft=85
+ds4: mtp timing decode2 drafted=2 committed=2 draft=2.326 ms snapshot=0.343 ms verify=67.414 ms total=70.091 ms
+ds4: mtp timing decode2 drafted=2 committed=2 draft=2.244 ms snapshot=0.368 ms verify=66.644 ms total=69.265 ms
+ds4: mtp spec miss first draft=343
+ds4: mtp timing decode2 drafted=2 committed=2 draft=2.268 ms snapshot=0.381 ms verify=66.600 ms total=69.259 ms
+ds4: mtp spec miss first draft=67
+ds4: mtp timing decode2 drafted=2 committed=2 draft=2.263 ms snapshot=0.352 ms verify=66.224 ms total=68.847 ms
+ds4: mtp timing decode2 drafted=2 committed=1 draft=2.354 ms snapshot=0.380 ms verify=68.508 ms prefix=0.326 ms total=71.569 ms
+ds4: mtp timing decode2 drafted=2 committed=1 draft=2.301 ms snapshot=0.374 ms verify=66.021 ms prefix=0.335 ms total=69.032 ms
+ds4: mtp spec miss first draft=294
+ds4: mtp timing decode2 drafted=2 committed=1 draft=2.315 ms snapshot=0.371 ms verify=67.420 ms prefix=0.369 ms total=70.476 ms
+ds4: mtp spec miss first draft=734
+ds4: mtp timing decode2 drafted=2 committed=2 draft=2.306 ms snapshot=0.369 ms verify=68.879 ms total=71.564 ms
+ds4: mtp spec miss first draft=14653
+ds4: mtp timing decode2 drafted=2 committed=1 draft=2.314 ms snapshot=0.443 ms verify=69.033 ms prefix=0.386 ms total=72.177 ms
+ds4: mtp spec miss first draft=16
+ds4: mtp timing decode2 drafted=2 committed=2 draft=2.299 ms snapshot=0.362 ms verify=69.086 ms total=71.755 ms
+ds4: mtp timing decode2 drafted=2 committed=2 draft=2.316 ms snapshot=0.381 ms verify=66.141 ms total=68.846 ms
+ds4: mtp timing decode2 drafted=2 committed=2 draft=2.289 ms snapshot=0.389 ms verify=66.831 ms total=69.518 ms
+ds4: mtp timing decode2 drafted=2 committed=2 draft=2.383 ms snapshot=0.589 ms verify=69.946 ms total=72.926 ms
+ds4: mtp spec miss first draft=8337
+ds4: mtp conf drafted=1 committed=1 mtp_top=-1 runner=-1 margin=0.000000 target_next=-1 draft_next=-1
+ds4: mtp timing micro drafted=1 committed=1 draft=0.063 ms snapshot=0.000 ms verify=59.095 ms total=59.213 ms
+ds4: prefill: 79.22 t/s, generation: 25.65 t/s

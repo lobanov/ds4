@@ -1,0 +1,63 @@
+=== issue468/baseline/cli_mtp_chat.log ===
+  gen_tps                          37.76
+  prefill_tps                      79.63
+  cycles                           88
+  mean_drafted                     2.00
+  mean_committed                   1.409
+  full_accept                      36
+  partial_accept                   52
+  miss_first                       0
+  mean_us_draft                    2.170
+  mean_us_verify                   33.117
+  mean_us_snapshot                 0.000
+  mean_us_prefix                   0.024
+  mean_us_replay                   0.000
+  mean_us_exact_replay             0.000
+  mean_us_total                    35.336
+  accept_by_position (acc/trial)   88/88 36/88
+  accept_by_position (rate)        1.00 0.41
+  mean_conf_margin                 6.973
+  path_mix                         margin-skip=46 micro=42
+
+=== issue468/baseline/cli_mtp_code.log ===
+  gen_tps                          38.21
+  prefill_tps                      140.25
+  cycles                           93
+  mean_drafted                     1.99
+  mean_committed                   1.419
+  full_accept                      40
+  partial_accept                   53
+  miss_first                       0
+  mean_us_draft                    2.143
+  mean_us_verify                   32.644
+  mean_us_snapshot                 0.000
+  mean_us_prefix                   0.012
+  mean_us_replay                   0.000
+  mean_us_exact_replay             0.000
+  mean_us_total                    34.823
+  accept_by_position (acc/trial)   93/93 39/92
+  accept_by_position (rate)        1.00 0.42
+  mean_conf_margin                 6.640
+  path_mix                         margin-skip=50 micro=43
+
+=== issue468/baseline/cli_mtp_chat_strict.log ===
+  gen_tps                          25.65
+  prefill_tps                      79.22
+  cycles                           81
+  mean_drafted                     1.99
+  mean_committed                   1.568
+  full_accept                      47
+  partial_accept                   34
+  miss_first                       0
+  mean_us_draft                    2.339
+  mean_us_verify                   67.003
+  mean_us_snapshot                 0.347
+  mean_us_prefix                   0.145
+  mean_us_replay                   0.000
+  mean_us_exact_replay             0.000
+  mean_us_total                    69.843
+  accept_by_position (acc/trial)   81/81 46/80
+  accept_by_position (rate)        1.00 0.57
+  mean_conf_margin                 0.000
+  path_mix                         decode2=80 micro=1
+

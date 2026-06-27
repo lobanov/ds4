@@ -1,0 +1,21 @@
+We need to complete the Python functions and then write a short paragraph about Merkle trees. The user wants only code for the functions, but also a paragraph. The instruction says "Output only code." for the functions, but then asks for a paragraph. Possibly they want the code first, then the paragraph. I'll output the code for the functions, then the paragraph.
+
+Let me implement each function.
+
+fib(n): return nth Fibonacci number. Use iterative or recursive with memoization. Simple iterative.
+
+is_prime(n): check if n is prime. Handle edge cases (0,1). Use trial division up to sqrt.
+
+merge_sorted(a,b): merge two sorted lists into one sorted list. Use two-pointer merge.
+
+flatten(nested): recursively flatten list of lists. Use recursion or stack.
+
+group_by(items, key): group items by key, preserving order of first occurrence. Use dict to store order.
+
+Then paragraph about Merkle trees: when to use them (e.g., verifying data integrity, blockchain, file systems, version control, etc.)
+
+I'll output the code first, then the paragraph.
+def fib(n):
+    a, b = 0, 1
+    for _ in range(n):
+        a, b = b, a +

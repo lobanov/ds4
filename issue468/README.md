@@ -17,9 +17,10 @@ DSpark itself.
 | `01_existing_instrumentation.md` | **Reconnaissance.** Every timing/diagnostic surface that already exists, with `file:line` and the env var that activates it. |
 | `02_gap_and_spec.md` | Gap analysis vs. `PLAN.md` Phase 0 work items, plus the **minimal instrumentation spec** (counters, CSV schema, exact code touchpoints). |
 | `03_baseline_command_set.md` | The repeatable command set for local Metal: target-only and `--mtp`, plus machine/thermal protocol. |
-| `04_run_matrix.md` | The run matrix and result-table templates to fill in once the baseline is executed. |
+| `04_run_matrix.md` | The run matrix and result tables, **filled with measured baseline numbers + Phase 0 conclusion**. |
+| `parse_spec_log.py` | Parser for `DS4_MTP_TIMING` logs → aggregate T3/T4/T5 tables (reusable). |
 | `prompts/` | Fixed, version-controlled prompts so baseline runs are reproducible. |
-| `baseline/` | Landing directory for raw run outputs (CSV/logs). Populated by executing `03_baseline_command_set.md`. |
+| `baseline/` | Raw run outputs (CSV, logs, machine fingerprint, parsed summary). |
 
 ## Status
 
@@ -27,37 +28,33 @@ DSpark itself.
 - [x] Gap analysis + instrumentation hand-off spec (`02`).
 - [x] Repeatable command set + protocol (`03`).
 - [x] Run matrix + result templates (`04`).
-- [ ] **Execute** the baseline command set and fill `baseline/` + `04` tables.
-- [ ] Implement the minimal instrumentation delta in `02` (only the parts not
-      already covered by `DS4_MTP_TIMING` / `DS4_MTP_*`).
-- [ ] Phase 0 sign-off: confirm we can see *where* `ds4` spends time in spec
-      decode, then open Phase 1 (verifier cost curve).
+- [x] **Execute** the baseline command set on M5 Max / Metal; fill `baseline/`
+      + `04` tables.
+- [ ] Implement the minimal instrumentation delta in `02` — **deferred**;
+      existing `DS4_MTP_TIMING` + `parse_spec_log.py` are sufficient for Phase 1.
+- [x] Phase 0 sign-off: we can see *where* `ds4` spends time in spec decode →
+      **PROCEED to Phase 1, narrowed to the exact-verifier cost curve**.
 
-## Headline findings (TL;DR)
+## Headline findings (measured: Apple M5 Max / 128 GB / Metal, SHA `c7ef1bf`)
 
-1. **Most of the Phase 0 timing split already exists.** `DS4_MTP_TIMING` emits a
-   per-cycle breakdown (draft / snapshot / verify / prefix / replay / total, in
-   ms) for every verifier path in `ds4_session_eval_speculative_argmax()`
-   (`ds4.c:27167`). `DS4_DECODE_PROFILE_DETAIL` gives layer-level target
-   decode/prefill timing. See `01`.
-
-2. **`ds4-bench` does not exercise the speculative path at all.** Its generation
-   loop (`ds4_bench.c:625`) calls `ds4_session_argmax_excluding` +
-   `ds4_session_eval` one token at a time and never passes `mtp_path` to the
-   engine. So the only structured-CSV throughput harness we have today measures
-   **target-only** decode. There is no bench harness for `--mtp`. This is the
-   single biggest Phase 0 gap. See `02`.
-
-3. **All MTP timing/counter output is unstructured stderr free-text.** It is not
-   machine-parseable, there is no aggregate rollup, and there is no
-   acceptance-by-position histogram or full/partial-accept tally. This is the
-   second gap; the fix is small and localized. See `02`.
-
-4. **A usable preliminary baseline can be captured with zero code change.** Run
-   `ds4-bench` for target-only, and run the `ds4` CLI with `--mtp --mtp-draft 2`
-   plus `DS4_MTP_TIMING`/`DS4_MTP_SPEC_LOG`/`DS4_MTP_CONF_LOG` for the spec path,
-   using `DS4_MTP_SPEC_DISABLE` for the apples-to-apples target-only control
-   through the same code path. See `03`.
+1. **The verifier owns the cycle.** Draft ≈ 2 ms, snapshot/prefix/replay ≈
+   sub-ms; the verifier is 33 ms/cycle (fast batch) to 67 ms/cycle (exact),
+   against a 28 ms baseline decode step. PLAN.md's "main risk" is confirmed.
+2. **Default depth-2 MTP is only ~+6% (chat) / +7% (code)** — far under the 20%
+   gate — and it achieves that by **not preserving exact greedy output**.
+3. **The exact-greedy path (`--quality`) is a −28% regression.** The success
+   criterion demands exactness, and exact verification is super-linear (67 ms
+   for 2 tokens ≈ 2.4× a single step, worse than 2× sequential). Making a
+   verifier that is *both cheap and exact* is the make-or-break problem.
+4. **MTP suffix acceptance is weak.** Position-2 conditional acceptance is only
+   **0.41–0.42** (DFlash ≈ 0.63–0.72 in paper Fig 2). Even a free verifier
+   would cap gains at current acceptance.
+5. **Most Phase 0 instrumentation already existed.** `DS4_MTP_TIMING` + a small
+   parser (`parse_spec_log.py`) delivered the full T3/T4/T5 breakdown with zero
+   engine change. The `DS4_SPEC_STATS` delta in `02` is deferred to Phase 4.
+6. **`ds4-bench` does not exercise the speculative path** (still the biggest
+   harness gap), and `DS4_DECODE_PROFILE_DETAIL` is **CPU-only** on this build —
+   the decode-step denominator is taken from throughput. See `01`/`02`.
 
 ## Conventions
 
