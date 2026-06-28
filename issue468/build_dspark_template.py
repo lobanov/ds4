@@ -98,7 +98,7 @@ def tensors():
             # hc_head_* is the output-stage HC head (mtp.2 only; absent on
             # mtp.0/1 in HF). F32 like the target's output_hc_* tensors.
             add(f"{P}.hc_head_base.weight",          [DS4_N_HC],         F32)
-            add(f"{P}.hc_head_fn.weight",            [DS4_N_HC, HCD],    F32)
+            add(f"{P}.hc_head_fn.weight",            [DS4_N_HC, HCD],    F16)  # F16: ds4 batched output head uses matmul_f16 (F32 path is single-token only)
             add(f"{P}.hc_head_scale.weight",         [1],                F32)
             add(f"{P}.norm.weight",                  [EMBD],             F32)  # F32: rmsnorm Metal kernel is F32-only
             add(f"{P}.markov_head.markov_w1.weight", [VOCAB, MR],        BF16)

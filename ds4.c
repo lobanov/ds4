@@ -11348,6 +11348,12 @@ static bool metal_graph_alloc_raw_cap(
         g->mtp_n_raw = 0;
     }
 
+    /* DSpark drafter output head writes base logits [n_tokens, vocab] into
+     * spec_logits; allocate it when the drafter is loaded even without --mtp. */
+    if (enable_dspark && !g->spec_logits) {
+        g->spec_logits = ds4_gpu_tensor_alloc((uint64_t)16 * DS4_N_VOCAB * sizeof(float));
+    }
+
     /* DSpark drafter buffers (Phase 4). Allocated when the drafter model is
      * loaded; the decode loop populates dspark_main_hidden at layers 40/41/42. */
     if (enable_dspark) {
@@ -17857,6 +17863,60 @@ static bool metal_graph_dspark_encode_block(
     g->batch_cur_hc = g->batch_next_hc;
     g->batch_next_hc = tmp;
     return true;
+}
+
+/*
+ * DSpark drafter output stage (mtp.2.forward_head, batched over the 5 draft
+ * positions): hc_head (sigmoid reduce) -> norm -> SHARED target lm_head ->
+ * [logits in g->spec_logits, n_tokens rows]. The sequential Markov head (which
+ * biases logits[i] from output_ids[i] and is sampled greedily) is applied on the
+ * CPU side after readback; this function produces the base logits per position.
+ * See issue468/16; oracle forward_head is the spec.
+ */
+static bool metal_graph_dspark_output_head(
+        ds4_gpu_graph        *g,
+        const ds4_model      *target_model,
+        const ds4_weights    *target_weights,
+        const ds4_model      *dspark_model,
+        const ds4_dspark_weights *dw,
+        uint32_t              n_tokens) {
+    if (n_tokens == 0 || n_tokens > g->prefill_cap || !g->spec_logits) return false;
+    const uint64_t hc_dim = (uint64_t)DS4_N_HC * DS4_N_EMBD;
+    const uint64_t vocab_dim = target_weights->output->dim[1];
+    ds4_gpu_tensor *output_pre    = ds4_gpu_tensor_view(g->batch_hc_mix, 0, (uint64_t)n_tokens * DS4_N_HC * sizeof(float));
+    ds4_gpu_tensor *output_weights= ds4_gpu_tensor_view(g->batch_hc_split, 0, (uint64_t)n_tokens * DS4_N_HC * sizeof(float));
+    ds4_gpu_tensor *output_embd   = ds4_gpu_tensor_view(g->batch_ffn_cur, 0, (uint64_t)n_tokens * DS4_N_EMBD * sizeof(float));
+    ds4_gpu_tensor *output_norm   = ds4_gpu_tensor_view(g->batch_ffn_norm, 0, (uint64_t)n_tokens * DS4_N_EMBD * sizeof(float));
+    ds4_gpu_tensor *logits        = ds4_gpu_tensor_view(g->spec_logits, 0, (uint64_t)n_tokens * vocab_dim * sizeof(float));
+    bool ok = output_pre && output_weights && output_embd && output_norm && logits;
+    /* hc_head pre-norm + matmul hc_head_fn (F16) -> output_hc_weights (sigmoid) */
+    if (ok) ok = ds4_gpu_rms_norm_plain_rows_tensor(g->batch_flat_hc, g->batch_cur_hc,
+                                                      (uint32_t)hc_dim, n_tokens, DS4_RMS_EPS) != 0;
+    if (ok) ok = metal_graph_matmul_plain_tensor(output_pre, dspark_model, dw->hc_head_fn,
+                                                   hc_dim, DS4_N_HC, g->batch_flat_hc, n_tokens);
+    if (ok) ok = ds4_gpu_output_hc_weights_tensor(output_weights, output_pre,
+                                                    dspark_model->map, dspark_model->size,
+                                                    dw->hc_head_scale->abs_offset,
+                                                    dw->hc_head_base->abs_offset,
+                                                    DS4_N_HC, DS4_HC_EPS) != 0;
+    /* hc_head reduce (weighted sum over HC) -> [n_tokens, dim] */
+    if (ok) ok = ds4_gpu_hc_weighted_sum_tensor(output_embd, g->batch_cur_hc,
+                                                  output_weights, DS4_N_EMBD, DS4_N_HC) != 0;
+    /* output norm (mtp.2.norm, F32) */
+    if (ok) ok = ds4_gpu_rms_norm_weight_rows_tensor(output_norm, output_embd,
+                                                       dspark_model->map, dspark_model->size,
+                                                       dw->norm->abs_offset,
+                                                       DS4_N_EMBD, n_tokens, DS4_RMS_EPS) != 0;
+    /* SHARED target lm_head (Q8_0) -> [n_tokens, vocab] base logits */
+    if (ok) ok = ds4_gpu_matmul_q8_0_tensor(logits, target_model->map, target_model->size,
+                                              target_weights->output->abs_offset,
+                                              DS4_N_EMBD, vocab_dim, output_norm, n_tokens) != 0;
+    ds4_gpu_tensor_free(logits);
+    ds4_gpu_tensor_free(output_norm);
+    ds4_gpu_tensor_free(output_embd);
+    ds4_gpu_tensor_free(output_weights);
+    ds4_gpu_tensor_free(output_pre);
+    return ok;
 }
 
 static bool metal_graph_encode_layer_attention_batch(
@@ -28103,6 +28163,71 @@ static void ds4_dspark_probe_input_stage(ds4_session *s) {
                 }
             }
             free(h);
+        }
+        /* Optional: run the output head + sequential Markov head (greedy) and dump
+         * the 5 draft tokens for the Phase 4 token-agreement gate.
+         * Gate: DS4_DSPARK_PROBE_TOKENS=1 (requires n_blocks==3). Reads the base
+         * logits, applies markov_w1[prev]@markov_w2.T bias per position greedily,
+         * dumps draft tokens. */
+        if (bok && n_blocks == 3 && getenv("DS4_DSPARK_PROBE_TOKENS")) {
+            bok = ds4_gpu_begin_commands() != 0;
+            if (!bok) fprintf(stderr, "ds4: dspark token-probe: begin_commands failed\n");
+            if (bok) { bok = metal_graph_dspark_output_head(g, &e->model, &e->weights,
+                                                            &e->dspark_model, &e->dspark_weights,
+                                                            DS4_DSPARK_BLOCK_SIZE);
+                       if (!bok) fprintf(stderr, "ds4: dspark token-probe: output_head failed (spec_logits=%p)\n", g->spec_logits); }
+            if (bok) bok = ds4_gpu_end_commands() != 0;
+            if (bok) bok = ds4_gpu_synchronize() != 0;
+            if (bok) {
+                const uint64_t vocab = DS4_N_VOCAB;
+                float *logits = xmalloc((size_t)DS4_DSPARK_BLOCK_SIZE * vocab * sizeof(float));
+                bok = ds4_gpu_tensor_read(g->spec_logits, 0, logits,
+                                          (size_t)DS4_DSPARK_BLOCK_SIZE * vocab * sizeof(float)) != 0;
+                if (bok) {
+                    /* Sequential Markov head on CPU: markov_w1 [vocab,256] BF16,
+                     * markov_w2 [vocab,256] BF16. bias_i = w1[prev] @ w2.T (F32).
+                     * Read the BF16 weights from the CPU map. */
+                    const uint16_t *mw1 = (const uint16_t *)((const uint8_t *)e->dspark_model.map
+                                          + e->dspark_weights.markov_w1->abs_offset);
+                    const uint16_t *mw2 = (const uint16_t *)((const uint8_t *)e->dspark_model.map
+                                          + e->dspark_weights.markov_w2->abs_offset);
+                    const uint32_t rank = 256;
+                    int draft[DS4_DSPARK_BLOCK_SIZE];
+                    int prev = anchor;  /* anchor token */
+                    int out_ids[DS4_DSPARK_BLOCK_SIZE + 1];
+                    out_ids[0] = anchor;
+                    float emb[256]; float bias;
+                    for (uint32_t i = 0; i < DS4_DSPARK_BLOCK_SIZE; i++) {
+                        /* emb = markov_w1[prev] (BF16->F32) [256] */
+                        for (uint32_t r = 0; r < rank; r++) {
+                            uint32_t bits = ((uint32_t)mw1[(uint64_t)prev * rank + r]) << 16;
+                            memcpy(&emb[r], &bits, sizeof(float));
+                        }
+                        /* bias[v] = sum_r emb[r] * markov_w2[v,r](BF16->F32) [vocab] */
+                        int best = -1; float best_logit = -1e30f;
+                        for (uint32_t v = 0; v < vocab; v++) {
+                            float acc = logits[(uint64_t)i * vocab + v];
+                            for (uint32_t r = 0; r < rank; r++) {
+                                uint32_t bits = ((uint32_t)mw2[(uint64_t)v * rank + r]) << 16;
+                                float wvf; memcpy(&wvf, &bits, sizeof(float));
+                                acc += emb[r] * wvf;
+                            }
+                            if (acc > best_logit) { best_logit = acc; best = (int)v; }
+                        }
+                        draft[i] = best; out_ids[i+1] = best; prev = best;
+                    }
+                    (void)bias;
+                    char tp[1024]; snprintf(tp, sizeof(tp), "%s/metal_draft_tokens_pos152.txt", capdir);
+                    FILE *fp = fopen(tp, "w");
+                    if (fp) {
+                        fprintf(fp, "%d %d %d %d %d\n", draft[0],draft[1],draft[2],draft[3],draft[4]);
+                        fclose(fp);
+                        fprintf(stderr, "ds4: dspark probe: draft tokens [%d %d %d %d %d] -> %s\n",
+                                draft[0],draft[1],draft[2],draft[3],draft[4], tp);
+                    }
+                }
+                free(logits);
+            }
         }
         if (!bok) fprintf(stderr, "ds4: dspark probe: 3-block forward FAILED\n");
     }
