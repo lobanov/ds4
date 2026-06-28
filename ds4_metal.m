@@ -18433,7 +18433,8 @@ static int ds4_gpu_encode_flash_attention_decode_raw_batch_heads(
         uint32_t               raw_start,
         uint32_t               window,
         uint32_t               n_head,
-        uint32_t               head_dim) {
+        uint32_t               head_dim,
+        bool                   noncausal) {
     if (head_dim != 512 || n_head == 0 || n_tokens == 0 ||
         n_raw == 0 || raw_cap < n_raw || raw_start >= raw_cap) {
         return 0;
@@ -18528,11 +18529,19 @@ static int ds4_gpu_encode_flash_attention_decode_raw_batch_heads(
         return 0;
     }
 
-    ds4_gpu_fill_raw_decode_batch_mask((uint16_t *)[mask_buffer contents],
-                                         n_tokens,
-                                         n_raw,
-                                         pos0,
-                                         window);
+    if (noncausal) {
+        /* Non-causal (all-attend) mask: every query attends to every key. Used by
+         * the DSpark drafter's block attention, where each of the block_size draft
+         * positions attends to the full gathered window+block KV set (see
+         * issue468/dspark_oracle/attention.py sparse_attn + dspark_topk_idxs). */
+        memset([mask_buffer contents], 0, mask_bytes);
+    } else {
+        ds4_gpu_fill_raw_decode_batch_mask((uint16_t *)[mask_buffer contents],
+                                           n_tokens,
+                                           n_raw,
+                                           pos0,
+                                           window);
+    }
 
     id<MTLComputePipelineState> pad_pipeline = nil;
     if (has_kvpad) {
@@ -18694,7 +18703,8 @@ static int ds4_gpu_encode_flash_attention_decode_mixed_batch_heads(
                                                                        raw_start,
                                                                        window,
                                                                        n_head,
-                                                                       head_dim);
+                                                                       head_dim,
+                                                                       /*noncausal=*/false);
     }
     if (head_dim != 512 || n_head == 0 || n_tokens == 0 ||
         n_raw == 0 || raw_cap < n_raw || raw_start >= raw_cap ||
@@ -19053,11 +19063,81 @@ int ds4_gpu_attention_decode_raw_batch_heads_tensor(
                                                                      raw_start,
                                                                      window,
                                                                      n_head,
-                                                                     head_dim)) {
+                                                                     head_dim,
+                                                                     /*noncausal=*/false)) {
             return 0;
         }
 
         if (!ds4_gpu_finish_command_buffer(cb, owned, "graph decode raw batch attention heads")) return 0;
+    }
+
+    return 1;
+}
+
+/*
+ * Non-causal variant of ds4_gpu_attention_decode_raw_batch_heads_tensor: every
+ * query position attends to every key in the gathered window (mask = all-attend).
+ * Used by the DSpark drafter's block attention (issue468/dspark_oracle/attention.py
+ * sparse_attn): each of the block_size draft positions attends to the SAME
+ * gathered set (cached anchors + the draft block itself), with no causal mask.
+ * Identical to the causal path except the mask is memset(0). The caller assembles
+ * the gathered KV (n_real anchors + block draft positions) contiguously in raw_kv.
+ */
+int ds4_gpu_attention_decode_raw_batch_heads_noncausal_tensor(
+        ds4_gpu_tensor       *heads,
+        const void             *model_map,
+        uint64_t                model_size,
+        uint64_t                sinks_offset,
+        const ds4_gpu_tensor *q,
+        const ds4_gpu_tensor *raw_kv,
+        uint32_t                n_tokens,
+        uint32_t                n_raw,
+        uint32_t                raw_cap,
+        uint32_t                raw_start,
+        uint32_t                n_head,
+        uint32_t                head_dim) {
+    if (!g_initialized && !ds4_gpu_init()) return 0;
+    if (!heads || !q || !raw_kv || !model_map || n_tokens == 0 ||
+        n_raw == 0 || raw_cap < n_raw || raw_start >= raw_cap) {
+        return 0;
+    }
+
+    @autoreleasepool {
+        if (sinks_offset > model_size || (uint64_t)n_head * sizeof(float) > model_size - sinks_offset) {
+            fprintf(stderr, "ds4: Metal attention sinks range is outside the mapped model\n");
+            return 0;
+        }
+
+        uint64_t sinks_inner = 0;
+        id<MTLBuffer> sinks_buf = ds4_gpu_wrap_model_range(model_map, model_size,
+                                                             sinks_offset,
+                                                             (uint64_t)n_head * sizeof(float),
+                                                             &sinks_inner);
+        if (!sinks_buf) return 0;
+
+        int owned = 0;
+        id<MTLCommandBuffer> cb = ds4_gpu_command_buffer(&owned);
+        if (!cb) return 0;
+
+        if (!ds4_gpu_encode_flash_attention_decode_raw_batch_heads(cb,
+                                                                     heads,
+                                                                     sinks_buf,
+                                                                     (NSUInteger)sinks_inner,
+                                                                     q,
+                                                                     raw_kv,
+                                                                     n_tokens,
+                                                                     /*pos0=*/0u,
+                                                                     n_raw,
+                                                                     raw_cap,
+                                                                     raw_start,
+                                                                     /*window=*/0u,
+                                                                     n_head,
+                                                                     head_dim,
+                                                                     /*noncausal=*/true)) {
+            return 0;
+        }
+
+        if (!ds4_gpu_finish_command_buffer(cb, owned, "dspark noncausal batch attention heads")) return 0;
     }
 
     return 1;
