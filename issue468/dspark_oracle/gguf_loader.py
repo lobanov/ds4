@@ -93,6 +93,212 @@ def _dequant_q4_k(raw, nelem):
     return out.reshape(-1)
 
 
+def index_gguf(path):
+    """Parse only the GGUF metadata section. Returns (kv, {name:(dims,type,offset)},
+    data_off). Use with read_tensor for lazy single-tensor access on huge files."""
+    with open(path, "rb") as f:
+        assert f.read(4) == b"GGUF"
+        f.read(4)  # version
+        n_t = struct.unpack("<Q", f.read(8))[0]
+        n_kv = struct.unpack("<Q", f.read(8))[0]
+
+        def s():
+            n = struct.unpack("<Q", f.read(8))[0]
+            return f.read(n).decode()
+
+        def rd_val():
+            t = struct.unpack("<I", f.read(4))[0]
+            if t == 8: return ("str", s())
+            elif t == 0: return ("u8", f.read(1))
+            elif t == 1: return ("i8", f.read(1))
+            elif t == 2: return ("u16", struct.unpack("<H", f.read(2))[0])
+            elif t == 3: return ("i16", struct.unpack("<h", f.read(2))[0])
+            elif t == 4: return ("u32", struct.unpack("<I", f.read(4))[0])
+            elif t == 5: return ("i32", struct.unpack("<i", f.read(4))[0])
+            elif t == 6: return ("f32", struct.unpack("<f", f.read(4))[0])
+            elif t == 7: return ("bool", f.read(1))
+            elif t == 10: return ("u64", struct.unpack("<Q", f.read(8))[0])
+            elif t == 11: return ("i64", struct.unpack("<q", f.read(8))[0])
+            elif t == 12: return ("f64", struct.unpack("<d", f.read(8))[0])
+            elif t == 9:
+                et = struct.unpack("<I", f.read(4))[0]
+                nn = struct.unpack("<Q", f.read(8))[0]
+                arr = []
+                for _ in range(nn):
+                    if et == 4: arr.append(struct.unpack("<I", f.read(4))[0])
+                    elif et == 8: arr.append(s())
+                    elif et == 10: arr.append(struct.unpack("<Q", f.read(8))[0])
+                    elif et == 0: arr.append(f.read(1)[0])
+                    elif et == 5: arr.append(struct.unpack("<i", f.read(4))[0])
+                    elif et == 2: arr.append(struct.unpack("<H", f.read(2))[0])
+                    elif et == 6: arr.append(struct.unpack("<f", f.read(4))[0])
+                    elif et == 7: arr.append(f.read(1)[0])
+                    else: arr.append(f"?et{et}")
+                return ("arr", arr)
+            else:
+                raise ValueError(f"unhandled KV type {t}")
+
+        kv = {}
+        for _ in range(n_kv):
+            k = s()
+            kv[k] = rd_val()
+        infos = {}
+        for _ in range(n_t):
+            nm = s()
+            nd = struct.unpack("<I", f.read(4))[0]
+            dims = [struct.unpack("<Q", f.read(8))[0] for _ in range(nd)]
+            tt = struct.unpack("<I", f.read(4))[0]
+            off = struct.unpack("<Q", f.read(8))[0]
+            infos[nm] = (dims, tt, off)
+        meta_end = f.tell()
+        align = kv.get("general.alignment", ("u32", 32))[1] if isinstance(kv.get("general.alignment"), tuple) else 32
+        data_off = (meta_end + align - 1) // align * align
+    return kv, infos, data_off
+
+
+def read_tensor(path, infos, data_off, name):
+    """Read + dequant one tensor by name from an indexed GGUF (lazy)."""
+    dims, tt, off = infos[name]
+    nelem = 1
+    for d in dims: nelem *= d
+    with open(path, "rb") as f:
+        f.seek(data_off + off)
+        if tt == 0:
+            arr = np.frombuffer(f.read(nelem * 4), dtype=np.float32).copy()
+        elif tt == 30:
+            arr = _bf16_to_f32(np.frombuffer(f.read(nelem * 2), dtype=np.uint16).copy())
+        elif tt == 1:
+            arr = _f16_to_f32(np.frombuffer(f.read(nelem * 2), dtype=np.uint16).copy())
+        elif tt == 8:
+            arr = _dequant_q8_0(f.read((nelem // 32) * 34), nelem)
+        elif tt == 12:
+            arr = _dequant_q4_k(f.read((nelem // 256) * 144), nelem)
+        else:
+            raise ValueError(f"unhandled tensor type {tt} for {name}")
+    return arr.reshape(dims)
+
+
+def _dequant_q4_k_region(raw, n_superblocks, out):
+    """Dequant n_superblocks super-blocks (256 elems each) of Q4_K starting at the
+    beginning of `raw` into F32 `out` (length n_superblocks*256). Same kernel as
+    _dequant_q4_k but operates on a contiguous region (one expert's slice)."""
+    nb = n_superblocks
+    b = np.frombuffer(raw, dtype=np.uint8, count=nb * 144).reshape(nb, 144)
+    d = _f16_to_f32(b[:, 0:2].copy().view(np.uint16).reshape(nb))
+    dmin = _f16_to_f32(b[:, 2:4].copy().view(np.uint16).reshape(nb))
+    sc = b[:, 4:16].astype(np.uint32)
+    qs = b[:, 16:144]
+    scales = np.empty((nb, 8), dtype=np.float32)
+    mins = np.empty((nb, 8), dtype=np.float32)
+    for j in range(8):
+        if j < 4:
+            sd = sc[:, j] & 63; sm = sc[:, j + 4] & 63
+        else:
+            sd = (sc[:, j + 4] & 0xF) | ((sc[:, j - 4] >> 6) << 4)
+            sm = (sc[:, j + 4] >> 4) | ((sc[:, j] >> 6) << 4)
+        scales[:, j] = d * sd
+        mins[:, j] = dmin * sm
+    q = qs.astype(np.uint16)
+    low = (q & 0xF).astype(np.float32)
+    high = (q >> 4).astype(np.float32)
+    nib = np.empty((nb, 256), dtype=np.float32)
+    for t in range(4):
+        nib[:, t * 64 : t * 64 + 32] = low[:, t * 32 : (t + 1) * 32]
+        nib[:, t * 64 + 32 : t * 64 + 64] = high[:, t * 32 : (t + 1) * 32]
+    sb = np.repeat(np.arange(8, dtype=np.int64), 32)
+    res = nib * scales[:, sb] - mins[:, sb]
+    out[:] = res.reshape(-1)
+
+
+def dequant_q4_k_expert(path, infos, data_off, name, expert_idx):
+    """Dequant ONE expert from a packed Q4_K expert tensor [in,out,n_exp]. Returns
+    F32 [out,in] (GGUF ne order: the expert's [in,out] slice, transposed to match
+    HF/torch [out,in] so x@W.T works). Lazy + low-RAM: only reads ~4.7MB raw,
+    emits ~34MB F32. Matches the Metal path's on-demand per-expert dequant."""
+    dims, tt, off = infos[name]
+    assert tt == 12
+    in_dim, out_dim, n_exp = dims
+    # raw layout: per-expert slices contiguous, each = in_dim*out_dim elements
+    # = (in_dim*out_dim)//256 super-blocks * 144 bytes.
+    elems_per_exp = in_dim * out_dim
+    assert elems_per_exp % 256 == 0
+    sb_per_exp = elems_per_exp // 256
+    bytes_per_exp = sb_per_exp * 144
+    with open(path, "rb") as f:
+        f.seek(data_off + off + expert_idx * bytes_per_exp)
+        raw = f.read(bytes_per_exp)
+    arr = np.empty(elems_per_exp, dtype=np.float32)
+    _dequant_q4_k_region(raw, sb_per_exp, arr)
+    # arr is in GGUF ne order [in,out] flattened (in fastest). Return [in,out] to
+    # match every other stored weight (the universal 'out = x @ stored' rule),
+    # so callers apply x @ stored with no transpose.
+    return arr.reshape(in_dim, out_dim).copy()
+
+
+def load_gguf_dense_only(path, skip_pred=None):
+    """Like load_gguf but skips tensors matching skip_pred(name) (returns their
+    names skipped). Used to load all dense DSpark tensors while leaving the 9
+    packed Q4_K expert tensors for lazy per-expert dequant (ExpertStore)."""
+    if skip_pred is None:
+        skip_pred = lambda n: "ffn_" in n and n.endswith("_exps.weight")
+    with open(path, "rb") as f:
+        assert f.read(4) == b"GGUF"
+        f.read(4)
+        n_t = struct.unpack("<Q", f.read(8))[0]
+        n_kv = struct.unpack("<Q", f.read(8))[0]
+        def s():
+            n = struct.unpack("<Q", f.read(8))[0]; return f.read(n).decode()
+        def rd_val():
+            t = struct.unpack("<I", f.read(4))[0]
+            if t == 8: return ("str", s())
+            elif t == 0: return ("u8", f.read(1))
+            elif t == 1: return ("i8", f.read(1))
+            elif t == 2: return ("u16", struct.unpack("<H", f.read(2))[0])
+            elif t == 3: return ("i16", struct.unpack("<h", f.read(2))[0])
+            elif t == 4: return ("u32", struct.unpack("<I", f.read(4))[0])
+            elif t == 5: return ("i32", struct.unpack("<i", f.read(4))[0])
+            elif t == 6: return ("f32", struct.unpack("<f", f.read(4))[0])
+            elif t == 7: return ("bool", f.read(1))
+            elif t == 10: return ("u64", struct.unpack("<Q", f.read(8))[0])
+            elif t == 11: return ("i64", struct.unpack("<q", f.read(8))[0])
+            elif t == 12: return ("f64", struct.unpack("<d", f.read(8))[0])
+            elif t == 9:
+                et = struct.unpack("<I", f.read(4))[0]; nn = struct.unpack("<Q", f.read(8))[0]; arr=[]
+                for _ in range(nn):
+                    if et == 4: arr.append(struct.unpack("<I", f.read(4))[0])
+                    elif et == 8: arr.append(s())
+                    elif et == 10: arr.append(struct.unpack("<Q", f.read(8))[0])
+                return ("arr", arr)
+            else: raise ValueError(f"unhandled KV type {t}")
+        kv={}
+        for _ in range(n_kv): k=s(); kv[k]=rd_val()
+        infos={}
+        for _ in range(n_t):
+            nm=s(); nd=struct.unpack("<I", f.read(4))[0]
+            dims=[struct.unpack("<Q", f.read(8))[0] for _ in range(nd)]
+            tt=struct.unpack("<I", f.read(4))[0]; off=struct.unpack("<Q", f.read(8))[0]
+            infos[nm]=(dims,tt,off)
+        meta_end=f.tell()
+        align = kv.get("general.alignment", ("u32", 32))[1] if isinstance(kv.get("general.alignment"), tuple) else 32
+        data_off=(meta_end+align-1)//align*align
+    TYPE_NAME={0:"f32",1:"f16",30:"bf16",8:"q8_0",12:"q4_k"}
+    out={}; skipped=[]
+    with open(path,"rb") as f:
+        for nm,(dims,tt,off) in infos.items():
+            if skip_pred(nm): skipped.append(nm); continue
+            nelem=1
+            for d in dims: nelem*=d
+            f.seek(data_off+off)
+            if tt==0: arr=np.frombuffer(f.read(nelem*4),dtype=np.float32).copy()
+            elif tt==30: arr=_bf16_to_f32(np.frombuffer(f.read(nelem*2),dtype=np.uint16).copy())
+            elif tt==1: arr=_f16_to_f32(np.frombuffer(f.read(nelem*2),dtype=np.uint16).copy())
+            elif tt==8: arr=_dequant_q8_0(f.read((nelem//32)*34),nelem)
+            elif tt==12: arr=_dequant_q4_k(f.read((nelem//256)*144),nelem)
+            else: raise ValueError(f"unhandled tensor type {tt} for {nm}")
+            out[nm]=(arr.reshape(dims),TYPE_NAME.get(tt,str(tt)))
+    return kv,out,infos,data_off,skipped
+
+
 def load_gguf(path):
     """Parse a GGUF and return {name: (np.float32 array in GGUF ne order, gguf_type_str)}."""
     with open(path, "rb") as f:

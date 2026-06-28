@@ -66,7 +66,7 @@ def hc_pre(x_hc, hc_fn, hc_scale, hc_base, hc=HC_MULT, eps=NORM_EPS):
     b, s, _, d = x_hc.shape
     flat = x_hc.reshape(b, s, hc * d).astype(np.float32)
     rsqrt = 1.0 / np.sqrt(np.mean(flat * flat, axis=-1, keepdims=True) + eps)
-    mixes = (flat @ hc_fn.T) * rsqrt            # [b,s,hc_mix_dim]
+    mixes = (flat @ hc_fn) * rsqrt            # [b,s,hc_mix_dim] (hc_fn stored = W_hf.T)
     pre, post, comb = hc_split_sinkhorn(mixes, hc_scale, hc_base, hc)
     y = (pre[..., None] * x_hc).sum(axis=2)     # [b,s,d]
     return y, post, comb
@@ -90,7 +90,7 @@ def hc_head(x_hc, hc_fn, hc_scale, hc_base, hc=HC_MULT, eps=HC_EPS):
     b, s, _, d = x_hc.shape
     flat = x_hc.reshape(b, s, hc * d).astype(np.float32)
     rsqrt = 1.0 / np.sqrt(np.mean(flat * flat, axis=-1, keepdims=True) + NORM_EPS)
-    mixes = (flat @ hc_fn.T) * rsqrt             # [b,s, hc]
+    mixes = (flat @ hc_fn) * rsqrt             # [b,s, hc] (hc_head_fn stored = W_hf.T)
     pre = 1.0 / (1.0 + np.exp(-(mixes * hc_scale[0] + hc_base))) + eps
     return (pre[..., None] * x_hc).sum(axis=2)   # [b,s,d]
 
@@ -112,9 +112,9 @@ if __name__ == "__main__":
     assert np.allclose(row_sum, 1.0, atol=1e-3), "rows not normalized (Sinkhorn broken)"
     assert np.allclose(col_sum, 1.0, atol=1e-3), "cols not normalized (Sinkhorn broken)"
     print("hc_split_sinkhorn: doubly-stochastic invariant holds (port correct)")
-    # hc_pre/hc_post round-trip shape check
+    # hc_pre/hc_post round-trip shape check (hc_fn stored [in=hc*d, out=hc_mix])
     x_hc = rng.standard_normal((1, 5, 4, 8)).astype(np.float32)
-    hc_fn = rng.standard_normal((24, 32)).astype(np.float32)
+    hc_fn = rng.standard_normal((32, 24)).astype(np.float32)
     y, post2, comb2 = hc_pre(x_hc, hc_fn, hc_scale, hc_base)
     x_back = hc_post(y, x_hc, post2, comb2)
     print(f"hc_pre: x_hc{x_hc.shape} -> y{y.shape}; hc_post -> {x_back.shape} (matches input)")
