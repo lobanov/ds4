@@ -1464,6 +1464,12 @@ static cli_config parse_options(int argc, char **argv) {
             c.engine.model_path = need_arg(&i, argc, argv, arg);
         } else if (!strcmp(arg, "--mtp")) {
             c.engine.mtp_path = need_arg(&i, argc, argv, arg);
+        } else if (!strcmp(arg, "--dspark")) {
+            /* DSpark speculative drafter (research-only; Phase 4 loader). Points at
+             * the Phase-3 dspark.gguf holding the 3 mtp stages. The drafter
+             * forward + B2 verifier are wired in Phase 4/5; loading validates the
+             * GGUF layout today. */
+            c.engine.dspark_path = need_arg(&i, argc, argv, arg);
         } else if (!strcmp(arg, "--mtp-draft")) {
             c.engine.mtp_draft_tokens = parse_int(need_arg(&i, argc, argv, arg), arg);
         } else if (!strcmp(arg, "--mtp-margin")) {

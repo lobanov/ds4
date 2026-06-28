@@ -1594,6 +1594,7 @@ enum {
     DS4_TENSOR_Q4_K     = 12,
     DS4_TENSOR_IQ2_XXS  = 16,
     DS4_TENSOR_I32      = 26,
+    DS4_TENSOR_BF16     = 30,  /* GGUF type id; accuracy-critical small tensors in DSpark drafter */
 };
 
 typedef struct {
@@ -3073,6 +3074,38 @@ typedef struct {
     ds4_layer_weights block;
 } ds4_mtp_weights;
 
+/*
+ * DSpark speculative drafter weights (deepseek-ai/DeepSeek-V4-Flash-DSpark).
+ *
+ * Structure mirrors the official inference/model.py DSparkBlock: 3 mini-
+ * DeepSeek-V4 blocks (mtp.0/1/2, same block internals as the target, reusing
+ * ds4_layer_weights) plus DSpark-unique input/output-stage tensors. The drafter
+ * SHARES the target's token embedding and lm_head (bound from the target model,
+ * not duplicated here).
+ *
+ *  - block[0] extra: main_proj (target-hidden [3*dim] -> dim), main_norm
+ *    (projects the concatenated mean-hidden of target layers [40,41,42]).
+ *  - block[2] extra: output norm, hc_head (drafter output-stage HC reduce),
+ *    markov_w1/w2 (rank-256 sequential Markov head over the draft block),
+ *    confidence_head.proj (per-position confidence scalar for the scheduler).
+ *
+ * block[0]/[1] have NO output stage; block[2] carries the full head. See
+ * issue468/ref/inference/model.py DSparkBlock/forward_embed/forward_head and
+ * issue468/09_dspark_integration_plan.md.
+ */
+typedef struct {
+    ds4_layer_weights block[3];   /* mtp.0/1/2 block internals */
+    ds4_tensor *main_proj;        /* mtp.0: [dim, 3*dim] target-hidden -> drafter */
+    ds4_tensor *main_norm;        /* mtp.0: RMSNorm(dim) */
+    ds4_tensor *norm;             /* mtp.2: RMSNorm(dim) output norm */
+    ds4_tensor *hc_head_base;     /* mtp.2: [hc_mult] */
+    ds4_tensor *hc_head_fn;       /* mtp.2: [hc_mult, hc_dim] */
+    ds4_tensor *hc_head_scale;    /* mtp.2: [1] */
+    ds4_tensor *markov_w1;        /* mtp.2: [vocab, markov_rank] embedding */
+    ds4_tensor *markov_w2;        /* mtp.2: [vocab, markov_rank] head */
+    ds4_tensor *confidence_proj;  /* mtp.2: [dim + markov_rank] -> 1 */
+} ds4_dspark_weights;
+
 /* =========================================================================
  * Fixed Weight Binding and Model Validation.
  * =========================================================================
@@ -4472,6 +4505,127 @@ static void mtp_weights_bind(ds4_mtp_weights *w, const ds4_model *m) {
     l->ffn_down_shexp  = required_tensor(m, "mtp.0.ffn_down_shexp.weight");
 
     mtp_weights_validate_layout(w);
+}
+
+/*
+ * Bind DSpark drafter weights from a dspark.gguf produced by the Phase-3
+ * converter (issue468/build_dspark_template.py naming). Mirrors mtp_weights_bind
+ * per-layer binding but across the 3 mtp stages, reusing ds4_layer_weights for
+ * the block internals (identical to target blocks; compress_ratio==0 so no
+ * compressor/indexer tensors). DSpark-unique input/output-stage tensors are
+ * bound by stage (main_proj/main_norm on mtp.0; the head on mtp.2).
+ */
+static void dspark_layer_weights_bind(ds4_layer_weights *l, const ds4_model *m, int stage) {
+    char name[128];
+    char *p = name + snprintf(name, sizeof(name), "mtp.%d.", stage);
+    size_t rem = sizeof(name) - (size_t)(p - name);
+#define RT(field, suffix) do { \
+        snprintf(p, rem, "%s", suffix); \
+        l->field = required_tensor(m, name); \
+    } while (0)
+    /* HC mixing (base/fn/scale per attn + ffn). */
+    RT(hc_attn_fn,      "hc_attn_fn.weight");
+    RT(hc_attn_scale,   "hc_attn_scale.weight");
+    RT(hc_attn_base,    "hc_attn_base.weight");
+    RT(hc_ffn_fn,       "hc_ffn_fn.weight");
+    RT(hc_ffn_scale,    "hc_ffn_scale.weight");
+    RT(hc_ffn_base,     "hc_ffn_base.weight");
+    /* MLA attention (window-only; no compressor/indexer for compress_ratio==0). */
+    RT(attn_norm,       "attn_norm.weight");
+    RT(attn_q_a,        "attn_q_a.weight");
+    RT(attn_q_a_norm,   "attn_q_a_norm.weight");
+    RT(attn_q_b,        "attn_q_b.weight");
+    RT(attn_kv,         "attn_kv.weight");
+    RT(attn_kv_a_norm,  "attn_kv_a_norm.weight");
+    RT(attn_sinks,      "attn_sinks.weight");
+    RT(attn_output_a,   "attn_output_a.weight");
+    RT(attn_output_b,   "attn_output_b.weight");
+    /* MoE FFN: gate + 256 routed experts + shared expert. */
+    RT(ffn_norm,        "ffn_norm.weight");
+    RT(ffn_gate_inp,    "ffn_gate_inp.weight");
+    RT(ffn_exp_probs_b, "exp_probs_b.bias");
+    RT(ffn_gate_exps,   "ffn_gate_exps.weight");
+    RT(ffn_up_exps,     "ffn_up_exps.weight");
+    RT(ffn_down_exps,   "ffn_down_exps.weight");
+    RT(ffn_gate_shexp,  "ffn_gate_shexp.weight");
+    RT(ffn_up_shexp,    "ffn_up_shexp.weight");
+    RT(ffn_down_shexp,  "ffn_down_shexp.weight");
+#undef RT
+    /* DSpark drafter blocks are window-only MLA; no compressor/indexer tensors. */
+    l->attn_compressor_ape = NULL;
+    l->attn_compressor_kv = NULL;
+    l->attn_compressor_gate = NULL;
+    l->attn_compressor_norm = NULL;
+    l->indexer_attn_q_b = NULL;
+    l->indexer_proj = NULL;
+    l->indexer_compressor_ape = NULL;
+    l->indexer_compressor_kv = NULL;
+    l->indexer_compressor_gate = NULL;
+    l->indexer_compressor_norm = NULL;
+    l->ffn_gate_tid2eid = NULL;
+}
+
+static void dspark_weights_bind(ds4_dspark_weights *w, const ds4_model *m) {
+    memset(w, 0, sizeof(*w));
+    for (int stage = 0; stage < 3; stage++) {
+        dspark_layer_weights_bind(&w->block[stage], m, stage);
+    }
+    /* mtp.0 input stage: project concatenated mean-hidden of target [40,41,42]. */
+    w->main_proj = required_tensor(m, "mtp.0.main_proj.weight");
+    w->main_norm = required_tensor(m, "mtp.0.main_norm.weight");
+    /* mtp.2 output stage: norm + drafter hc_head + Markov head + confidence. */
+    w->norm            = required_tensor(m, "mtp.2.norm.weight");
+    w->hc_head_base    = required_tensor(m, "mtp.2.hc_head_base.weight");
+    w->hc_head_fn      = required_tensor(m, "mtp.2.hc_head_fn.weight");
+    w->hc_head_scale   = required_tensor(m, "mtp.2.hc_head_scale.weight");
+    w->markov_w1       = required_tensor(m, "mtp.2.markov_head.markov_w1.weight");
+    w->markov_w2       = required_tensor(m, "mtp.2.markov_head.markov_w2.weight");
+    w->confidence_proj = required_tensor(m, "mtp.2.confidence_head.proj.weight");
+}
+
+static void dspark_layer_validate_layout(const ds4_layer_weights *l) {
+    const uint64_t hc_dim = (uint64_t)DS4_N_EMBD * DS4_N_HC;
+    const uint64_t hc_mix_dim = 2u * DS4_N_HC + (uint64_t)DS4_N_HC * DS4_N_HC;
+    const uint64_t q_dim = (uint64_t)DS4_N_HEAD * DS4_N_HEAD_DIM;
+    const uint64_t out_low_dim = (uint64_t)DS4_N_OUT_GROUP * DS4_N_LORA_O;
+    tensor_expect_plain_layout(l->hc_attn_fn, 2, hc_dim, hc_mix_dim, 0);
+    tensor_expect_layout(l->hc_attn_scale, DS4_TENSOR_F32, 1, 3, 0, 0);
+    tensor_expect_layout(l->hc_attn_base,  DS4_TENSOR_F32, 1, hc_mix_dim, 0, 0);
+    tensor_expect_layout(l->attn_norm,     DS4_TENSOR_F32, 1, DS4_N_EMBD, 0, 0);
+    tensor_expect_layout(l->attn_q_a,      DS4_TENSOR_Q8_0, 2, DS4_N_EMBD, DS4_N_LORA_Q, 0);
+    tensor_expect_layout(l->attn_q_a_norm, DS4_TENSOR_F32, 1, DS4_N_LORA_Q, 0, 0);
+    tensor_expect_layout(l->attn_q_b,      DS4_TENSOR_Q8_0, 2, DS4_N_LORA_Q, q_dim, 0);
+    tensor_expect_layout(l->attn_kv,       DS4_TENSOR_Q8_0, 2, DS4_N_EMBD, DS4_N_HEAD_DIM, 0);
+    tensor_expect_layout(l->attn_kv_a_norm,DS4_TENSOR_F32, 1, DS4_N_HEAD_DIM, 0, 0);
+    tensor_expect_layout(l->attn_sinks,    DS4_TENSOR_F32, 1, DS4_N_HEAD, 0, 0);
+    tensor_expect_layout(l->attn_output_a, DS4_TENSOR_Q8_0, 2, DS4_N_HEAD_DIM * (DS4_N_HEAD / DS4_N_OUT_GROUP), out_low_dim, 0);
+    tensor_expect_layout(l->attn_output_b, DS4_TENSOR_Q8_0, 2, out_low_dim, DS4_N_EMBD, 0);
+    tensor_expect_plain_layout(l->hc_ffn_fn, 2, hc_dim, hc_mix_dim, 0);
+    tensor_expect_layout(l->hc_ffn_scale, DS4_TENSOR_F32, 1, 3, 0, 0);
+    tensor_expect_layout(l->hc_ffn_base,  DS4_TENSOR_F32, 1, hc_mix_dim, 0, 0);
+    tensor_expect_layout(l->ffn_norm,     DS4_TENSOR_F32, 1, DS4_N_EMBD, 0, 0);
+    tensor_expect_plain_layout(l->ffn_gate_inp, 2, DS4_N_EMBD, DS4_N_EXPERT, 0);
+    tensor_expect_layout(l->ffn_exp_probs_b, DS4_TENSOR_F32, 1, DS4_N_EXPERT, 0, 0);
+}
+
+static void dspark_weights_validate_layout(const ds4_dspark_weights *w) {
+    const uint64_t hc_dim = (uint64_t)DS4_N_EMBD * DS4_N_HC;
+    const uint64_t vocab = DS4_N_VOCAB;
+    const uint64_t markov_rank = 256;  /* dspark_markov_rank (config.json) */
+    for (int stage = 0; stage < 3; stage++) {
+        dspark_layer_validate_layout(&w->block[stage]);
+    }
+    /* Input stage (mtp.0): main_proj maps 3 target layers' mean-hidden -> dim. */
+    tensor_expect_layout(w->main_proj, DS4_TENSOR_Q8_0, 2, 3u * DS4_N_EMBD, DS4_N_EMBD, 0);
+    tensor_expect_layout(w->main_norm, DS4_TENSOR_BF16, 1, DS4_N_EMBD, 0, 0);
+    /* Output stage (mtp.2). */
+    tensor_expect_layout(w->norm,          DS4_TENSOR_BF16, 1, DS4_N_EMBD, 0, 0);
+    tensor_expect_layout(w->hc_head_base,  DS4_TENSOR_F32,  1, DS4_N_HC, 0, 0);
+    tensor_expect_plain_layout(w->hc_head_fn, 2, hc_dim, DS4_N_HC, 0);
+    tensor_expect_layout(w->hc_head_scale, DS4_TENSOR_F32,  1, 1, 0, 0);
+    tensor_expect_layout(w->markov_w1,     DS4_TENSOR_BF16, 2, markov_rank, vocab, 0);
+    tensor_expect_layout(w->markov_w2,     DS4_TENSOR_BF16, 2, markov_rank, vocab, 0);
+    tensor_expect_layout(w->confidence_proj, DS4_TENSOR_BF16, 1, DS4_N_EMBD + markov_rank, 0, 0);
 }
 
 static void weights_free(ds4_weights *w) {
@@ -21845,9 +21999,11 @@ struct ds4_vocab {
 struct ds4_engine {
     ds4_model model;
     ds4_model mtp_model;
+    ds4_model dspark_model;
     ds4_vocab vocab;
     ds4_weights weights;
     ds4_mtp_weights mtp_weights;
+    ds4_dspark_weights dspark_weights;
     ds4_backend backend;
     int mtp_draft_tokens;
     float mtp_margin;
@@ -21867,6 +22023,7 @@ struct ds4_engine {
     ds4_distributed_options distributed;
     bool metal_ready;
     bool mtp_ready;
+    bool dspark_ready;
 };
 
 static bool cpu_directional_steering_enabled(
@@ -25584,6 +25741,7 @@ int ds4_engine_open(ds4_engine **out, const ds4_engine_options *opt) {
     ds4_engine *e = xcalloc(1, sizeof(*e));
     e->model.fd = -1;
     e->mtp_model.fd = -1;
+    e->dspark_model.fd = -1;
     e->backend = opt->backend;
     e->quality = opt->quality;
     e->ssd_streaming = opt->ssd_streaming;
@@ -25730,6 +25888,29 @@ int ds4_engine_open(ds4_engine **out, const ds4_engine_options *opt) {
         fprintf(stderr, "ds4: MTP support model loaded: %s (draft=%d)\n",
                 opt->mtp_path,
                 e->mtp_draft_tokens);
+    }
+
+    /*
+     * DSpark speculative drafter (deepseek-ai/DeepSeek-V4-Flash-DSpark). A
+     * separate dspark.gguf (Phase-3 converter output) holding the 3 mtp stages,
+     * loaded alongside --mtp (the legacy single-layer MTP-1 path) is mutually
+     * exclusive at the speculative-decode entry: --dspark selects the new path.
+     * Research-only until Phase 5 wires the rejection-sampling verifier.
+     */
+    if (opt->dspark_path && opt->dspark_path[0] &&
+        opt->distributed.role == DS4_DISTRIBUTED_NONE) {
+        if (e->ssd_streaming) {
+            fprintf(stderr, "ds4: --ssd-streaming is not compatible with --dspark yet\n");
+            ds4_engine_close(e);
+            *out = NULL;
+            return 1;
+        }
+        model_open(&e->dspark_model, opt->dspark_path, graph_backend, true);
+        dspark_weights_bind(&e->dspark_weights, &e->dspark_model);
+        dspark_weights_validate_layout(&e->dspark_weights);
+        e->dspark_ready = true;
+        fprintf(stderr, "ds4: DSpark drafter loaded: %s (3 mtp stages)\n",
+                opt->dspark_path);
     }
 
 #ifndef DS4_NO_GPU
