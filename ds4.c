@@ -17815,6 +17815,50 @@ static bool metal_graph_dspark_encode_attention(
     return ok;
 }
 
+/* Forward decl: ffn_batch is defined below metal_graph_encode_layer_attention_batch. */
+static bool metal_graph_encode_layer_ffn_batch(ds4_gpu_graph *g,
+                                                const ds4_model *model,
+                                                const ds4_layer_weights *layer,
+                                                uint32_t il,
+                                                uint32_t pos0,
+                                                uint32_t n_tokens);
+
+/*
+ * DSpark drafter block (one layer): attn sub-block (above) + ffn sub-block
+ * (reused from metal_graph_encode_layer_ffn_batch), with the cur_hc<->next_hc
+ * swap. Reads g->batch_cur_hc [block,hc,dim] (and g->dspark_main_x for the
+ * anchor KV), writes g->batch_next_hc [block,hc,dim]. Mirrors
+ * metal_graph_encode_layer_batch's structure. See issue468/16; oracle
+ * block_forward is the spec.
+ */
+static bool metal_graph_dspark_encode_block(
+        ds4_gpu_graph          *g,
+        const ds4_model        *dspark_model,
+        const ds4_layer_weights *layer,
+        uint32_t                start_pos) {
+    bool ok = metal_graph_dspark_encode_attention(g, dspark_model, layer, start_pos);
+    if (!ok) {
+        fprintf(stderr, "ds4: dspark block attention sub-block failed\n");
+        return false;
+    }
+    /* FFN sub-block reads batch_after_attn_hc, writes batch_next_hc. il=0 keeps
+     * compress_ratio==0 / hash-routing off (drafter uses score-based routing at
+     * layers 43+; n_hash_layers=3 targets layers 0-2 of the target, not the
+     * drafter's 3 blocks). */
+    ok = metal_graph_encode_layer_ffn_batch(g, dspark_model, layer, /*il=*/0u,
+                                              /*pos0=*/start_pos + 1u,
+                                              DS4_DSPARK_BLOCK_SIZE);
+    if (!ok) {
+        fprintf(stderr, "ds4: dspark block ffn sub-block failed\n");
+        return false;
+    }
+    /* Swap cur_hc <-> next_hc so the next block reads this block's output. */
+    ds4_gpu_tensor *tmp = g->batch_cur_hc;
+    g->batch_cur_hc = g->batch_next_hc;
+    g->batch_next_hc = tmp;
+    return true;
+}
+
 static bool metal_graph_encode_layer_attention_batch(
         ds4_gpu_graph  *g,
         const ds4_model        *model,
@@ -28000,6 +28044,67 @@ static void ds4_dspark_probe_input_stage(ds4_session *s) {
             free(after);
         }
         if (!aok) fprintf(stderr, "ds4: dspark probe: attention sub-block FAILED\n");
+    }
+
+    /* Optional: validate the full 3-block forward (input stage + 3 blocks) vs oracle.
+     * Gate: DS4_DSPARK_PROBE_BLOCKS=1. Prefills slot0 for all 3 layers from main_x,
+     * runs metal_graph_dspark_encode_block x3, dumps the final batch_cur_hc (the h
+     * output that feeds the output stage). Compare to oracle_3block_h_pos152. */
+    if (ok && getenv("DS4_DSPARK_PROBE_BLOCKS")) {
+        bool bok = ds4_gpu_begin_commands() != 0;
+        for (uint32_t s = 0; bok && s < 3; s++) {
+            bok = ds4_gpu_matmul_q8_0_tensor(g->batch_kv_raw,
+                                               e->dspark_model.map,
+                                               e->dspark_model.size,
+                                               e->dspark_weights.block[s].attn_kv->abs_offset,
+                                               DS4_N_EMBD, DS4_N_HEAD_DIM,
+                                               g->dspark_main_x, 1) != 0;
+            if (bok) bok = ds4_gpu_rms_norm_weight_rows_tensor(g->batch_kv,
+                                                                  g->batch_kv_raw,
+                                                                  e->dspark_model.map,
+                                                                  e->dspark_model.size,
+                                                                  e->dspark_weights.block[s].attn_kv_a_norm->abs_offset,
+                                                                  DS4_N_HEAD_DIM, 1,
+                                                                  DS4_RMS_EPS) != 0;
+            if (bok) bok = ds4_gpu_rope_tail_tensor(g->batch_kv, 1, DS4_N_HEAD_KV, DS4_N_HEAD_DIM,
+                                                       DS4_N_ROT, 0u, 0u, false,
+                                                       DS4_ROPE_FREQ_BASE, 1.0f, 0.0f, 1.0f,
+                                                       DS4_ROPE_YARN_BETA_FAST, DS4_ROPE_YARN_BETA_SLOW) != 0;
+            if (bok) bok = ds4_gpu_dsv4_fp8_kv_quantize_tensor(g->batch_kv, 1,
+                                                                  DS4_N_HEAD_DIM, DS4_N_ROT) != 0;
+            if (bok) bok = ds4_gpu_store_raw_kv_batch_tensor(g->dspark_kv_cache[s],
+                                                               g->batch_kv, DS4_N_SWA + DS4_DSPARK_BLOCK_SIZE,
+                                                               0u, 1, DS4_N_HEAD_DIM) != 0;
+        }
+        if (bok) bok = ds4_gpu_end_commands() != 0;
+        if (bok) bok = ds4_gpu_synchronize() != 0;
+        g->dspark_n_real = 1;  /* slot0 prefilled for all 3 layers */
+        const uint32_t n_blocks = getenv("DS4_DSPARK_PROBE_BLOCKS_N")
+            ? (uint32_t)strtoul(getenv("DS4_DSPARK_PROBE_BLOCKS_N"), NULL, 10) : 3;
+        if (n_blocks == 0 || n_blocks > 3) { fprintf(stderr, "ds4: dspark probe: BLOCKS_N must be 1..3\n"); bok = false; }
+        for (uint32_t s = 0; bok && s < n_blocks; s++) {
+            g->dspark_layer_idx = s;
+            if (bok) bok = ds4_gpu_begin_commands() != 0;
+            if (bok) bok = metal_graph_dspark_encode_block(g, &e->dspark_model,
+                                                              &e->dspark_weights.block[s],
+                                                              /*start_pos=*/1u);
+            if (bok) bok = ds4_gpu_end_commands() != 0;
+            if (bok) bok = ds4_gpu_synchronize() != 0;
+        }
+        if (bok) {
+            const uint64_t hc_dim = (uint64_t)DS4_N_HC * DS4_N_EMBD;
+            float *h = xmalloc((size_t)DS4_DSPARK_BLOCK_SIZE * hc_dim * sizeof(float));
+            if (ds4_gpu_tensor_read(g->batch_cur_hc, 0, h,
+                                    (size_t)DS4_DSPARK_BLOCK_SIZE * hc_dim * sizeof(float))) {
+                char hp[1024]; snprintf(hp, sizeof(hp), "%s/metal_%ublock_h_pos152.bin", capdir, n_blocks);
+                FILE *fp = fopen(hp, "wb");
+                if (fp) { fwrite(h, sizeof(float), DS4_DSPARK_BLOCK_SIZE * hc_dim, fp); fclose(fp);
+                    fprintf(stderr, "ds4: dspark probe: wrote %s\n", hp);
+                }
+            }
+            free(h);
+        }
+        if (!bok) fprintf(stderr, "ds4: dspark probe: 3-block forward FAILED\n");
     }
 }
 
