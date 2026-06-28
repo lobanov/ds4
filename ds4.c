@@ -26164,6 +26164,26 @@ int ds4_engine_open(ds4_engine **out, const ds4_engine_options *opt) {
             *out = NULL;
             return 1;
         }
+        /* Register the DSpark drafter model with the Metal device (parallel to the
+         * MTP map above). Without this, any GPU matmul on drafter weights reads an
+         * unregistered map and fails — required for the Metal drafter forward and
+         * the backbone-timing probe (issue468/19). */
+        if (e->dspark_ready &&
+            !ds4_gpu_set_model_map_range(e->dspark_model.map,
+                                           e->dspark_model.size,
+                                           e->dspark_model.tensor_data_pos,
+                                           e->dspark_model.size - e->dspark_model.tensor_data_pos,
+                                           e->dspark_model.max_tensor_bytes))
+        {
+            fprintf(stderr,
+                    "ds4: %s failed to map DSpark model views; aborting startup.\n",
+                    ds4_backend_name(e->backend));
+            free(load_offsets);
+            free(load_sizes);
+            ds4_engine_close(e);
+            *out = NULL;
+            return 1;
+        }
         if (!ds4_engine_preload_pro_q4_expert_tables(e,
                                                      load_slice,
                                                      load_layer_start,
@@ -27307,6 +27327,87 @@ int ds4_session_set_logits(ds4_session *s, const float *logits, int n) {
     return 0;
 }
 
+/*
+ * DSpark drafter backbone timing (research-only, env-gated). Measures the real
+ * Metal cost of running the drafter's 3 blocks through metal_graph_encode_layer_batch
+ * at n_tokens=block_size(5) on the drafter weights, so the long-context speedup
+ * verdict (issue468/19) uses a MEASURED draft backbone cost, not a projection.
+ * Reuses the EXACT batch kernels the real drafter forward will use; correctness of
+ * the drafter output is NOT exercised here (that is phase4-refcheck's job via the
+ * full forward) — this is purely a latency probe on the drafter's actual weights.
+ *
+ * Gate: DS4_DSPARK_TIME_BACKBONE=1. Runs once on the first decode step; repeats N
+ * times (DS4_DSPARK_TIME_BACKBONE_ITERS, default 20) for a stable median.
+ */
+static void ds4_dspark_time_backbone(ds4_session *s) {
+    ds4_engine *e = s ? s->engine : NULL;
+    if (!e || !e->dspark_ready) return;
+    ds4_gpu_graph *g = &s->graph;
+    const uint32_t block_size = 5;
+    const uint64_t hc_dim = (uint64_t)DS4_N_HC * DS4_N_EMBD;
+    if (g->prefill_cap < block_size || !g->batch_cur_hc || !g->batch_next_hc) return;
+
+    /* Upload a dummy 5-token HC block (correctness irrelevant for timing). */
+    float *hc = xmalloc((size_t)block_size * hc_dim * sizeof(float));
+    for (uint64_t i = 0; i < block_size * hc_dim; i++) hc[i] = 0.01f * (float)(i % 7);
+    bool ok = ds4_gpu_tensor_write(g->batch_cur_hc, 0, hc,
+                                   block_size * hc_dim * sizeof(float)) != 0;
+    free(hc);
+    if (!ok) return;
+    ok = ds4_gpu_synchronize() != 0;
+    if (!ok) return;
+
+    const int niters = getenv("DS4_DSPARK_TIME_BACKBONE_ITERS")
+        ? atoi(getenv("DS4_DSPARK_TIME_BACKBONE_ITERS")) : 20;
+    if (niters <= 0) return;
+    double *ms = xmalloc((size_t)niters * sizeof(ms[0]));
+
+    for (int it = 0; it < niters; it++) {
+        /* Each iteration: upload dummy HC, run 3 drafter blocks, sync, time.
+         * il=0 for all 3 -> compress_ratio==0 (correct DSpark config; FLASH ratio[0]=0).
+         * n_tokens=block_size(5) on drafter weights via the drafter model map. */
+        float dummy = 0.0f;
+        if (ds4_gpu_tensor_write(g->batch_cur_hc, 0, &dummy, sizeof(dummy)) == 0) { ok = false; break; }
+        const double t0 = now_sec();
+        ok = ds4_gpu_begin_commands() != 0;
+        ds4_gpu_tensor *cur = g->batch_cur_hc;
+        for (uint32_t s = 0; ok && s < 3; s++) {
+            g->cur_hc = cur;
+            g->after_ffn_hc = g->batch_next_hc;
+            ok = metal_graph_encode_layer_batch(g,
+                                                &e->dspark_model,
+                                                &e->dspark_weights.block[s],
+                                                0u,          /* il=0 -> compress_ratio 0 */
+                                                0u,          /* pos0 */
+                                                block_size);
+            cur = g->batch_next_hc;
+        }
+        if (ok) ok = ds4_gpu_end_commands() != 0;
+        if (ok) ok = ds4_gpu_synchronize() != 0;
+        ms[it] = ok ? (now_sec() - t0) * 1000.0 : -1.0;
+        if (!ok) break;
+    }
+
+    if (ok) {
+        /* median */
+        int cnt = 0;
+        double sorted[256];
+        for (int it = 0; it < niters; it++) if (ms[it] > 0 && cnt < 256) sorted[cnt++] = ms[it];
+        for (int i = 1; i < cnt; i++) { double v = sorted[i]; int j = i-1;
+            while (j >= 0 && sorted[j] > v) { sorted[j+1] = sorted[j]; j--; } sorted[j+1] = v; }
+        double median = cnt ? sorted[cnt/2] : -1.0;
+        double p10 = cnt ? sorted[(int)(cnt*0.1)] : -1.0;
+        double p90 = cnt ? sorted[(int)(cnt*0.9)] : -1.0;
+        fprintf(stderr,
+            "ds4: dspark backbone timing (3 drafter layers, n_tokens=%u, %d iters): "
+            "median=%.2f ms p10=%.2f p90=%.2f  [draft cost ~= this + ~1.5ms lm_head + ~1.5ms head overhead]\n",
+            block_size, niters, median, p10, p90);
+    } else {
+        fprintf(stderr, "ds4: dspark backbone timing FAILED during measurement\n");
+    }
+    free(ms);
+}
+
 static int ds4_session_eval_internal(ds4_session *s, int token, bool probe_mtp,
                                      char *err, size_t errlen) {
     if (!s) return 1;
@@ -27377,6 +27478,7 @@ static int ds4_session_eval_internal(ds4_session *s, int token, bool probe_mtp,
         return 1;
     }
     token_vec_push(&s->checkpoint, token);
+
     if (mtp_should_draft) {
         int mtp_top = -1;
         if (metal_graph_eval_mtp_draft(&s->graph,
@@ -28316,6 +28418,14 @@ int ds4_engine_verifier_curve_test(ds4_engine *e, const ds4_tokens *prompt, int 
     free(logits0);
     free(logits_scratch);
     free(logits_save);
+    if (e->dspark_ready && getenv("DS4_DSPARK_TIME_BACKBONE")) {
+        /* DSpark drafter backbone timing: the session graph has batch buffers
+         * (prefill_cap >> 5), so we can time the drafter's 3 batch blocks here.
+         * Reuses the EXACT batch kernels the real drafter forward will use, on
+         * the drafter weights. See issue468/19 (long-ctx draft-cost decision).
+         * Runs regardless of verifier-curve rc (the batch buffers are valid). */
+        ds4_dspark_time_backbone(s);
+    }
     ds4_session_free(s);
     if (rc == 0) fprintf(stderr, "ds4: verifier curve test complete\n");
     return rc;
