@@ -1,9 +1,11 @@
 # Phase 4 — Metal drafter forward: implementation spec
 
 Status: allocation wiring DONE (enable_dspark threaded through metal_graph_alloc_raw_cap;
-drafter GPU buffers allocated; --dspark loads without crash). The forward FUNCTION
-itself is the remaining substantive work — this doc is the precise plan, with the
-validated numpy oracle (issue468/dspark_oracle/) as the ready spec to port.
+drafter GPU buffers allocated; --dspark loads without crash). INPUT STAGE DONE +
+VALIDATED (main_proj+main_norm match numpy oracle EXACTLY, max err 0.0). The 3
+DSparkBlocks need a genuinely-new non-causal sparse-attention kernel (recon below);
+the output stage is pending. The forward FUNCTION is the remaining work, with the
+validated numpy oracle (issue468/dspark_oracle/) as the spec to port.
 
 ## Validated foundation (why this is an implementation task, not research)
 
@@ -30,22 +32,37 @@ Needs a small mean-over-hc kernel OR reuse: ds4_gpu has hc reduce ops; check
 ds4_gpu_hc_weighted_sum_* (uniform weights = mean). Correctness-first: can
 readback+CPU mean+upload initially.
 
-### 1. forward_embed (mtp.0 input stage) — trivial primitives
-- main_x = rmsnorm(main_hidden @ main_proj.T, main_norm)  [main_proj Q8_0, matmul_q8_0 + rms_norm_weight]
-- draft tokens = [anchor, NOISE×4] (block_size=5)
-- x = embed[draft_tokens]  [ds4_gpu_embed_tokens_hc or batch embed]
-- HC-expand: repeat to [5, HC, EMBD]  [ds4_gpu_repeat_hc_tensor]
+## Stage 1: forward_embed (mtp.0 input stage) — DONE + VALIDATED
+Implemented as `metal_graph_dspark_input_stage` (ds4.c):
+- main_x = rmsnorm(main_hidden @ main_proj, main_norm)  [ds4_gpu_matmul_q8_0_tensor
+  (main_proj Q8_0, in_dim=3*dim, out_dim=dim) + ds4_gpu_rms_norm_weight_tensor]
+- draft block = embed([anchor, NOISE×4]) + HC-expand via metal_graph_upload_prompt_embeddings_hc
+  (drafter shares target token_embd) -> batch_cur_hc [block,hc,dim]
+Validation (DS4_DSPARK_PROBE_INPUT): main_x matches oracle EXACTLY (max err 0.0,
+corr 1.0) on pos152 code-prompt capture. Two prerequisite bugs found+fixed:
+  (a) dspark model map not finalized -> added accelerator_cache_model_tensors
+      (parallel to MTP); without it GPU matmuls read zeros.
+  (b) BF16 norms vs F32-only rmsnorm kernel -> converted main_norm/mtp.2.norm to
+      F32 in build_dspark_template.py + updated dspark_weights_validate_layout.
+      (markov_w1/w2/confidence_proj still BF16 — verify their kernels at stage 3.)
 
-### 2. Three DSparkBlocks — the heavy piece
+## Stage 2: Three DSparkBlocks — the genuinely-hard piece (RECON DONE)
 Each block: hc_pre -> attn -> hc_post -> hc_pre -> ffn -> hc_post.
-- hc_pre/post: ds4_gpu_hc_split_sinkhorn + hc_weighted_sum (batched variants used in
-  metal_graph_encode_layer_attention_batch). Reuse directly.
-- attn (window MLA, compress_ratio==0): the batched window path in
-  metal_graph_encode_layer_attention_batch. DSpark-specific changes:
-  (a) anchor KV slot populated from main_x (rmsnorm + wkv + rotary), not from draft embed;
-  (b) DSpark topk pattern [0..n_real-1] ++ [win..win+4] (get_dspark_topk_idxs).
-  The batch attention kernel accepts a topk index tensor; pass the DSpark pattern.
-- ffn (MoE): ds4 MoE batch kernels (Q4_K experts, gate, shared). Reuse metal_graph_encode_layer_ffn_batch.
+- hc_pre/post/ffn: REUSABLE from metal_graph_encode_layer_batch (the batched HC
+  Sinkhorn + MoE kernels work for the drafter; per-layer norms are F32).
+- attn (window MLA, compress_ratio==0): CANNOT reuse the batch attention as-is.
+  Recon finding: DSpark draft attention is NON-CAUSAL over the block — every draft
+  position attends to (window slots [0..n_real-1]) ++ (all 5 draft positions
+  [win..win+4]); the gathered KV is broadcast to ALL positions (attention.py
+  sparse_attn + dspark_topk_idxs, no causal mask). The verify path's
+  ds4_gpu_attention_decode_raw_batch_heads_tensor is causal/windowed -> wrong.
+  Reusable: q computation (wq_a/rmsnorm/wq_b/head_rmsnorm/rope), kv computation
+  (wkv/rmsnorm/rope/fp8_quant), output projection (wo_a/wo_b). Genuinely-new:
+  (a) anchor KV from main_x (rmsnorm+wkv+rope on main_x -> window slot); (b) the
+  DSpark topk gather [0..n_real-1]++[win..win+4]; (c) non-causal sparse attention
+  (q @ gathered_kv, softmax with attn_sink, weighted sum). Needs a new Metal kernel
+  OR careful assembly from existing sparse-attn primitives (TBD — check for a
+  non-causal/indexed-gather batched attention primitive first).
 
 ### 3. forward_head (mtp.2 output stage)
 - hc_head: drafter output-stage HC reduce (sigmoid, not Sinkhorn). Small; needs a
