@@ -874,6 +874,7 @@ typedef enum { EXP_NONE, EXP_W1, EXP_W2, EXP_W3 } expert_part;
 
 typedef struct {
     bool is_expert;
+    bool is_mtp;
     int layer;
     expert_part part;
 } expert_tensor;
@@ -883,14 +884,24 @@ static expert_tensor parse_expert_tensor(const char *name) {
     int layer = -1;
     char kind[16];
     int rest = 0;
+    /* DSpark drafter experts live under mtp.N.ffn_<part>_exps (Phase 3); the
+     * target's live under blk.N.ffn_<part>_exps. Both fuse 256 per-expert HF
+     * tensors into one packed GGUF tensor. */
     if (sscanf(name, "blk.%d.ffn_%15[^_]_exps.weight%n", &layer, kind, &rest) == 2
         && rest == (int)strlen(name))
     {
-        if (strcmp(kind, "gate") == 0 || strcmp(kind, "down") == 0 || strcmp(kind, "up") == 0) {
-            e.is_expert = true;
-            e.layer = layer;
-            e.part = strcmp(kind, "gate") == 0 ? EXP_W1 : strcmp(kind, "down") == 0 ? EXP_W2 : EXP_W3;
-        }
+        /* target expert */
+    } else if (sscanf(name, "mtp.%d.ffn_%15[^_]_exps.weight%n", &layer, kind, &rest) == 2
+               && rest == (int)strlen(name))
+    {
+        e.is_mtp = true;
+    } else {
+        return e;
+    }
+    if (strcmp(kind, "gate") == 0 || strcmp(kind, "down") == 0 || strcmp(kind, "up") == 0) {
+        e.is_expert = true;
+        e.layer = layer;
+        e.part = strcmp(kind, "gate") == 0 ? EXP_W1 : strcmp(kind, "down") == 0 ? EXP_W2 : EXP_W3;
     }
     return e;
 }
@@ -954,24 +965,58 @@ static const name_map layer_map[] = {
     { "ffn_gate_tid2eid.weight",          "ffn.gate.tid2eid" },
 };
 
+/* DSpark drafter output/input-stage tensors not present in the target blocks.
+ * Block-internal DSpark tensors (attn_*, hc_attn/ffn_*, ffn_*, norms) reuse
+ * layer_map above; only these DSpark-unique tensors need their own entries.
+ * GGUF name suffix -> HF name suffix, applied after the mtp.N. prefix.
+ * (issue468 Phase 3; see 10_converter_reuse.md) */
+static const name_map mtp_unique_map[] = {
+    { "main_proj.weight",                  "main_proj.weight" },     /* F8_E4M3 + .scale pair (mtp.0) */
+    { "main_norm.weight",                  "main_norm.weight" },     /* BF16 (mtp.0) */
+    { "norm.weight",                       "norm.weight" },          /* BF16 (mtp.2 output norm) */
+    { "hc_head_base.weight",               "hc_head_base" },         /* F32 (mtp.2, no .weight in HF) */
+    { "hc_head_fn.weight",                 "hc_head_fn" },           /* F32 (mtp.2) */
+    { "hc_head_scale.weight",              "hc_head_scale" },        /* F32 (mtp.2) */
+    { "markov_head.markov_w1.weight",      "markov_head.markov_w1.weight" },  /* BF16 (mtp.2) */
+    { "markov_head.markov_w2.weight",      "markov_head.markov_w2.weight" },  /* BF16 (mtp.2) */
+    { "confidence_head.proj.weight",       "confidence_head.proj.weight" },   /* BF16 (mtp.2) */
+};
+
 static char *hf_name_for_regular(const char *gguf_name) {
     for (size_t i = 0; i < sizeof(top_map) / sizeof(top_map[0]); i++) {
         if (strcmp(gguf_name, top_map[i].gguf) == 0) return xstrdup(top_map[i].hf);
     }
     int layer = -1;
     const char *p = gguf_name;
-    if (sscanf(p, "blk.%d.", &layer) != 1) {
+    bool is_mtp = false;
+    if (sscanf(p, "blk.%d.", &layer) == 1) {
+        /* target block */
+    } else if (sscanf(p, "mtp.%d.", &layer) == 1) {
+        is_mtp = true;
+    } else {
         fprintf(stderr, "error: cannot map GGUF tensor to HF tensor: %s\n", gguf_name);
         exit(1);
     }
     const char *rest = strchr(p + 4, '.');
     if (!rest) die("bad layer tensor name");
     rest++;
+    /* DSpark block-internal tensors reuse the target's layer_map (the blocks
+     * are mini-DeepSeek-V4); only the layer prefix differs (mtp.N vs layers.N). */
     for (size_t i = 0; i < sizeof(layer_map) / sizeof(layer_map[0]); i++) {
         if (strcmp(rest, layer_map[i].gguf) == 0) {
             char buf[512];
-            snprintf(buf, sizeof(buf), "layers.%d.%s", layer, layer_map[i].hf);
+            snprintf(buf, sizeof(buf), "%s.%d.%s", is_mtp ? "mtp" : "layers",
+                     layer, layer_map[i].hf);
             return xstrdup(buf);
+        }
+    }
+    if (is_mtp) {
+        for (size_t i = 0; i < sizeof(mtp_unique_map) / sizeof(mtp_unique_map[0]); i++) {
+            if (strcmp(rest, mtp_unique_map[i].gguf) == 0) {
+                char buf[512];
+                snprintf(buf, sizeof(buf), "mtp.%d.%s", layer, mtp_unique_map[i].hf);
+                return xstrdup(buf);
+            }
         }
     }
     fprintf(stderr, "error: cannot map GGUF tensor to HF tensor: %s\n", gguf_name);
@@ -1223,7 +1268,11 @@ typedef struct {
 
 static void generate_one_expert(expert_job *j, int xid) {
     char prefix[256];
-    snprintf(prefix, sizeof(prefix), "layers.%d.ffn.experts.%d.%s", j->expert.layer, xid, j->wid);
+    /* DSpark drafter experts are sourced from mtp.N.ffn.experts.<i>.* ; the
+     * target's from layers.N.ffn.experts.<i>.* (same per-expert file layout). */
+    snprintf(prefix, sizeof(prefix),
+             j->expert.is_mtp ? "mtp.%d.ffn.experts.%d.%s" : "layers.%d.ffn.experts.%d.%s",
+             j->expert.layer, xid, j->wid);
     char weight_name[320];
     char scale_name[320];
     snprintf(weight_name, sizeof(weight_name), "%s.weight", prefix);
