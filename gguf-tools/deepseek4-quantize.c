@@ -1197,12 +1197,21 @@ static size_t tensor_nbytes(ds4q_type type, const int64_t *ne, int n_dims) {
 
 static void check_reversed_shape(const char *gguf_name, const st_info *info, const tensor_meta *tmpl) {
     int nd = tensor_n_dims(tmpl);
-    if (info->n_dims != nd) {
+    /* tensor_n_dims() strips trailing size-1 GGUF dims. GGUF ne is HF shape
+     * reversed, so a trailing-1 GGUF dim is a LEADING-1 HF dim (outermost).
+     * Strip the same way on the HF side so a genuinely lower-rank tensor that
+     * HF stores with a leading 1 (e.g. DSpark mtp.2.confidence_head.proj at HF
+     * shape [1,4352]) matches its 1-D GGUF template. Normal [out,in] weights
+     * have a non-1 outer dim and are unaffected. */
+    int hoff = 0;
+    while (info->n_dims - hoff > 1 && info->shape[hoff] == 1) hoff++;
+    int hnd = info->n_dims - hoff;
+    if (hnd != nd) {
         fprintf(stderr, "error: rank mismatch for %s\n", gguf_name);
         exit(1);
     }
     for (int i = 0; i < nd; i++) {
-        if (tmpl->ne[i] != info->shape[nd - 1 - i]) {
+        if (tmpl->ne[i] != info->shape[hoff + nd - 1 - i]) {
             fprintf(stderr, "error: shape mismatch for %s\n", gguf_name);
             exit(1);
         }

@@ -61,9 +61,9 @@ def tensors():
     for L in EMIT_LAYERS:
         P = f"mtp.{L}"
         # --- block-internal (mini-DeepSeek-V4 block; same each layer) ---
-        add(f"{P}.hc_head_base.weight",  [DS4_N_HC],            F32)
-        add(f"{P}.hc_head_fn.weight",    [DS4_N_HC, HCD],       F32)
-        add(f"{P}.hc_head_scale.weight", [1],                   F32)
+        # NOTE: hc_head_* is the drafter's OUTPUT-stage HC head and exists on
+        # mtp.2 ONLY (verified against HF inventory); it is emitted with the
+        # other mtp.2 output-stage tensors below, not here.
         add(f"{P}.hc_attn_base.weight",  [HCM],                 F32)
         add(f"{P}.hc_attn_fn.weight",    [HCM, HCD],            F32)
         add(f"{P}.hc_attn_scale.weight", [3],                   F32)
@@ -95,6 +95,11 @@ def tensors():
             add(f"{P}.main_proj.weight", [EMBD, EMBD * len(DSPARK_TARGET_LAYERS)], Q8_0)
             add(f"{P}.main_norm.weight", [EMBD], BF16)
         if L == 2:
+            # hc_head_* is the output-stage HC head (mtp.2 only; absent on
+            # mtp.0/1 in HF). F32 like the target's output_hc_* tensors.
+            add(f"{P}.hc_head_base.weight",          [DS4_N_HC],         F32)
+            add(f"{P}.hc_head_fn.weight",            [DS4_N_HC, HCD],    F32)
+            add(f"{P}.hc_head_scale.weight",         [1],                F32)
             add(f"{P}.norm.weight",                  [EMBD],             BF16)
             add(f"{P}.markov_head.markov_w1.weight", [VOCAB, MR],        BF16)
             add(f"{P}.markov_head.markov_w2.weight", [VOCAB, MR],        BF16)

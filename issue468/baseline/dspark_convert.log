@@ -1,0 +1,250 @@
+using 256 routed experts from template metadata
+[   1/  81] mtp.0.hc_attn_base.weight -> f32
+       generated 0.00 MiB
+[   2/  81] mtp.0.hc_attn_fn.weight -> f32
+       generated 1.50 MiB
+[   3/  81] mtp.0.hc_attn_scale.weight -> f32
+       generated 0.00 MiB
+[   4/  81] mtp.0.hc_ffn_base.weight -> f32
+       generated 0.00 MiB
+[   5/  81] mtp.0.hc_ffn_fn.weight -> f32
+       generated 1.50 MiB
+[   6/  81] mtp.0.hc_ffn_scale.weight -> f32
+       generated 0.00 MiB
+[   7/  81] mtp.0.attn_sinks.weight -> f32
+       generated 0.00 MiB
+[   8/  81] mtp.0.attn_q_a.weight -> q8_0
+       generated 4.25 MiB
+[   9/  81] mtp.0.attn_q_b.weight -> q8_0
+       generated 34.00 MiB
+[  10/  81] mtp.0.attn_q_a_norm.weight -> f32
+       generated 0.00 MiB
+[  11/  81] mtp.0.attn_kv.weight -> q8_0
+       generated 2.12 MiB
+[  12/  81] mtp.0.attn_kv_a_norm.weight -> f32
+       generated 0.00 MiB
+[  13/  81] mtp.0.attn_output_a.weight -> q8_0
+       generated 34.00 MiB
+[  14/  81] mtp.0.attn_output_b.weight -> q8_0
+       generated 34.00 MiB
+[  15/  81] mtp.0.attn_norm.weight -> f32
+       generated 0.02 MiB
+[  16/  81] mtp.0.ffn_norm.weight -> f32
+       generated 0.02 MiB
+[  17/  81] mtp.0.ffn_gate_shexp.weight -> q8_0
+       generated 8.50 MiB
+[  18/  81] mtp.0.ffn_up_shexp.weight -> q8_0
+       generated 8.50 MiB
+[  19/  81] mtp.0.ffn_down_shexp.weight -> q8_0
+       generated 8.50 MiB
+[  20/  81] mtp.0.ffn_gate_exps.weight -> q4_K
+generate_expert_tensor: layer 0 w1 using 8 workers
+generate_expert_tensor: layer 0 w1 32/256 experts
+generate_expert_tensor: layer 0 w1 64/256 experts
+generate_expert_tensor: layer 0 w1 96/256 experts
+generate_expert_tensor: layer 0 w1 128/256 experts
+generate_expert_tensor: layer 0 w1 160/256 experts
+generate_expert_tensor: layer 0 w1 192/256 experts
+generate_expert_tensor: layer 0 w1 224/256 experts
+generate_expert_tensor: layer 0 w1 256/256 experts
+       generated 1152.00 MiB
+[  21/  81] mtp.0.ffn_up_exps.weight -> q4_K
+generate_expert_tensor: layer 0 w3 using 8 workers
+generate_expert_tensor: layer 0 w3 32/256 experts
+generate_expert_tensor: layer 0 w3 64/256 experts
+generate_expert_tensor: layer 0 w3 96/256 experts
+generate_expert_tensor: layer 0 w3 128/256 experts
+generate_expert_tensor: layer 0 w3 160/256 experts
+generate_expert_tensor: layer 0 w3 192/256 experts
+generate_expert_tensor: layer 0 w3 224/256 experts
+generate_expert_tensor: layer 0 w3 256/256 experts
+       generated 1152.00 MiB
+[  22/  81] mtp.0.ffn_down_exps.weight -> q4_K
+generate_expert_tensor: layer 0 w2 using 8 workers
+generate_expert_tensor: layer 0 w2 32/256 experts
+generate_expert_tensor: layer 0 w2 64/256 experts
+generate_expert_tensor: layer 0 w2 96/256 experts
+generate_expert_tensor: layer 0 w2 128/256 experts
+generate_expert_tensor: layer 0 w2 160/256 experts
+generate_expert_tensor: layer 0 w2 192/256 experts
+generate_expert_tensor: layer 0 w2 224/256 experts
+generate_expert_tensor: layer 0 w2 256/256 experts
+       generated 1152.00 MiB
+[  23/  81] mtp.0.ffn_gate_inp.weight -> f32
+       generated 4.00 MiB
+[  24/  81] mtp.0.exp_probs_b.bias -> f32
+       generated 0.00 MiB
+[  25/  81] mtp.0.main_proj.weight -> q8_0
+       generated 51.00 MiB
+[  26/  81] mtp.0.main_norm.weight -> bf16
+       generated 0.01 MiB
+[  27/  81] mtp.1.hc_attn_base.weight -> f32
+       generated 0.00 MiB
+[  28/  81] mtp.1.hc_attn_fn.weight -> f32
+       generated 1.50 MiB
+[  29/  81] mtp.1.hc_attn_scale.weight -> f32
+       generated 0.00 MiB
+[  30/  81] mtp.1.hc_ffn_base.weight -> f32
+       generated 0.00 MiB
+[  31/  81] mtp.1.hc_ffn_fn.weight -> f32
+       generated 1.50 MiB
+[  32/  81] mtp.1.hc_ffn_scale.weight -> f32
+       generated 0.00 MiB
+[  33/  81] mtp.1.attn_sinks.weight -> f32
+       generated 0.00 MiB
+[  34/  81] mtp.1.attn_q_a.weight -> q8_0
+       generated 4.25 MiB
+[  35/  81] mtp.1.attn_q_b.weight -> q8_0
+       generated 34.00 MiB
+[  36/  81] mtp.1.attn_q_a_norm.weight -> f32
+       generated 0.00 MiB
+[  37/  81] mtp.1.attn_kv.weight -> q8_0
+       generated 2.12 MiB
+[  38/  81] mtp.1.attn_kv_a_norm.weight -> f32
+       generated 0.00 MiB
+[  39/  81] mtp.1.attn_output_a.weight -> q8_0
+       generated 34.00 MiB
+[  40/  81] mtp.1.attn_output_b.weight -> q8_0
+       generated 34.00 MiB
+[  41/  81] mtp.1.attn_norm.weight -> f32
+       generated 0.02 MiB
+[  42/  81] mtp.1.ffn_norm.weight -> f32
+       generated 0.02 MiB
+[  43/  81] mtp.1.ffn_gate_shexp.weight -> q8_0
+       generated 8.50 MiB
+[  44/  81] mtp.1.ffn_up_shexp.weight -> q8_0
+       generated 8.50 MiB
+[  45/  81] mtp.1.ffn_down_shexp.weight -> q8_0
+       generated 8.50 MiB
+[  46/  81] mtp.1.ffn_gate_exps.weight -> q4_K
+generate_expert_tensor: layer 1 w1 using 8 workers
+generate_expert_tensor: layer 1 w1 32/256 experts
+generate_expert_tensor: layer 1 w1 64/256 experts
+generate_expert_tensor: layer 1 w1 96/256 experts
+generate_expert_tensor: layer 1 w1 128/256 experts
+generate_expert_tensor: layer 1 w1 160/256 experts
+generate_expert_tensor: layer 1 w1 192/256 experts
+generate_expert_tensor: layer 1 w1 224/256 experts
+generate_expert_tensor: layer 1 w1 256/256 experts
+       generated 1152.00 MiB
+[  47/  81] mtp.1.ffn_up_exps.weight -> q4_K
+generate_expert_tensor: layer 1 w3 using 8 workers
+generate_expert_tensor: layer 1 w3 32/256 experts
+generate_expert_tensor: layer 1 w3 64/256 experts
+generate_expert_tensor: layer 1 w3 96/256 experts
+generate_expert_tensor: layer 1 w3 128/256 experts
+generate_expert_tensor: layer 1 w3 160/256 experts
+generate_expert_tensor: layer 1 w3 192/256 experts
+generate_expert_tensor: layer 1 w3 224/256 experts
+generate_expert_tensor: layer 1 w3 256/256 experts
+       generated 1152.00 MiB
+[  48/  81] mtp.1.ffn_down_exps.weight -> q4_K
+generate_expert_tensor: layer 1 w2 using 8 workers
+generate_expert_tensor: layer 1 w2 32/256 experts
+generate_expert_tensor: layer 1 w2 64/256 experts
+generate_expert_tensor: layer 1 w2 96/256 experts
+generate_expert_tensor: layer 1 w2 128/256 experts
+generate_expert_tensor: layer 1 w2 160/256 experts
+generate_expert_tensor: layer 1 w2 192/256 experts
+generate_expert_tensor: layer 1 w2 224/256 experts
+generate_expert_tensor: layer 1 w2 256/256 experts
+       generated 1152.00 MiB
+[  49/  81] mtp.1.ffn_gate_inp.weight -> f32
+       generated 4.00 MiB
+[  50/  81] mtp.1.exp_probs_b.bias -> f32
+       generated 0.00 MiB
+[  51/  81] mtp.2.hc_attn_base.weight -> f32
+       generated 0.00 MiB
+[  52/  81] mtp.2.hc_attn_fn.weight -> f32
+       generated 1.50 MiB
+[  53/  81] mtp.2.hc_attn_scale.weight -> f32
+       generated 0.00 MiB
+[  54/  81] mtp.2.hc_ffn_base.weight -> f32
+       generated 0.00 MiB
+[  55/  81] mtp.2.hc_ffn_fn.weight -> f32
+       generated 1.50 MiB
+[  56/  81] mtp.2.hc_ffn_scale.weight -> f32
+       generated 0.00 MiB
+[  57/  81] mtp.2.attn_sinks.weight -> f32
+       generated 0.00 MiB
+[  58/  81] mtp.2.attn_q_a.weight -> q8_0
+       generated 4.25 MiB
+[  59/  81] mtp.2.attn_q_b.weight -> q8_0
+       generated 34.00 MiB
+[  60/  81] mtp.2.attn_q_a_norm.weight -> f32
+       generated 0.00 MiB
+[  61/  81] mtp.2.attn_kv.weight -> q8_0
+       generated 2.12 MiB
+[  62/  81] mtp.2.attn_kv_a_norm.weight -> f32
+       generated 0.00 MiB
+[  63/  81] mtp.2.attn_output_a.weight -> q8_0
+       generated 34.00 MiB
+[  64/  81] mtp.2.attn_output_b.weight -> q8_0
+       generated 34.00 MiB
+[  65/  81] mtp.2.attn_norm.weight -> f32
+       generated 0.02 MiB
+[  66/  81] mtp.2.ffn_norm.weight -> f32
+       generated 0.02 MiB
+[  67/  81] mtp.2.ffn_gate_shexp.weight -> q8_0
+       generated 8.50 MiB
+[  68/  81] mtp.2.ffn_up_shexp.weight -> q8_0
+       generated 8.50 MiB
+[  69/  81] mtp.2.ffn_down_shexp.weight -> q8_0
+       generated 8.50 MiB
+[  70/  81] mtp.2.ffn_gate_exps.weight -> q4_K
+generate_expert_tensor: layer 2 w1 using 8 workers
+generate_expert_tensor: layer 2 w1 32/256 experts
+generate_expert_tensor: layer 2 w1 64/256 experts
+generate_expert_tensor: layer 2 w1 96/256 experts
+generate_expert_tensor: layer 2 w1 128/256 experts
+generate_expert_tensor: layer 2 w1 160/256 experts
+generate_expert_tensor: layer 2 w1 192/256 experts
+generate_expert_tensor: layer 2 w1 224/256 experts
+generate_expert_tensor: layer 2 w1 256/256 experts
+       generated 1152.00 MiB
+[  71/  81] mtp.2.ffn_up_exps.weight -> q4_K
+generate_expert_tensor: layer 2 w3 using 8 workers
+generate_expert_tensor: layer 2 w3 32/256 experts
+generate_expert_tensor: layer 2 w3 64/256 experts
+generate_expert_tensor: layer 2 w3 96/256 experts
+generate_expert_tensor: layer 2 w3 128/256 experts
+generate_expert_tensor: layer 2 w3 160/256 experts
+generate_expert_tensor: layer 2 w3 192/256 experts
+generate_expert_tensor: layer 2 w3 224/256 experts
+generate_expert_tensor: layer 2 w3 256/256 experts
+       generated 1152.00 MiB
+[  72/  81] mtp.2.ffn_down_exps.weight -> q4_K
+generate_expert_tensor: layer 2 w2 using 8 workers
+generate_expert_tensor: layer 2 w2 32/256 experts
+generate_expert_tensor: layer 2 w2 64/256 experts
+generate_expert_tensor: layer 2 w2 96/256 experts
+generate_expert_tensor: layer 2 w2 128/256 experts
+generate_expert_tensor: layer 2 w2 160/256 experts
+generate_expert_tensor: layer 2 w2 192/256 experts
+generate_expert_tensor: layer 2 w2 224/256 experts
+generate_expert_tensor: layer 2 w2 256/256 experts
+       generated 1152.00 MiB
+[  73/  81] mtp.2.ffn_gate_inp.weight -> f32
+       generated 4.00 MiB
+[  74/  81] mtp.2.exp_probs_b.bias -> f32
+       generated 0.00 MiB
+[  75/  81] mtp.2.hc_head_base.weight -> f32
+       generated 0.00 MiB
+[  76/  81] mtp.2.hc_head_fn.weight -> f32
+       generated 0.25 MiB
+[  77/  81] mtp.2.hc_head_scale.weight -> f32
+       generated 0.00 MiB
+[  78/  81] mtp.2.norm.weight -> bf16
+       generated 0.01 MiB
+[  79/  81] mtp.2.markov_head.markov_w1.weight -> bf16
+       generated 63.12 MiB
+[  80/  81] mtp.2.markov_head.markov_w2.weight -> bf16
+       generated 63.12 MiB
+[  81/  81] mtp.2.confidence_head.proj.weight -> bf16
+       generated 0.01 MiB
+wrote ../ds4/gguf/dspark.gguf
+n_tensors: 81
+meta_bytes: 5440
+tensor_bytes_unpadded: 11501058972
+approx_file_bytes: 11501064576
+type_changes: 0
