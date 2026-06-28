@@ -10575,6 +10575,16 @@ typedef struct {
     ds4_gpu_tensor *mtp_next_hc;
     ds4_gpu_tensor *mtp_raw_cache;
     uint32_t mtp_n_raw;
+
+    /* DSpark drafter GPU buffers (Phase 4). main_hidden captures the target's
+     * mean-hidden at layers [40,41,42] during decode; the drafter forward reads
+     * it to produce a block of draft tokens. Reuses batch_* buffers for the
+     * 5-position draft block encode (block_size=5 << prefill_cap). */
+    ds4_gpu_tensor *dspark_main_hidden;  /* [3*DS4_N_EMBD] concat mean-hidden L40/41/42 */
+    ds4_gpu_tensor *dspark_main_x;       /* [DS4_N_EMBD] projected+normed main_hidden */
+    ds4_gpu_tensor *dspark_draft_hc;    /* [BLOCK*HC*DS4_N_EMBD] HC-expanded draft block */
+    ds4_gpu_tensor *dspark_kv_cache[3]; /* per-layer window KV [DS4_N_SWA*DS4_N_HEAD_DIM] */
+    bool dspark_prefilled;              /* slot-0 anchor KV cached? */
     uint32_t prefill_cap;
     uint32_t raw_window;
 
@@ -11322,6 +11332,22 @@ static bool metal_graph_alloc_raw_cap(
                 (uint64_t)raw_cap * DS4_N_HEAD_DIM * sizeof(float));
         g->spec_logits = ds4_gpu_tensor_alloc((uint64_t)16 * DS4_N_VOCAB * sizeof(float));
         g->mtp_n_raw = 0;
+    }
+
+    /* DSpark drafter buffers (Phase 4). TODO: wire enable_dspark through the
+     * allocation chain when the Metal forward is implemented. For now, guard
+     * with a check that will be replaced. */
+    bool enable_dspark = false;
+    if (enable_dspark) {
+        g->dspark_main_hidden = ds4_gpu_tensor_alloc((uint64_t)3 * DS4_N_EMBD * sizeof(float));
+        g->dspark_main_x = ds4_gpu_tensor_alloc((uint64_t)DS4_N_EMBD * sizeof(float));
+        g->dspark_draft_hc = ds4_gpu_tensor_alloc((uint64_t)5 * hc_dim * sizeof(float));
+        for (int s = 0; s < 3; s++) {
+            g->dspark_kv_cache[s] = metal_graph_alloc_kv_cache_tensor(
+                    managed_kv_cache,
+                    (uint64_t)DS4_N_SWA * DS4_N_HEAD_DIM * sizeof(float));
+        }
+        g->dspark_prefilled = false;
     }
 
     g->prefill_tokens = ds4_gpu_tensor_alloc(pc * sizeof(int32_t));
