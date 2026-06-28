@@ -16990,6 +16990,20 @@ static bool metal_graph_encode_token_raw_swa(
         ds4_gpu_tensor *tmp = g->cur_hc;
         g->cur_hc = g->after_ffn_hc;
         g->after_ffn_hc = tmp;
+        /* DSpark drafter input capture (Phase 4). The drafter reads the target's
+         * mean hidden state over hc_mult at layers [40,41,42] (DeepSeek-V4-Flash
+         * dspark_target_layer_ids). Diagnostic-only: emits the per-layer hc
+         * tensor [DS4_N_HC * DS4_N_EMBD] to disk when DS4_METAL_GRAPH_DUMP_PREFIX
+         * is set and the name/pos filter matches, so a numpy reference can be
+         * fed the exact main_hidden the Metal drafter will consume. The mean
+         * over hc_mult is taken offline (post-processing the dump). */
+        if (ok && (il == 40 || il == 41 || il == 42)) {
+            metal_graph_debug_dump_tensor("dspark_main_hc",
+                                          g->cur_hc,
+                                          (uint64_t)DS4_N_EMBD * DS4_N_HC,
+                                          il,
+                                          pos);
+        }
         if (ok && allow_split_flush && split_after_layers != 0 && il + 1u == split_after_layers) {
             ok = ds4_gpu_flush_commands() != 0;
         }
