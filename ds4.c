@@ -313,6 +313,13 @@ static uint32_t g_ds4_compress_ratios[DS4_MAX_LAYER] = {0};
 #define DS4_N_HC_SINKHORN_ITER        (g_ds4_shape.n_hc_sinkhorn_iter)
 #define DS4_RMS_EPS                   (g_ds4_shape.rms_eps)
 #define DS4_HC_EPS                    (g_ds4_shape.hc_eps)
+
+/* DSpark drafter constants (deepseek-ai/DeepSeek-V4-Flash-DSpark config.json).
+ * block_size = number of tokens drafted per cycle; noise_token fills the
+ * non-anchor draft positions in mtp.0.forward_embed. */
+#define DS4_DSPARK_BLOCK_SIZE         5
+#define DS4_DSPARK_NOISE_TOK          128799
+#define DS4_DSPARK_N_LAYERS           3
 #define DS4_EXPERT_WEIGHT_SCALE       (g_ds4_shape.expert_weight_scale)
 #define DS4_SWIGLU_CLAMP_EXP          (g_ds4_shape.swiglu_clamp_exp)
 #define DS4_ROPE_FREQ_BASE            (g_ds4_shape.rope_freq_base)
@@ -4615,11 +4622,13 @@ static void dspark_weights_validate_layout(const ds4_dspark_weights *w) {
     for (int stage = 0; stage < 3; stage++) {
         dspark_layer_validate_layout(&w->block[stage]);
     }
-    /* Input stage (mtp.0): main_proj maps 3 target layers' mean-hidden -> dim. */
+    /* Input stage (mtp.0): main_proj maps 3 target layers' mean-hidden -> dim.
+     * main_norm is F32 (not BF16) because the ds4 rmsnorm Metal kernel reads the
+     * weight as F32; BF16 norms would be misread. Matches the target's F32 norms. */
     tensor_expect_layout(w->main_proj, DS4_TENSOR_Q8_0, 2, 3u * DS4_N_EMBD, DS4_N_EMBD, 0);
-    tensor_expect_layout(w->main_norm, DS4_TENSOR_BF16, 1, DS4_N_EMBD, 0, 0);
+    tensor_expect_layout(w->main_norm, DS4_TENSOR_F32,  1, DS4_N_EMBD, 0, 0);
     /* Output stage (mtp.2). */
-    tensor_expect_layout(w->norm,          DS4_TENSOR_BF16, 1, DS4_N_EMBD, 0, 0);
+    tensor_expect_layout(w->norm,          DS4_TENSOR_F32,  1, DS4_N_EMBD, 0, 0);
     tensor_expect_layout(w->hc_head_base,  DS4_TENSOR_F32,  1, DS4_N_HC, 0, 0);
     tensor_expect_plain_layout(w->hc_head_fn, 2, hc_dim, DS4_N_HC, 0);
     tensor_expect_layout(w->hc_head_scale, DS4_TENSOR_F32,  1, 1, 0, 0);
@@ -26222,6 +26231,21 @@ int ds4_engine_open(ds4_engine **out, const ds4_engine_options *opt) {
             }
             (void)ds4_gpu_set_model_fd_for_map(e->model.fd, e->model.map);
         }
+        /* Finalize the DSpark drafter model map (parallel to MTP above): without
+         * accelerator_cache_model_tensors the registered map range is not made
+         * resident, so GPU matmuls on drafter weights read zeros. Required for the
+         * Metal drafter forward and the input-stage/backbone probes. */
+        if (e->dspark_ready) {
+            (void)ds4_gpu_set_model_fd_for_map(e->dspark_model.fd, e->dspark_model.map);
+            if (!accelerator_cache_model_tensors(e->backend, &e->dspark_model,
+                                                 NULL, NULL, 0)) {
+                fprintf(stderr, "ds4: %s failed to prepare optional DSpark model cache\n",
+                        ds4_backend_name(e->backend));
+                ds4_engine_close(e);
+                *out = NULL;
+                return 1;
+            }
+        }
         fprintf(stderr, "ds4: %s backend initialized for graph diagnostics\n",
                 ds4_backend_name(e->backend));
     }
@@ -27328,6 +27352,90 @@ int ds4_session_set_logits(ds4_session *s, const float *logits, int n) {
 }
 
 /*
+ * DSpark drafter input stage (mtp.0.forward_embed). Produces two outputs the 3
+ * DSparkBlocks consume:
+ *   - g->dspark_main_x [dim]      = rmsnorm(main_hidden @ main_proj, main_norm)
+ *   - g->batch_cur_hc [block,hc,dim] = HC-expanded embed([anchor, NOISE x4])
+ *
+ * main_hidden [3*dim] must already be in g->dspark_main_hidden (populated by the
+ * capture point at target layers [40,41,42]). main_proj is Q8_0 stored ne
+ * [in=3*dim, out=dim], so matmul(x, W) == x @ W_hf.T — matches the numpy oracle.
+ * Reuses: ds4_gpu_matmul_q8_0_tensor (main_proj), ds4_gpu_rms_norm_weight_tensor
+ * (main_norm), metal_graph_upload_prompt_embeddings_hc (embed+HC-expand).
+ * See issue468/16_phase4_metal_forward_impl.md stage 1; oracle forward.py
+ * forward_embed is the spec.
+ */
+static bool metal_graph_dspark_input_stage(
+        ds4_gpu_graph              *g,
+        const ds4_model            *target_model,
+        const ds4_weights          *target_weights,
+        const ds4_model            *dspark_model,
+        const ds4_dspark_weights   *dw,
+        int                          anchor_tok) {
+    if (!g || !target_model || !target_weights || !dspark_model || !dw) return false;
+    if (!g->dspark_main_hidden || !g->dspark_main_x || !g->batch_cur_hc) return false;
+
+    if (getenv("DS4_DSPARK_PROBE_DEBUG")) {
+        fprintf(stderr, "ds4: dspark input debug: main_proj abs_off=%llu dim=[%u,%u] type=%u; "
+                "main_norm abs_off=%llu dim=[%u] type=%u; "
+                "map=%p size=%llu tdp=%llu\n",
+                (unsigned long long)dw->main_proj->abs_offset,
+                (unsigned)dw->main_proj->dim[0], (unsigned)dw->main_proj->dim[1],
+                (unsigned)dw->main_proj->type,
+                (unsigned long long)dw->main_norm->abs_offset,
+                (unsigned)dw->main_norm->dim[0], (unsigned)dw->main_norm->type,
+                dspark_model->map, (unsigned long long)dspark_model->size,
+                (unsigned long long)dspark_model->tensor_data_pos);
+        /* dump first weight block (Q8_0: f16 scale + int8) via the CPU map */
+        const uint8_t *w = (const uint8_t *)dspark_model->map + dw->main_proj->abs_offset;
+        fprintf(stderr, "ds4: dspark input debug: main_proj first 16 bytes: "
+                "%02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x\n",
+                w[0],w[1],w[2],w[3],w[4],w[5],w[6],w[7],w[8],w[9],w[10],w[11],w[12],w[13],w[14],w[15]);
+        const float *nw = (const float *)((const uint8_t *)dspark_model->map + dw->main_norm->abs_offset);
+        fprintf(stderr, "ds4: dspark input debug: main_norm first 4 F32 vals: %g %g %g %g\n",
+                nw[0], nw[1], nw[2], nw[3]);
+    }
+
+    /* 1. main_x = rmsnorm(main_hidden @ main_proj, main_norm)  — GPU matmul+rmsnorm. */
+    bool ok = ds4_gpu_begin_commands() != 0;
+    if (ok) ok = ds4_gpu_matmul_q8_0_tensor(g->dspark_main_x,
+                                              dspark_model->map,
+                                              dspark_model->size,
+                                              dw->main_proj->abs_offset,
+                                              3ull * DS4_N_EMBD,    /* in_dim */
+                                              (uint64_t)DS4_N_EMBD, /* out_dim */
+                                              g->dspark_main_hidden,
+                                              1) != 0;
+    if (ok) ok = ds4_gpu_rms_norm_weight_tensor(g->dspark_main_x,
+                                                  g->dspark_main_x,
+                                                  dspark_model->map,
+                                                  dspark_model->size,
+                                                  dw->main_norm->abs_offset,
+                                                  DS4_N_EMBD,
+                                                  DS4_RMS_EPS) != 0;
+    if (ok) ok = ds4_gpu_end_commands() != 0;
+
+    /* 2. embed draft block [anchor, NOISE x4] -> batch_cur_hc [block,hc,dim].
+     * The drafter shares the target's token_embd (doc 13). HC-expand is built
+     * into metal_graph_upload_prompt_embeddings_hc (n_tokens < gpu_min -> CPU path,
+     * correctness-first). */
+    token_vec draft_ids = {0};
+    token_vec_push(&draft_ids, anchor_tok);
+    for (uint32_t i = 1; i < DS4_DSPARK_BLOCK_SIZE; i++) {
+        token_vec_push(&draft_ids, DS4_DSPARK_NOISE_TOK);
+    }
+    if (ok) ok = metal_graph_upload_prompt_embeddings_hc(g->batch_cur_hc,
+                                                           NULL,
+                                                           target_model,
+                                                           target_weights,
+                                                           &draft_ids,
+                                                           0u,
+                                                           DS4_DSPARK_BLOCK_SIZE);
+    token_vec_free(&draft_ids);
+    return ok;
+}
+
+/*
  * DSpark drafter backbone timing (research-only, env-gated). Measures the real
  * Metal cost of running the drafter's 3 blocks through metal_graph_encode_layer_batch
  * at n_tokens=block_size(5) on the drafter weights, so the long-context speedup
@@ -27406,6 +27514,133 @@ static void ds4_dspark_time_backbone(ds4_session *s) {
         fprintf(stderr, "ds4: dspark backbone timing FAILED during measurement\n");
     }
     free(ms);
+}
+
+/*
+ * DSpark input-stage probe (research-only, env-gated). Validates the Metal input
+ * stage (main_proj + main_norm) against the numpy oracle by loading a captured
+ * main_hidden from disk, running metal_graph_dspark_input_stage, and dumping
+ * g->dspark_main_x for offline comparison with oracle forward_embed's main_x.
+ * Gate: DS4_DSPARK_PROBE_INPUT=1. Reads captures from DS4_DSPARK_PROBE_CAPDIR
+ * (default issue468/baseline/dspark_capture), pos DS4_DSPARK_PROBE_POS (default 152),
+ * anchor DS4_DSPARK_PROBE_ANCHOR (default 2581 = greedy[0] for code prompt).
+ * Output: <capdir>/metal_main_x_pos<pos>.bin ([dim] f32).
+ */
+static void ds4_dspark_probe_input_stage(ds4_session *s) {
+    ds4_engine *e = s ? s->engine : NULL;
+    if (!e || !e->dspark_ready) return;
+    ds4_gpu_graph *g = &s->graph;
+    const char *capdir = getenv("DS4_DSPARK_PROBE_CAPDIR");
+    if (!capdir || !capdir[0]) capdir = "issue468/baseline/dspark_capture";
+    const long pos = getenv("DS4_DSPARK_PROBE_POS")
+        ? strtol(getenv("DS4_DSPARK_PROBE_POS"), NULL, 10) : 152;
+    const int anchor = getenv("DS4_DSPARK_PROBE_ANCHOR")
+        ? (int)strtol(getenv("DS4_DSPARK_PROBE_ANCHOR"), NULL, 10) : 2581;
+
+    /* Load main_hidden [3*dim]: concat(mean_hc(L40/41/42)) from disk captures. */
+    float *mh = xmalloc((size_t)3 * DS4_N_EMBD * sizeof(float));
+    bool ok = true;
+    for (uint32_t li = 0; ok && li < 3; li++) {
+        const uint32_t layers[3] = {40, 41, 42};
+        char path[1024];
+        snprintf(path, sizeof(path), "%s/hc_dspark_main_hc-%u_pos%ld.bin", capdir, layers[li], pos);
+        float *layer_hc = xmalloc((size_t)DS4_N_HC * DS4_N_EMBD * sizeof(float));
+        FILE *fp = fopen(path, "rb");
+        if (!fp) { fprintf(stderr, "ds4: dspark probe: cannot open %s\n", path); free(layer_hc); ok = false; break; }
+        const size_t got = fread(layer_hc, sizeof(float), (size_t)DS4_N_HC * DS4_N_EMBD, fp);
+        fclose(fp);
+        if (got != (size_t)DS4_N_HC * DS4_N_EMBD) {
+            fprintf(stderr, "ds4: dspark probe: short read %s (%zu)\n", path, got);
+            free(layer_hc); ok = false; break;
+        }
+        /* mean over HC -> [dim] */
+        float *dst = mh + (size_t)li * DS4_N_EMBD;
+        for (uint32_t d = 0; d < DS4_N_EMBD; d++) {
+            double acc = 0.0;
+            for (uint32_t h = 0; h < DS4_N_HC; h++) acc += layer_hc[(size_t)h * DS4_N_EMBD + d];
+            dst[d] = (float)(acc / DS4_N_HC);
+        }
+        free(layer_hc);
+    }
+    if (!ok) { free(mh); return; }
+
+    ok = ds4_gpu_tensor_write(g->dspark_main_hidden, 0, mh,
+                              (size_t)3 * DS4_N_EMBD * sizeof(float)) != 0;
+    free(mh);
+    if (!ok) { fprintf(stderr, "ds4: dspark probe: main_hidden upload failed\n"); return; }
+
+    /* Optional: matmul-only prenorm dump (separate command buffer + sync, so the
+     * read is valid — unlike a mid-buffer read). Isolates matmul vs rmsnorm. */
+    if (ok && getenv("DS4_DSPARK_PROBE_DUMP_PRENORM")) {
+        bool mok = ds4_gpu_begin_commands() != 0;
+        if (mok) mok = ds4_gpu_matmul_q8_0_tensor(g->dspark_main_x,
+                                                    e->dspark_model.map,
+                                                    e->dspark_model.size,
+                                                    e->dspark_weights.main_proj->abs_offset,
+                                                    3ull * DS4_N_EMBD, (uint64_t)DS4_N_EMBD,
+                                                    g->dspark_main_hidden, 1) != 0;
+        if (mok) mok = ds4_gpu_end_commands() != 0;
+        if (mok) mok = ds4_gpu_synchronize() != 0;
+        if (mok) {
+            float *pre = xmalloc((size_t)DS4_N_EMBD * sizeof(float));
+            if (ds4_gpu_tensor_read(g->dspark_main_x, 0, pre, (size_t)DS4_N_EMBD * sizeof(float))) {
+                const char *cd = getenv("DS4_DSPARK_PROBE_CAPDIR");
+                if (!cd || !cd[0]) cd = "issue468/baseline/dspark_capture";
+                char p[1024]; snprintf(p, sizeof(p), "%s/metal_main_x_prenorm_pos152.bin", cd);
+                FILE *fp = fopen(p, "wb");
+                if (fp) { fwrite(pre, sizeof(float), DS4_N_EMBD, fp); fclose(fp); }
+            }
+            free(pre);
+        }
+        /* Also test rmsnorm OUT-OF-PLACE (dspark_main_x -> batch_attn_norm scratch)
+         * to isolate the in-place hazard hypothesis. */
+        if (mok) {
+            bool rok = ds4_gpu_begin_commands() != 0;
+            if (rok) rok = ds4_gpu_rms_norm_weight_tensor(g->batch_attn_norm,
+                                                            g->dspark_main_x,
+                                                            e->dspark_model.map,
+                                                            e->dspark_model.size,
+                                                            e->dspark_weights.main_norm->abs_offset,
+                                                            DS4_N_EMBD, DS4_RMS_EPS) != 0;
+            if (rok) rok = ds4_gpu_end_commands() != 0;
+            if (rok) rok = ds4_gpu_synchronize() != 0;
+            if (rok) {
+                float *post = xmalloc((size_t)DS4_N_EMBD * sizeof(float));
+                if (ds4_gpu_tensor_read(g->batch_attn_norm, 0, post, (size_t)DS4_N_EMBD * sizeof(float))) {
+                    const char *cd = getenv("DS4_DSPARK_PROBE_CAPDIR");
+                    if (!cd || !cd[0]) cd = "issue468/baseline/dspark_capture";
+                    char p[1024]; snprintf(p, sizeof(p), "%s/metal_main_x_oop_norm_pos152.bin", cd);
+                    FILE *fp = fopen(p, "wb");
+                    if (fp) { fwrite(post, sizeof(float), DS4_N_EMBD, fp); fclose(fp); }
+                }
+                free(post);
+            }
+        }
+    }
+
+    ok = metal_graph_dspark_input_stage(g, &e->model, &e->weights,
+                                        &e->dspark_model, &e->dspark_weights, anchor);
+    if (!ok) { fprintf(stderr, "ds4: dspark probe: input stage failed\n"); return; }
+
+    /* Dump main_x [dim] for offline comparison with the oracle. */
+    float *main_x = xmalloc((size_t)DS4_N_EMBD * sizeof(float));
+    ok = ds4_gpu_tensor_read(g->dspark_main_x, 0, main_x,
+                             (size_t)DS4_N_EMBD * sizeof(float)) != 0;
+    if (ok) {
+        char outpath[1024];
+        snprintf(outpath, sizeof(outpath), "%s/metal_main_x_pos%ld.bin", capdir, pos);
+        FILE *fp = fopen(outpath, "wb");
+        if (fp) {
+            fwrite(main_x, sizeof(float), DS4_N_EMBD, fp);
+            fclose(fp);
+            fprintf(stderr, "ds4: dspark probe: wrote %s (anchor=%d, pos=%ld)\n", outpath, anchor, pos);
+        } else {
+            fprintf(stderr, "ds4: dspark probe: cannot write %s\n", outpath);
+        }
+    } else {
+        fprintf(stderr, "ds4: dspark probe: main_x readback failed\n");
+    }
+    free(main_x);
 }
 
 static int ds4_session_eval_internal(ds4_session *s, int token, bool probe_mtp,
@@ -28425,6 +28660,11 @@ int ds4_engine_verifier_curve_test(ds4_engine *e, const ds4_tokens *prompt, int 
          * the drafter weights. See issue468/19 (long-ctx draft-cost decision).
          * Runs regardless of verifier-curve rc (the batch buffers are valid). */
         ds4_dspark_time_backbone(s);
+    }
+    if (e->dspark_ready && getenv("DS4_DSPARK_PROBE_INPUT")) {
+        /* DSpark input-stage validation: load captured main_hidden, run the Metal
+         * input stage, dump main_x for comparison with the numpy oracle. */
+        ds4_dspark_probe_input_stage(s);
     }
     ds4_session_free(s);
     if (rc == 0) fprintf(stderr, "ds4: verifier curve test complete\n");
