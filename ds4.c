@@ -17781,7 +17781,6 @@ static bool metal_graph_dspark_encode_attention(
         }
     }
     /* Output projection (grouped low-rank wo_a/wo_b). */
-    if (getenv("DS4_DSPARK_PROBE_ATTN_DEBUG") && ok) fprintf(stderr, "ds4: dspark attn debug: reached output_proj stage ok\n");
     if (ok) ok = ds4_gpu_attention_output_q8_batch_tensor(g->batch_attn_out,
                                                             g->batch_attn_low,
                                                             g->batch_group_tmp,
@@ -17792,7 +17791,6 @@ static bool metal_graph_dspark_encode_attention(
                                                             layer->attn_output_b->abs_offset,
                                                             group_dim, rank, n_groups, DS4_N_EMBD,
                                                             g->batch_heads, n_tokens) != 0;
-    if (getenv("DS4_DSPARK_PROBE_ATTN_DEBUG")) fprintf(stderr, "ds4: dspark attn debug: after output_proj ok=%d\n", ok);
     if (ok && getenv("DS4_DSPARK_PROBE_DUMP_ATTNOUT")) {
         if (ds4_gpu_synchronize()) {
             float *ao = xmalloc((size_t)n_tokens * DS4_N_EMBD * sizeof(float));
@@ -17810,7 +17808,6 @@ static bool metal_graph_dspark_encode_attention(
                                                   g->batch_cur_hc,
                                                   hc_split_view,
                                                   DS4_N_EMBD, DS4_N_HC) != 0;
-    if (getenv("DS4_DSPARK_PROBE_ATTN_DEBUG")) fprintf(stderr, "ds4: dspark attn debug: after hc_post ok=%d\n", ok);
     ds4_gpu_tensor_free(after_attn_hc_view);
     ds4_gpu_tensor_free(attn_cur_view);
     ds4_gpu_tensor_free(hc_split_view);

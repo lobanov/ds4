@@ -46,51 +46,26 @@ corr 1.0) on pos152 code-prompt capture. Two prerequisite bugs found+fixed:
       F32 in build_dspark_template.py + updated dspark_weights_validate_layout.
       (markov_w1/w2/confidence_proj still BF16 — verify their kernels at stage 3.)
 
-## Stage 2: Three DSparkBlocks — the genuinely-hard piece (RECON + PRIMITIVE DONE)
+## Stage 2: Three DSparkBlocks — attention sub-block DONE + VALIDATED
 Each block: hc_pre -> attn -> hc_post -> hc_pre -> ffn -> hc_post.
-- hc_pre/post/ffn: REUSABLE from metal_graph_encode_layer_batch (the batched HC
-  Sinkhorn + MoE kernels work for the drafter; per-layer norms are F32).
-- attn (window MLA, compress_ratio==0): NON-CAUSAL fixed-gather. Primitive NOW
-  EXISTS: ds4_gpu_attention_decode_raw_batch_heads_noncausal_tensor (added this
-  pass — memset(0) mask variant of the batched decode attention). The caller
-  assembles gathered KV (n_real anchors + 5 draft positions) contiguously in
-  raw_kv, then one call attends all 5 draft positions to that set. Matches the
-  oracle's sparse_attn semantics exactly. Reuses the validated FlashAttention
-  kernel; no new GPU kernel.
-
-DSparkBlock forward primitive sequence (per layer; mirror attention_batch):
-  hc_pre:   ds4_gpu_rms_norm_plain_rows_tensor(cur_hc)
-            ds4_gpu_matmul_f16_tensor(hc_mix, hc_attn_fn, hc_dim, mix_dim, flat_hc, 5)
-            ds4_gpu_hc_split_weighted_sum_tensor(attn_cur, hc_split, hc_mix, cur_hc,
-                  scale, base, EMBD, HC, SINKHORN_ITER, HC_EPS)  [fused pre+weighted-sum]
-  attn_norm: ds4_gpu_rms_norm_weight_rows_tensor(batch_attn_norm, attn_cur, attn_norm, EMBD, 5)
-  q path:   ds4_gpu_matmul_q8_0_tensor(qr, attn_q_a, EMBD, LORA_Q, attn_norm, 5)
-            ds4_gpu_rms_norm_weight_rows_tensor(qr_norm, qr, attn_q_a_norm, LORA_Q, 5)
-            ds4_gpu_matmul_q8_0_tensor(batch_q, attn_q_b, LORA_Q, q_dim, qr_norm, 5)
-            ds4_gpu_head_rms_norm_tensor(batch_q, 5, N_HEAD, HEAD_DIM, RMS_EPS)
-            ds4_gpu_rope_tail_tensor(batch_q, 5, N_HEAD, HEAD_DIM, ROT, pos0, ...)
-  kv path:  ds4_gpu_matmul_q8_0_tensor(kv_raw, attn_kv, EMBD, HEAD_DIM, attn_norm, 5)
-            ds4_gpu_rms_norm_weight_rows_tensor(kv, kv_raw, attn_kv_a_norm, HEAD_DIM, 5)
-            ds4_gpu_rope_tail_tensor(kv, 5, N_HEAD_KV, HEAD_DIM, ROT, pos0, ...)
-            ds4_gpu_dsv4_fp8_kv_quantize_tensor(kv, 5, HEAD_DIM, ROT)
-  anchor KV from main_x (DSpark-specific): rmsnorm(main_x @ kv) + rope + quant ->
-            store into dspark_kv_cache[s][start%win]; then copy n_real anchors +
-            5 draft kv into contiguous raw_kv scratch for the gather.
-  attention: ds4_gpu_attention_decode_raw_batch_heads_noncausal_tensor(
-                  batch_heads, sinks, batch_q, raw_kv_gathered, 5, n_real+5,
-                  raw_cap, raw_start, N_HEAD, HEAD_DIM)
-  output:   ds4_gpu_attention_output_q8_batch_tensor(attn_out, low, group_tmp,
-                  low_tmp, attn_output_a, attn_output_b, group_dim, rank,
-                  n_groups, EMBD, batch_heads, 5)
-  hc_post:  ds4_gpu_hc_expand_split_tensor(after_attn_hc, attn_out, cur_hc,
-                  hc_split, EMBD, HC)  [fused post]
-  ffn:      same hc_pre pattern with hc_ffn_*; then moe (metal_graph_encode_layer_ffn_batch);
-            then hc_post.
-
-The drafter reuses metal_graph_encode_layer_ffn_batch for the FFN sub-block intact
-(MoE + shared expert, Q4_K). Only the attention sub-block needs the DSpark-specific
-assembly above. chunk: build this as a new function metal_graph_dspark_encode_block
-next to metal_graph_encode_layer_batch.
+- hc_pre/post/ffn: REUSABLE from metal_graph_encode_layer_batch.
+- attn sub-block: IMPLEMENTED as metal_graph_dspark_encode_attention + VALIDATED
+  (after_attn_hc corr=0.99997 vs oracle on pos152; F16 hc_fn residual). Reads
+  batch_cur_hc, writes batch_after_attn_hc. Two bugs found+fixed:
+   (a) hc_attn_fn/hc_ffn_fn must be F16 (ds4_gpu_matmul_f16_tensor reads F16);
+       converted in build_dspark_template.py. NaN otherwise.
+   (b) DSpark MLA shares rope dims between k and v: the FlashAttention kernel
+       rotates k but does NOT inverse-rotate the output, so an INVERSE rope_tail
+       (inverse=true) on batch_heads at the query positions is required before
+       the output projection (matches model.py apply_rotary(o,inverse=True)).
+       Without it corr=0.85; with it corr=0.99997.
+  KV layout: anchors [0..n_real-1], this-step anchor [n_real], draft [n_real+1..n_real+5]
+  -> contiguous gathered [0..n_real+5] for the noncausal attention.
+- ffn sub-block: REUSE metal_graph_encode_layer_ffn_batch (reads batch_after_attn_hc,
+  writes batch_next_hc). NOT yet wired into the drafter block loop.
+- REMAINING for stage 2: chain 3 blocks (attn sub-block + ffn_batch), swap
+  batch_cur_hc <- batch_next_hc between layers. Ring-handling for n_real near
+  WIN=128 (currently sequential layout; probe uses small n_real).
 
 ### 3. forward_head (mtp.2 output stage)
 - hc_head: drafter output-stage HC reduce (sigmoid, not Sinkhorn). Small; needs a
