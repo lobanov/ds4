@@ -28217,7 +28217,7 @@ static void ds4_dspark_probe_input_stage(ds4_session *s) {
                         draft[i] = best; out_ids[i+1] = best; prev = best;
                     }
                     (void)bias;
-                    char tp[1024]; snprintf(tp, sizeof(tp), "%s/metal_draft_tokens_pos152.txt", capdir);
+                    char tp[1024]; snprintf(tp, sizeof(tp), "%s/metal_draft_tokens_pos%ld.txt", capdir, pos);
                     FILE *fp = fopen(tp, "w");
                     if (fp) {
                         fprintf(fp, "%d %d %d %d %d\n", draft[0],draft[1],draft[2],draft[3],draft[4]);

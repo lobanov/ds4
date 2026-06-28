@@ -14,6 +14,7 @@ import numpy as np
 NORM_EPS = 1e-6
 ROUTE_SCALE = 1.5
 TOPK = 6
+SWIGLU_LIMIT = 10.0   # config swiglu_limit; reference Expert.forward clamps gate(max)/up(both)
 
 
 def softplus(x):
@@ -42,9 +43,14 @@ def gate(x, gate_inp, exp_probs_b, topk=TOPK):
 def swiglu_expert(x, w_gate, w_up, w_down):
     """Single expert SwiGLU: down(silu(gate(x)) * up(x)). x [...,dim] -> [...,dim].
     w_gate/w_up/w_down are expert slices in HF [out,in] order (standard linear).
-    Apply as x @ W.T."""
+    Apply as x @ W.T. Applies the config swiglu_limit clamp (gate max-only, up both)
+    per reference Expert.forward + ds4's swiglu() kernel."""
     g = x @ w_gate.T
     u = x @ w_up.T
+    # swiglu clamp (config swiglu_limit=10.0; matches ds4 swiglu() + model.py Expert.forward)
+    if SWIGLU_LIMIT > 0:
+        u = np.clip(u, -SWIGLU_LIMIT, SWIGLU_LIMIT)
+        g = np.clip(g, None, SWIGLU_LIMIT)   # gate: max only
     # silu(g) = g * sigmoid(g)
     h = g * (1.0 / (1.0 + np.exp(-g)))
     inter = h * u
