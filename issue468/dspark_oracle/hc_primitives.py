@@ -66,7 +66,7 @@ def hc_pre(x_hc, hc_fn, hc_scale, hc_base, hc=HC_MULT, eps=NORM_EPS):
     b, s, _, d = x_hc.shape
     flat = x_hc.reshape(b, s, hc * d).astype(np.float32)
     rsqrt = 1.0 / np.sqrt(np.mean(flat * flat, axis=-1, keepdims=True) + eps)
-    mixes = (flat @ hc_fn) * rsqrt            # [b,s,hc_mix_dim] (hc_fn stored = W_hf.T)
+    mixes = (flat @ hc_fn.T) * rsqrt            # [b,s,hc_mix_dim] (hc_fn HF [out=24,in=hc*d])
     pre, post, comb = hc_split_sinkhorn(mixes, hc_scale, hc_base, hc)
     y = (pre[..., None] * x_hc).sum(axis=2)     # [b,s,d]
     return y, post, comb
@@ -90,7 +90,7 @@ def hc_head(x_hc, hc_fn, hc_scale, hc_base, hc=HC_MULT, eps=HC_EPS):
     b, s, _, d = x_hc.shape
     flat = x_hc.reshape(b, s, hc * d).astype(np.float32)
     rsqrt = 1.0 / np.sqrt(np.mean(flat * flat, axis=-1, keepdims=True) + NORM_EPS)
-    mixes = (flat @ hc_fn) * rsqrt             # [b,s, hc] (hc_head_fn stored = W_hf.T)
+    mixes = (flat @ hc_fn.T) * rsqrt             # [b,s, hc] (hc_head_fn HF [out=hc,in=hc*d])
     pre = 1.0 / (1.0 + np.exp(-(mixes * hc_scale[0] + hc_base))) + eps
     return (pre[..., None] * x_hc).sum(axis=2)   # [b,s,d]
 

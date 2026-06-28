@@ -54,11 +54,11 @@ def layer_weights(T, stage):
 def forward_embed(main_hidden, anchor_tok, main_proj, main_norm, embed_w):
     """mtp.0.forward_embed. main_hidden [3*dim] -> (x [1,block,hc,dim], main_x [1,1,dim])."""
     mh = main_hidden.reshape(1, 1, 3 * DIM).astype(np.float32)
-    main_x = rmsnorm(mh @ main_proj, main_norm)                  # [1,1,dim]
+    main_x = rmsnorm(mh @ main_proj.T, main_norm)                  # [1,1,dim] (main_proj HF [out=dim,in=3*dim])
     draft_ids = np.full((1, BLOCK), NOISE_TOK, dtype=np.int64)
     draft_ids[0, 0] = anchor_tok
     # embed_w GGUF ne [dim, vocab]; row token t = embed_w[:, t]. x = embed[draft_ids]
-    x = embed_w[:, draft_ids[0]].T                                 # [block, dim]
+    x = embed_w[draft_ids[0]]                                      # [block, dim] (embed HF [vocab,dim])
     x = x[None]                                                    # [1,block,dim]
     x = np.repeat(x[:, :, None, :], HC, axis=2)                    # [1,block,hc,dim]
     return x.astype(np.float32), main_x
@@ -88,13 +88,13 @@ def forward_head(h, anchor_tok, w_head, norm_w, hc_head_fn, hc_head_scale, hc_he
     """mtp.2.forward_head. h [1,block,hc,dim] -> output_ids [block+1], logits [block,vocab]."""
     x = hc_head(h, hc_head_fn, hc_head_scale, hc_head_base)        # [1,block,dim]
     x = rmsnorm(x, norm_w)
-    logits = x[0] @ lm_head                                       # [block, vocab] (lm_head stored = W_hf.T)
+    logits = x[0] @ lm_head.T                                       # [block, vocab] (lm_head HF [vocab,dim])
     output_ids = np.zeros(BLOCK + 1, dtype=np.int64)
     output_ids[0] = anchor_tok
     for i in range(BLOCK):
         # markov_head(output_ids[i]): markov_w1 embed [rank], markov_w2 -> [vocab]
-        emb = markov_w1[:, output_ids[i]]                           # [rank]  (stored [rank,vocab], col = token's rank embed)
-        bias = emb @ markov_w2                                      # [vocab]  (markov_w2 stored [rank,vocab] = W_hf.T)
+        emb = markov_w1[output_ids[i]]                             # [rank]  (markov_w1 HF [vocab,rank])
+        bias = emb @ markov_w2.T                                   # [vocab]  (markov_w2 HF [vocab,rank])
         li = (logits[i] + bias) / max(temp, 1e-5)
         output_ids[i + 1] = int(np.argmax(li))
     return output_ids, logits

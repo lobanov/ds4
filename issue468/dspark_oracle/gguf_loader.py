@@ -175,7 +175,18 @@ def read_tensor(path, infos, data_off, name):
             arr = _dequant_q4_k(f.read((nelem // 256) * 144), nelem)
         else:
             raise ValueError(f"unhandled tensor type {tt} for {name}")
-    return arr.reshape(dims)
+    return _gguf_ne_to_torch(arr, dims)
+
+
+def _gguf_ne_to_torch(arr, dims):
+    """Reshape a flat array of GGUF ne-ordered data to HF/torch convention.
+
+    GGUF ne has ne[0] as the fastest-varying (innermost) dimension. numpy
+    C-order has the LAST dim as fastest. So reshape to reversed(dims) gives
+    the HF/torch layout, where standard linear = x @ W.T works and embedding =
+    W[token] works. This was the root cause of 0% acceptance: reshape(dims)
+    scrambled all 2D+ tensors."""
+    return arr.reshape(list(reversed(dims)))
 
 
 def _dequant_q4_k_region(raw, n_superblocks, out):
@@ -232,7 +243,7 @@ def dequant_q4_k_expert(path, infos, data_off, name, expert_idx):
     # arr is in GGUF ne order [in,out] flattened (in fastest). Return [in,out] to
     # match every other stored weight (the universal 'out = x @ stored' rule),
     # so callers apply x @ stored with no transpose.
-    return arr.reshape(in_dim, out_dim).copy()
+    return _gguf_ne_to_torch(arr, [in_dim, out_dim]).copy()  # HF [out,in]
 
 
 def load_gguf_dense_only(path, skip_pred=None):
@@ -295,7 +306,7 @@ def load_gguf_dense_only(path, skip_pred=None):
             elif tt==8: arr=_dequant_q8_0(f.read((nelem//32)*34),nelem)
             elif tt==12: arr=_dequant_q4_k(f.read((nelem//256)*144),nelem)
             else: raise ValueError(f"unhandled tensor type {tt} for {nm}")
-            out[nm]=(arr.reshape(dims),TYPE_NAME.get(tt,str(tt)))
+            out[nm]=(_gguf_ne_to_torch(arr, dims),TYPE_NAME.get(tt,str(tt)))
     return kv,out,infos,data_off,skipped
 
 
@@ -374,7 +385,7 @@ def load_gguf(path):
                 arr = _dequant_q4_k(f.read((nelem // 256) * 144), nelem)
             else:
                 raise ValueError(f"unhandled tensor type {tt} for {nm}")
-            arr = arr.reshape(dims)
+            arr = _gguf_ne_to_torch(arr, dims)
             out[nm] = (arr, TYPE_NAME.get(tt, str(tt)))
         return kv, out
 

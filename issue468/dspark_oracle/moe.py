@@ -25,7 +25,7 @@ def gate(x, gate_inp, exp_probs_b, topk=TOPK):
     """x [...,dim] -> (weights [...,topk], indices [...,topk]). sqrtsoftplus,
     bias shifts topk but not weights; weights gathered from ORIGINAL scores,
     normalized, *route_scale. (model.py Gate.forward)."""
-    scores = softplus((x @ gate_inp).astype(np.float32))     # [...,256] (gate_inp stored = W_hf.T)
+    scores = softplus((x @ gate_inp.T).astype(np.float32))     # [...,256] (gate_inp HF [out=256,in=dim])
     scores = np.sqrt(scores)
     sel_scores = scores + exp_probs_b                           # bias for topk only
     # topk indices along last axis
@@ -41,14 +41,14 @@ def gate(x, gate_inp, exp_probs_b, topk=TOPK):
 
 def swiglu_expert(x, w_gate, w_up, w_down):
     """Single expert SwiGLU: down(silu(gate(x)) * up(x)). x [...,dim] -> [...,dim].
-    w_gate/w_up/w_down are expert slices in GGUF-ne [in,out] order (same convention
-    as all stored weights). Apply as x @ W (no transpose)."""
-    g = x @ w_gate
-    u = x @ w_up
+    w_gate/w_up/w_down are expert slices in HF [out,in] order (standard linear).
+    Apply as x @ W.T."""
+    g = x @ w_gate.T
+    u = x @ w_up.T
     # silu(g) = g * sigmoid(g)
     h = g * (1.0 / (1.0 + np.exp(-g)))
     inter = h * u
-    return inter @ w_down
+    return inter @ w_down.T
 
 
 def moe(x, input_ids, w, expert_store, topk=TOPK):

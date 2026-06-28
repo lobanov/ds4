@@ -95,7 +95,7 @@ def dspark_attention(x_draft, main_x, w, start_pos, cos_full, sin_full):
     scale = head_dim ** -0.5
 
     # 1. anchor KV from main_x (target hidden), cached at slot start_pos%win
-    main_kv = rmsnorm(main_x @ w["kv"], w["kv_a_norm"])           # [1,1,512]
+    main_kv = rmsnorm(main_x @ w["kv"].T, w["kv_a_norm"])           # [1,1,512]
     fc = cos_full[start_pos], sin_full[start_pos]   # [32] each (1D)
     main_kv[..., -ROPE_DIM:] = apply_rotary(main_kv[..., -ROPE_DIM:], fc[0], fc[1])
 
@@ -111,8 +111,8 @@ def dspark_attention(x_draft, main_x, w, start_pos, cos_full, sin_full):
     win_kv[:, start_pos % win:start_pos % win + 1] = main_kv
 
     # 2. draft-block q,kv
-    qr = rmsnorm(x_draft @ w["q_a"], w["q_a_norm"])              # [1,block,1024]
-    q = (qr @ w["q_b"]).reshape(1, block_size, n_heads, head_dim)  # [1,block,64,512]
+    qr = rmsnorm(x_draft @ w["q_a"].T, w["q_a_norm"])              # [1,block,1024]
+    q = (qr @ w["q_b"].T).reshape(1, block_size, n_heads, head_dim)  # [1,block,64,512]
     q = q * (1.0 / np.sqrt(np.mean(q * q, axis=-1, keepdims=True) + NORM_EPS))  # per-head RMSNorm
     # per-position cos/sin for the block positions, shaped to broadcast over heads.
     cs = cos_full[start_pos + 1:start_pos + 1 + block_size]   # [block, 32]
@@ -122,7 +122,7 @@ def dspark_attention(x_draft, main_x, w, start_pos, cos_full, sin_full):
     cs_kv = cs[None, :, :]        # [1, block, 32] for kv [1,block,rope]
     ss_kv = ss[None, :, :]
     q[..., -ROPE_DIM:] = apply_rotary(q[..., -ROPE_DIM:], cs_q, ss_q)
-    kv = rmsnorm(x_draft @ w["kv"], w["kv_a_norm"])              # [1,block,512]
+    kv = rmsnorm(x_draft @ w["kv"].T, w["kv_a_norm"])              # [1,block,512]
     kv[..., -ROPE_DIM:] = apply_rotary(kv[..., -ROPE_DIM:], cs_kv, ss_kv)
     kv_all = np.concatenate([win_kv, kv], axis=1)                   # [1, win+block, 512]
 
@@ -157,11 +157,11 @@ def dspark_attention(x_draft, main_x, w, start_pos, cos_full, sin_full):
     # o[b,s,8,4096] @ wo_a[8,1024,512]? d mismatch (4096 vs 512). So gd in einsum is NOT head_dim.
     # Resolving: wo_a.view(n_groups, o_lora, -1) on a [8192, 4096] tensor -> [8, 1024, 4096]? elements 8*1024*4096=33.5M != 33.5M YES.
     # So wo_a viewed [8,1024,4096], einsum bsgd(4096),grd(4096)->bsgr(1024). d=4096. OK matches!
-    wo_a = w["output_a"].T.reshape(n_groups, o_lora, gd)            # [8,1024,4096] (HF order: g,r,in)
+    wo_a = w["output_a"].reshape(n_groups, o_lora, gd)              # [8,1024,4096] (already HF order)
     # einsum bsgd,grd->bsgr: o_g[b,s,g,d] wo_a[g,r,d] -> [b,s,g,r]
     o_lor = np.einsum("bsgd,grd->bsgr", o_g, wo_a)                # [1,block,8,1024]
     o_flat = o_lor.reshape(1, block_size, n_groups * o_lora)       # [1,block,8192]
-    out = o_flat @ w["output_b"]                                   # [1,block,4096] (output_b stored = W_hf.T)
+    out = o_flat @ w["output_b"].T                                   # [1,block,4096] (output_b HF [out=4096,in=8192])
     return out.astype(np.float32), main_kv[:, 0]   # return slot-1 KV for caller (prefill of next)
 
 
@@ -169,7 +169,7 @@ def dspark_attention_prefill(main_x, w, cos_full, sin_full):
     """DSparkAttention prefill (start_pos==0): cache the anchor KV at slot 0, no
     attention output (returns x unchanged per model.py). Returns the cached
     main_kv [1,512] for slot 0."""
-    main_kv = rmsnorm(main_x @ w["kv"], w["kv_a_norm"])          # [1,1,512]
+    main_kv = rmsnorm(main_x @ w["kv"].T, w["kv_a_norm"])          # [1,1,512]
     c = cos_full[0], sin_full[0]   # [32] each (1D -> broadcasts in apply_rotary)
     main_kv[..., -ROPE_DIM:] = apply_rotary(main_kv[..., -ROPE_DIM:], c[0], c[1])
     return main_kv[:, 0]   # [512] slot-0 KV
