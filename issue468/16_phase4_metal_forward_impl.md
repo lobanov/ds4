@@ -46,23 +46,51 @@ corr 1.0) on pos152 code-prompt capture. Two prerequisite bugs found+fixed:
       F32 in build_dspark_template.py + updated dspark_weights_validate_layout.
       (markov_w1/w2/confidence_proj still BF16 — verify their kernels at stage 3.)
 
-## Stage 2: Three DSparkBlocks — the genuinely-hard piece (RECON DONE)
+## Stage 2: Three DSparkBlocks — the genuinely-hard piece (RECON + PRIMITIVE DONE)
 Each block: hc_pre -> attn -> hc_post -> hc_pre -> ffn -> hc_post.
 - hc_pre/post/ffn: REUSABLE from metal_graph_encode_layer_batch (the batched HC
   Sinkhorn + MoE kernels work for the drafter; per-layer norms are F32).
-- attn (window MLA, compress_ratio==0): CANNOT reuse the batch attention as-is.
-  Recon finding: DSpark draft attention is NON-CAUSAL over the block — every draft
-  position attends to (window slots [0..n_real-1]) ++ (all 5 draft positions
-  [win..win+4]); the gathered KV is broadcast to ALL positions (attention.py
-  sparse_attn + dspark_topk_idxs, no causal mask). The verify path's
-  ds4_gpu_attention_decode_raw_batch_heads_tensor is causal/windowed -> wrong.
-  Reusable: q computation (wq_a/rmsnorm/wq_b/head_rmsnorm/rope), kv computation
-  (wkv/rmsnorm/rope/fp8_quant), output projection (wo_a/wo_b). Genuinely-new:
-  (a) anchor KV from main_x (rmsnorm+wkv+rope on main_x -> window slot); (b) the
-  DSpark topk gather [0..n_real-1]++[win..win+4]; (c) non-causal sparse attention
-  (q @ gathered_kv, softmax with attn_sink, weighted sum). Needs a new Metal kernel
-  OR careful assembly from existing sparse-attn primitives (TBD — check for a
-  non-causal/indexed-gather batched attention primitive first).
+- attn (window MLA, compress_ratio==0): NON-CAUSAL fixed-gather. Primitive NOW
+  EXISTS: ds4_gpu_attention_decode_raw_batch_heads_noncausal_tensor (added this
+  pass — memset(0) mask variant of the batched decode attention). The caller
+  assembles gathered KV (n_real anchors + 5 draft positions) contiguously in
+  raw_kv, then one call attends all 5 draft positions to that set. Matches the
+  oracle's sparse_attn semantics exactly. Reuses the validated FlashAttention
+  kernel; no new GPU kernel.
+
+DSparkBlock forward primitive sequence (per layer; mirror attention_batch):
+  hc_pre:   ds4_gpu_rms_norm_plain_rows_tensor(cur_hc)
+            ds4_gpu_matmul_f16_tensor(hc_mix, hc_attn_fn, hc_dim, mix_dim, flat_hc, 5)
+            ds4_gpu_hc_split_weighted_sum_tensor(attn_cur, hc_split, hc_mix, cur_hc,
+                  scale, base, EMBD, HC, SINKHORN_ITER, HC_EPS)  [fused pre+weighted-sum]
+  attn_norm: ds4_gpu_rms_norm_weight_rows_tensor(batch_attn_norm, attn_cur, attn_norm, EMBD, 5)
+  q path:   ds4_gpu_matmul_q8_0_tensor(qr, attn_q_a, EMBD, LORA_Q, attn_norm, 5)
+            ds4_gpu_rms_norm_weight_rows_tensor(qr_norm, qr, attn_q_a_norm, LORA_Q, 5)
+            ds4_gpu_matmul_q8_0_tensor(batch_q, attn_q_b, LORA_Q, q_dim, qr_norm, 5)
+            ds4_gpu_head_rms_norm_tensor(batch_q, 5, N_HEAD, HEAD_DIM, RMS_EPS)
+            ds4_gpu_rope_tail_tensor(batch_q, 5, N_HEAD, HEAD_DIM, ROT, pos0, ...)
+  kv path:  ds4_gpu_matmul_q8_0_tensor(kv_raw, attn_kv, EMBD, HEAD_DIM, attn_norm, 5)
+            ds4_gpu_rms_norm_weight_rows_tensor(kv, kv_raw, attn_kv_a_norm, HEAD_DIM, 5)
+            ds4_gpu_rope_tail_tensor(kv, 5, N_HEAD_KV, HEAD_DIM, ROT, pos0, ...)
+            ds4_gpu_dsv4_fp8_kv_quantize_tensor(kv, 5, HEAD_DIM, ROT)
+  anchor KV from main_x (DSpark-specific): rmsnorm(main_x @ kv) + rope + quant ->
+            store into dspark_kv_cache[s][start%win]; then copy n_real anchors +
+            5 draft kv into contiguous raw_kv scratch for the gather.
+  attention: ds4_gpu_attention_decode_raw_batch_heads_noncausal_tensor(
+                  batch_heads, sinks, batch_q, raw_kv_gathered, 5, n_real+5,
+                  raw_cap, raw_start, N_HEAD, HEAD_DIM)
+  output:   ds4_gpu_attention_output_q8_batch_tensor(attn_out, low, group_tmp,
+                  low_tmp, attn_output_a, attn_output_b, group_dim, rank,
+                  n_groups, EMBD, batch_heads, 5)
+  hc_post:  ds4_gpu_hc_expand_split_tensor(after_attn_hc, attn_out, cur_hc,
+                  hc_split, EMBD, HC)  [fused post]
+  ffn:      same hc_pre pattern with hc_ffn_*; then moe (metal_graph_encode_layer_ffn_batch);
+            then hc_post.
+
+The drafter reuses metal_graph_encode_layer_ffn_batch for the FFN sub-block intact
+(MoE + shared expert, Q4_K). Only the attention sub-block needs the DSpark-specific
+assembly above. chunk: build this as a new function metal_graph_dspark_encode_block
+next to metal_graph_encode_layer_batch.
 
 ### 3. forward_head (mtp.2 output stage)
 - hc_head: drafter output-stage HC reduce (sigmoid, not Sinkhorn). Small; needs a
