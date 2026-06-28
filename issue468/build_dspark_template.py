@@ -65,10 +65,10 @@ def tensors():
         # mtp.2 ONLY (verified against HF inventory); it is emitted with the
         # other mtp.2 output-stage tensors below, not here.
         add(f"{P}.hc_attn_base.weight",  [HCM],                 F32)
-        add(f"{P}.hc_attn_fn.weight",    [HCM, HCD],            F32)
+        add(f"{P}.hc_attn_fn.weight",    [HCM, HCD],            F16)  # F16: ds4 matmul_f16 kernel reads these as F16 (matches target)
         add(f"{P}.hc_attn_scale.weight", [3],                   F32)
         add(f"{P}.hc_ffn_base.weight",   [HCM],                 F32)
-        add(f"{P}.hc_ffn_fn.weight",     [HCM, HCD],            F32)
+        add(f"{P}.hc_ffn_fn.weight",     [HCM, HCD],            F16)  # F16: ds4 matmul_f16 kernel reads these as F16 (matches target)
         add(f"{P}.hc_ffn_scale.weight",  [3],                   F32)
         add(f"{P}.attn_sinks.weight",    [VH],                  F32)
         add(f"{P}.attn_q_a.weight",      [LQ, EMBD],            Q8_0)

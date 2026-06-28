@@ -10593,6 +10593,8 @@ typedef struct {
     ds4_gpu_tensor *dspark_main_x;       /* [DS4_N_EMBD] projected+normed main_hidden */
     ds4_gpu_tensor *dspark_draft_hc;    /* [BLOCK*HC*DS4_N_EMBD] HC-expanded draft block */
     ds4_gpu_tensor *dspark_kv_cache[3]; /* per-layer window KV [DS4_N_SWA*DS4_N_HEAD_DIM] */
+    uint32_t dspark_layer_idx;          /* current drafter layer (0..2) selecting kv_cache */
+    uint32_t dspark_n_real;             /* window fill: anchors cached so far (grows per step) */
     bool dspark_prefilled;              /* slot-0 anchor KV cached? */
     uint32_t prefill_cap;
     uint32_t raw_window;
@@ -11355,7 +11357,7 @@ static bool metal_graph_alloc_raw_cap(
         for (int s = 0; s < 3; s++) {
             g->dspark_kv_cache[s] = metal_graph_alloc_kv_cache_tensor(
                     managed_kv_cache,
-                    (uint64_t)DS4_N_SWA * DS4_N_HEAD_DIM * sizeof(float));
+                    (uint64_t)(DS4_N_SWA + DS4_DSPARK_BLOCK_SIZE) * DS4_N_HEAD_DIM * sizeof(float));
         }
         g->dspark_prefilled = false;
     }
@@ -17512,6 +17514,308 @@ static bool metal_graph_q_stage_profile_boundary(
             (now - *stage_t0) * 1000.0);
     *stage_t0 = now;
     return ds4_gpu_begin_commands() != 0;
+}
+
+/*
+ * DSpark drafter attention sub-block (one layer). Reads g->batch_cur_hc
+ * [block, hc, dim] (the HC-expanded draft block from the input stage / previous
+ * layer) and main_x (g->dspark_main_x [dim], the projected target hidden), and
+ * writes g->batch_after_attn_hc [block, hc, dim]. Mirrors
+ * metal_graph_encode_layer_attention_batch's q/kv/output-projection math
+ * (validated on the target), with two DSpark-specific changes:
+ *   (1) anchor KV is computed from main_x (rmsnorm(main_x @ kv, kv_a_norm) +
+ *       rope @ pos=start) and stored in the persistent window dspark_kv_cache[layer];
+ *   (2) the 5 draft positions attend NON-CAUSALLY to the gathered window
+ *       (n_real anchors ++ 5 draft kv) via the noncausal batched attention.
+ * See issue468/16 + issue468/dspark_oracle/attention.py dspark_attention.
+ * Caller sets g->dspark_layer_idx (selects the layer's window KV) and
+ * g->dspark_n_real (window fill; grows by 1 per decode step).
+ */
+static bool metal_graph_dspark_encode_attention(
+        ds4_gpu_graph          *g,
+        const ds4_model        *dspark_model,
+        const ds4_layer_weights *layer,
+        uint32_t                start_pos) {
+    const uint32_t n_tokens = DS4_DSPARK_BLOCK_SIZE;
+    const uint64_t hc_dim = (uint64_t)DS4_N_HC * DS4_N_EMBD;
+    const uint64_t mix_hc = 2ull * DS4_N_HC + (uint64_t)DS4_N_HC * DS4_N_HC;
+    const uint64_t q_rank = layer->attn_q_a->dim[1];
+    const uint64_t q_dim = (uint64_t)DS4_N_HEAD * DS4_N_HEAD_DIM;
+    const uint32_t n_groups = DS4_N_OUT_GROUP;
+    const uint32_t group_heads = DS4_N_HEAD / n_groups;
+    const uint32_t group_dim = DS4_N_HEAD_DIM * group_heads;
+    const uint32_t rank = DS4_N_LORA_O;
+    const float freq_base = DS4_ROPE_FREQ_BASE;          /* drafter: compress_ratio 0 */
+    const float freq_scale = 1.0f;
+    const float ext_factor = 0.0f;
+    const float attn_factor = 1.0f;
+    const uint32_t raw_cap = DS4_N_SWA + DS4_DSPARK_BLOCK_SIZE;
+    const uint32_t n_real = g->dspark_n_real;
+    ds4_gpu_tensor *kvc = g->dspark_kv_cache[g->dspark_layer_idx];
+
+    ds4_gpu_tensor *hc_mix_view = ds4_gpu_tensor_view(
+            g->batch_hc_mix, 0, (uint64_t)n_tokens * mix_hc * sizeof(float));
+    ds4_gpu_tensor *hc_split_view = ds4_gpu_tensor_view(
+            g->batch_hc_split, 0, (uint64_t)n_tokens * mix_hc * sizeof(float));
+    ds4_gpu_tensor *attn_cur_view = ds4_gpu_tensor_view(
+            g->batch_attn_cur, 0, (uint64_t)n_tokens * DS4_N_EMBD * sizeof(float));
+    ds4_gpu_tensor *after_attn_hc_view = ds4_gpu_tensor_view(
+            g->batch_after_attn_hc, 0, (uint64_t)n_tokens * hc_dim * sizeof(float));
+    bool ok = hc_mix_view && hc_split_view && attn_cur_view && after_attn_hc_view;
+
+    if (getenv("DS4_DSPARK_PROBE_ATTN_DEBUG")) {
+        if (ds4_gpu_synchronize()) {
+            float *ch = xmalloc((size_t)n_tokens * hc_dim * sizeof(float));
+            if (ds4_gpu_tensor_read(g->batch_cur_hc, 0, ch, (size_t)n_tokens * hc_dim * sizeof(float))) {
+                uint32_t bad=0; for(uint32_t i=0;i<n_tokens*hc_dim;i++) if(!isfinite(ch[i])) bad++;
+                fprintf(stderr, "ds4: dspark attn debug: batch_cur_hc(input) nan/inf=%u/%llu, [0..3]=%g %g %g %g\n",
+                        bad, (unsigned long long)(n_tokens*hc_dim), ch[0],ch[1],ch[2],ch[3]);
+            }
+            free(ch);
+        }
+    }
+
+    /* hc_pre (attn): rmsnorm(flat) -> matmul hc_attn_fn -> fused split+weighted-sum. */
+    if (ok) ok = ds4_gpu_rms_norm_plain_rows_tensor(g->batch_flat_hc,
+                                                      g->batch_cur_hc,
+                                                      (uint32_t)hc_dim,
+                                                      n_tokens,
+                                                      DS4_RMS_EPS) != 0;
+    if (ok) ok = ds4_gpu_matmul_f16_tensor(hc_mix_view,
+                                             dspark_model->map,
+                                             dspark_model->size,
+                                             layer->hc_attn_fn->abs_offset,
+                                             hc_dim,
+                                             mix_hc,
+                                             g->batch_flat_hc,
+                                             n_tokens) != 0;
+    if (ok) ok = ds4_gpu_hc_split_weighted_sum_tensor(attn_cur_view,
+                                                        hc_split_view,
+                                                        hc_mix_view,
+                                                        g->batch_cur_hc,
+                                                        dspark_model->map,
+                                                        dspark_model->size,
+                                                        layer->hc_attn_scale->abs_offset,
+                                                        layer->hc_attn_base->abs_offset,
+                                                        DS4_N_EMBD,
+                                                        DS4_N_HC,
+                                                        DS4_N_HC_SINKHORN_ITER,
+                                                        DS4_HC_EPS) != 0;
+    if (ok && getenv("DS4_DSPARK_PROBE_DUMP_HCPRE")) {
+        if (ds4_gpu_synchronize()) {
+            float *y = xmalloc((size_t)n_tokens * DS4_N_EMBD * sizeof(float));
+            if (ds4_gpu_tensor_read(g->batch_attn_cur, 0, y, (size_t)n_tokens * DS4_N_EMBD * sizeof(float))) {
+                const char *cd = getenv("DS4_DSPARK_PROBE_CAPDIR"); if(!cd||!cd[0]) cd="issue468/baseline/dspark_capture";
+                char p[1024]; snprintf(p,sizeof(p),"%s/metal_hc_pre_y_layer0.bin",cd);
+                FILE *fp=fopen(p,"wb"); if(fp){fwrite(y,sizeof(float),n_tokens*DS4_N_EMBD,fp);fclose(fp);}
+            }
+            free(y);
+        }
+    }
+    /* attn_norm */
+    if (ok) ok = ds4_gpu_rms_norm_weight_rows_tensor(g->batch_attn_norm,
+                                                      g->batch_attn_cur,
+                                                      dspark_model->map,
+                                                      dspark_model->size,
+                                                      layer->attn_norm->abs_offset,
+                                                      DS4_N_EMBD,
+                                                      n_tokens,
+                                                      DS4_RMS_EPS) != 0;
+    if (ok && getenv("DS4_DSPARK_PROBE_ATTN_DEBUG")) {
+        if (ds4_gpu_synchronize()) {
+            float *an = xmalloc((size_t)n_tokens * DS4_N_EMBD * sizeof(float));
+            if (ds4_gpu_tensor_read(g->batch_attn_norm, 0, an, (size_t)n_tokens * DS4_N_EMBD * sizeof(float))) {
+                uint32_t bad=0; for(uint32_t i=0;i<n_tokens*DS4_N_EMBD;i++) if(!isfinite(an[i])) bad++;
+                fprintf(stderr, "ds4: dspark attn debug: batch_attn_norm nan/inf=%u, [0..3]=%g %g %g %g\n", bad, an[0],an[1],an[2],an[3]);
+            }
+            free(an);
+            float *qr = xmalloc((size_t)n_tokens * q_rank * sizeof(float));
+            /* dump batch_qr after q_a */
+            (void)qr;
+        }
+    }
+    /* q path: q_a -> q_a_norm -> q_b -> head_rms_norm -> rope (draft at start+1..start+5) */
+    if (ok) ok = ds4_gpu_matmul_q8_0_tensor(g->batch_qr,
+                                              dspark_model->map,
+                                              dspark_model->size,
+                                              layer->attn_q_a->abs_offset,
+                                              DS4_N_EMBD, q_rank,
+                                              g->batch_attn_norm, n_tokens) != 0;
+    if (ok) ok = ds4_gpu_rms_norm_weight_rows_tensor(g->batch_qr_norm,
+                                                      g->batch_qr,
+                                                      dspark_model->map,
+                                                      dspark_model->size,
+                                                      layer->attn_q_a_norm->abs_offset,
+                                                      (uint32_t)q_rank,
+                                                      n_tokens,
+                                                      DS4_RMS_EPS) != 0;
+    if (ok) ok = ds4_gpu_matmul_q8_0_tensor(g->batch_q,
+                                              dspark_model->map,
+                                              dspark_model->size,
+                                              layer->attn_q_b->abs_offset,
+                                              q_rank, q_dim,
+                                              g->batch_qr_norm, n_tokens) != 0;
+    if (ok) ok = ds4_gpu_head_rms_norm_tensor(g->batch_q,
+                                                n_tokens, DS4_N_HEAD, DS4_N_HEAD_DIM,
+                                                DS4_RMS_EPS) != 0;
+    if (ok) ok = ds4_gpu_rope_tail_tensor(g->batch_q, n_tokens, DS4_N_HEAD, DS4_N_HEAD_DIM,
+                                            DS4_N_ROT, start_pos + 1u, 0u, false,
+                                            freq_base, freq_scale, ext_factor, attn_factor,
+                                            DS4_ROPE_YARN_BETA_FAST, DS4_ROPE_YARN_BETA_SLOW) != 0;
+    /* kv path (draft block, positions start+1..start+5): kv -> kv_a_norm -> rope -> fp8_quant. */
+    if (ok) ok = ds4_gpu_matmul_q8_0_tensor(g->batch_kv_raw,
+                                              dspark_model->map,
+                                              dspark_model->size,
+                                              layer->attn_kv->abs_offset,
+                                              DS4_N_EMBD, DS4_N_HEAD_DIM,
+                                              g->batch_attn_norm, n_tokens) != 0;
+    if (ok) ok = ds4_gpu_rms_norm_weight_rows_tensor(g->batch_kv,
+                                                      g->batch_kv_raw,
+                                                      dspark_model->map,
+                                                      dspark_model->size,
+                                                      layer->attn_kv_a_norm->abs_offset,
+                                                      DS4_N_HEAD_DIM,
+                                                      n_tokens,
+                                                      DS4_RMS_EPS) != 0;
+    if (ok) ok = ds4_gpu_rope_tail_tensor(g->batch_kv, n_tokens, DS4_N_HEAD_KV, DS4_N_HEAD_DIM,
+                                            DS4_N_ROT, start_pos + 1u, 0u, false,
+                                            freq_base, freq_scale, ext_factor, attn_factor,
+                                            DS4_ROPE_YARN_BETA_FAST, DS4_ROPE_YARN_BETA_SLOW) != 0;
+    if (ok && !getenv("DS4_DSPARK_NO_FP8")) ok = ds4_gpu_dsv4_fp8_kv_quantize_tensor(g->batch_kv, n_tokens,
+                                                       DS4_N_HEAD_DIM, DS4_N_ROT) != 0;
+    /* Store the draft-block KV right after all anchors (transient slots
+     * [n_real+1 .. n_real+block]). The anchors occupy [0..n_real]; this step's
+     * anchor goes to [n_real] (stored next), making the gathered window
+     * [0..n_real+block-1] contiguous for the non-causal attention. */
+    if (ok) ok = ds4_gpu_store_raw_kv_batch_tensor(kvc, g->batch_kv, raw_cap,
+                                                     n_real + 1u, n_tokens,
+                                                     DS4_N_HEAD_DIM) != 0;
+    /* Anchor KV from main_x (DSpark-specific): rmsnorm(main_x @ kv, kv_a_norm) ->
+     * rope @ pos=start -> fp8_quant -> store at window slot [n_real]. Uses the
+     * 1-token batch_kv_raw/batch_kv buffers (free at this point). */
+    if (ok) ok = ds4_gpu_matmul_q8_0_tensor(g->batch_kv_raw,
+                                              dspark_model->map,
+                                              dspark_model->size,
+                                              layer->attn_kv->abs_offset,
+                                              DS4_N_EMBD, DS4_N_HEAD_DIM,
+                                              g->dspark_main_x, 1) != 0;
+    if (ok) ok = ds4_gpu_rms_norm_weight_rows_tensor(g->batch_kv,
+                                                      g->batch_kv_raw,
+                                                      dspark_model->map,
+                                                      dspark_model->size,
+                                                      layer->attn_kv_a_norm->abs_offset,
+                                                      DS4_N_HEAD_DIM,
+                                                      1,
+                                                      DS4_RMS_EPS) != 0;
+    if (ok) ok = ds4_gpu_rope_tail_tensor(g->batch_kv, 1, DS4_N_HEAD_KV, DS4_N_HEAD_DIM,
+                                            DS4_N_ROT, start_pos, 0u, false,
+                                            freq_base, freq_scale, ext_factor, attn_factor,
+                                            DS4_ROPE_YARN_BETA_FAST, DS4_ROPE_YARN_BETA_SLOW) != 0;
+    if (ok && !getenv("DS4_DSPARK_NO_FP8")) ok = ds4_gpu_dsv4_fp8_kv_quantize_tensor(g->batch_kv, 1,
+                                                       DS4_N_HEAD_DIM, DS4_N_ROT) != 0;
+    if (ok) ok = ds4_gpu_store_raw_kv_batch_tensor(kvc, g->batch_kv, raw_cap,
+                                                     n_real, 1,
+                                                     DS4_N_HEAD_DIM) != 0;
+    /* Non-causal attention: all 5 draft positions attend to the gathered window
+     * [0 .. n_real+block] (n_real+1 anchors + 5 draft), mask = all-attend. */
+    if (ok && getenv("DS4_DSPARK_PROBE_ATTN_DEBUG")) {
+        if (ds4_gpu_synchronize()) {
+            float *q = xmalloc((size_t)n_tokens * DS4_N_HEAD * DS4_N_HEAD_DIM * sizeof(float));
+            if (ds4_gpu_tensor_read(g->batch_q, 0, q, (size_t)n_tokens * DS4_N_HEAD * DS4_N_HEAD_DIM * sizeof(float))) {
+                uint32_t qbad = 0; for (uint32_t i = 0; i < n_tokens*DS4_N_HEAD*DS4_N_HEAD_DIM; i++) if (!isfinite(q[i])) qbad++;
+                fprintf(stderr, "ds4: dspark attn debug: batch_q nan/inf=%u\n", qbad);
+            }
+            free(q);
+            /* dump gathered kv (first 7 rows * head_dim) */
+            const uint32_t n_raw_dbg = n_real + 1u + n_tokens;
+            float *kv = xmalloc((size_t)n_raw_dbg * DS4_N_HEAD_DIM * sizeof(float));
+            if (ds4_gpu_tensor_read(kvc, 0, kv, (size_t)n_raw_dbg * DS4_N_HEAD_DIM * sizeof(float))) {
+                uint32_t kvbad = 0; for (uint32_t i = 0; i < n_raw_dbg*DS4_N_HEAD_DIM; i++) if (!isfinite(kv[i])) kvbad++;
+                fprintf(stderr, "ds4: dspark attn debug: gathered_kv(%u rows) nan/inf=%u, row0[0..3]=%g %g %g %g\n",
+                        n_raw_dbg, kvbad, kv[0], kv[1], kv[2], kv[3]);
+            }
+            free(kv);
+        }
+    }
+    if (ok) ok = ds4_gpu_attention_decode_raw_batch_heads_noncausal_tensor(
+            g->batch_heads,
+            dspark_model->map, dspark_model->size,
+            layer->attn_sinks->abs_offset,
+            g->batch_q,
+            kvc,
+            n_tokens, n_real + 1u + n_tokens, raw_cap, 0u,
+            DS4_N_HEAD, DS4_N_HEAD_DIM) != 0;
+    /* DSpark MLA shares the rope dims between keys and values: the attention
+     * output's last n_rot dims are still rotary-encoded (the FlashAttention
+     * kernel rotates k but does not inverse-rotate the output), so apply the
+     * INVERSE rope at the query positions to return the output to the original
+     * space before the output projection. Matches inference/model.py
+     * DSparkAttention (apply_rotary(o[..., -rope_dim:], inverse=True)). */
+    if (ok) ok = ds4_gpu_rope_tail_tensor(g->batch_heads, n_tokens, DS4_N_HEAD, DS4_N_HEAD_DIM,
+                                            DS4_N_ROT, start_pos + 1u, 0u, /*inverse=*/true,
+                                            freq_base, freq_scale, ext_factor, attn_factor,
+                                            DS4_ROPE_YARN_BETA_FAST, DS4_ROPE_YARN_BETA_SLOW) != 0;
+    /* Debug: check batch_heads for NaN. */
+    if (ok && getenv("DS4_DSPARK_PROBE_ATTN_DEBUG")) {
+        if (ds4_gpu_synchronize()) {
+            float *hd = xmalloc((size_t)n_tokens * DS4_N_HEAD * DS4_N_HEAD_DIM * sizeof(float));
+            if (ds4_gpu_tensor_read(g->batch_heads, 0, hd, (size_t)n_tokens * DS4_N_HEAD * DS4_N_HEAD_DIM * sizeof(float))) {
+                uint32_t nbad = 0;
+                for (uint32_t i = 0; i < n_tokens * DS4_N_HEAD * DS4_N_HEAD_DIM; i++) if (!isfinite(hd[i])) nbad++;
+                fprintf(stderr, "ds4: dspark attn debug: batch_heads nan/inf=%u/%llu, sample[0..3]=%g %g %g %g\n",
+                        nbad, (unsigned long long)(n_tokens * DS4_N_HEAD * DS4_N_HEAD_DIM),
+                        hd[0], hd[1], hd[2], hd[3]);
+            }
+            free(hd);
+        }
+    }
+    if (ok && getenv("DS4_DSPARK_PROBE_DUMP_HEADS")) {
+        if (ds4_gpu_synchronize()) {
+            float *hd = xmalloc((size_t)n_tokens * DS4_N_HEAD * DS4_N_HEAD_DIM * sizeof(float));
+            if (ds4_gpu_tensor_read(g->batch_heads, 0, hd, (size_t)n_tokens * DS4_N_HEAD * DS4_N_HEAD_DIM * sizeof(float))) {
+                const char *cd = getenv("DS4_DSPARK_PROBE_CAPDIR"); if(!cd||!cd[0]) cd="issue468/baseline/dspark_capture";
+                char p[1024]; snprintf(p,sizeof(p),"%s/metal_attn_heads_layer0.bin",cd);
+                FILE *fp=fopen(p,"wb"); if(fp){fwrite(hd,sizeof(float),n_tokens*DS4_N_HEAD*DS4_N_HEAD_DIM,fp);fclose(fp);}
+            }
+            free(hd);
+        }
+    }
+    /* Output projection (grouped low-rank wo_a/wo_b). */
+    if (getenv("DS4_DSPARK_PROBE_ATTN_DEBUG") && ok) fprintf(stderr, "ds4: dspark attn debug: reached output_proj stage ok\n");
+    if (ok) ok = ds4_gpu_attention_output_q8_batch_tensor(g->batch_attn_out,
+                                                            g->batch_attn_low,
+                                                            g->batch_group_tmp,
+                                                            g->batch_low_tmp,
+                                                            dspark_model->map,
+                                                            dspark_model->size,
+                                                            layer->attn_output_a->abs_offset,
+                                                            layer->attn_output_b->abs_offset,
+                                                            group_dim, rank, n_groups, DS4_N_EMBD,
+                                                            g->batch_heads, n_tokens) != 0;
+    if (getenv("DS4_DSPARK_PROBE_ATTN_DEBUG")) fprintf(stderr, "ds4: dspark attn debug: after output_proj ok=%d\n", ok);
+    if (ok && getenv("DS4_DSPARK_PROBE_DUMP_ATTNOUT")) {
+        if (ds4_gpu_synchronize()) {
+            float *ao = xmalloc((size_t)n_tokens * DS4_N_EMBD * sizeof(float));
+            if (ds4_gpu_tensor_read(g->batch_attn_out, 0, ao, (size_t)n_tokens * DS4_N_EMBD * sizeof(float))) {
+                const char *cd = getenv("DS4_DSPARK_PROBE_CAPDIR"); if(!cd||!cd[0]) cd="issue468/baseline/dspark_capture";
+                char p[1024]; snprintf(p,sizeof(p),"%s/metal_attn_out_layer0.bin",cd);
+                FILE *fp=fopen(p,"wb"); if(fp){fwrite(ao,sizeof(float),n_tokens*DS4_N_EMBD,fp);fclose(fp);}
+            }
+            free(ao);
+        }
+    }
+    /* hc_post (attn): fused expand+split. */
+    if (ok) ok = ds4_gpu_hc_expand_split_tensor(after_attn_hc_view,
+                                                  g->batch_attn_out,
+                                                  g->batch_cur_hc,
+                                                  hc_split_view,
+                                                  DS4_N_EMBD, DS4_N_HC) != 0;
+    if (getenv("DS4_DSPARK_PROBE_ATTN_DEBUG")) fprintf(stderr, "ds4: dspark attn debug: after hc_post ok=%d\n", ok);
+    ds4_gpu_tensor_free(after_attn_hc_view);
+    ds4_gpu_tensor_free(attn_cur_view);
+    ds4_gpu_tensor_free(hc_split_view);
+    ds4_gpu_tensor_free(hc_mix_view);
+    return ok;
 }
 
 static bool metal_graph_encode_layer_attention_batch(
@@ -27641,6 +27945,65 @@ static void ds4_dspark_probe_input_stage(ds4_session *s) {
         fprintf(stderr, "ds4: dspark probe: main_x readback failed\n");
     }
     free(main_x);
+
+    /* Optional: validate the layer-0 attention sub-block against the oracle.
+     * Gate: DS4_DSPARK_PROBE_ATTN=1. Prefills slot0 from main_x (pos=0), sets
+     * n_real=1, runs metal_graph_dspark_encode_attention at start_pos=1, dumps
+     * batch_after_attn_hc for comparison with oracle_after_attn_hc_layer0_pos152. */
+    if (ok && getenv("DS4_DSPARK_PROBE_ATTN")) {
+        /* Prefill slot0: anchor KV from main_x at pos=0 (mirrors oracle
+         * dspark_attention_prefill). */
+        g->dspark_layer_idx = 0;
+        g->dspark_n_real = 0;
+        bool aok = ds4_gpu_begin_commands() != 0;
+        if (aok) aok = ds4_gpu_matmul_q8_0_tensor(g->batch_kv_raw,
+                                                    e->dspark_model.map,
+                                                    e->dspark_model.size,
+                                                    e->dspark_weights.block[0].attn_kv->abs_offset,
+                                                    DS4_N_EMBD, DS4_N_HEAD_DIM,
+                                                    g->dspark_main_x, 1) != 0;
+        if (aok) aok = ds4_gpu_rms_norm_weight_rows_tensor(g->batch_kv,
+                                                            g->batch_kv_raw,
+                                                            e->dspark_model.map,
+                                                            e->dspark_model.size,
+                                                            e->dspark_weights.block[0].attn_kv_a_norm->abs_offset,
+                                                            DS4_N_HEAD_DIM, 1,
+                                                            DS4_RMS_EPS) != 0;
+        if (aok) aok = ds4_gpu_rope_tail_tensor(g->batch_kv, 1, DS4_N_HEAD_KV, DS4_N_HEAD_DIM,
+                                                  DS4_N_ROT, 0u, 0u, false,
+                                                  DS4_ROPE_FREQ_BASE, 1.0f, 0.0f, 1.0f,
+                                                  DS4_ROPE_YARN_BETA_FAST, DS4_ROPE_YARN_BETA_SLOW) != 0;
+        if (aok) aok = ds4_gpu_dsv4_fp8_kv_quantize_tensor(g->batch_kv, 1,
+                                                             DS4_N_HEAD_DIM, DS4_N_ROT) != 0;
+        if (aok) aok = ds4_gpu_store_raw_kv_batch_tensor(g->dspark_kv_cache[0],
+                                                          g->batch_kv, DS4_N_SWA + DS4_DSPARK_BLOCK_SIZE,
+                                                          0u, 1, DS4_N_HEAD_DIM) != 0;
+        if (aok) aok = ds4_gpu_end_commands() != 0;
+        if (aok) aok = ds4_gpu_synchronize() != 0;
+        if (aok) {
+            g->dspark_n_real = 1;  /* slot0 prefilled */
+            aok = ds4_gpu_begin_commands() != 0;
+        }
+        if (aok) aok = metal_graph_dspark_encode_attention(g, &e->dspark_model,
+                                                       &e->dspark_weights.block[0],
+                                                       /*start_pos=*/1u);
+        if (aok) aok = ds4_gpu_end_commands() != 0;
+        if (aok) aok = ds4_gpu_synchronize() != 0;
+        if (aok) {
+            const uint64_t hc_dim = (uint64_t)DS4_N_HC * DS4_N_EMBD;
+            float *after = xmalloc((size_t)DS4_DSPARK_BLOCK_SIZE * hc_dim * sizeof(float));
+            if (ds4_gpu_tensor_read(g->batch_after_attn_hc, 0, after,
+                                    (size_t)DS4_DSPARK_BLOCK_SIZE * hc_dim * sizeof(float))) {
+                char ap[1024]; snprintf(ap, sizeof(ap), "%s/metal_after_attn_hc_layer0_pos152.bin", capdir);
+                FILE *fp = fopen(ap, "wb");
+                if (fp) { fwrite(after, sizeof(float), DS4_DSPARK_BLOCK_SIZE * hc_dim, fp); fclose(fp);
+                    fprintf(stderr, "ds4: dspark probe: wrote %s\n", ap);
+                }
+            }
+            free(after);
+        }
+        if (!aok) fprintf(stderr, "ds4: dspark probe: attention sub-block FAILED\n");
+    }
 }
 
 static int ds4_session_eval_internal(ds4_session *s, int token, bool probe_mtp,
