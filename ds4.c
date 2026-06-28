@@ -27931,6 +27931,146 @@ static void ds4_dspark_time_backbone(ds4_session *s) {
  * anchor DS4_DSPARK_PROBE_ANCHOR (default 2581 = greedy[0] for code prompt).
  * Output: <capdir>/metal_main_x_pos<pos>.bin ([dim] f32).
  */
+
+/*
+ * DSpark drafter greedy-acceptance sweep (research-only, env-gated). The decisive
+ * de-risk for Phase 5/6: measures the Metal drafter's real greedy acceptance vs
+ * the target with PERSISTENT growing window KV (mirrors measure_b2_acceptance.py
+ * but on Metal, with production Q4_K kernels). Greedy acceptance is an upper bound
+ * on B2. If it holds near the oracle's 2.79, Phase 5/6 are worth it.
+ *
+ * Gate: DS4_DSPARK_PROBE_ACCEPT=1 (via the verifier-curve-test session, which has
+ * batch buffers). Reads main_hidden captures (ext/, pos 152+) and target greedy
+ * tokens (DS4_DSPARK_PROBE_GREEDY). Sweeps DS4_DSPARK_PROBE_ACCEPT_STEPS (default 19).
+ */
+static void ds4_dspark_probe_accept(ds4_session *s) {
+    ds4_engine *e = s ? s->engine : NULL;
+    if (!e || !e->dspark_ready) return;
+    ds4_gpu_graph *g = &s->graph;
+    const char *capdir = getenv("DS4_DSPARK_PROBE_CAPDIR");
+    if (!capdir || !capdir[0]) capdir = "issue468/baseline/dspark_capture";
+    const char *greedy_path = getenv("DS4_DSPARK_PROBE_GREEDY");
+    if (!greedy_path || !greedy_path[0]) greedy_path = "issue468/baseline/dspark_capture/target_greedy_130.json";
+    const long pos0 = 152;
+    const int n_steps = getenv("DS4_DSPARK_PROBE_ACCEPT_STEPS")
+        ? (int)strtol(getenv("DS4_DSPARK_PROBE_ACCEPT_STEPS"), NULL, 10) : 19;
+    if (n_steps <= 0 || n_steps > 120) return;
+
+    /* Load target greedy tokens (JSON array of ints). Minimal parser. */
+    FILE *gf = fopen(greedy_path, "r");
+    if (!gf) { fprintf(stderr, "ds4: dspark accept: cannot open %s\n", greedy_path); return; }
+    int *greedy = xmalloc((size_t)(n_steps + 8) * sizeof(int));
+    int n_greedy = 0; char ch; enum { G_SKIP, G_NUM } stt = G_SKIP; int val = 0; bool neg = false;
+    while ((ch = (char)fgetc(gf)) != EOF && n_greedy < n_steps + 7) {
+        if (stt == G_SKIP) {
+            if (ch == '-') { neg = true; stt = G_NUM; val = 0; }
+            else if (ch >= '0' && ch <= '9') { neg = false; stt = G_NUM; val = ch - '0'; }
+        } else {
+            if (ch >= '0' && ch <= '9') val = val * 10 + (ch - '0');
+            else { greedy[n_greedy++] = neg ? -val : val; stt = G_SKIP; neg = false; }
+        }
+    }
+    if (stt == G_NUM) greedy[n_greedy++] = neg ? -val : val;
+    fclose(gf);
+    if (n_greedy < n_steps + 6) { fprintf(stderr, "ds4: dspark accept: need %d greedy tokens, got %d\n", n_steps+6, n_greedy); free(greedy); return; }
+
+    const uint16_t *mw1 = (const uint16_t *)((const uint8_t *)e->dspark_model.map + e->dspark_weights.markov_w1->abs_offset);
+    const uint16_t *mw2 = (const uint16_t *)((const uint8_t *)e->dspark_model.map + e->dspark_weights.markov_w2->abs_offset);
+    const uint32_t rank = 256;
+    const uint64_t vocab = DS4_N_VOCAB;
+    float *logits = xmalloc((size_t)DS4_DSPARK_BLOCK_SIZE * vocab * sizeof(float));
+    float *mh = xmalloc((size_t)3 * DS4_N_EMBD * sizeof(float));
+
+    /* Helper macro: load main_hidden for a position into g->dspark_main_hidden. */
+    #define DSPARK_LOAD_MH(POS) do { \
+        bool _ok = true; \
+        for (uint32_t _li = 0; _ok && _li < 3; _li++) { \
+            const uint32_t _layers[3] = {40,41,42}; char _p[1024]; \
+            snprintf(_p, sizeof(_p), "%s/ext/hc_dspark_main_hc-%u_pos%ld.bin", capdir, _layers[_li], (long)(POS)); \
+            FILE *_fp = fopen(_p, "rb"); if (!_fp) { _ok=false; break; } \
+            float *_lhc = xmalloc((size_t)DS4_N_HC*DS4_N_EMBD*sizeof(float)); \
+            if (fread(_lhc,sizeof(float),(size_t)DS4_N_HC*DS4_N_EMBD,_fp) != (size_t)DS4_N_HC*DS4_N_EMBD) _ok=false; \
+            fclose(_fp); \
+            float *_dst = mh + (size_t)_li*DS4_N_EMBD; \
+            for (uint32_t _d=0; _ok && _d<DS4_N_EMBD; _d++) { double _a=0; for(uint32_t _h=0;_h<DS4_N_HC;_h++) _a+=_lhc[(size_t)_h*DS4_N_EMBD+_d]; _dst[_d]=(float)(_a/DS4_N_HC); } \
+            free(_lhc); \
+        } \
+        if (_ok) _ok = ds4_gpu_tensor_write(g->dspark_main_hidden, 0, mh, (size_t)3*DS4_N_EMBD*sizeof(float)) != 0; \
+        if (!_ok) { fprintf(stderr,"ds4: accept: mh load pos %ld failed\n",(long)(POS)); goto done; } \
+    } while (0)
+
+    /* Prefill slot0 for all 3 layers from mh[pos0] (anchor greedy[0]). */
+    DSPARK_LOAD_MH(pos0);
+    if (!metal_graph_dspark_input_stage(g, &e->model, &e->weights, &e->dspark_model, &e->dspark_weights, greedy[0])) {
+        fprintf(stderr, "ds4: accept: prefill input stage failed\n"); goto done; }
+    g->dspark_n_real = 0;
+    for (uint32_t lay = 0; lay < 3; lay++) {
+        if (!ds4_gpu_begin_commands()) goto done;
+        bool ok = ds4_gpu_matmul_q8_0_tensor(g->batch_kv_raw, e->dspark_model.map, e->dspark_model.size,
+            e->dspark_weights.block[lay].attn_kv->abs_offset, DS4_N_EMBD, DS4_N_HEAD_DIM, g->dspark_main_x, 1);
+        if (ok) ok = ds4_gpu_rms_norm_weight_rows_tensor(g->batch_kv, g->batch_kv_raw, e->dspark_model.map, e->dspark_model.size,
+            e->dspark_weights.block[lay].attn_kv_a_norm->abs_offset, DS4_N_HEAD_DIM, 1, DS4_RMS_EPS);
+        if (ok) ok = ds4_gpu_rope_tail_tensor(g->batch_kv, 1, DS4_N_HEAD_KV, DS4_N_HEAD_DIM, DS4_N_ROT, 0u, 0u, false,
+            DS4_ROPE_FREQ_BASE, 1.0f, 0.0f, 1.0f, DS4_ROPE_YARN_BETA_FAST, DS4_ROPE_YARN_BETA_SLOW);
+        if (ok) ok = ds4_gpu_dsv4_fp8_kv_quantize_tensor(g->batch_kv, 1, DS4_N_HEAD_DIM, DS4_N_ROT);
+        if (ok) ok = ds4_gpu_store_raw_kv_batch_tensor(g->dspark_kv_cache[lay], g->batch_kv, DS4_N_SWA + DS4_DSPARK_BLOCK_SIZE, 0u, 1, DS4_N_HEAD_DIM);
+        if (!ds4_gpu_end_commands() || !ok || !ds4_gpu_synchronize()) { fprintf(stderr,"ds4: accept: prefill slot0 lay %u failed\n",lay); goto done; }
+    }
+    g->dspark_n_real = 1;
+
+    long total_match = 0, total_pos = 0;
+    long prefix_hist[6] = {0,0,0,0,0,0};
+    fprintf(stderr, "ds4: dspark accept sweep (Metal, persistent KV, %d steps):\n", n_steps);
+    fprintf(stderr, "  %4s %4s %5s %18s %18s %6s %7s\n", "step","pos","nreal","draft","target","match","prefix");
+    for (int step = 1; step <= n_steps; step++) {
+        long pos = pos0 + step;
+        DSPARK_LOAD_MH(pos);
+        if (!metal_graph_dspark_input_stage(g, &e->model, &e->weights, &e->dspark_model, &e->dspark_weights, greedy[step])) {
+            fprintf(stderr, "ds4: accept: step %d input stage failed\n", step); goto done; }
+        bool ok = true;
+        for (uint32_t lay = 0; ok && lay < 3; lay++) {
+            g->dspark_layer_idx = lay;
+            if (!ds4_gpu_begin_commands()) { ok = false; break; }
+            ok = metal_graph_dspark_encode_block(g, &e->dspark_model, &e->dspark_weights.block[lay], (uint32_t)step);
+            if (!ds4_gpu_end_commands() || !ok || !ds4_gpu_synchronize()) { ok = false; break; }
+        }
+        if (!ok) { fprintf(stderr, "ds4: accept: step %d block failed\n", step); goto done; }
+        if (!ds4_gpu_begin_commands()) goto done;
+        if (!metal_graph_dspark_output_head(g, &e->model, &e->weights, &e->dspark_model, &e->dspark_weights, DS4_DSPARK_BLOCK_SIZE)) { fprintf(stderr,"ds4: accept: step %d out_head failed\n",step); goto done; }
+        if (!ds4_gpu_end_commands() || !ds4_gpu_synchronize()) goto done;
+        if (!ds4_gpu_tensor_read(g->spec_logits, 0, logits, (size_t)DS4_DSPARK_BLOCK_SIZE*vocab*sizeof(float))) goto done;
+        int draft[DS4_DSPARK_BLOCK_SIZE]; int prev = greedy[step];
+        for (uint32_t i = 0; i < DS4_DSPARK_BLOCK_SIZE; i++) {
+            float emb[256];
+            for (uint32_t r = 0; r < rank; r++) { uint32_t b = ((uint32_t)mw1[(uint64_t)prev*rank+r])<<16; memcpy(&emb[r], &b, sizeof(float)); }
+            int best = -1; float best_l = -1e30f;
+            for (uint64_t v = 0; v < vocab; v++) {
+                float acc = logits[i*vocab + v];
+                for (uint32_t r = 0; r < rank; r++) { uint32_t b = ((uint32_t)mw2[v*rank+r])<<16; float wvf; memcpy(&wvf,&b,sizeof(float)); acc += emb[r]*wvf; }
+                if (acc > best_l) { best_l = acc; best = (int)v; }
+            }
+            draft[i] = best; prev = best;
+        }
+        int prefix = 0, match = 0;
+        for (uint32_t i = 0; i < DS4_DSPARK_BLOCK_SIZE; i++) {
+            if (draft[i] == greedy[step+1+i]) { match++; if (prefix == (int)i) prefix = (int)i+1; }
+        }
+        total_match += match; total_pos += DS4_DSPARK_BLOCK_SIZE; prefix_hist[prefix]++;
+        fprintf(stderr, "  %4d %4ld %5u   [%d %d %d %d %d] [%d %d %d %d %d] %6d %7d\n",
+            step, pos, g->dspark_n_real, draft[0],draft[1],draft[2],draft[3],draft[4],
+            greedy[step+1],greedy[step+2],greedy[step+3],greedy[step+4],greedy[step+5], match, prefix);
+        if (g->dspark_n_real < DS4_N_SWA) g->dspark_n_real++;
+    }
+    double avg_prefix = (double)(prefix_hist[1]+2*prefix_hist[2]+3*prefix_hist[3]+4*prefix_hist[4]+5*prefix_hist[5]) / n_steps;
+    fprintf(stderr, "  SUMMARY: greedy match %ld/%ld (%.1f%%), avg prefix %.2f/5, hist [%ld %ld %ld %ld %ld %ld]\n",
+        total_match, total_pos, 100.0*total_match/total_pos, avg_prefix,
+        prefix_hist[0],prefix_hist[1],prefix_hist[2],prefix_hist[3],prefix_hist[4],prefix_hist[5]);
+    fprintf(stderr, "  (oracle doc-15: 57.9%% match, 2.79 avg prefix; this is the Metal upper bound on B2)\n");
+done:
+    #undef DSPARK_LOAD_MH
+    free(logits); free(mh); free(greedy);
+}
+
 static void ds4_dspark_probe_input_stage(ds4_session *s) {
     ds4_engine *e = s ? s->engine : NULL;
     if (!e || !e->dspark_ready) return;
@@ -29255,6 +29395,11 @@ int ds4_engine_verifier_curve_test(ds4_engine *e, const ds4_tokens *prompt, int 
         /* DSpark input-stage validation: load captured main_hidden, run the Metal
          * input stage, dump main_x for comparison with the numpy oracle. */
         ds4_dspark_probe_input_stage(s);
+    }
+    if (e->dspark_ready && getenv("DS4_DSPARK_PROBE_ACCEPT")) {
+        /* DSpark greedy-acceptance sweep with persistent KV (decisive de-risk for
+         * Phase 5/6). See issue468/22. */
+        ds4_dspark_probe_accept(s);
     }
     ds4_session_free(s);
     if (rc == 0) fprintf(stderr, "ds4: verifier curve test complete\n");
