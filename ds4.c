@@ -28712,18 +28712,19 @@ int ds4_session_eval_dspark_b2(ds4_session *s, int first_token,
         snprintf(err, errlen, "dspark b2: drafter forward failed"); return n_accept;
     }
 
-    /* Read drafter base_logits + apply Markov head (sequential, greedy argmax). */
+    /* Read drafter base_logits + apply Markov head. Store the full q distribution
+     * [block, vocab] for B2 acceptance (not just argmax). */
     float *base_logits = xmalloc((size_t)block * vocab * sizeof(float));
+    float *q_dist = xmalloc((size_t)block * vocab * sizeof(float));  /* drafter q per position */
     ok = ds4_gpu_tensor_read(g->spec_logits, 0, base_logits,
             (size_t)block * vocab * sizeof(float)) != 0;
-    if (!ok) { free(base_logits); snprintf(err, errlen, "dspark b2: logits readback failed"); return n_accept; }
+    if (!ok) { free(base_logits); free(q_dist); snprintf(err, errlen, "dspark b2: logits readback failed"); return n_accept; }
     const uint16_t *mw1 = (const uint16_t *)((const uint8_t *)e->dspark_model.map
             + e->dspark_weights.markov_w1->abs_offset);
     const uint16_t *mw2 = (const uint16_t *)((const uint8_t *)e->dspark_model.map
             + e->dspark_weights.markov_w2->abs_offset);
     const uint32_t rank = 256;
     int drafts[DS4_DSPARK_BLOCK_SIZE];
-    float *q_logits = xmalloc((size_t)vocab * sizeof(float));  /* one row at a time */
     int prev = first_token;
     for (uint32_t i = 0; i < (uint32_t)block; i++) {
         /* bias[v] = sum_r mw1[prev,r] * mw2[v,r] (BF16 -> F32) */
@@ -28732,6 +28733,8 @@ int ds4_session_eval_dspark_b2(ds4_session *s, int first_token,
             uint32_t bits = ((uint32_t)mw1[(uint64_t)prev * rank + r]) << 16;
             memcpy(&emb[r], &bits, sizeof(float));
         }
+        /* Compute q_row[v] = base[i,v] + markov_bias[v]. Store in q_dist for B2. */
+        float *q_row = q_dist + (uint64_t)i * vocab;
         int best = -1; float best_l = -1e30f;
         for (uint64_t v = 0; v < vocab; v++) {
             float acc = base_logits[i * vocab + v];
@@ -28740,12 +28743,12 @@ int ds4_session_eval_dspark_b2(ds4_session *s, int first_token,
                 float wvf; memcpy(&wvf, &bits, sizeof(float));
                 acc += emb[r] * wvf;
             }
-            q_logits[v] = acc;
+            q_row[v] = acc;
             if (acc > best_l) { best_l = acc; best = (int)v; }
         }
         drafts[i] = best; prev = best;
     }
-    free(base_logits); free(q_logits);
+    free(base_logits);
 
     /* Step 3: verify the draft suffix via the batch verifier. */
     ds4_spec_frontier frontier;
@@ -28769,37 +28772,66 @@ int ds4_session_eval_dspark_b2(ds4_session *s, int first_token,
         return n_accept;
     }
 
-    /* Step 4: B2 acceptance. The first draft is verified for free against
-     * s->logits (the target's argmax at the anchor position, from the decode).
-     * row_tops[i] covers drafts[i+1] (verify produces n_tokens-1 tops). */
+    /* Step 4: TRUE B2 rejection-sampling acceptance.
+     *
+     * For each draft position i:
+     *   q(x) = softmax(q_dist[i])   [drafter distribution]
+     *   p(x) = softmax(p_logits[i]) [target distribution]
+     *   accept draft x w.p. min(1, p(x)/q(x))
+     *   on reject: correction = argmax(p-q), commit, STOP
+     *
+     * Position 0 is verified against s->logits (target's distribution at anchor).
+     * Positions 1..4 verified against row_logits[0..3] (target at verify positions).
+     * row_logits has [block, vocab] = the full target distribution per position.
+     */
     int n_draft_accept = 0;
-    /* Verify draft[0] against the target's argmax at the anchor position. */
-    int target_tok0 = sample_argmax(s->logits, DS4_N_VOCAB);
-    if (getenv("DS4_DSPARK_B2_DEBUG"))
-        fprintf(stderr, "ds4: b2: pos 0 draft=%d target=%d %s\n", drafts[0], target_tok0,
-                drafts[0] == target_tok0 ? "ACCEPT" : "reject");
-    if (drafts[0] == target_tok0) {
-        accepted[n_accept++] = drafts[0];
-        n_draft_accept++;
-        /* Verify drafts[1..block-1] against row_tops[0..block-2]. */
-        for (int i = 1; i < block && n_accept < accepted_cap && n_accept < max_tokens; i++) {
-            int target_tok = row_tops[i - 1];
-            if (getenv("DS4_DSPARK_B2_DEBUG") && i < 3)
-                fprintf(stderr, "ds4: b2: pos %d draft=%d target=%d %s\n", i, drafts[i], target_tok,
-                        drafts[i] == target_tok ? "ACCEPT" : "reject");
-            if (drafts[i] == target_tok) {
-                accepted[n_accept++] = drafts[i];
-                n_draft_accept++;
-            } else {
-                accepted[n_accept++] = target_tok;
-                break;
-            }
+    /* Simple xorshift RNG for reproducibility. */
+    static uint64_t b2_rng_state = 0x9e3779b97f4a7c15ULL;
+    #define B2_RAND() (b2_rng_state ^= b2_rng_state << 13, b2_rng_state ^= b2_rng_state >> 7, \
+                       b2_rng_state ^= b2_rng_state << 17, (double)(b2_rng_state >> 11) / (double)(1ULL << 53))
+
+    /* Helper: compute softmax max + sum for a logits row, then p(x)/q(x). */
+    for (int i = 0; i < block && n_accept < accepted_cap && n_accept < max_tokens; i++) {
+        int draft_tok = drafts[i];
+        float *q_row = q_dist + (uint64_t)i * vocab;
+        /* Target p: position 0 uses s->logits, positions 1..4 use row_logits[i-1]. */
+        float *p_row = (i == 0) ? s->logits : (row_logits + (uint64_t)(i - 1) * vocab);
+        /* Compute q(draft) and p(draft) via stable softmax. */
+        float qmax = -1e30f, pmax = -1e30f;
+        for (uint64_t v = 0; v < vocab; v++) {
+            if (q_row[v] > qmax) qmax = q_row[v];
+            if (p_row[v] > pmax) pmax = p_row[v];
         }
-    } else {
-        /* Reject: commit the target's token (correction). */
-        accepted[n_accept++] = target_tok0;
+        double qsum = 0, psum = 0;
+        for (uint64_t v = 0; v < vocab; v++) {
+            qsum += exp(q_row[v] - qmax);
+            psum += exp(p_row[v] - pmax);
+        }
+        double qd = exp(q_row[draft_tok] - qmax) / qsum;
+        double pd = exp(p_row[draft_tok] - pmax) / psum;
+        double accept_prob = (qd > 1e-30) ? (pd / qd) : 0.0;
+        if (accept_prob > 1.0) accept_prob = 1.0;
+        double u = B2_RAND();
+        if (getenv("DS4_DSPARK_B2_DEBUG"))
+            fprintf(stderr, "ds4: b2: pos %d draft=%d q=%.5f p=%.5f accept_p=%.4f u=%.4f %s\n",
+                    i, draft_tok, qd, pd, accept_prob, u, u < accept_prob ? "ACCEPT" : "reject");
+        if (u < accept_prob) {
+            accepted[n_accept++] = draft_tok;
+            n_draft_accept++;
+        } else {
+            /* Reject: correction = argmax(p - q) (the token where target > drafter). */
+            int correction = -1; double best_diff = -1e30;
+            for (uint64_t v = 0; v < vocab; v++) {
+                double pv = exp(p_row[v] - pmax) / psum;
+                double qv = exp(q_row[v] - qmax) / qsum;
+                double diff = pv - qv;
+                if (diff > best_diff) { best_diff = diff; correction = (int)v; }
+            }
+            accepted[n_accept++] = correction;
+            break;
+        }
     }
-    free(row_tops); free(row_logits);
+    free(row_tops); free(row_logits); free(q_dist);
 
     /* Step 5: handle KV rollback / commit.
      * Full accept: checkpoint is correct (verify's KV is valid for all positions).
