@@ -481,7 +481,16 @@ static int run_sampled_generation(ds4_engine *engine, const cli_config *cfg, con
 
         int toks[17];
         int ntok = 0;
-        if (cfg->gen.temperature <= 0.0f && ds4_engine_mtp_draft_tokens(engine) > 1 &&
+        if (ds4_engine_has_dspark(engine) && getenv("DS4_DSPARK_DISABLE") == NULL) {
+            cli_dist_busy_set(cfg, true);
+            ntok = ds4_session_eval_dspark_b2(session, token,
+                                               max_tokens - generated,
+                                               ds4_token_eos(engine),
+                                               toks, (int)(sizeof(toks)/sizeof(toks[0])),
+                                               err, sizeof(err));
+            cli_dist_busy_set(cfg, false);
+            if (ntok < 0) { fprintf(stderr, "ds4: decode failed: %s\n", err); ds4_session_free(session); return 1; }
+        } else if (cfg->gen.temperature <= 0.0f && ds4_engine_mtp_draft_tokens(engine) > 1 &&
             getenv("DS4_MTP_SPEC_DISABLE") == NULL) {
             cli_dist_busy_set(cfg, true);
             ntok = ds4_session_eval_speculative_argmax(session,
@@ -928,6 +937,10 @@ static int run_generation(ds4_engine *engine, const cli_config *cfg) {
     } else if (cfg->engine.distributed.role == DS4_DISTRIBUTED_COORDINATOR ||
                cfg->gen.temperature > 0.0f ||
                ds4_engine_mtp_draft_tokens(engine) > 1) {
+        if (getenv("DS4_DSPARK_B2_DEBUG"))
+            fprintf(stderr, "ds4: dispatch -> run_sampled_generation (temp=%.1f mtp=%d dspark=%d)\n",
+                    cfg->gen.temperature, ds4_engine_mtp_draft_tokens(engine),
+                    ds4_engine_has_dspark(engine));
         rc = run_sampled_generation(engine, cfg, &prompt);
     } else {
         token_printer printer = {

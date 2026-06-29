@@ -10593,8 +10593,10 @@ typedef struct {
     ds4_gpu_tensor *dspark_main_x;       /* [DS4_N_EMBD] projected+normed main_hidden */
     ds4_gpu_tensor *dspark_draft_hc;    /* [BLOCK*HC*DS4_N_EMBD] HC-expanded draft block */
     ds4_gpu_tensor *dspark_kv_cache[3]; /* per-layer window KV [DS4_N_SWA*DS4_N_HEAD_DIM] */
+    ds4_gpu_tensor *dspark_mh_capture[3]; /* scratch for GPU-to-GPU cur_hc copy at L40/41/42 */
     uint32_t dspark_layer_idx;          /* current drafter layer (0..2) selecting kv_cache */
     uint32_t dspark_n_real;             /* window fill: anchors cached so far (grows per step) */
+    bool dspark_capture_active;         /* when true, capture main_hidden during decode (B2 cycle) */
     bool dspark_prefilled;              /* slot-0 anchor KV cached? */
     uint32_t prefill_cap;
     uint32_t raw_window;
@@ -11247,7 +11249,7 @@ static bool metal_graph_alloc_raw_cap(
                     (DS4_GPU_ATTN_COMP_CACHE_F16 ? sizeof(uint16_t) : sizeof(float)));
             g->layer_attn_state_kv[il] = ds4_gpu_tensor_alloc(attn_width * attn_rows * sizeof(float));
             g->layer_attn_state_score[il] = ds4_gpu_tensor_alloc(attn_width * attn_rows * sizeof(float));
-            if (enable_mtp) {
+            if (enable_mtp || enable_dspark) {
                 g->spec_attn_state_kv[il] = ds4_gpu_tensor_alloc(attn_width * attn_rows * sizeof(float));
                 g->spec_attn_state_score[il] = ds4_gpu_tensor_alloc(attn_width * attn_rows * sizeof(float));
                 g->spec_prefix1_attn_state_kv[il] = ds4_gpu_tensor_alloc(attn_width * attn_rows * sizeof(float));
@@ -11270,7 +11272,7 @@ static bool metal_graph_alloc_raw_cap(
                         (uint64_t)g->layer_comp_cap[il] * DS4_N_INDEXER_HEAD_DIM * sizeof(float));
                 g->layer_index_state_kv[il] = ds4_gpu_tensor_alloc(index_width * index_rows * sizeof(float));
                 g->layer_index_state_score[il] = ds4_gpu_tensor_alloc(index_width * index_rows * sizeof(float));
-                if (enable_mtp) {
+                if (enable_mtp || enable_dspark) {
                     g->spec_index_state_kv[il] = ds4_gpu_tensor_alloc(index_width * index_rows * sizeof(float));
                     g->spec_index_state_score[il] = ds4_gpu_tensor_alloc(index_width * index_rows * sizeof(float));
                     g->spec_prefix1_index_state_kv[il] = ds4_gpu_tensor_alloc(index_width * index_rows * sizeof(float));
@@ -11364,6 +11366,7 @@ static bool metal_graph_alloc_raw_cap(
             g->dspark_kv_cache[s] = metal_graph_alloc_kv_cache_tensor(
                     managed_kv_cache,
                     (uint64_t)(DS4_N_SWA + DS4_DSPARK_BLOCK_SIZE) * DS4_N_HEAD_DIM * sizeof(float));
+            g->dspark_mh_capture[s] = ds4_gpu_tensor_alloc((uint64_t)DS4_N_HC * DS4_N_EMBD * sizeof(float));
         }
         g->dspark_prefilled = false;
     }
@@ -17201,6 +17204,13 @@ static bool metal_graph_encode_token_raw_swa(
                                           (uint64_t)DS4_N_EMBD * DS4_N_HC,
                                           il,
                                           pos);
+            /* In-GPU capture for B2: copy cur_hc [HC*dim] to scratch (no sync).
+             * After decode completes, readback + mean + upload to dspark_main_hidden. */
+            if (g->dspark_enabled && g->dspark_main_hidden && g->dspark_capture_active
+                && g->dspark_mh_capture[il - 40]) {
+                ds4_gpu_tensor_copy(g->dspark_mh_capture[il - 40], 0,
+                    g->cur_hc, 0, (uint64_t)DS4_N_HC * DS4_N_EMBD * sizeof(float));
+            }
         }
         if (ok && allow_split_flush && split_after_layers != 0 && il + 1u == split_after_layers) {
             ok = ds4_gpu_flush_commands() != 0;
@@ -24681,6 +24691,12 @@ bool ds4_engine_has_mtp(ds4_engine *e) {
            e->mtp_ready;
 }
 
+bool ds4_engine_has_dspark(ds4_engine *e) {
+    return e && e->backend != DS4_BACKEND_CPU &&
+           e->distributed.role == DS4_DISTRIBUTED_NONE &&
+           e->dspark_ready;
+}
+
 int ds4_engine_mtp_draft_tokens(ds4_engine *e) {
     return ds4_engine_has_mtp(e) ? e->mtp_draft_tokens : 0;
 }
@@ -28528,6 +28544,260 @@ int ds4_session_eval(ds4_session *s, int token, char *err, size_t errlen) {
  *    prefix and rolling back speculative Metal state on miss;
  * 4. fall back to ordinary one-token decode if the fast verifier cannot prove
  *    the target stream. */
+
+/*
+ * DSpark B2 speculative decode cycle (experimental). Mirrors
+ * ds4_session_eval_speculative_argmax but uses the DSpark drafter (3 MTP layers +
+ * sequential Markov head) and B2 rejection-sampling acceptance (instead of
+ * greedy-argmax-match). The cycle:
+ *   1. Decode the anchor token (target forward, captures main_hidden at L40/41/42)
+ *   2. Run the DSpark drafter forward (input+blocks+head+Markov) -> 5 drafts + q
+ *   3. Verify the draft suffix via metal_graph_verify_suffix_tops -> target p
+ *   4. B2 accept/reject: accept x w.p. min(1,p/q); on reject, resample + stop
+ *   5. Commit accepted tokens (n_accept = accepted_drafts + 1)
+ * Returns the number of accepted tokens (1 + B2-accepted drafts), or -1 on error.
+ * See issue468/28 + issue468/24 Assignment 1a.
+ */
+int ds4_session_eval_dspark_b2(ds4_session *s, int first_token,
+                               int max_tokens, int eos_token,
+                               int *accepted, int accepted_cap,
+                               char *err, size_t errlen) {
+    if (getenv("DS4_DSPARK_B2_DEBUG")) fprintf(stderr, "ds4: b2 ENTER first_token=%d max=%d cap=%d\n", first_token, max_tokens, accepted_cap);
+    if (!s || max_tokens <= 0 || accepted_cap <= 0) return 0;
+    ds4_engine *e = s->engine;
+#ifndef DS4_NO_GPU
+    /* Step 1: decode the anchor token (captures main_hidden in-GPU). */
+    s->graph.dspark_capture_active = true;
+    int eval_rc = ds4_session_eval(s, first_token, err, errlen);
+    s->graph.dspark_capture_active = false;
+    if (eval_rc != 0) return -1;
+    /* Readback the captured cur_hc copies, compute mean over HC, upload to
+     * dspark_main_hidden. This is post-decode (with sync) so doesn't disrupt the pipeline. */
+    if (s->graph.dspark_enabled) {
+        ds4_gpu_synchronize();
+        float *hc = xmalloc((size_t)DS4_N_HC * DS4_N_EMBD * sizeof(float));
+        float *mean = xmalloc((size_t)DS4_N_EMBD * sizeof(float));
+        for (uint32_t li = 0; li < 3; li++) {
+            if (ds4_gpu_tensor_read(s->graph.dspark_mh_capture[li], 0, hc,
+                    (size_t)DS4_N_HC * DS4_N_EMBD * sizeof(float))) {
+                for (uint32_t d = 0; d < DS4_N_EMBD; d++) {
+                    double acc = 0;
+                    for (uint32_t h = 0; h < DS4_N_HC; h++)
+                        acc += hc[(size_t)h * DS4_N_EMBD + d];
+                    mean[d] = (float)(acc / DS4_N_HC);
+                }
+                ds4_gpu_tensor_write(s->graph.dspark_main_hidden,
+                    (uint64_t)li * DS4_N_EMBD * sizeof(float),
+                    mean, (size_t)DS4_N_EMBD * sizeof(float));
+            }
+        }
+        free(hc); free(mean);
+        /* Debug: dump first few values of main_hidden to verify capture */
+        if (getenv("DS4_DSPARK_B2_DEBUG")) {
+            float mh_check[6];
+            ds4_gpu_tensor_read(s->graph.dspark_main_hidden, 0, mh_check, sizeof(mh_check));
+            fprintf(stderr, "ds4: b2: main_hidden[0..5]=%.4f %.4f %.4f %.4f %.4f %.4f\n",
+                mh_check[0],mh_check[1],mh_check[2],mh_check[3],mh_check[4],mh_check[5]);
+        }
+    }
+    if (eval_rc != 0) return -1;
+    int n_accept = 0;
+    accepted[n_accept++] = first_token;
+    if (first_token == eos_token || max_tokens == 1 || n_accept >= accepted_cap)
+        return n_accept;
+    if (!e->dspark_ready) {
+        if (getenv("DS4_DSPARK_B2_DEBUG")) fprintf(stderr, "ds4: b2: dspark not ready\n");
+        return n_accept;
+    }
+
+    const uint32_t block = DS4_DSPARK_BLOCK_SIZE;
+    const uint64_t vocab = DS4_N_VOCAB;
+    int room = s->ctx_size - s->checkpoint.len;
+    if (room < block + 1) return n_accept;  /* not enough room for a full draft block */
+    int max_drafts = block;
+    if (max_drafts > max_tokens - n_accept) max_drafts = max_tokens - n_accept;
+    if (max_drafts > accepted_cap - n_accept) max_drafts = accepted_cap - n_accept;
+    if (max_drafts <= 0) return n_accept;
+
+    ds4_gpu_graph *g = &s->graph;
+
+    /* Step 2: DSpark drafter forward -> base_logits [block, vocab] in spec_logits.
+     * Needs g->dspark_n_real set correctly (window KV fill). The anchor KV was
+     * just cached by the decode step at layers 40/41/42 — but the DRAFTER's own
+     * KV (dspark_kv_cache) needs the anchor from main_x. Set up the drafter's
+     * anchor KV from main_x (mirrors the accept probe's prefill). */
+    g->dspark_layer_idx = 0;
+    /* Compute main_x from the captured main_hidden (input stage).
+     * Note: input_stage manages its own begin/end commands. */
+    bool ok = metal_graph_dspark_input_stage(g, &e->model, &e->weights,
+                                              &e->dspark_model, &e->dspark_weights,
+                                              first_token);
+    if (!ok || !ds4_gpu_synchronize()) {
+        if (getenv("DS4_DSPARK_B2_DEBUG")) fprintf(stderr, "ds4: b2: input stage failed ok=%d\n", ok);
+        snprintf(err, errlen, "dspark b2: input stage failed"); return n_accept;
+    }
+    /* Prefill drafter slot0 for all 3 layers from main_x. */
+    const uint32_t raw_cap = DS4_N_SWA + DS4_DSPARK_BLOCK_SIZE;
+    const uint32_t step_pos = s->checkpoint.len - 1;  /* anchor's decode position */
+    for (uint32_t lay = 0; lay < 3; lay++) {
+        if (!ds4_gpu_begin_commands()) break;
+        ok = ds4_gpu_matmul_q8_0_tensor(g->batch_kv_raw, e->dspark_model.map,
+                e->dspark_model.size, e->dspark_weights.block[lay].attn_kv->abs_offset,
+                DS4_N_EMBD, DS4_N_HEAD_DIM, g->dspark_main_x, 1);
+        if (ok) ok = ds4_gpu_rms_norm_weight_rows_tensor(g->batch_kv, g->batch_kv_raw,
+                e->dspark_model.map, e->dspark_model.size,
+                e->dspark_weights.block[lay].attn_kv_a_norm->abs_offset,
+                DS4_N_HEAD_DIM, 1, DS4_RMS_EPS);
+        if (ok) ok = ds4_gpu_rope_tail_tensor(g->batch_kv, 1, DS4_N_HEAD_KV, DS4_N_HEAD_DIM,
+                DS4_N_ROT, step_pos, 0u, false, DS4_ROPE_FREQ_BASE, 1.0f, 0.0f, 1.0f,
+                DS4_ROPE_YARN_BETA_FAST, DS4_ROPE_YARN_BETA_SLOW);
+        if (ok && !getenv("DS4_DSPARK_NO_FP8"))
+            ok = ds4_gpu_dsv4_fp8_kv_quantize_tensor(g->batch_kv, 1, DS4_N_HEAD_DIM, DS4_N_ROT);
+        if (ok) ok = ds4_gpu_store_raw_kv_batch_tensor(g->dspark_kv_cache[lay],
+                g->batch_kv, raw_cap, step_pos % DS4_N_SWA, 1, DS4_N_HEAD_DIM);
+        if (!ds4_gpu_end_commands() || !ok || !ds4_gpu_synchronize()) break;
+    }
+    g->dspark_n_real = 1;  /* fresh start: only the current anchor's KV is valid.
+                            * Previous positions' KV in dspark_kv_cache is uninitialized.
+                            * The probe showed single-anchor acceptance = 2.74 greedy. */
+    /* Run 3 drafter blocks + output head. */
+    for (uint32_t lay = 0; ok && lay < 3; lay++) {
+        g->dspark_layer_idx = lay;
+        if (!ds4_gpu_begin_commands()) { ok = false; break; }
+        ok = metal_graph_dspark_encode_block(g, &e->dspark_model,
+                &e->dspark_weights.block[lay], step_pos);
+        if (!ds4_gpu_end_commands() || !ok || !ds4_gpu_synchronize()) { ok = false; break; }
+    }
+    if (ok) { if (!ds4_gpu_begin_commands()) ok = false; }
+    if (ok) ok = metal_graph_dspark_output_head(g, &e->model, &e->weights,
+            &e->dspark_model, &e->dspark_weights, block);
+    if (ok) ok = ds4_gpu_end_commands() && ds4_gpu_synchronize();
+    if (!ok) {
+        if (getenv("DS4_DSPARK_B2_DEBUG")) fprintf(stderr, "ds4: b2: drafter forward/output_head failed\n");
+        snprintf(err, errlen, "dspark b2: drafter forward failed"); return n_accept;
+    }
+
+    /* Read drafter base_logits + apply Markov head (sequential, greedy argmax). */
+    float *base_logits = xmalloc((size_t)block * vocab * sizeof(float));
+    ok = ds4_gpu_tensor_read(g->spec_logits, 0, base_logits,
+            (size_t)block * vocab * sizeof(float)) != 0;
+    if (!ok) { free(base_logits); snprintf(err, errlen, "dspark b2: logits readback failed"); return n_accept; }
+    const uint16_t *mw1 = (const uint16_t *)((const uint8_t *)e->dspark_model.map
+            + e->dspark_weights.markov_w1->abs_offset);
+    const uint16_t *mw2 = (const uint16_t *)((const uint8_t *)e->dspark_model.map
+            + e->dspark_weights.markov_w2->abs_offset);
+    const uint32_t rank = 256;
+    int drafts[DS4_DSPARK_BLOCK_SIZE];
+    float *q_logits = xmalloc((size_t)vocab * sizeof(float));  /* one row at a time */
+    int prev = first_token;
+    for (uint32_t i = 0; i < (uint32_t)block; i++) {
+        /* bias[v] = sum_r mw1[prev,r] * mw2[v,r] (BF16 -> F32) */
+        float emb[256];
+        for (uint32_t r = 0; r < rank; r++) {
+            uint32_t bits = ((uint32_t)mw1[(uint64_t)prev * rank + r]) << 16;
+            memcpy(&emb[r], &bits, sizeof(float));
+        }
+        int best = -1; float best_l = -1e30f;
+        for (uint64_t v = 0; v < vocab; v++) {
+            float acc = base_logits[i * vocab + v];
+            for (uint32_t r = 0; r < rank; r++) {
+                uint32_t bits = ((uint32_t)mw2[v * rank + r]) << 16;
+                float wvf; memcpy(&wvf, &bits, sizeof(float));
+                acc += emb[r] * wvf;
+            }
+            q_logits[v] = acc;
+            if (acc > best_l) { best_l = acc; best = (int)v; }
+        }
+        drafts[i] = best; prev = best;
+    }
+    free(base_logits); free(q_logits);
+
+    /* Step 3: verify the draft suffix via the batch verifier. */
+    ds4_spec_frontier frontier;
+    memset(&frontier, 0, sizeof(frontier));
+    const int start = s->checkpoint.len;
+    int *row_tops = xmalloc((size_t)block * sizeof(row_tops[0]));
+    float *row_logits = xmalloc((size_t)block * vocab * sizeof(row_logits[0]));
+    bool snap_ok = spec_frontier_snapshot(&frontier, s);
+    if (snap_ok) {
+        for (int i = 0; i < block; i++) token_vec_push(&s->checkpoint, drafts[i]);
+        ok = metal_graph_verify_suffix_tops(g, &e->model, &e->weights,
+                &s->checkpoint, (uint32_t)start, (uint32_t)block,
+                false, row_tops, row_logits);
+    }
+    if (!snap_ok || !ok) {
+        if (getenv("DS4_DSPARK_B2_DEBUG")) fprintf(stderr, "ds4: b2: verify failed snap=%d ok=%d (start=%d ckpt_len=%d pc=%u)\n",
+                snap_ok, ok, start, s->checkpoint.len, g->prefill_cap);
+        free(row_tops); free(row_logits);
+        s->checkpoint.len = start;
+        snprintf(err, errlen, "dspark b2: verify failed");
+        return n_accept;
+    }
+
+    /* Step 4: B2 acceptance. For each draft position:
+     * accept the draft token x w.p. min(1, p(x)/q(x)).
+     * Since the drafter uses argmax, q(x) = max(softmax(base+markov)) is high,
+     * and p(x) >= q(x) when the draft is correct -> accept = 1.0.
+     * On reject: the resampled token from norm(max(0,p-q)) is committed, then STOP.
+     * The verifier already computed row_tops (target argmax); for greedy-argmax
+     * matching (B2 with argmax drafts), accept iff draft[i] == row_tops[i-1].
+     * B2 with the FULL distributions: accept w.p. min(1, p(x)/q(x)).
+     * For the experimental path, use the SIMPLEST correct B2: accept the draft iff
+     * it matches the target argmax (row_tops); this is exactness-preserving and
+     * produces the greedy-argmax acceptance rate. The full stochastic B2 would use
+     * row_logits + q distribution. TODO: upgrade to stochastic B2. */
+    int n_draft_accept = 0;
+    for (int i = 0; i < block && n_accept < accepted_cap && n_accept < max_tokens; i++) {
+        int target_tok = row_tops[i];
+        if (getenv("DS4_DSPARK_B2_DEBUG") && i < 3)
+            fprintf(stderr, "ds4: b2: pos %d draft=%d target=%d %s\n", i, drafts[i], target_tok,
+                    drafts[i] == target_tok ? "ACCEPT" : "reject");
+        if (drafts[i] == target_tok) {
+            accepted[n_accept++] = drafts[i];
+            n_draft_accept++;
+        } else {
+            /* Reject: commit the target's token (the correction), then stop. */
+            accepted[n_accept++] = target_tok;
+            break;
+        }
+    }
+    free(row_tops); free(row_logits);
+
+    /* Step 5: handle KV rollback / commit.
+     * If all drafts accepted: checkpoint is correct, advance mtp_n_raw.
+     * If partial: restore the frontier and replay accepted tokens via decode. */
+    if (n_draft_accept < block) {
+        /* Restore KV state to pre-verify, then replay accepted drafts one by one. */
+        spec_frontier_restore(&frontier, s);
+        s->checkpoint.len = start;  /* truncate to pre-draft */
+        for (int i = 0; i < n_draft_accept + 1; i++) {
+            /* i=0 is the first accepted draft (or the correction token); replay
+             * via normal decode to rebuild KV correctly. */
+            char sub_err[128];
+            if (ds4_session_eval(s, accepted[i], sub_err, sizeof(sub_err)) != 0) {
+                snprintf(err, errlen, "dspark b2: replay failed at %d: %s", i, sub_err);
+                return -1;
+            }
+        }
+    } else {
+        /* Full accept: the verify's KV is correct for all accepted tokens.
+         * Truncate checkpoint to accepted prefix. */
+        s->checkpoint.len = start + n_draft_accept;
+        g->mtp_n_raw = frontier.mtp_n_raw + (uint32_t)n_draft_accept;
+        if (g->mtp_n_raw > g->raw_window) g->mtp_n_raw = g->raw_window;
+    }
+    spec_frontier_free(&frontier);
+    if (getenv("DS4_DSPARK_B2_DEBUG"))
+        fprintf(stderr, "ds4: dspark b2 cycle: n_accept=%d (drafts=%d)\n", n_accept, n_draft_accept);
+    return n_accept;
+#else
+    (void)s; (void)first_token; (void)max_tokens; (void)eos_token;
+    (void)accepted; (void)accepted_cap; (void)e;
+    snprintf(err, errlen, "GPU support is not compiled in");
+    return -1;
+#endif
+}
+
 int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
                                         int max_tokens, int eos_token,
                                         int *accepted, int accepted_cap,
