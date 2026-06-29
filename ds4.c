@@ -28834,11 +28834,11 @@ int ds4_session_eval_dspark_b2(ds4_session *s, int first_token,
     free(row_tops); free(row_logits); free(q_dist);
 
     /* Step 5: KV management (correctness-critical).
-     * The verify pass mutates KV for ALL draft positions (including rejected).
-     * On partial accept, the KV at the rejection position is for the REJECTED
-     * draft, not the correction. Must restore + replay for correctness.
-     * (No-replay was tested: produces garbled output — KV corruption.)
-     * Full accept: verify's KV is correct, no restore needed. */
+     * Full accept: verify's KV is correct, no restore needed.
+     * Partial accept: restore to pre-verify KV, replay accepted+correction.
+     * (1-step replay was tested: compressed KV cache overflow — the batch-encode
+     * verify path and decode path use different KV cache bookkeeping. Full
+     * restore+replay is the correct approach matching the MTP path.) */
     if (n_draft_accept >= block) {
         s->checkpoint.len = start + n_draft_accept;
         g->mtp_n_raw = frontier.mtp_n_raw + (uint32_t)n_draft_accept;
