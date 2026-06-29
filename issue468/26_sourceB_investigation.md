@@ -43,3 +43,38 @@ ds4_gpu_matmul_f32_tensor is single-token) would be needed.
 ## Files
 - DS4_METAL_MOE_STAGE_PROFILE output (above) confirms path=mv + mid flip.
 - moe.metal:171-174 documents the F16-activation load.
+
+## UPDATE: F16 activations ALSO ruled out (2026-06-29)
+
+Tested by monkeypatching moe.swiglu_expert to round the activation x to F16 before
+the gate/up matmul (simulating the Metal mv-path F16 activation load), then running
+the validated measure_b2_acceptance.py:
+
+- Oracle F32 (baseline): B2 committed 2.801
+- Oracle F16-ACTIVATIONS: B2 committed 2.801 (IDENTICAL)
+- Per-position accept [0.76, 0.691, 0.632, 0.551, 0.425] — same as F32.
+
+(Greedy prefix dipped 2.79→2.15, but B2 committed is unchanged — B2 is robust to
+F16 activations because acceptance depends on distribution overlap, not argmax.)
+
+**So both F16-mid AND F16-activations are ruled out as Source B.** Neither
+--quality (mid) nor F16-activation rounding explains the Metal 1.31 vs oracle 2.80 gap.
+
+## Remaining Source B candidate: Q4_K weight dequant algorithm difference
+
+The ONLY remaining explanation for the 0.979/block FFN corr (Metal vs oracle, both
+reading the SAME Q4_K GGUF bytes) is a difference in the Q4_K DEQUANT algorithm:
+the oracle's ported dequant_q4_k (from ggml-quants.c) vs ds4's Metal hardware
+dequant produce different F32 weight values. This compounds through 6 experts ×
+silu × down-proj × 3-layer chain → B2 collapses 2.80→1.31.
+
+**Implication for Assignment 2:** the gathered-dense path may NOT fix Source B if
+it uses Metal's dequant. The fix depends on whether Metal's Q4_K dequant is
+CORRECT (matching the reference) or has a subtle bug/difference. Next step:
+directly compare oracle's Q4_K expert dequant to a reference (or to Metal's) for
+one expert. Phase 3 crosscheck validated F32/BF16 (47/47 byte-exact) but never
+validated Q4_K (lossy, no byte-compare possible).
+
+This is a higher-value finding than expected: Source B may be a dequant CORRECTNESS
+issue, not a precision tradeoff — which would mean the fix is fixing the dequant,
+not the accumulation path.
