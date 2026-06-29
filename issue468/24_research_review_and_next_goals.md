@@ -1,11 +1,11 @@
-# DSpark research — review note: revisiting Outcome B, and the next three goals
+# DSpark research — review note: revisiting Outcome B, and the next three assignments
 
 Date: 2026-06-29. Author: review pass over Phases 0–6 (issue468/00–23) plus the
 HuggingFace source checkpoint and the ds4 Metal kernels.
 
 Purpose: assess whether the terminal "UNACHIEVABLE (Outcome B)" verdict
 (issue468/23) is actually terminal, record the observations that emerged from a
-fresh read of the artifacts and code, and define three concrete, sequenced goals
+fresh read of the artifacts and code, and define three concrete, sequenced assignments
 for the next research cycle.
 
 **Bottom line up front:** the verdict disproved *one configuration* — the
@@ -14,7 +14,7 @@ not the design space. At least three links in the chain from "Q4_K is the ceilin
 to "UNACHIEVABLE" were asserted rather than measured, and the most important one
 (higher drafter precision) was the verdict's *own* nominated fix, filed
 out-of-scope on a memory premise that turns out to be wrong. The project should
-**not** be closed at Outcome B without the validation work in Goal 1.
+**not** be closed at Outcome B without the validation work in Assignment 1.
 
 ---
 
@@ -32,7 +32,7 @@ infrastructure:
   Metal map registration, swiglu_limit clamp). A non-causal batched attention
   primitive was added.
 - **numpy oracle.** A validated, algorithm-faithful reference forward
-  (`issue468/dspark_oracle/`). This is now load-bearing: see Goal 3.
+  (`issue468/dspark_oracle/`). This is now load-bearing: see Assignment 3.
 - **Measurement harness.** Env-gated probes for backbone timing, input/attn/block/
   token correctness, and a persistent-KV greedy-acceptance sweep. All reusable.
 - **Cost curves (all measured on M5 Max / Metal).** Plain decode 31.3→35.5 ms/tok
@@ -116,7 +116,46 @@ code and the source checkpoint.
    confirm the hot experts are RAM-resident. But this is a cliff: any change that
    pushes the working set past the resident cache budget falls to SSD pread
    (~100× slower) — another reason to prefer the memory-neutral precision path and
-   to confirm the true 64k residency (Goal 1c).
+   to confirm the true 64k residency (Assignment 1c).
+
+9. **The guaranteed +1 bonus token is mislabeled and appears to be dropped from the
+   terminal table — making Outcome B more pessimistic than the cost model warrants.**
+   Every speculative cycle commits **`accepted_draft_tokens + 1`**: the verify pass
+   over γ draft slots yields γ+1 target distributions, so a full accept gives a free
+   trailing token and a partial accept gives the target's corrected token at the
+   first rejection — either way the +1 is structural and *always present*, even in
+   plain greedy spec decode. Two issues with how the docs handle it:
+   - **Mislabeled.** Doc 23 calls it a "B2 resample bonus," conflating two distinct
+     effects: (a) this **structural +1** (not B2-specific), and (b) **B2's acceptance
+     uplift** — rejection sampling accepts non-argmax tokens, raising the *accepted*
+     count `A` above the greedy-match prefix. (b) is the real B2 advantage and is the
+     unmeasured quantity from observation 3. They should be unbundled: `committed = A
+     + 1`, where `A` depends on the acceptance rule (greedy-match vs B2).
+   - **Apparently dropped.** Doc 15 applies it correctly (`2.79 + 1 = 3.79`), but the
+     terminal table (doc 23) computes `(7.2+75)/1.53 = 53.7 ms → 0.66×` — i.e.
+     `committed = raw greedy prefix`, **no +1** — contradicting its own prose and doc
+     20's `committed 2.8–3.0`. Restoring the +1:
+
+   | case (draft 7.2, verify 75) | committed | ms/tok | 64k speedup |
+   |---|---|---|---|
+   | doc 23 headline (no +1) | 1.53 | 53.7 | 0.66× FAIL |
+   | greedy + structural +1 | 2.53 | 32.5 | 1.09× (+9%) |
+   | B2 (A≈1.82) + 1 | 2.82 | 29.1 | 1.22× (+22%) PASS |
+   | precision-fix → oracle A + 1 | 3.79 | 21.7 | 1.64× (+64%) |
+
+   The +1 alone does **not** clear the +20% gate at the measured `A=1.53` (it turns a
+   catastrophic 0.66× into a modest +9% at 64k) — acceptance is still the dominant
+   lever — but it matters precisely because at low `A` the +1 is a large fraction of
+   `committed`, so omitting it exaggerates the failure, and it reconciles doc 23's
+   "fails everywhere" with doc 20's earlier "+21–30% at 64k." Note the gate's "needed
+   committed 2.82" corresponds to a needed *accepted* `A ≈ 1.82` — well below the
+   oracle's greedy 2.79, so plausibly reachable by B2 alone once Source B is fixed.
+   - **Implementation corollary.** The bonus/correction token's hidden state at
+     L40/41/42 can serve as the *next cycle's anchor* (the verify forward computes all
+     layers anyway), so a correct DSpark path needs **no separate target decode step
+     per cycle** for the anchor. Confirm ds4 reuses the verify pass rather than
+     spending an extra target forward (the PLAN working-hypothesis cost
+     `target step to get anchor + draft + verify` would otherwise double-count it).
 
 ## 3. Lever analysis (where the headroom is)
 
@@ -132,7 +171,7 @@ committed`. From this:
   - **imatrix at Q4_K** — shrinks Source A, memory/kernel-neutral. Lifts the
     ceiling; may punch above its weight because the sequential head amplifies small
     per-step gains.
-  - **higher quant (Q6_K/Q8_0)** — only if the Pareto sweep (Goal 3) shows the gain
+  - **higher quant (Q6_K/Q8_0)** — only if the Pareto sweep (Assignment 3) shows the gain
     clears a pre-set threshold; needs a new routed kernel (Tier 1). Q8_0 ≈ ceiling.
   - **target-distillation fine-tuning** — highest ceiling (corrects the
     FP-target→2-bit-target train/serve mismatch), exactness-safe (drafter is only a
@@ -152,11 +191,11 @@ Key enabler for cheap iteration: **under the F32-accumulation premise the oracle
 measurable offline in numpy with zero new Metal kernels. Build a Tier-1 kernel
 only for the winner, only if the offline numbers justify it.
 
-## 4. The next three goals
+## 4. The next three assignments
 
-Sequenced; each has a deliverable and an exit condition. Goal 1 gates the rest.
+Sequenced; each has a deliverable and an exit condition. Assignment 1 gates the rest.
 
-### Goal 1 — Re-establish the true acceptance baseline (measurement integrity)
+### Assignment 1 — Re-establish the true acceptance baseline (measurement integrity)
 
 No kernel work. Before trusting "1.53," fix how it was measured:
 - **1a. Measure true B2 rejection-sampling accepted length** on the existing Metal
@@ -168,13 +207,19 @@ No kernel work. Before trusting "1.53," fix how it was measured:
   (doc 16). Per-step, per-position breakdown for both.
 - **1c. Itemize real RAM at 64k** (RSS + mmap page cache + GPU buffers + any
   streaming-cache mlock budget) and reconcile doc 19 (7 GiB) vs Phase 3 (29.5 GiB).
+- **1d. Audit the `committed` accounting (observation 9).** Confirm the probe
+  counts `committed = accepted + 1` (the structural bonus/correction token), not the
+  raw accepted prefix, and that it measures *B2* acceptance for `accepted`, not
+  greedy-match. Re-derive the doc 23 speedup table with the corrected `committed`.
+  Separately, confirm the runtime reuses the verify pass to produce the next cycle's
+  anchor hidden state (no extra per-cycle target decode step).
 
-*Deliverable:* corrected acceptance figures (greedy + B2) and a confirmed 64k
-headroom number. *Exit:* if B2 and/or the KV fix already lift acceptance
-materially, the verdict flips on measurement alone — proceed to Goal 2 to bank it;
-if 1.53 survives all three checks, the precision story (Goal 2) is on firm ground.
+*Deliverable:* corrected acceptance figures (greedy + B2), a recomputed speedup
+table with the +1 included, and a confirmed 64k headroom number. *Exit:* if B2 and/or the KV fix already lift acceptance
+materially, the verdict flips on measurement alone — proceed to Assignment 2 to bank it;
+if 1.53 survives all three checks, the precision story (Assignment 2) is on firm ground.
 
-### Goal 2 — Memory-neutral F32-accumulation drafter MoE
+### Assignment 2 — Memory-neutral F32-accumulation drafter MoE
 
 Implement a gathered dense expert matmul (reuse `ds4_gpu_matmul_f16_tensor` / an
 F32-accumulating path) over the **existing Q4_K** drafter weights, for the ~90
@@ -182,16 +227,16 @@ active expert ops per cycle. Storage unchanged (+0 RAM).
 - Cross-check the gathered-dense path reproduces the oracle (corr ~1.0) on captured
   positions (closes Source B by construction).
 - Re-measure end-to-end acceptance + speedup at 32k / 55k / 64k, with the B2
-  protocol from Goal 1.
+  protocol from Assignment 1.
 
 *Deliverable:* measured end-to-end speedup with Source B eliminated. *Exit:* if
 acceptance recovers toward ~2.79 and the gate passes at ≥55k, the project flips to
-**Outcome A** — proceed to Goal 3 to find the cheapest precision recipe and to γ /
+**Outcome A** — proceed to Assignment 3 to find the cheapest precision recipe and to γ /
 verifier tuning. If acceptance stays near 1.53 even with confirmed-correct F32
 accumulation and KV, that is strong evidence the *sequential head*, not
 quantization, is the limiter → escalate to the non-sequential-head redesign.
 
-### Goal 3 — Capture pipeline + offline Pareto sweep (precision recipe + imatrix)
+### Assignment 3 — Capture pipeline + offline Pareto sweep (precision recipe + imatrix)
 
 Build the target-anchor capture harness once (target L40/41/42 hidden states +
 generated/teacher-forced continuations over `gguf-tools/imatrix/dataset`), then use
@@ -217,10 +262,11 @@ shows the FP8 ceiling itself is short of the gate.
 
 ## 5. What would change the verdict
 
-Outcome B stands only if, after Goal 1 (correct B2 + KV + memory) and Goal 2
+Outcome B stands only if, after Assignment 1 (correct B2 + KV + memory) and Assignment 2
 (confirmed F32 accumulation over Q4_K), acceptance remains far below the ~2.5–2.8
 the long-context gate needs. Until those are measured, "UNACHIEVABLE" is premature:
-it rests on greedy accounting of a single quantization+accumulation configuration,
+it rests on greedy accounting of a single quantization+accumulation configuration
+(apparently without even the guaranteed +1 token per cycle — observation 9),
 on an unvalidated multi-step KV path, and on a memory constraint contradicted by
 the project's own residency check. The economics have real margin — verify (75 ms)
 dominates, so even a 2–3× more expensive drafter wins once acceptance is restored —
