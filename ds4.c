@@ -28029,9 +28029,13 @@ static void ds4_dspark_probe_accept(ds4_session *s) {
     }
     fprintf(stderr, "ds4: dspark accept sweep (Metal, persistent KV, %d steps):\n", n_steps);
     fprintf(stderr, "  %4s %4s %5s %18s %18s %6s %7s\n", "step","pos","nreal","draft","target","match","prefix");
+    /* Full-draft-cycle timing: input_stage + 3 blocks + output_head (the actual
+     * end-to-end draft cost that the speedup projection estimated at 7.2ms). */
+    double draft_ms[256]; int n_draft_ms = 0;
     for (int step = 1; step <= n_steps; step++) {
         long pos = pos0 + step;
         DSPARK_LOAD_MH(pos);
+        const double draft_t0 = now_sec();
         if (!metal_graph_dspark_input_stage(g, &e->model, &e->weights, &e->dspark_model, &e->dspark_weights, greedy[step])) {
             fprintf(stderr, "ds4: accept: step %d input stage failed\n", step); goto done; }
         bool ok = true;
@@ -28064,6 +28068,7 @@ static void ds4_dspark_probe_accept(ds4_session *s) {
         if (!ds4_gpu_begin_commands()) goto done;
         if (!metal_graph_dspark_output_head(g, &e->model, &e->weights, &e->dspark_model, &e->dspark_weights, DS4_DSPARK_BLOCK_SIZE)) { fprintf(stderr,"ds4: accept: step %d out_head failed\n",step); goto done; }
         if (!ds4_gpu_end_commands() || !ds4_gpu_synchronize()) goto done;
+        if (n_draft_ms < 256) draft_ms[n_draft_ms++] = (now_sec() - draft_t0) * 1000.0;
         if (!ds4_gpu_tensor_read(g->spec_logits, 0, logits, (size_t)DS4_DSPARK_BLOCK_SIZE*vocab*sizeof(float))) goto done;
         /* Optional B2 de-risk: dump this step's base_logits [5, vocab] (pre-Markov)
          * to a single npy-ready file [n_steps, 5, vocab]. The drafter's window KV
@@ -28102,6 +28107,16 @@ static void ds4_dspark_probe_accept(ds4_session *s) {
         total_match, total_pos, 100.0*total_match/total_pos, avg_prefix,
         prefix_hist[0],prefix_hist[1],prefix_hist[2],prefix_hist[3],prefix_hist[4],prefix_hist[5]);
     fprintf(stderr, "  (oracle doc-15: 57.9%% match, 2.79 avg prefix; this is the Metal upper bound on B2)\n");
+    /* Report measured full-draft-cycle cost (input + 3 blocks + output head). */
+    if (n_draft_ms > 0) {
+        for (int i = 1; i < n_draft_ms; i++) { double v = draft_ms[i]; int j = i-1;
+            while (j >= 0 && draft_ms[j] > v) { draft_ms[j+1] = draft_ms[j]; j--; } draft_ms[j+1] = v; }
+        double med = draft_ms[n_draft_ms/2], p10 = draft_ms[n_draft_ms/10], p90 = draft_ms[n_draft_ms*9/10];
+        fprintf(stderr, "  DRAFT COST (input+3blocks+output_head): median=%.2f ms p10=%.2f p90=%.2f (%d samples)\n",
+                med, p10, p90, n_draft_ms);
+        fprintf(stderr, "  => full spec cycle = draft %.1f + verify 75 = %.1f ms; at committed 3.42 -> %.1f ms/tok\n",
+                med, med+75.0, (med+75.0)/3.42);
+    }
 done:
     #undef DSPARK_LOAD_MH
     if (qdump_fp) fclose(qdump_fp);
