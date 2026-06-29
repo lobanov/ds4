@@ -28020,6 +28020,13 @@ static void ds4_dspark_probe_accept(ds4_session *s) {
 
     long total_match = 0, total_pos = 0;
     long prefix_hist[6] = {0,0,0,0,0,0};
+    /* Optional base_logits dump for offline B2 MC (DS4_DSPARK_PROBE_DUMP_Q). */
+    FILE *qdump_fp = NULL;
+    if (getenv("DS4_DSPARK_PROBE_DUMP_Q")) {
+        char qp[1024]; snprintf(qp, sizeof(qp), "%s/metal_base_logits_%dsteps.bin", capdir, n_steps);
+        qdump_fp = fopen(qp, "wb");
+        if (qdump_fp) fprintf(stderr, "ds4: dspark accept: dumping base_logits -> %s\n", qp);
+    }
     fprintf(stderr, "ds4: dspark accept sweep (Metal, persistent KV, %d steps):\n", n_steps);
     fprintf(stderr, "  %4s %4s %5s %18s %18s %6s %7s\n", "step","pos","nreal","draft","target","match","prefix");
     for (int step = 1; step <= n_steps; step++) {
@@ -28039,6 +28046,16 @@ static void ds4_dspark_probe_accept(ds4_session *s) {
         if (!metal_graph_dspark_output_head(g, &e->model, &e->weights, &e->dspark_model, &e->dspark_weights, DS4_DSPARK_BLOCK_SIZE)) { fprintf(stderr,"ds4: accept: step %d out_head failed\n",step); goto done; }
         if (!ds4_gpu_end_commands() || !ds4_gpu_synchronize()) goto done;
         if (!ds4_gpu_tensor_read(g->spec_logits, 0, logits, (size_t)DS4_DSPARK_BLOCK_SIZE*vocab*sizeof(float))) goto done;
+        /* Optional B2 de-risk: dump this step's base_logits [5, vocab] (pre-Markov)
+         * to a single npy-ready file [n_steps, 5, vocab]. The drafter's window KV
+         * depends only on target anchors (main_x), not on sampled drafts (the 4
+         * non-anchor positions are noise tokens), so these base_logits are valid for
+         * an offline B2 MC simulation: drafter samples q_i = softmax(base[i] +
+         * markov_bias(prev)), verifier accepts min(1,p/q). See issue468/24 1a. */
+        if (qdump_fp) {
+            if (fwrite(logits, sizeof(float), (size_t)DS4_DSPARK_BLOCK_SIZE*vocab, qdump_fp)
+                != (size_t)DS4_DSPARK_BLOCK_SIZE*vocab) { fprintf(stderr,"ds4: accept: q dump write failed\n"); qdump_fp=NULL; }
+        }
         int draft[DS4_DSPARK_BLOCK_SIZE]; int prev = greedy[step];
         for (uint32_t i = 0; i < DS4_DSPARK_BLOCK_SIZE; i++) {
             float emb[256];
@@ -28068,6 +28085,7 @@ static void ds4_dspark_probe_accept(ds4_session *s) {
     fprintf(stderr, "  (oracle doc-15: 57.9%% match, 2.79 avg prefix; this is the Metal upper bound on B2)\n");
 done:
     #undef DSPARK_LOAD_MH
+    if (qdump_fp) fclose(qdump_fp);
     free(logits); free(mh); free(greedy);
 }
 
