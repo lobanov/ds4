@@ -28040,6 +28040,25 @@ static void ds4_dspark_probe_accept(ds4_session *s) {
             if (!ds4_gpu_begin_commands()) { ok = false; break; }
             ok = metal_graph_dspark_encode_block(g, &e->dspark_model, &e->dspark_weights.block[lay], (uint32_t)step);
             if (!ds4_gpu_end_commands() || !ok || !ds4_gpu_synchronize()) { ok = false; break; }
+            /* Debug: dump router_selected + ffn_norm for step 1, layer 0 (the FFN
+             * bisection — find the structural divergence vs oracle). */
+            if (step == 1 && lay == 0 && getenv("DS4_DSPARK_PROBE_DUMP_FFN")) {
+                int32_t sel[DS4_DSPARK_BLOCK_SIZE * 6];
+                if (ds4_gpu_tensor_read(g->batch_router_selected, 0, sel, sizeof(sel))) {
+                    fprintf(stderr, "ds4: ffn-dbg step1lay0 router_selected:");
+                    for (uint32_t t = 0; t < DS4_DSPARK_BLOCK_SIZE; t++) {
+                        fprintf(stderr, " tok%d=[%d %d %d %d %d %d]", t, sel[t*6],sel[t*6+1],sel[t*6+2],sel[t*6+3],sel[t*6+4],sel[t*6+5]);
+                    }
+                    fprintf(stderr, "\n");
+                }
+                float fnorm[DS4_DSPARK_BLOCK_SIZE * DS4_N_EMBD];
+                if (ds4_gpu_tensor_read(g->batch_ffn_norm, 0, fnorm, sizeof(fnorm))) {
+                    char fp[1024]; snprintf(fp, sizeof(fp), "%s/metal_ffn_norm_step1lay0.bin", capdir);
+                    FILE *fpw = fopen(fp, "wb");
+                    if (fpw) { fwrite(fnorm, sizeof(float), DS4_DSPARK_BLOCK_SIZE*DS4_N_EMBD, fpw); fclose(fpw);
+                        fprintf(stderr, "ds4: ffn-dbg wrote %s\n", fp); }
+                }
+            }
         }
         if (!ok) { fprintf(stderr, "ds4: accept: step %d block failed\n", step); goto done; }
         if (!ds4_gpu_begin_commands()) goto done;

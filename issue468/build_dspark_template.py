@@ -88,7 +88,7 @@ def tensors():
         add(f"{P}.ffn_gate_exps.weight", [NX, FF, EMBD],        Q4_K)
         add(f"{P}.ffn_up_exps.weight",   [NX, FF, EMBD],        Q4_K)
         add(f"{P}.ffn_down_exps.weight", [NX, EMBD, FF],        Q4_K)
-        add(f"{P}.ffn_gate_inp.weight",  [NX, EMBD],            F32)
+        add(f"{P}.ffn_gate_inp.weight",  [NX, EMBD],            F16)  # F16: ffn_batch gate matmul uses ds4_gpu_matmul_f16_tensor (matches target)
         add(f"{P}.exp_probs_b.bias",     [NX],                  F32)
         # --- DSpark input/output stage ---
         if L == 0:
