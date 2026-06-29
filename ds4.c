@@ -28833,25 +28833,34 @@ int ds4_session_eval_dspark_b2(ds4_session *s, int first_token,
     }
     free(row_tops); free(row_logits); free(q_dist);
 
-    /* Step 5: handle KV rollback / commit.
-     * Full accept: checkpoint is correct (verify's KV is valid for all positions).
-     * Partial accept: restore frontier + truncate checkpoint to accepted prefix.
-     * The replay is SKIPPED (experimental) — the next decode will rebuild KV at
-     * the accepted position. The stale speculative KV beyond the accepted prefix
-     * is overwritten by subsequent decodes. */
-    if (n_draft_accept < block) {
-        spec_frontier_restore(&frontier, s);
-        s->checkpoint.len = start + n_draft_accept;
-        /* Replay ONLY the correction token (the last accepted, which was the
-         * target's token at the rejection point). */
-        if (n_draft_accept < block) {
-            char sub_err[128];
-            ds4_session_eval(s, accepted[n_draft_accept + 1 - 1], sub_err, sizeof(sub_err));
-        }
-    } else {
+    /* Step 5: KV management (correctness-critical).
+     * Full accept (n_draft_accept == block): verify's KV is correct for ALL
+     * positions. Truncate checkpoint to accepted prefix. No restore/replay.
+     * Partial accept: restore to pre-verify KV, truncate to `start`, replay
+     * each accepted token + correction via decode (rebuilds KV correctly).
+     * This matches the MTP path's spec_frontier_restore + replay pattern. */
+    if (n_draft_accept >= block) {
+        /* Full accept: verify's KV is valid. */
         s->checkpoint.len = start + n_draft_accept;
         g->mtp_n_raw = frontier.mtp_n_raw + (uint32_t)n_draft_accept;
         if (g->mtp_n_raw > g->raw_window) g->mtp_n_raw = g->raw_window;
+    } else {
+        /* Partial accept: restore + replay for KV correctness. */
+        spec_frontier_restore(&frontier, s);
+        s->checkpoint.len = start;  /* truncate to pre-draft */
+        /* Replay each accepted token (including the correction). */
+        for (int i = 0; i < n_draft_accept + 1 && n_accept > 0; i++) {
+            char sub_err[128];
+            int replay_tok = accepted[start - (start - n_accept) + i];
+            /* The accepted array is: [first_token, accepted_draft_0, ..., correction].
+             * The replay starts from accepted[n_accept - n_draft_accept - 1 + i]. */
+            replay_tok = accepted[n_accept - n_draft_accept - 1 + i];
+            if (ds4_session_eval(s, replay_tok, sub_err, sizeof(sub_err)) != 0) {
+                snprintf(err, errlen, "dspark b2: replay failed at %d: %s", i, sub_err);
+                spec_frontier_free(&frontier);
+                return -1;
+            }
+        }
     }
     spec_frontier_free(&frontier);
     if (getenv("DS4_DSPARK_B2_DEBUG"))

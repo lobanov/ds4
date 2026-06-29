@@ -1193,6 +1193,7 @@ typedef struct {
 typedef struct {
     const char *model_path;
     const char *mtp_path;
+    const char *dspark_path;
     const char *trace_path;
     const char *regrade_trace_path;
     const char *case_sequence;
@@ -1546,6 +1547,8 @@ static eval_config parse_options(int argc, char **argv) {
             c.model_path = need_arg(&i, argc, argv, arg);
         } else if (!strcmp(arg, "--mtp")) {
             c.mtp_path = need_arg(&i, argc, argv, arg);
+        } else if (!strcmp(arg, "--dspark")) {
+            c.dspark_path = need_arg(&i, argc, argv, arg);
         } else if (!strcmp(arg, "--mtp-draft")) {
             c.mtp_draft_tokens = parse_int_arg(need_arg(&i, argc, argv, arg), arg);
         } else if (!strcmp(arg, "--mtp-margin")) {
@@ -3774,9 +3777,10 @@ static eval_run_result run_one_case(ds4_engine *engine, ds4_session *session,
      * greedy --nothink runs with MTP loaded and draft>1 -- the regime where the
      * forced-token path above is inert and the argmax verifier is valid. */
     const bool spec_active =
-        cfg->temperature <= 0.0f && think_mode == DS4_THINK_NONE &&
-        ds4_engine_mtp_draft_tokens(engine) > 1 &&
-        getenv("DS4_MTP_SPEC_DISABLE") == NULL;
+        think_mode == DS4_THINK_NONE &&
+        ((cfg->temperature <= 0.0f && ds4_engine_mtp_draft_tokens(engine) > 1 &&
+          getenv("DS4_MTP_SPEC_DISABLE") == NULL) ||
+         (ds4_engine_has_dspark(engine) && getenv("DS4_DSPARK_DISABLE") == NULL));
     int spec_tok[17];
     int spec_n = 0;
     int spec_i = 0;
@@ -3886,10 +3890,18 @@ static eval_run_result run_one_case(ds4_engine *engine, ds4_session *session,
             } else if (spec_active) {
                 int first = ds4_session_sample(session, cfg->temperature, 0,
                                                cfg->top_p, cfg->min_p, rng);
-                int ntok = ds4_session_eval_speculative_argmax(session, first,
-                                remaining_budget, eos, spec_tok,
-                                (int)(sizeof(spec_tok) / sizeof(spec_tok[0])),
-                                err, sizeof(err));
+                int ntok;
+                if (ds4_engine_has_dspark(engine) && getenv("DS4_DSPARK_DISABLE") == NULL) {
+                    ntok = ds4_session_eval_dspark_b2(session, first,
+                                    remaining_budget, eos, spec_tok,
+                                    (int)(sizeof(spec_tok) / sizeof(spec_tok[0])),
+                                    err, sizeof(err));
+                } else {
+                    ntok = ds4_session_eval_speculative_argmax(session, first,
+                                    remaining_budget, eos, spec_tok,
+                                    (int)(sizeof(spec_tok) / sizeof(spec_tok[0])),
+                                    err, sizeof(err));
+                }
                 if (ntok < 0) {
                     plain_reset_color(use_plain_color);
                     ui->generated_tokens[idx] = ui->generated;
@@ -4192,6 +4204,7 @@ int main(int argc, char **argv) {
     ds4_engine_options opt = {
         .model_path = cfg.model_path,
         .mtp_path = cfg.mtp_path,
+        .dspark_path = cfg.dspark_path,
         .backend = cfg.backend,
         .n_threads = cfg.threads,
         .mtp_draft_tokens = cfg.mtp_draft_tokens,
