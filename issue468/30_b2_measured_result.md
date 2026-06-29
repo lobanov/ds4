@@ -80,3 +80,21 @@ produces measured gen t/s (31 t/s vs 39 baseline) — available for independent
 speedup verification. The gate (>20% faster) is NOT met by the unoptimized
 experimental path. The component-level projections (+30%) remain valid for the
 optimized implementation but are NOT reproduced without the production optimizations.
+
+## Independent verification instructions
+
+The B2 implementation is independently verifiable:
+
+```sh
+# DSpark B2 timed gen t/s (the experimental speedup measurement):
+./ds4 -m MODEL --dspark dspark.gguf -c CTX -n N --temp 0.0 -p PROMPT
+
+# Baseline (no --dspark):
+./ds4 -m MODEL -c CTX -n N --temp 0.0 -p PROMPT
+
+# Quality (ds4-eval with --dspark, B2 exactness-preserving):
+./ds4-eval -m MODEL --dspark dspark.gguf --plain --nothink -n 4096 --seed 1 --questions 92 --temp 1.0
+```
+
+The --dspark flag activates the B2 spec-decode path. Debug output via
+DS4_DSPARK_B2_DEBUG=1. Disable via DS4_DSPARK_DISABLE=1 (falls back to baseline).
