@@ -28572,8 +28572,35 @@ int ds4_session_eval_dspark_b2(ds4_session *s, int first_token,
     s->graph.dspark_capture_active = false;
     if (eval_rc != 0) return -1;
     /* Readback the captured cur_hc copies, compute mean over HC, upload to
-     * dspark_main_hidden. This is post-decode (with sync) so doesn't disrupt the pipeline. */
+     * dspark_main_hidden. This is post-decode (with sync) so doesn't disrupt the pipeline.
+     * Debug mode DS4_DSPARK_B2_DISKMH: load from disk captures instead (pos=152). */
     if (s->graph.dspark_enabled) {
+        if (getenv("DS4_DSPARK_B2_DISKMH")) {
+            float *mh_disk = xmalloc((size_t)3 * DS4_N_EMBD * sizeof(float));
+            const char *capdir = getenv("DS4_DSPARK_PROBE_CAPDIR");
+            if (!capdir || !capdir[0]) capdir = "issue468/baseline/dspark_capture";
+            bool mhok = true;
+            for (uint32_t li = 0; mhok && li < 3; li++) {
+                const uint32_t layers[3] = {40,41,42};
+                char path[1024]; snprintf(path, sizeof(path), "%s/ext/hc_dspark_main_hc-%u_pos152.bin", capdir, layers[li]);
+                float *lhc = xmalloc((size_t)DS4_N_HC * DS4_N_EMBD * sizeof(float));
+                FILE *fp = fopen(path, "rb"); if (!fp) { mhok=false; free(lhc); break; }
+                fread(lhc, sizeof(float), (size_t)DS4_N_HC * DS4_N_EMBD, fp); fclose(fp);
+                float *dst = mh_disk + li * DS4_N_EMBD;
+                for (uint32_t d = 0; d < DS4_N_EMBD; d++) {
+                    double acc = 0; for (uint32_t h = 0; h < DS4_N_HC; h++) acc += lhc[h*DS4_N_EMBD+d];
+                    dst[d] = (float)(acc / DS4_N_HC);
+                }
+                free(lhc);
+            }
+            if (mhok) ds4_gpu_tensor_write(s->graph.dspark_main_hidden, 0, mh_disk, (size_t)3*DS4_N_EMBD*sizeof(float));
+            free(mh_disk);
+            if (getenv("DS4_DSPARK_B2_DEBUG")) {
+                float chk[6]; ds4_gpu_tensor_read(s->graph.dspark_main_hidden, 0, chk, sizeof(chk));
+                fprintf(stderr, "ds4: b2: DISK main_hidden[0..5]=%.4f %.4f %.4f %.4f %.4f %.4f\n",
+                    chk[0],chk[1],chk[2],chk[3],chk[4],chk[5]);
+            }
+        } else {
         ds4_gpu_synchronize();
         float *hc = xmalloc((size_t)DS4_N_HC * DS4_N_EMBD * sizeof(float));
         float *mean = xmalloc((size_t)DS4_N_EMBD * sizeof(float));
@@ -28592,6 +28619,7 @@ int ds4_session_eval_dspark_b2(ds4_session *s, int first_token,
             }
         }
         free(hc); free(mean);
+        }
         /* Debug: dump first few values of main_hidden to verify capture */
         if (getenv("DS4_DSPARK_B2_DEBUG")) {
             float mh_check[6];
@@ -28639,6 +28667,15 @@ int ds4_session_eval_dspark_b2(ds4_session *s, int first_token,
     /* Prefill drafter slot0 for all 3 layers from main_x. */
     const uint32_t raw_cap = DS4_N_SWA + DS4_DSPARK_BLOCK_SIZE;
     const uint32_t step_pos = s->checkpoint.len - 1;  /* anchor's decode position */
+    /* Persistent drafter KV: let anchor KV accumulate across cycles (like the
+     * accept probe which showed 2.74 greedy with growing n_real). Only zero on
+     * the first cycle. Store anchor KV at slot [n_real] for contiguous layout. */
+    if (g->dspark_n_real == 0 || step_pos < 3) {
+        for (uint32_t lay = 0; lay < 3; lay++)
+            ds4_gpu_tensor_fill_f32(g->dspark_kv_cache[lay], 0.0f,
+                (uint64_t)raw_cap * DS4_N_HEAD_DIM);
+        g->dspark_n_real = 0;
+    }
     for (uint32_t lay = 0; lay < 3; lay++) {
         if (!ds4_gpu_begin_commands()) break;
         ok = ds4_gpu_matmul_q8_0_tensor(g->batch_kv_raw, e->dspark_model.map,
@@ -28654,12 +28691,10 @@ int ds4_session_eval_dspark_b2(ds4_session *s, int first_token,
         if (ok && !getenv("DS4_DSPARK_NO_FP8"))
             ok = ds4_gpu_dsv4_fp8_kv_quantize_tensor(g->batch_kv, 1, DS4_N_HEAD_DIM, DS4_N_ROT);
         if (ok) ok = ds4_gpu_store_raw_kv_batch_tensor(g->dspark_kv_cache[lay],
-                g->batch_kv, raw_cap, step_pos % DS4_N_SWA, 1, DS4_N_HEAD_DIM);
+                g->batch_kv, raw_cap, g->dspark_n_real, 1, DS4_N_HEAD_DIM);
         if (!ds4_gpu_end_commands() || !ok || !ds4_gpu_synchronize()) break;
     }
-    g->dspark_n_real = 1;  /* fresh start: only the current anchor's KV is valid.
-                            * Previous positions' KV in dspark_kv_cache is uninitialized.
-                            * The probe showed single-anchor acceptance = 2.74 greedy. */
+    { uint32_t prev_n_real = g->dspark_n_real; g->dspark_n_real = prev_n_real > 0 ? prev_n_real : 1; }
     /* Run 3 drafter blocks + output head. */
     for (uint32_t lay = 0; ok && lay < 3; lay++) {
         g->dspark_layer_idx = lay;
@@ -28734,54 +28769,54 @@ int ds4_session_eval_dspark_b2(ds4_session *s, int first_token,
         return n_accept;
     }
 
-    /* Step 4: B2 acceptance. For each draft position:
-     * accept the draft token x w.p. min(1, p(x)/q(x)).
-     * Since the drafter uses argmax, q(x) = max(softmax(base+markov)) is high,
-     * and p(x) >= q(x) when the draft is correct -> accept = 1.0.
-     * On reject: the resampled token from norm(max(0,p-q)) is committed, then STOP.
-     * The verifier already computed row_tops (target argmax); for greedy-argmax
-     * matching (B2 with argmax drafts), accept iff draft[i] == row_tops[i-1].
-     * B2 with the FULL distributions: accept w.p. min(1, p(x)/q(x)).
-     * For the experimental path, use the SIMPLEST correct B2: accept the draft iff
-     * it matches the target argmax (row_tops); this is exactness-preserving and
-     * produces the greedy-argmax acceptance rate. The full stochastic B2 would use
-     * row_logits + q distribution. TODO: upgrade to stochastic B2. */
+    /* Step 4: B2 acceptance. The first draft is verified for free against
+     * s->logits (the target's argmax at the anchor position, from the decode).
+     * row_tops[i] covers drafts[i+1] (verify produces n_tokens-1 tops). */
     int n_draft_accept = 0;
-    for (int i = 0; i < block && n_accept < accepted_cap && n_accept < max_tokens; i++) {
-        int target_tok = row_tops[i];
-        if (getenv("DS4_DSPARK_B2_DEBUG") && i < 3)
-            fprintf(stderr, "ds4: b2: pos %d draft=%d target=%d %s\n", i, drafts[i], target_tok,
-                    drafts[i] == target_tok ? "ACCEPT" : "reject");
-        if (drafts[i] == target_tok) {
-            accepted[n_accept++] = drafts[i];
-            n_draft_accept++;
-        } else {
-            /* Reject: commit the target's token (the correction), then stop. */
-            accepted[n_accept++] = target_tok;
-            break;
+    /* Verify draft[0] against the target's argmax at the anchor position. */
+    int target_tok0 = sample_argmax(s->logits, DS4_N_VOCAB);
+    if (getenv("DS4_DSPARK_B2_DEBUG"))
+        fprintf(stderr, "ds4: b2: pos 0 draft=%d target=%d %s\n", drafts[0], target_tok0,
+                drafts[0] == target_tok0 ? "ACCEPT" : "reject");
+    if (drafts[0] == target_tok0) {
+        accepted[n_accept++] = drafts[0];
+        n_draft_accept++;
+        /* Verify drafts[1..block-1] against row_tops[0..block-2]. */
+        for (int i = 1; i < block && n_accept < accepted_cap && n_accept < max_tokens; i++) {
+            int target_tok = row_tops[i - 1];
+            if (getenv("DS4_DSPARK_B2_DEBUG") && i < 3)
+                fprintf(stderr, "ds4: b2: pos %d draft=%d target=%d %s\n", i, drafts[i], target_tok,
+                        drafts[i] == target_tok ? "ACCEPT" : "reject");
+            if (drafts[i] == target_tok) {
+                accepted[n_accept++] = drafts[i];
+                n_draft_accept++;
+            } else {
+                accepted[n_accept++] = target_tok;
+                break;
+            }
         }
+    } else {
+        /* Reject: commit the target's token (correction). */
+        accepted[n_accept++] = target_tok0;
     }
     free(row_tops); free(row_logits);
 
     /* Step 5: handle KV rollback / commit.
-     * If all drafts accepted: checkpoint is correct, advance mtp_n_raw.
-     * If partial: restore the frontier and replay accepted tokens via decode. */
+     * Full accept: checkpoint is correct (verify's KV is valid for all positions).
+     * Partial accept: restore frontier + truncate checkpoint to accepted prefix.
+     * The replay is SKIPPED (experimental) — the next decode will rebuild KV at
+     * the accepted position. The stale speculative KV beyond the accepted prefix
+     * is overwritten by subsequent decodes. */
     if (n_draft_accept < block) {
-        /* Restore KV state to pre-verify, then replay accepted drafts one by one. */
         spec_frontier_restore(&frontier, s);
-        s->checkpoint.len = start;  /* truncate to pre-draft */
-        for (int i = 0; i < n_draft_accept + 1; i++) {
-            /* i=0 is the first accepted draft (or the correction token); replay
-             * via normal decode to rebuild KV correctly. */
+        s->checkpoint.len = start + n_draft_accept;
+        /* Replay ONLY the correction token (the last accepted, which was the
+         * target's token at the rejection point). */
+        if (n_draft_accept < block) {
             char sub_err[128];
-            if (ds4_session_eval(s, accepted[i], sub_err, sizeof(sub_err)) != 0) {
-                snprintf(err, errlen, "dspark b2: replay failed at %d: %s", i, sub_err);
-                return -1;
-            }
+            ds4_session_eval(s, accepted[n_draft_accept + 1 - 1], sub_err, sizeof(sub_err));
         }
     } else {
-        /* Full accept: the verify's KV is correct for all accepted tokens.
-         * Truncate checkpoint to accepted prefix. */
         s->checkpoint.len = start + n_draft_accept;
         g->mtp_n_raw = frontier.mtp_n_raw + (uint32_t)n_draft_accept;
         if (g->mtp_n_raw > g->raw_window) g->mtp_n_raw = g->raw_window;

@@ -936,7 +936,8 @@ static int run_generation(ds4_engine *engine, const cli_config *cfg) {
         }
     } else if (cfg->engine.distributed.role == DS4_DISTRIBUTED_COORDINATOR ||
                cfg->gen.temperature > 0.0f ||
-               ds4_engine_mtp_draft_tokens(engine) > 1) {
+               ds4_engine_mtp_draft_tokens(engine) > 1 ||
+               ds4_engine_has_dspark(engine)) {
         if (getenv("DS4_DSPARK_B2_DEBUG"))
             fprintf(stderr, "ds4: dispatch -> run_sampled_generation (temp=%.1f mtp=%d dspark=%d)\n",
                     cfg->gen.temperature, ds4_engine_mtp_draft_tokens(engine),
