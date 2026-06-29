@@ -1,3 +1,13 @@
+# SUPERSEDED — Outcome A projection (component-level). See issue468/30 for the ACTUAL measured result.
+
+> **STATUS: This doc's +30-48% speedup is a COMPONENT-LEVEL PROJECTION, not an end-to-end
+> measurement. After B2 was wired into the decode loop (issue468/30), the actual measured
+> end-to-end gen t/s is 0.71× (29% SLOWER than baseline) due to implementation overhead.
+> This doc is retained for its root-cause analysis (ffn_gate_inp F32/F16 fix) but its
+> speedup table should NOT be cited as a measured result.**
+
+# ORIGINAL (projection-based, pre-B2-wiring):
+
 # FINAL VERDICT — DSpark speculative decoding: OUTCOME A (WORKING)
 
 Date: 2026-06-29. Supersedes issue468/23 (the premature Outcome B). This is the
