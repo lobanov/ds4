@@ -29163,25 +29163,18 @@ int ds4_session_eval_dspark_b2(ds4_session *s, int first_token,
                 (uint64_t)raw_cap * DS4_N_HEAD_DIM);
         g->dspark_n_real = 0;
     }
-    for (uint32_t lay = 0; lay < 3; lay++) {
-        if (!ds4_gpu_begin_commands()) break;
-        ok = ds4_gpu_matmul_q8_0_tensor(g->batch_kv_raw, e->dspark_model.map,
-                e->dspark_model.size, e->dspark_weights.block[lay].attn_kv->abs_offset,
-                DS4_N_EMBD, DS4_N_HEAD_DIM, g->dspark_main_x, 1);
-        if (ok) ok = ds4_gpu_rms_norm_weight_rows_tensor(g->batch_kv, g->batch_kv_raw,
-                e->dspark_model.map, e->dspark_model.size,
-                e->dspark_weights.block[lay].attn_kv_a_norm->abs_offset,
-                DS4_N_HEAD_DIM, 1, DS4_RMS_EPS);
-        if (ok) ok = ds4_gpu_rope_tail_tensor(g->batch_kv, 1, DS4_N_HEAD_KV, DS4_N_HEAD_DIM,
-                DS4_N_ROT, step_pos, 0u, false, DS4_ROPE_FREQ_BASE, 1.0f, 0.0f, 1.0f,
-                DS4_ROPE_YARN_BETA_FAST, DS4_ROPE_YARN_BETA_SLOW);
-        if (ok && !getenv("DS4_DSPARK_NO_FP8"))
-            ok = ds4_gpu_dsv4_fp8_kv_quantize_tensor(g->batch_kv, 1, DS4_N_HEAD_DIM, DS4_N_ROT);
-        if (ok) ok = ds4_gpu_store_raw_kv_batch_tensor(g->dspark_kv_cache[lay],
-                g->batch_kv, raw_cap, g->dspark_n_real, 1, DS4_N_HEAD_DIM);
-        if (!ds4_gpu_end_commands() || !ok || !ds4_gpu_synchronize()) break;
-    }
-    { uint32_t prev_n_real = g->dspark_n_real; g->dspark_n_real = prev_n_real > 0 ? prev_n_real : 1; }
+    /* Bug #1 fix (issue468/40): the redundant anchor-KV prefill loop that was
+     * here has been removed — metal_graph_dspark_encode_attention (called inside
+     * encode_block below) ALREADY computes and stores this cycle's anchor KV at
+     * window slot [dspark_n_real] from g->dspark_main_x (ds4.c:~17806), so the
+     * prefill was a pure duplicate. The prior code also never incremented
+     * dspark_n_real, leaving the drafter's attention window STUCK at n_real=1
+     * (slot[0] frozen at the cycle-1 anchor forever — the 'stale dspark_kv_cache'
+     * bug flagged in commit fe12c76). The reference ds4_dspark_probe_accept path
+     * (the documented 'correct' drafter: 2.74 greedy prefix) does input_stage →
+     * encode_block → n_real++ each step. We now mirror that: the capped increment
+     * happens AFTER encode_block (which needs the pre-increment n_real to place
+     * this cycle's anchor at slot [n_real]). */
     /* Run 3 drafter blocks + output head. */
     for (uint32_t lay = 0; ok && lay < 3; lay++) {
         g->dspark_layer_idx = lay;
@@ -29190,6 +29183,9 @@ int ds4_session_eval_dspark_b2(ds4_session *s, int first_token,
                 &e->dspark_weights.block[lay], step_pos);
         if (!ds4_gpu_end_commands() || !ok || !ds4_gpu_synchronize()) { ok = false; break; }
     }
+    /* Accumulate the anchor now cached by encode_attention into the window,
+     * capped at DS4_N_SWA (mirrors ds4_dspark_probe_accept: ds4.c:~28345). */
+    if (g->dspark_n_real < DS4_N_SWA) g->dspark_n_real++;
     if (ok) { if (!ds4_gpu_begin_commands()) ok = false; }
     if (ok) ok = metal_graph_dspark_output_head(g, &e->model, &e->weights,
             &e->dspark_model, &e->dspark_weights, block);
