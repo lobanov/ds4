@@ -317,7 +317,16 @@ static uint32_t g_ds4_compress_ratios[DS4_MAX_LAYER] = {0};
 /* DSpark drafter constants (deepseek-ai/DeepSeek-V4-Flash-DSpark config.json).
  * block_size = number of tokens drafted per cycle; noise_token fills the
  * non-anchor draft positions in mtp.0.forward_embed. */
+/* Compile-time-overridable for the block-size sweep (issue468/37). Default 5
+ * (validated). -DDS4_DSPARK_BLOCK_SIZE=N selects the draft depth at build
+ * time; PREFIX_CAP (per-position frontier captures) follows. A true runtime
+ * override is infeasible: the drafter kernels (metal_graph_dspark_encode_attention /
+ * input_stage) and the spec_prefixN capture arrays use this as a fixed dimension,
+ * and threading a runtime block through them would touch SHARED MTP/capture
+ * primitives. The sweep therefore varies it at compile time. */
+#ifndef DS4_DSPARK_BLOCK_SIZE
 #define DS4_DSPARK_BLOCK_SIZE         5
+#endif
 #define DS4_DSPARK_PREFIX_CAP          (DS4_DSPARK_BLOCK_SIZE - 1)  /* per-position frontier captures for partial-accept (k=1..4) */
 #define DS4_DSPARK_NOISE_TOK          128799
 #define DS4_DSPARK_N_LAYERS           3
@@ -28324,9 +28333,15 @@ static void ds4_dspark_probe_accept(ds4_session *s) {
             if (draft[i] == greedy[step+1+i]) { match++; if (prefix == (int)i) prefix = (int)i+1; }
         }
         total_match += match; total_pos += DS4_DSPARK_BLOCK_SIZE; prefix_hist[prefix]++;
-        fprintf(stderr, "  %4d %4ld %5u   [%d %d %d %d %d] [%d %d %d %d %d] %6d %7d\n",
-            step, pos, g->dspark_n_real, draft[0],draft[1],draft[2],draft[3],draft[4],
-            greedy[step+1],greedy[step+2],greedy[step+3],greedy[step+4],greedy[step+5], match, prefix);
+        {   /* block-size-agnostic bracketed print (was hardcoded [0..4]) */
+            char dbuf[80], gbuf[80]; int dn = 0, gn = 0;
+            for (uint32_t i = 0; i < (uint32_t)DS4_DSPARK_BLOCK_SIZE; i++)
+                dn += snprintf(dbuf + dn, sizeof(dbuf) - dn, "%s%d", i ? " " : "", draft[i]);
+            for (uint32_t i = 0; i < (uint32_t)DS4_DSPARK_BLOCK_SIZE; i++)
+                gn += snprintf(gbuf + gn, sizeof(gbuf) - gn, "%s%d", i ? " " : "", greedy[step + 1 + i]);
+            fprintf(stderr, "  %4d %4ld %5u   [%s] [%s] %6d %7d\n",
+                    step, pos, g->dspark_n_real, dbuf, gbuf, match, prefix);
+        }
         if (g->dspark_n_real < DS4_N_SWA) g->dspark_n_real++;
     }
     double avg_prefix = (double)(prefix_hist[1]+2*prefix_hist[2]+3*prefix_hist[3]+4*prefix_hist[4]+5*prefix_hist[5]) / n_steps;
@@ -28639,10 +28654,14 @@ static void ds4_dspark_probe_input_stage(ds4_session *s) {
                     char tp[1024]; snprintf(tp, sizeof(tp), "%s/metal_draft_tokens_pos%ld.txt", capdir, pos);
                     FILE *fp = fopen(tp, "w");
                     if (fp) {
-                        fprintf(fp, "%d %d %d %d %d\n", draft[0],draft[1],draft[2],draft[3],draft[4]);
+                        for (uint32_t i = 0; i < (uint32_t)DS4_DSPARK_BLOCK_SIZE; i++)
+                            fprintf(fp, "%s%d", i ? " " : "", draft[i]);
+                        fputc('\n', fp);
                         fclose(fp);
-                        fprintf(stderr, "ds4: dspark probe: draft tokens [%d %d %d %d %d] -> %s\n",
-                                draft[0],draft[1],draft[2],draft[3],draft[4], tp);
+                        char dbuf[80]; int dn = 0;
+                        for (uint32_t i = 0; i < (uint32_t)DS4_DSPARK_BLOCK_SIZE; i++)
+                            dn += snprintf(dbuf + dn, sizeof(dbuf) - dn, "%s%d", i ? " " : "", draft[i]);
+                        fprintf(stderr, "ds4: dspark probe: draft tokens [%s] -> %s\n", dbuf, tp);
                     }
                 }
                 free(logits);
