@@ -25811,6 +25811,12 @@ static char *imatrix_trim_block(char *p, char *end) {
     *end = '\0';
     return p;
 }
+
+static bool imatrix_path_is_directory(const char *path) {
+    struct stat st;
+    if (!path || stat(path, &st) != 0) return false;
+    return S_ISDIR(st.st_mode);
+}
 #endif
 
 int ds4_engine_collect_imatrix(ds4_engine *e,
@@ -28792,72 +28798,76 @@ static bool dspark_capture_main_hidden(ds4_session *s, float *hc_buf, float *mh_
                                 (size_t)DS4_DSPARK_N_LAYERS * DS4_N_EMBD * sizeof(float)) != 0;
 }
 
-static bool dspark_seed_anchor_kv(ds4_session *s, uint32_t step_pos) {
+static bool dspark_reset_kv_window(ds4_session *s) {
     if (!s || !s->engine) return false;
-    ds4_engine *e = s->engine;
     ds4_gpu_graph *g = &s->graph;
-    if (!e->dspark_ready || !g->dspark_enabled) return false;
+    if (!g->dspark_enabled) return false;
 
     const uint32_t raw_cap = DS4_N_SWA + DS4_DSPARK_BLOCK_SIZE;
     for (uint32_t lay = 0; lay < DS4_DSPARK_N_LAYERS; lay++) {
-        ds4_gpu_tensor_fill_f32(g->dspark_kv_cache[lay], 0.0f,
-                                (uint64_t)raw_cap * DS4_N_HEAD_DIM);
+        if (!ds4_gpu_tensor_fill_f32(g->dspark_kv_cache[lay], 0.0f,
+                                     (uint64_t)raw_cap * DS4_N_HEAD_DIM)) {
+            return false;
+        }
     }
     g->dspark_n_real = 0;
-
-    for (uint32_t lay = 0; lay < DS4_DSPARK_N_LAYERS; lay++) {
-        if (!ds4_gpu_begin_commands()) return false;
-        bool ok = ds4_gpu_matmul_q8_0_tensor(g->batch_kv_raw,
-                                             e->dspark_model.map,
-                                             e->dspark_model.size,
-                                             e->dspark_weights.block[lay].attn_kv->abs_offset,
-                                             DS4_N_EMBD, DS4_N_HEAD_DIM,
-                                             g->dspark_main_x, 1) != 0;
-        if (ok) ok = ds4_gpu_rms_norm_weight_rows_tensor(g->batch_kv,
-                                                         g->batch_kv_raw,
-                                                         e->dspark_model.map,
-                                                         e->dspark_model.size,
-                                                         e->dspark_weights.block[lay].attn_kv_a_norm->abs_offset,
-                                                         DS4_N_HEAD_DIM, 1,
-                                                         DS4_RMS_EPS) != 0;
-        if (ok) ok = ds4_gpu_rope_tail_tensor(g->batch_kv, 1,
-                                              DS4_N_HEAD_KV, DS4_N_HEAD_DIM, DS4_N_ROT,
-                                              step_pos, 0u, false,
-                                              DS4_ROPE_FREQ_BASE, 1.0f, 0.0f, 1.0f,
-                                              DS4_ROPE_YARN_BETA_FAST,
-                                              DS4_ROPE_YARN_BETA_SLOW) != 0;
-        if (ok && !getenv("DS4_DSPARK_NO_FP8")) {
-            ok = ds4_gpu_dsv4_fp8_kv_quantize_tensor(g->batch_kv, 1,
-                                                     DS4_N_HEAD_DIM, DS4_N_ROT) != 0;
-        }
-        if (ok) ok = ds4_gpu_store_raw_kv_batch_tensor(g->dspark_kv_cache[lay],
-                                                       g->batch_kv, raw_cap,
-                                                       0u, 1, DS4_N_HEAD_DIM) != 0;
-        if (!ds4_gpu_end_commands() || !ok || !ds4_gpu_synchronize()) return false;
-    }
-
-    g->dspark_n_real = 1;
     return true;
 }
 
-static bool dspark_collect_imatrix_sample(ds4_session *s,
-                                          ds4_imatrix_collector *imatrix,
-                                          int anchor_token,
-                                          uint32_t step_pos,
-                                          float *hc_buf,
-                                          float *mh_buf) {
+static bool dspark_load_main_hidden_capture(ds4_session *s,
+                                            const char *capdir,
+                                            long pos,
+                                            float *hc_buf,
+                                            float *mh_buf) {
+    if (!s || !capdir || !hc_buf || !mh_buf) return false;
+    ds4_gpu_graph *g = &s->graph;
+    const uint32_t layers[3] = {40, 41, 42};
+    for (uint32_t li = 0; li < DS4_DSPARK_N_LAYERS; li++) {
+        char path[1024];
+        snprintf(path, sizeof(path), "%s/hc_dspark_main_hc-%u_pos%ld.bin", capdir, layers[li], pos);
+        FILE *fp = fopen(path, "rb");
+        if (!fp) {
+            fprintf(stderr, "ds4: dspark imatrix: cannot open %s\n", path);
+            return false;
+        }
+        const size_t want = (size_t)DS4_N_HC * DS4_N_EMBD;
+        const size_t got = fread(hc_buf, sizeof(float), want, fp);
+        fclose(fp);
+        if (got != want) {
+            fprintf(stderr, "ds4: dspark imatrix: short read %s (%zu)\n", path, got);
+            return false;
+        }
+        float *dst = mh_buf + (size_t)li * DS4_N_EMBD;
+        for (uint32_t d = 0; d < DS4_N_EMBD; d++) {
+            double acc = 0.0;
+            for (uint32_t h = 0; h < DS4_N_HC; h++) {
+                acc += hc_buf[(size_t)h * DS4_N_EMBD + d];
+            }
+            dst[d] = (float)(acc / DS4_N_HC);
+        }
+    }
+    return ds4_gpu_tensor_write(g->dspark_main_hidden, 0, mh_buf,
+                                (size_t)DS4_DSPARK_N_LAYERS * DS4_N_EMBD * sizeof(float)) != 0;
+}
+
+static bool dspark_collect_imatrix_from_current_hidden(ds4_session *s,
+                                                       ds4_imatrix_collector *imatrix,
+                                                       int anchor_token,
+                                                       uint32_t step_pos) {
     if (!s || !s->engine || !imatrix) return false;
     ds4_engine *e = s->engine;
     ds4_gpu_graph *g = &s->graph;
 
-    if (!dspark_capture_main_hidden(s, hc_buf, mh_buf)) return false;
     if (!metal_graph_dspark_input_stage(g, &e->model, &e->weights,
                                         &e->dspark_model, &e->dspark_weights,
                                         anchor_token)) {
         return false;
     }
     if (!ds4_gpu_synchronize()) return false;
-    if (!dspark_seed_anchor_kv(s, step_pos)) return false;
+
+    if (g->dspark_n_real == 0 || step_pos < 3u) {
+        if (!dspark_reset_kv_window(s)) return false;
+    }
 
     for (uint32_t lay = 0; lay < DS4_DSPARK_N_LAYERS; lay++) {
         g->dspark_layer_idx = lay;
@@ -28869,7 +28879,197 @@ static bool dspark_collect_imatrix_sample(ds4_session *s,
         if (!imatrix_collect_layer_batch(imatrix, g, lay, DS4_DSPARK_BLOCK_SIZE)) return false;
     }
 
+    if (g->dspark_n_real < DS4_N_SWA - 1u) g->dspark_n_real++;
     return true;
+}
+
+static bool dspark_collect_imatrix_sample(ds4_session *s,
+                                          ds4_imatrix_collector *imatrix,
+                                          int anchor_token,
+                                          uint32_t step_pos,
+                                          float *hc_buf,
+                                          float *mh_buf) {
+    if (!s || !s->engine || !imatrix) return false;
+
+    if (!dspark_capture_main_hidden(s, hc_buf, mh_buf)) return false;
+    return dspark_collect_imatrix_from_current_hidden(s, imatrix, anchor_token, step_pos);
+}
+
+static bool dspark_imatrix_load_greedy(const char *path, int **out_greedy, int *out_n_greedy) {
+    if (!path || !out_greedy || !out_n_greedy) return false;
+    FILE *fp = fopen(path, "r");
+    if (!fp) {
+        fprintf(stderr, "ds4: dspark imatrix: cannot open %s\n", path);
+        return false;
+    }
+    size_t cap = 256;
+    int *greedy = xmalloc(cap * sizeof(greedy[0]));
+    int n_greedy = 0;
+    char ch;
+    enum { G_SKIP, G_NUM } st = G_SKIP;
+    int val = 0;
+    bool neg = false;
+    while ((ch = (char)fgetc(fp)) != EOF) {
+        if (st == G_SKIP) {
+            if (ch == '-') {
+                neg = true;
+                st = G_NUM;
+                val = 0;
+            } else if (ch >= '0' && ch <= '9') {
+                neg = false;
+                st = G_NUM;
+                val = ch - '0';
+            }
+        } else if (ch >= '0' && ch <= '9') {
+            val = val * 10 + (ch - '0');
+        } else {
+            if ((size_t)n_greedy == cap) {
+                cap *= 2;
+                greedy = xrealloc(greedy, cap * sizeof(greedy[0]));
+            }
+            greedy[n_greedy++] = neg ? -val : val;
+            st = G_SKIP;
+            neg = false;
+        }
+    }
+    if (st == G_NUM) {
+        if ((size_t)n_greedy == cap) {
+            cap *= 2;
+            greedy = xrealloc(greedy, cap * sizeof(greedy[0]));
+        }
+        greedy[n_greedy++] = neg ? -val : val;
+    }
+    fclose(fp);
+    if (n_greedy <= 0) {
+        fprintf(stderr, "ds4: dspark imatrix: no greedy tokens in %s\n", path);
+        free(greedy);
+        return false;
+    }
+    *out_greedy = greedy;
+    *out_n_greedy = n_greedy;
+    return true;
+}
+
+static bool dspark_imatrix_read_prompt_tokens(const char *path, int *out_prompt_tokens) {
+    if (!path || !out_prompt_tokens) return false;
+    char *json = NULL;
+    size_t json_len = 0;
+    if (!imatrix_read_text_file(path, &json, &json_len)) return false;
+    (void)json_len;
+    const char *key = "\"prompt_tokens\"";
+    char *hit = strstr(json, key);
+    if (!hit) {
+        fprintf(stderr, "ds4: dspark imatrix: %s missing prompt_tokens\n", path);
+        free(json);
+        return false;
+    }
+    hit = strchr(hit, ':');
+    if (!hit) {
+        free(json);
+        return false;
+    }
+    hit++;
+    while (*hit == ' ' || *hit == '\t' || *hit == '\r' || *hit == '\n') hit++;
+    char *end = NULL;
+    long value = strtol(hit, &end, 10);
+    free(json);
+    if (!end || value <= 0 || value > INT32_MAX) {
+        fprintf(stderr, "ds4: dspark imatrix: bad prompt_tokens in %s\n", path);
+        return false;
+    }
+    *out_prompt_tokens = (int)value;
+    return true;
+}
+
+static int ds4_engine_collect_dspark_imatrix_bundle(ds4_engine *e,
+                                                    const char *bundle_path,
+                                                    const char *output_path,
+                                                    int ctx_size,
+                                                    int max_tokens) {
+    if (!e || !bundle_path || !output_path || !e->dspark_ready) return 1;
+
+    char greedy_path[1024];
+    char target_json_path[1024];
+    snprintf(greedy_path, sizeof(greedy_path), "%s/target_greedy.json", bundle_path);
+    snprintf(target_json_path, sizeof(target_json_path), "%s/target_topk.json", bundle_path);
+
+    int *greedy = NULL;
+    int n_greedy = 0;
+    int prompt_tokens = 0;
+    if (!dspark_imatrix_load_greedy(greedy_path, &greedy, &n_greedy)) return 1;
+    if (!dspark_imatrix_read_prompt_tokens(target_json_path, &prompt_tokens)) {
+        free(greedy);
+        return 1;
+    }
+
+    const int available_steps = n_greedy - 1 - (int)DS4_DSPARK_BLOCK_SIZE;
+    if (available_steps <= 0) {
+        fprintf(stderr, "ds4: dspark imatrix: bundle %s has too few greedy steps (%d)\n",
+                bundle_path, n_greedy);
+        free(greedy);
+        return 1;
+    }
+    const int steps = (max_tokens > 0 && max_tokens < available_steps) ? max_tokens : available_steps;
+    const int run_ctx = ctx_size > 1 ? ctx_size : prompt_tokens + 96;
+
+    ds4_session *s = NULL;
+    if (ds4_session_create(&s, e, run_ctx) != 0) {
+        fprintf(stderr, "ds4: dspark imatrix: bundle session create failed (ctx=%d)\n", run_ctx);
+        free(greedy);
+        return 1;
+    }
+
+    ds4_imatrix_collector collector;
+    if (!imatrix_collector_init(&collector, DS4_DSPARK_BLOCK_SIZE, bundle_path,
+                                DS4_DSPARK_N_LAYERS)) {
+        fprintf(stderr, "ds4: failed to allocate dspark bundle imatrix collector\n");
+        ds4_session_free(s);
+        free(greedy);
+        return 1;
+    }
+
+    float *hc_buf = xmalloc((size_t)DS4_N_HC * DS4_N_EMBD * sizeof(float));
+    float *mh_buf = xmalloc((size_t)DS4_DSPARK_N_LAYERS * DS4_N_EMBD * sizeof(float));
+    bool ok = dspark_reset_kv_window(s);
+    int anchors_done = 0;
+
+    fprintf(stderr,
+            "ds4: collecting DSpark acceptance-bundle imatrix from %s (prompt_tokens=%d, steps=%d, ctx=%d)\n",
+            bundle_path, prompt_tokens, steps, run_ctx);
+
+    for (int step = 1; ok && step <= steps; step++) {
+        const long pos = (long)prompt_tokens + step;
+        if (!dspark_load_main_hidden_capture(s, bundle_path, pos, hc_buf, mh_buf)) {
+            ok = false;
+            break;
+        }
+        if (!dspark_collect_imatrix_from_current_hidden(s, &collector, greedy[step], (uint32_t)pos)) {
+            fprintf(stderr, "ds4: dspark imatrix: bundle sample failed at step %d pos %ld\n",
+                    step, pos);
+            ok = false;
+            break;
+        }
+        anchors_done++;
+    }
+
+    if (ok) {
+        imatrix_report_expert_coverage(&collector, DS4_DSPARK_N_LAYERS);
+        ok = imatrix_collector_save(&collector, e->dspark_weights.block,
+                                    DS4_DSPARK_N_LAYERS, output_path);
+        if (ok) {
+            fprintf(stderr,
+                    "ds4: wrote DSpark acceptance-bundle imatrix %s from %d anchors, %llu routed expert observations\n",
+                    output_path, anchors_done,
+                    (unsigned long long)collector.observed_routes);
+        }
+    }
+
+    free(mh_buf);
+    free(hc_buf);
+    imatrix_collector_free(&collector);
+    ds4_session_free(s);
+    free(greedy);
+    return ok ? 0 : 1;
 }
 
 static int ds4_engine_collect_dspark_imatrix(ds4_engine *e,
@@ -28880,6 +29080,10 @@ static int ds4_engine_collect_dspark_imatrix(ds4_engine *e,
                                              int max_tokens,
                                              int max_tokens_per_prompt) {
     if (!e || !dataset_path || !output_path || ctx_size <= 1 || !e->dspark_ready) return 1;
+    if (imatrix_path_is_directory(dataset_path)) {
+        return ds4_engine_collect_dspark_imatrix_bundle(e, dataset_path, output_path,
+                                                        ctx_size, max_tokens);
+    }
 
     char *dataset = NULL;
     size_t dataset_len = 0;
@@ -28956,6 +29160,10 @@ static int ds4_engine_collect_dspark_imatrix(ds4_engine *e,
                     fprintf(stderr, "ds4: dspark imatrix prefill failed: %s\n", err);
                     ok = false;
                 } else {
+                    if (!dspark_reset_kv_window(s)) {
+                        fprintf(stderr, "ds4: dspark imatrix KV reset failed\n");
+                        ok = false;
+                    }
                     for (int i = 1; ok && i < prompt.len; i++) {
                         s->graph.dspark_capture_active = true;
                         int eval_rc = ds4_session_eval(s, prompt.v[i], err, sizeof(err));
