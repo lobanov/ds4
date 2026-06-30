@@ -15,6 +15,7 @@
  */
 
 #include <errno.h>
+#include <dirent.h>
 #include <fcntl.h>
 #include <float.h>
 #include <inttypes.h>
@@ -25881,6 +25882,12 @@ static bool imatrix_path_is_directory(const char *path) {
     if (!path || stat(path, &st) != 0) return false;
     return S_ISDIR(st.st_mode);
 }
+
+static bool imatrix_path_join(char *dst, size_t dst_size, const char *a, const char *b) {
+    if (!dst || dst_size == 0 || !a || !b) return false;
+    const int n = snprintf(dst, dst_size, "%s/%s", a, b);
+    return n > 0 && (size_t)n < dst_size;
+}
 #endif
 
 int ds4_engine_collect_imatrix(ds4_engine *e,
@@ -29088,26 +29095,44 @@ static bool dspark_imatrix_read_prompt_tokens(const char *path, int *out_prompt_
     return true;
 }
 
-static int ds4_engine_collect_dspark_imatrix_bundle(ds4_engine *e,
-                                                    const char *bundle_path,
-                                                    const char *output_path,
-                                                    int ctx_size,
-                                                    int max_tokens,
-                                                    const float *draft_pos_weights) {
-    if (!e || !bundle_path || !output_path || !e->dspark_ready) return 1;
+static bool dspark_imatrix_is_bundle_dir(const char *path) {
+    char target_json_path[1024];
+    char greedy_path[1024];
+    struct stat st_target;
+    struct stat st_greedy;
+    if (!imatrix_path_is_directory(path)) return false;
+    if (!imatrix_path_join(target_json_path, sizeof(target_json_path), path, "target_topk.json")) return false;
+    if (!imatrix_path_join(greedy_path, sizeof(greedy_path), path, "target_greedy.json")) return false;
+    return stat(target_json_path, &st_target) == 0 && S_ISREG(st_target.st_mode) &&
+           stat(greedy_path, &st_greedy) == 0 && S_ISREG(st_greedy.st_mode);
+}
+
+static int dspark_ctx_dir_cmp(const void *a, const void *b) {
+    const char *const *sa = (const char *const *)a;
+    const char *const *sb = (const char *const *)b;
+    return strcmp(*sa, *sb);
+}
+
+static bool dspark_collect_bundle_into_collector(ds4_engine *e,
+                                                 ds4_imatrix_collector *collector,
+                                                 const char *bundle_path,
+                                                 int ctx_size,
+                                                 int max_tokens,
+                                                 int *anchors_done_out) {
+    if (!e || !collector || !bundle_path) return false;
 
     char greedy_path[1024];
     char target_json_path[1024];
-    snprintf(greedy_path, sizeof(greedy_path), "%s/target_greedy.json", bundle_path);
-    snprintf(target_json_path, sizeof(target_json_path), "%s/target_topk.json", bundle_path);
+    if (!imatrix_path_join(greedy_path, sizeof(greedy_path), bundle_path, "target_greedy.json")) return false;
+    if (!imatrix_path_join(target_json_path, sizeof(target_json_path), bundle_path, "target_topk.json")) return false;
 
     int *greedy = NULL;
     int n_greedy = 0;
     int prompt_tokens = 0;
-    if (!dspark_imatrix_load_greedy(greedy_path, &greedy, &n_greedy)) return 1;
+    if (!dspark_imatrix_load_greedy(greedy_path, &greedy, &n_greedy)) return false;
     if (!dspark_imatrix_read_prompt_tokens(target_json_path, &prompt_tokens)) {
         free(greedy);
-        return 1;
+        return false;
     }
 
     const int available_steps = n_greedy - 1 - (int)DS4_DSPARK_BLOCK_SIZE;
@@ -29115,7 +29140,7 @@ static int ds4_engine_collect_dspark_imatrix_bundle(ds4_engine *e,
         fprintf(stderr, "ds4: dspark imatrix: bundle %s has too few greedy steps (%d)\n",
                 bundle_path, n_greedy);
         free(greedy);
-        return 1;
+        return false;
     }
     const int steps = (max_tokens > 0 && max_tokens < available_steps) ? max_tokens : available_steps;
     const int run_ctx = ctx_size > 1 ? ctx_size : prompt_tokens + 96;
@@ -29124,17 +29149,7 @@ static int ds4_engine_collect_dspark_imatrix_bundle(ds4_engine *e,
     if (ds4_session_create(&s, e, run_ctx) != 0) {
         fprintf(stderr, "ds4: dspark imatrix: bundle session create failed (ctx=%d)\n", run_ctx);
         free(greedy);
-        return 1;
-    }
-
-    ds4_imatrix_collector collector;
-    if (!imatrix_collector_init(&collector, DS4_DSPARK_BLOCK_SIZE, bundle_path,
-                                DS4_DSPARK_N_LAYERS, DS4_DSPARK_BLOCK_SIZE,
-                                draft_pos_weights)) {
-        fprintf(stderr, "ds4: failed to allocate dspark bundle imatrix collector\n");
-        ds4_session_free(s);
-        free(greedy);
-        return 1;
+        return false;
     }
 
     float *hc_buf = xmalloc((size_t)DS4_N_HC * DS4_N_EMBD * sizeof(float));
@@ -29146,8 +29161,9 @@ static int ds4_engine_collect_dspark_imatrix_bundle(ds4_engine *e,
             "ds4: collecting DSpark acceptance-bundle imatrix from %s (prompt_tokens=%d, steps=%d, ctx=%d)\n",
             bundle_path, prompt_tokens, steps, run_ctx);
     fprintf(stderr, "ds4: DSpark draft-position weights = [%.3f %.3f %.3f %.3f %.3f]\n",
-            draft_pos_weights[0], draft_pos_weights[1], draft_pos_weights[2],
-            draft_pos_weights[3], draft_pos_weights[4]);
+            collector->bucket_merge_weight[0], collector->bucket_merge_weight[1],
+            collector->bucket_merge_weight[2], collector->bucket_merge_weight[3],
+            collector->bucket_merge_weight[4]);
 
     for (int step = 1; ok && step <= steps; step++) {
         static const uint8_t row_bucket[DS4_DSPARK_BLOCK_SIZE] = {0,1,2,3,4};
@@ -29156,7 +29172,7 @@ static int ds4_engine_collect_dspark_imatrix_bundle(ds4_engine *e,
             ok = false;
             break;
         }
-        if (!dspark_collect_imatrix_from_current_hidden(s, &collector, greedy[step], (uint32_t)pos,
+        if (!dspark_collect_imatrix_from_current_hidden(s, collector, greedy[step], (uint32_t)pos,
                                                         row_bucket)) {
             fprintf(stderr, "ds4: dspark imatrix: bundle sample failed at step %d pos %ld\n",
                     step, pos);
@@ -29165,6 +29181,33 @@ static int ds4_engine_collect_dspark_imatrix_bundle(ds4_engine *e,
         }
         anchors_done++;
     }
+
+    free(mh_buf);
+    free(hc_buf);
+    ds4_session_free(s);
+    free(greedy);
+    if (anchors_done_out) *anchors_done_out = anchors_done;
+    return ok;
+}
+
+static int ds4_engine_collect_dspark_imatrix_bundle(ds4_engine *e,
+                                                    const char *bundle_path,
+                                                    const char *output_path,
+                                                    int ctx_size,
+                                                    int max_tokens,
+                                                    const float *draft_pos_weights) {
+    if (!e || !bundle_path || !output_path || !e->dspark_ready) return 1;
+
+    ds4_imatrix_collector collector;
+    if (!imatrix_collector_init(&collector, DS4_DSPARK_BLOCK_SIZE, bundle_path,
+                                DS4_DSPARK_N_LAYERS, DS4_DSPARK_BLOCK_SIZE,
+                                draft_pos_weights)) {
+        fprintf(stderr, "ds4: failed to allocate dspark bundle imatrix collector\n");
+        return 1;
+    }
+    int anchors_done = 0;
+    bool ok = dspark_collect_bundle_into_collector(e, &collector, bundle_path, ctx_size, max_tokens,
+                                                   &anchors_done);
 
     if (ok) {
         imatrix_report_expert_coverage(&collector, DS4_DSPARK_N_LAYERS);
@@ -29177,12 +29220,88 @@ static int ds4_engine_collect_dspark_imatrix_bundle(ds4_engine *e,
                     (unsigned long long)collector.observed_routes);
         }
     }
-
-    free(mh_buf);
-    free(hc_buf);
     imatrix_collector_free(&collector);
-    ds4_session_free(s);
-    free(greedy);
+    return ok ? 0 : 1;
+}
+
+static int ds4_engine_collect_dspark_imatrix_bundle_root(ds4_engine *e,
+                                                         const char *root_path,
+                                                         const char *output_path,
+                                                         int ctx_size,
+                                                         int max_tokens,
+                                                         const float *draft_pos_weights) {
+    if (!e || !root_path || !output_path || !e->dspark_ready) return 1;
+
+    DIR *dir = opendir(root_path);
+    if (!dir) {
+        fprintf(stderr, "ds4: failed to open sweep root %s: %s\n", root_path, strerror(errno));
+        return 1;
+    }
+
+    size_t cap = 16;
+    size_t n_dirs = 0;
+    char **bundle_dirs = xmalloc(cap * sizeof(bundle_dirs[0]));
+    struct dirent *ent;
+    while ((ent = readdir(dir)) != NULL) {
+        if (ent->d_name[0] == '.') continue;
+        char full[1024];
+        if (!imatrix_path_join(full, sizeof(full), root_path, ent->d_name)) continue;
+        if (!dspark_imatrix_is_bundle_dir(full)) continue;
+        if (n_dirs == cap) {
+            cap *= 2;
+            bundle_dirs = xrealloc(bundle_dirs, cap * sizeof(bundle_dirs[0]));
+        }
+        const size_t len = strlen(full);
+        bundle_dirs[n_dirs] = xmalloc(len + 1);
+        memcpy(bundle_dirs[n_dirs], full, len + 1);
+        n_dirs++;
+    }
+    closedir(dir);
+
+    if (n_dirs == 0) {
+        fprintf(stderr, "ds4: no acceptance bundles found under %s\n", root_path);
+        free(bundle_dirs);
+        return 1;
+    }
+    qsort(bundle_dirs, n_dirs, sizeof(bundle_dirs[0]), dspark_ctx_dir_cmp);
+
+    ds4_imatrix_collector collector;
+    if (!imatrix_collector_init(&collector, DS4_DSPARK_BLOCK_SIZE, root_path,
+                                DS4_DSPARK_N_LAYERS, DS4_DSPARK_BLOCK_SIZE,
+                                draft_pos_weights)) {
+        fprintf(stderr, "ds4: failed to allocate dspark sweep-root imatrix collector\n");
+        for (size_t i = 0; i < n_dirs; i++) free(bundle_dirs[i]);
+        free(bundle_dirs);
+        return 1;
+    }
+
+    bool ok = true;
+    int total_anchors = 0;
+    for (size_t i = 0; i < n_dirs; i++) {
+        int anchors_done = 0;
+        if (!dspark_collect_bundle_into_collector(e, &collector, bundle_dirs[i], ctx_size, max_tokens,
+                                                  &anchors_done)) {
+            ok = false;
+            break;
+        }
+        total_anchors += anchors_done;
+    }
+
+    if (ok) {
+        imatrix_report_expert_coverage(&collector, DS4_DSPARK_N_LAYERS);
+        ok = imatrix_collector_save(&collector, e->dspark_weights.block,
+                                    DS4_DSPARK_N_LAYERS, output_path);
+        if (ok) {
+            fprintf(stderr,
+                    "ds4: wrote DSpark sweep-root imatrix %s from %zu bundles, %d anchors, %llu routed expert observations\n",
+                    output_path, n_dirs, total_anchors,
+                    (unsigned long long)collector.observed_routes);
+        }
+    }
+
+    imatrix_collector_free(&collector);
+    for (size_t i = 0; i < n_dirs; i++) free(bundle_dirs[i]);
+    free(bundle_dirs);
     return ok ? 0 : 1;
 }
 
@@ -29198,9 +29317,14 @@ static int ds4_engine_collect_dspark_imatrix(ds4_engine *e,
     float draft_pos_weights[DS4_DSPARK_BLOCK_SIZE];
     if (!dspark_parse_draft_pos_weights(draft_pos_weights_spec, draft_pos_weights)) return 1;
     if (imatrix_path_is_directory(dataset_path)) {
-        return ds4_engine_collect_dspark_imatrix_bundle(e, dataset_path, output_path,
-                                                        ctx_size, max_tokens,
-                                                        draft_pos_weights);
+        if (dspark_imatrix_is_bundle_dir(dataset_path)) {
+            return ds4_engine_collect_dspark_imatrix_bundle(e, dataset_path, output_path,
+                                                            ctx_size, max_tokens,
+                                                            draft_pos_weights);
+        }
+        return ds4_engine_collect_dspark_imatrix_bundle_root(e, dataset_path, output_path,
+                                                             ctx_size, max_tokens,
+                                                             draft_pos_weights);
     }
 
     char *dataset = NULL;
