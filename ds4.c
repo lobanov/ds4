@@ -29041,6 +29041,12 @@ static int ds4_engine_collect_dspark_imatrix(ds4_engine *e,
  * Returns the number of accepted tokens (1 + B2-accepted drafts), or -1 on error.
  * See issue468/28 + issue468/24 Assignment 1a.
  */
+/* Bug #3 (issue468/40): module-level B2 RNG seed + setter so the B2 accept/reject
+ * stream depends on --seed (was a fixed file-static). The CLI calls
+ * ds4_dspark_b2_seed(rng) when --dspark is active; 0 = use the prior fixed
+ * default (backward compat). Seeded once on first B2 call for stream determinism. */
+uint64_t g_dspark_b2_seed = 0;
+void ds4_dspark_b2_seed(uint64_t seed) { g_dspark_b2_seed = seed; }
 int ds4_session_eval_dspark_b2(ds4_session *s, int first_token,
                                int max_tokens, int eos_token,
                                int *accepted, int accepted_cap,
@@ -29090,18 +29096,27 @@ int ds4_session_eval_dspark_b2(ds4_session *s, int first_token,
         ds4_gpu_synchronize();
         float *hc = xmalloc((size_t)DS4_N_HC * DS4_N_EMBD * sizeof(float));
         float *mean = xmalloc((size_t)DS4_N_EMBD * sizeof(float));
+        /* Bug #4 fix (issue468/40): hard-fail on capture read/write failure (was
+         * silently ignored, leaving stale main_hidden from a prior cycle). */
         for (uint32_t li = 0; li < 3; li++) {
-            if (ds4_gpu_tensor_read(s->graph.dspark_mh_capture[li], 0, hc,
+            if (!ds4_gpu_tensor_read(s->graph.dspark_mh_capture[li], 0, hc,
                     (size_t)DS4_N_HC * DS4_N_EMBD * sizeof(float))) {
-                for (uint32_t d = 0; d < DS4_N_EMBD; d++) {
-                    double acc = 0;
-                    for (uint32_t h = 0; h < DS4_N_HC; h++)
-                        acc += hc[(size_t)h * DS4_N_EMBD + d];
-                    mean[d] = (float)(acc / DS4_N_HC);
-                }
-                ds4_gpu_tensor_write(s->graph.dspark_main_hidden,
+                free(hc); free(mean);
+                snprintf(err, errlen, "dspark b2: main_hidden capture read failed at layer %u", li);
+                return -1;
+            }
+            for (uint32_t d = 0; d < DS4_N_EMBD; d++) {
+                double acc = 0;
+                for (uint32_t h = 0; h < DS4_N_HC; h++)
+                    acc += hc[(size_t)h * DS4_N_EMBD + d];
+                mean[d] = (float)(acc / DS4_N_HC);
+            }
+            if (!ds4_gpu_tensor_write(s->graph.dspark_main_hidden,
                     (uint64_t)li * DS4_N_EMBD * sizeof(float),
-                    mean, (size_t)DS4_N_EMBD * sizeof(float));
+                    mean, (size_t)DS4_N_EMBD * sizeof(float))) {
+                free(hc); free(mean);
+                snprintf(err, errlen, "dspark b2: main_hidden capture write failed at layer %u", li);
+                return -1;
             }
         }
         free(hc); free(mean);
@@ -29287,8 +29302,18 @@ int ds4_session_eval_dspark_b2(ds4_session *s, int first_token,
      * row_logits has [block, vocab] = the full target distribution per position.
      */
     int n_draft_accept = 0;
-    /* Simple xorshift RNG for reproducibility. */
-    static uint64_t b2_rng_state = 0x9e3779b97f4a7c15ULL;
+    /* Bug #3 fix (issue468/40): xorshift RNG for B2 accept/reject. Was a
+     * fixed static (0x9e3779b9...), making the acceptance sequence independent
+     * of --seed. Now seeded via ds4_dspark_b2_seed() from the CLI --seed/
+     * session RNG; defaults to the prior fixed constant for backward compat if
+     * the setter was never called. g_b2_rng_seeded guards one-time init so a
+     * fixed --seed yields a deterministic stream across the whole generation. */
+    static uint64_t b2_rng_state = 0;
+    static bool b2_rng_seeded = false;
+    if (!b2_rng_seeded) {
+        b2_rng_state = g_dspark_b2_seed ? g_dspark_b2_seed : 0x9e3779b97f4a7c15ULL;
+        b2_rng_seeded = true;
+    }
     #define B2_RAND() (b2_rng_state ^= b2_rng_state << 13, b2_rng_state ^= b2_rng_state >> 7, \
                        b2_rng_state ^= b2_rng_state << 17, (double)(b2_rng_state >> 11) / (double)(1ULL << 53))
 

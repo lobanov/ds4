@@ -276,6 +276,9 @@ int ds4_session_eval_dspark_b2(ds4_session *s, int first_token,
                                int max_tokens, int eos_token,
                                int *accepted, int accepted_cap,
                                char *err, size_t errlen);
+/* Bug #3 (issue468/40): seed the B2 accept/reject RNG from --seed (was a fixed
+ * static). Call from the CLI when --dspark is active. 0 = prior fixed default. */
+void ds4_dspark_b2_seed(uint64_t seed);
 void ds4_session_invalidate(ds4_session *s);
 void ds4_session_rewind(ds4_session *s, int pos);
 int ds4_session_pos(ds4_session *s);
