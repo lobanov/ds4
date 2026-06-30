@@ -21,7 +21,7 @@ token).
 |---|---|---|
 | Measured end-to-end gen t/s (ctx=4096) | 27.67 t/s vs 39.18 baseline = **0.71×** | issue468/30 |
 | Component-level projection (no replay, +1) | **+48-60% at 64k** | §4 below |
-| Root cause of the gap | KV replay (~93ms/cycle on partial accept) | §5 below |
+| Root cause of the gap | KV replay (~15ms avg/cycle on partial accept) | §5 below |
 | B2 acceptance (offline MC, Metal drafter) | committed 3.42 (3.74 with +1) | issue468/25 |
 | The fix that unblocked everything | ffn_gate_inp F32→F16 (one line) | §2 below |
 
@@ -182,11 +182,13 @@ the decode path's compressed cache can't accommodate.
 | B2 accept (CPU) | 2 ms | softmax over 129280 × 2 per position × 5 |
 | capture readback (CPU) | 5 ms | GPU→CPU copy + mean + upload |
 | verify (GPU) | 75 ms | batch verifier (context-flat) |
-| **replay** (partial accept only) | **~93 ms avg** | restore + (k+1)×~31ms decode steps |
-| **total cycle** | **~187 ms** | at ~2.5 committed → 75 ms/tok |
+| **replay** (partial accept only) | **~15 ms avg** | restore + (k+1) decode steps (k = drafts accepted) |
+| **total cycle** | **~108 ms** | at ~3.0 committed → 36 ms/tok (matches measured 27.67 t/s) |
 
-The replay adds ~93ms to the average cycle, making it ~2.4× more expensive than
-the structural minimum.
+The replay adds ~15ms to the average cycle (reconciled with the measured 27.67
+t/s: 36.1 ms/tok × 3.0 committed = 108ms cycle; base 94ms + 15ms replay = 109ms).
+Full-accept cycles skip the replay entirely (verify KV is correct), so the
+average is lower than worst-case. The structural minimum (no replay) is ~94ms.
 
 ### 4.3 Component-level projection (structurally correct, no replay)
 
@@ -244,7 +246,7 @@ structurally correct implementation.
 
 Ordered by impact (highest first):
 
-### P0: Eliminate KV replay (saves ~93ms/cycle — the #1 blocker)
+### P0: Eliminate KV replay (saves ~15ms avg/cycle — the #1 blocker)
 
 **The single most impactful production work item.** Without this, the experimental
 implementation cannot pass the gate regardless of other optimizations.
@@ -367,7 +369,7 @@ DSpark run is needed for the quality gate (≥65/92).
  │  6. KV MANAGEMENT                                            │
  │     Full accept: verify KV correct, advance checkpoint       │
  │     Partial: spec_frontier_restore + replay (k+1) decode     │
- │     ← THIS IS THE BOTTLENECK (~93ms avg)                     │
+ │     ← THIS IS THE BOTTLENECK (~15ms avg)                     │
  │                                                              │
  │  Committed: n_draft_accept + 1 (+1 free trailing on full)    │
  └──────────────────────────────────────────────────────────────┘
