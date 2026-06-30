@@ -318,6 +318,7 @@ static uint32_t g_ds4_compress_ratios[DS4_MAX_LAYER] = {0};
  * block_size = number of tokens drafted per cycle; noise_token fills the
  * non-anchor draft positions in mtp.0.forward_embed. */
 #define DS4_DSPARK_BLOCK_SIZE         5
+#define DS4_DSPARK_PREFIX_CAP          (DS4_DSPARK_BLOCK_SIZE - 1)  /* per-position frontier captures for partial-accept (k=1..4) */
 #define DS4_DSPARK_NOISE_TOK          128799
 #define DS4_DSPARK_N_LAYERS           3
 #define DS4_EXPERT_WEIGHT_SCALE       (g_ds4_shape.expert_weight_scale)
@@ -10516,12 +10517,24 @@ typedef struct {
     ds4_gpu_tensor *spec_prefix1_attn_state_score[DS4_MAX_LAYER];
     ds4_gpu_tensor *spec_prefix1_index_state_kv[DS4_MAX_LAYER];
     ds4_gpu_tensor *spec_prefix1_index_state_score[DS4_MAX_LAYER];
+    /* DSpark N=5: per-position compressor-frontier captures (after each draft
+     * position 0..BLOCK-2). On partial accept of k drafts, restore the capture
+     * for position k-1 (or the pre-verify snapshot for k==0) and decode only the
+     * correction token (O(1) instead of O(k+1) replay). Separate from the MTP
+     * prefix1 buffers so the --mtp path is untouched. */
+    ds4_gpu_tensor *spec_prefixN_attn_state_kv[DS4_DSPARK_PREFIX_CAP][DS4_MAX_LAYER];
+    ds4_gpu_tensor *spec_prefixN_attn_state_score[DS4_DSPARK_PREFIX_CAP][DS4_MAX_LAYER];
+    ds4_gpu_tensor *spec_prefixN_index_state_kv[DS4_DSPARK_PREFIX_CAP][DS4_MAX_LAYER];
+    ds4_gpu_tensor *spec_prefixN_index_state_score[DS4_DSPARK_PREFIX_CAP][DS4_MAX_LAYER];
     ds4_gpu_tensor *spec_logits;
     uint32_t layer_n_comp[DS4_MAX_LAYER];
     uint32_t layer_n_index_comp[DS4_MAX_LAYER];
     uint32_t spec_prefix1_n_comp[DS4_MAX_LAYER];
     uint32_t spec_prefix1_n_index_comp[DS4_MAX_LAYER];
+    uint32_t spec_prefixN_n_comp[DS4_DSPARK_PREFIX_CAP][DS4_MAX_LAYER];
+    uint32_t spec_prefixN_n_index_comp[DS4_DSPARK_PREFIX_CAP][DS4_MAX_LAYER];
     bool spec_capture_prefix1;
+    bool spec_capture_prefixN;   /* DSpark: capture frontier after each draft position during verify */
     uint32_t raw_cap;
     /* Maximum compressed-row capacity across layers.  Shared work buffers use
      * this worst-case size because ratio-4 indexer layers can still reach it. */
@@ -10828,6 +10841,12 @@ static void metal_graph_free(ds4_gpu_graph *g) {
         ds4_gpu_tensor_free(g->spec_prefix1_attn_state_score[il]);
         ds4_gpu_tensor_free(g->spec_prefix1_index_state_kv[il]);
         ds4_gpu_tensor_free(g->spec_prefix1_index_state_score[il]);
+        for (uint32_t pi = 0; pi < DS4_DSPARK_PREFIX_CAP; pi++) {
+            ds4_gpu_tensor_free(g->spec_prefixN_attn_state_kv[pi][il]);
+            ds4_gpu_tensor_free(g->spec_prefixN_attn_state_score[pi][il]);
+            ds4_gpu_tensor_free(g->spec_prefixN_index_state_kv[pi][il]);
+            ds4_gpu_tensor_free(g->spec_prefixN_index_state_score[pi][il]);
+        }
     }
     ds4_gpu_tensor_free(g->kv);
     ds4_gpu_tensor_free(g->kv_raw);
@@ -11255,6 +11274,12 @@ static bool metal_graph_alloc_raw_cap(
                 g->spec_prefix1_attn_state_kv[il] = ds4_gpu_tensor_alloc(attn_width * attn_rows * sizeof(float));
                 g->spec_prefix1_attn_state_score[il] = ds4_gpu_tensor_alloc(attn_width * attn_rows * sizeof(float));
             }
+            if (enable_dspark) {
+                for (uint32_t pi = 0; pi < DS4_DSPARK_PREFIX_CAP; pi++) {
+                    g->spec_prefixN_attn_state_kv[pi][il] = ds4_gpu_tensor_alloc(attn_width * attn_rows * sizeof(float));
+                    g->spec_prefixN_attn_state_score[pi][il] = ds4_gpu_tensor_alloc(attn_width * attn_rows * sizeof(float));
+                }
+            }
             if (g->layer_attn_state_kv[il]) {
                 state_init_ok = state_init_ok &&
                                 metal_tensor_fill_f32(g->layer_attn_state_kv[il], 0.0f, attn_width * attn_rows);
@@ -11277,6 +11302,12 @@ static bool metal_graph_alloc_raw_cap(
                     g->spec_index_state_score[il] = ds4_gpu_tensor_alloc(index_width * index_rows * sizeof(float));
                     g->spec_prefix1_index_state_kv[il] = ds4_gpu_tensor_alloc(index_width * index_rows * sizeof(float));
                     g->spec_prefix1_index_state_score[il] = ds4_gpu_tensor_alloc(index_width * index_rows * sizeof(float));
+                }
+                if (enable_dspark) {
+                    for (uint32_t pi = 0; pi < DS4_DSPARK_PREFIX_CAP; pi++) {
+                        g->spec_prefixN_index_state_kv[pi][il] = ds4_gpu_tensor_alloc(index_width * index_rows * sizeof(float));
+                        g->spec_prefixN_index_state_score[pi][il] = ds4_gpu_tensor_alloc(index_width * index_rows * sizeof(float));
+                    }
                 }
                 if (g->layer_index_state_kv[il]) {
                     state_init_ok = state_init_ok &&
@@ -13395,6 +13426,34 @@ static bool metal_graph_capture_prefix1_index_state(ds4_gpu_graph *g, uint32_t i
     return ds4_gpu_tensor_copy(g->spec_prefix1_index_state_kv[il], 0,
                                  g->layer_index_state_kv[il], 0, bytes) != 0 &&
            ds4_gpu_tensor_copy(g->spec_prefix1_index_state_score[il], 0,
+                                 g->layer_index_state_score[il], 0, bytes) != 0;
+}
+
+/* DSpark N=5: capture the compressor frontier after draft position `idx` (0-based)
+ * during the batch verifier. On a partial accept of k drafts, the capture at
+ * idx = k-1 lets us restore the frontier to "just after the last accepted
+ * draft" so the correction token can be decoded in one step (decode path
+ * resumes cleanly instead of an O(k+1) replay). Mirrors capture_prefix1 but is
+ * indexed by position and gated by spec_capture_prefixN (DSpark only). */
+static bool metal_graph_capture_dspark_prefix_attn_state(ds4_gpu_graph *g, uint32_t il, uint32_t idx) {
+    if (!g->spec_capture_prefixN || idx >= DS4_DSPARK_PREFIX_CAP ||
+        !g->spec_prefixN_attn_state_kv[idx][il]) return true;
+    const uint64_t bytes = ds4_gpu_tensor_bytes(g->layer_attn_state_kv[il]);
+    g->spec_prefixN_n_comp[idx][il] = g->layer_n_comp[il];
+    return ds4_gpu_tensor_copy(g->spec_prefixN_attn_state_kv[idx][il], 0,
+                                 g->layer_attn_state_kv[il], 0, bytes) != 0 &&
+           ds4_gpu_tensor_copy(g->spec_prefixN_attn_state_score[idx][il], 0,
+                                 g->layer_attn_state_score[il], 0, bytes) != 0;
+}
+
+static bool metal_graph_capture_dspark_prefix_index_state(ds4_gpu_graph *g, uint32_t il, uint32_t idx) {
+    if (!g->spec_capture_prefixN || idx >= DS4_DSPARK_PREFIX_CAP ||
+        !g->spec_prefixN_index_state_kv[idx][il]) return true;
+    const uint64_t bytes = ds4_gpu_tensor_bytes(g->layer_index_state_kv[il]);
+    g->spec_prefixN_n_index_comp[idx][il] = g->layer_n_index_comp[il];
+    return ds4_gpu_tensor_copy(g->spec_prefixN_index_state_kv[idx][il], 0,
+                                 g->layer_index_state_kv[il], 0, bytes) != 0 &&
+           ds4_gpu_tensor_copy(g->spec_prefixN_index_state_score[idx][il], 0,
                                  g->layer_index_state_score[il], 0, bytes) != 0;
 }
 
@@ -18622,6 +18681,8 @@ static bool metal_graph_encode_layer_attention_batch(
                     if (ok && emit) g->layer_n_comp[il]++;
                     if (comp_counts) comp_counts[t] = g->layer_n_comp[il];
                     if (ok && t == 0) ok = metal_graph_capture_prefix1_attn_state(g, il);
+                    if (ok && g->spec_capture_prefixN && t < DS4_DSPARK_PREFIX_CAP)
+                        ok = metal_graph_capture_dspark_prefix_attn_state(g, il, t);
                     ds4_gpu_tensor_free(sc_view);
                     ds4_gpu_tensor_free(kv_view);
                 }
@@ -18911,6 +18972,8 @@ static bool metal_graph_encode_layer_attention_batch(
                         if (ok && emit) g->layer_n_index_comp[il]++;
                         if (index_counts) index_counts[t] = g->layer_n_index_comp[il];
                         if (ok && t == 0) ok = metal_graph_capture_prefix1_index_state(g, il);
+                        if (ok && g->spec_capture_prefixN && t < DS4_DSPARK_PREFIX_CAP)
+                            ok = metal_graph_capture_dspark_prefix_index_state(g, il, t);
                         ds4_gpu_tensor_free(sc_view);
                         ds4_gpu_tensor_free(kv_view);
                     }
@@ -24863,6 +24926,38 @@ static bool spec_frontier_commit_prefix1(ds4_session *s) {
     else (void)ds4_gpu_synchronize();
     return ok;
 }
+
+/* DSpark N=5: restore the compressor frontier to the state captured after draft
+ * position `idx` (0-based, idx = n_draft_accept - 1) so the decode path can
+ * resume and decode the single correction token. Mirrors commit_prefix1 but
+ * reads from the per-position spec_prefixN captures. The append-only compressed
+ * cache already holds the accepted drafts' rows; only the small frontier
+ * (counters + rolling accumulators) needs rewinding. */
+static bool spec_frontier_commit_dspark_prefix(ds4_session *s, uint32_t idx) {
+    ds4_gpu_graph *g = &s->graph;
+    bool ok = ds4_gpu_begin_commands() != 0;
+    for (uint32_t il = 0; ok && il < DS4_N_LAYER; il++) {
+        const uint32_t ratio = ds4_layer_compress_ratio(il);
+        if (ratio == 0) continue;
+        g->layer_n_comp[il] = g->spec_prefixN_n_comp[idx][il];
+        const uint64_t ab = ds4_gpu_tensor_bytes(g->layer_attn_state_kv[il]);
+        ok = ds4_gpu_tensor_copy(g->layer_attn_state_kv[il], 0,
+                                   g->spec_prefixN_attn_state_kv[idx][il], 0, ab) != 0 &&
+             ds4_gpu_tensor_copy(g->layer_attn_state_score[il], 0,
+                                   g->spec_prefixN_attn_state_score[idx][il], 0, ab) != 0;
+        if (ok && ratio == 4) {
+            g->layer_n_index_comp[il] = g->spec_prefixN_n_index_comp[idx][il];
+            const uint64_t ib = ds4_gpu_tensor_bytes(g->layer_index_state_kv[il]);
+            ok = ds4_gpu_tensor_copy(g->layer_index_state_kv[il], 0,
+                                       g->spec_prefixN_index_state_kv[idx][il], 0, ib) != 0 &&
+                  ds4_gpu_tensor_copy(g->layer_index_state_score[il], 0,
+                                       g->spec_prefixN_index_state_score[idx][il], 0, ib) != 0;
+        }
+    }
+    if (ok) ok = ds4_gpu_end_commands() != 0;
+    else (void)ds4_gpu_synchronize();
+    return ok;
+}
 #endif
 
 uint64_t ds4_session_payload_bytes(ds4_session *s) {
@@ -29088,9 +29183,14 @@ int ds4_session_eval_dspark_b2(ds4_session *s, int first_token,
     bool snap_ok = spec_frontier_snapshot(&frontier, s);
     if (snap_ok) {
         for (int i = 0; i < (int)block; i++) token_vec_push(&s->checkpoint, drafts[i]);
+        /* Enable per-position compressor-frontier capture so partial-accept can
+         * restore the frontier to "after the last accepted draft" and decode only
+         * the correction (O(1)) instead of restoring+replaying O(k+1) tokens. */
+        g->spec_capture_prefixN = true;
         ok = metal_graph_verify_suffix_tops(g, &e->model, &e->weights,
                 &s->checkpoint, (uint32_t)start, (uint32_t)block,
                 false, row_tops, row_logits);
+        g->spec_capture_prefixN = false;
     }
     if (!snap_ok || !ok) {
         if (getenv("DS4_DSPARK_B2_DEBUG")) fprintf(stderr, "ds4: b2: verify failed snap=%d ok=%d (start=%d ckpt_len=%d pc=%u)\n",
@@ -29160,32 +29260,47 @@ int ds4_session_eval_dspark_b2(ds4_session *s, int first_token,
             break;
         }
     }
-    free(row_tops); free(row_logits); free(q_dist);
+    free(row_tops); free(q_dist);
+    /* NOTE: row_logits is freed after Step 5 — the full-accept branch needs
+     * row_logits[block-1] to set s->logits for the next cycle. */
 
     /* Step 5: KV management (correctness-critical).
-     * Full accept: verify's KV is correct, no restore needed.
-     * Partial accept: restore to pre-verify KV, replay accepted+correction.
-     * (1-step replay was tested: compressed KV cache overflow — the batch-encode
-     * verify path and decode path use different KV cache bookkeeping. Full
-     * restore+replay is the correct approach matching the MTP path.) */
+     * Full accept: verify's KV is correct, no restore needed; set s->logits from
+     * the verify's last row (predicts the position after the last accepted
+     * draft) so the next cycle's anchor is correct. Without this, s->logits stays
+     * stale (anchor's prediction) and the next cycle re-samples the last accepted
+     * token, producing duplicates.
+     * Partial accept (P0): restore the compressor frontier to "after the last
+     * accepted draft" and decode ONLY the correction token (O(1)). The append-only
+     * compressed cache already holds the accepted drafts' rows; only the small
+     * frontier (counters + rolling accumulators) is rewound. k==0 restores the
+     * pre-verify snapshot. The single correction decode writes its KV in
+     * decode-path format and sets s->logits for the next cycle. This replaces the
+     * prior O(k+1) restore+replay (~15ms/cycle) that caused the 0.71x result. */
     if (n_draft_accept >= (int)block) {
         s->checkpoint.len = start + n_draft_accept;
         g->mtp_n_raw = frontier.mtp_n_raw + (uint32_t)n_draft_accept;
         if (g->mtp_n_raw > g->raw_window) g->mtp_n_raw = g->raw_window;
+        memcpy(s->logits, row_logits + (uint64_t)(block - 1u) * vocab,
+               (size_t)vocab * sizeof(float));
     } else {
-        spec_frontier_restore(&frontier, s);
-        s->checkpoint.len = start;
-        for (int i = 1; i <= n_draft_accept + 1 && i <= n_accept; i++) {
-            char sub_err[128];
-            int idx = n_accept - (n_draft_accept + 1) + i;
-            if (idx < 0 || idx >= n_accept) break;
-            if (ds4_session_eval(s, accepted[idx], sub_err, sizeof(sub_err)) != 0) {
-                snprintf(err, errlen, "dspark b2: replay failed at %d: %s", i, sub_err);
-                spec_frontier_free(&frontier);
-                return -1;
-            }
+        if (n_draft_accept == 0) {
+            spec_frontier_restore(&frontier, s);
+            s->checkpoint.len = start;
+        } else {
+            spec_frontier_commit_dspark_prefix(s, (uint32_t)n_draft_accept - 1u);
+            s->checkpoint.len = start + n_draft_accept;
+        }
+        g->mtp_n_raw = frontier.mtp_n_raw + (uint32_t)n_draft_accept;
+        if (g->mtp_n_raw > g->raw_window) g->mtp_n_raw = g->raw_window;
+        char sub_err[128];
+        if (ds4_session_eval(s, accepted[n_accept - 1], sub_err, sizeof(sub_err)) != 0) {
+            snprintf(err, errlen, "dspark b2: correction decode failed: %s", sub_err);
+            spec_frontier_free(&frontier);
+            return -1;
         }
     }
+    free(row_logits);
     spec_frontier_free(&frontier);
     if (getenv("DS4_DSPARK_B2_DEBUG"))
         fprintf(stderr, "ds4: dspark b2 cycle: n_accept=%d (drafts=%d)\n", n_accept, n_draft_accept);
