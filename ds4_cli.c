@@ -41,6 +41,7 @@ typedef struct {
     const char *perplexity_file_path;
     const char *imatrix_dataset_path;
     const char *imatrix_output_path;
+    const char *imatrix_draft_pos_weights;
     int imatrix_max_prompts;
     int imatrix_max_tokens;
     int imatrix_max_tokens_per_prompt;
@@ -1589,6 +1590,8 @@ static cli_config parse_options(int argc, char **argv) {
         } else if (!strcmp(arg, "--imatrix-out")) {
             c.gen.imatrix_output_path = need_arg(&i, argc, argv, arg);
             c.engine.backend = DS4_BACKEND_METAL;
+        } else if (!strcmp(arg, "--imatrix-draft-pos-weights")) {
+            c.gen.imatrix_draft_pos_weights = need_arg(&i, argc, argv, arg);
         } else if (!strcmp(arg, "--imatrix-max-prompts")) {
             c.gen.imatrix_max_prompts = parse_int(need_arg(&i, argc, argv, arg), arg);
         } else if (!strcmp(arg, "--imatrix-max-tokens")) {
@@ -1733,7 +1736,8 @@ int main(int argc, char **argv) {
                                         cfg.gen.ctx_size,
                                         cfg.gen.imatrix_max_prompts,
                                         cfg.gen.imatrix_max_tokens,
-                                        cfg.gen.imatrix_max_tokens_per_prompt);
+                                        cfg.gen.imatrix_max_tokens_per_prompt,
+                                        cfg.gen.imatrix_draft_pos_weights);
     } else if (cfg.gen.perplexity_file_path) {
         rc = run_perplexity_file(engine, &cfg);
     } else if (cfg.gen.prompt == NULL) {
