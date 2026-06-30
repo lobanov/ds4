@@ -28227,9 +28227,6 @@ static void ds4_dspark_probe_accept(ds4_session *s) {
         if (!_ok) { fprintf(stderr,"ds4: accept: mh load pos %ld failed\n",(long)(POS)); goto done; } \
     } while (0)
 
-    /* Declared early: the DSPARK_LOAD_MH macros below can goto done before the
-     * dump block opens qdump_fp; init here so the done-label close is safe. */
-    FILE *qdump_fp = NULL;
     /* Prefill slot0 for all 3 layers from mh[pos0] (anchor greedy[0]). */
     DSPARK_LOAD_MH(pos0);
     if (!metal_graph_dspark_input_stage(g, &e->model, &e->weights, &e->dspark_model, &e->dspark_weights, greedy[0])) {
