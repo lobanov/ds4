@@ -29199,8 +29199,13 @@ int ds4_session_eval_dspark_b2(ds4_session *s, int first_token,
         if (!ds4_gpu_end_commands() || !ok || !ds4_gpu_synchronize()) { ok = false; break; }
     }
     /* Accumulate the anchor now cached by encode_attention into the window,
-     * capped at DS4_N_SWA (mirrors ds4_dspark_probe_accept: ds4.c:~28345). */
-    if (g->dspark_n_real < DS4_N_SWA) g->dspark_n_real++;
+     * capped so the next cycle's encode_block never exceeds raw_cap. The window
+     * is [0..n_real+block] = n_real+1+block positions, which must be <= raw_cap =
+     * DS4_N_SWA + block, so n_real must stay <= DS4_N_SWA - 1. (Iteration-2 codex
+     * review caught an off-by-one: capping at DS4_N_SWA let n_real reach 128,
+     * making the window 134 > raw_cap=133 on cycle 129+.) Mirrors the probe's
+     * accumulation intent (ds4.c:28345) with the corrected bound. */
+    if (g->dspark_n_real < DS4_N_SWA - 1u) g->dspark_n_real++;
     if (ok) { if (!ds4_gpu_begin_commands()) ok = false; }
     if (ok) ok = metal_graph_dspark_output_head(g, &e->model, &e->weights,
             &e->dspark_model, &e->dspark_weights, block);
