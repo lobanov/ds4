@@ -20707,15 +20707,18 @@ typedef struct {
     uint64_t observed_tokens;
     uint64_t observed_routes;
     uint32_t chunks;
+    uint32_t layer_count;
     const char *dataset_path;
 } ds4_imatrix_collector;
 
-static bool imatrix_collector_init(ds4_imatrix_collector *c, uint32_t cap_tokens, const char *dataset_path) {
+static bool imatrix_collector_init(ds4_imatrix_collector *c, uint32_t cap_tokens,
+                                   const char *dataset_path, uint32_t layer_count) {
     memset(c, 0, sizeof(*c));
     c->cap_tokens = cap_tokens ? cap_tokens : 1u;
+    c->layer_count = layer_count;
     c->dataset_path = dataset_path;
-    const size_t gate_n = (size_t)DS4_N_LAYER * DS4_N_EXPERT * DS4_N_EMBD;
-    const size_t down_n = (size_t)DS4_N_LAYER * DS4_N_EXPERT * DS4_N_FF_EXP;
+    const size_t gate_n = (size_t)layer_count * DS4_N_EXPERT * DS4_N_EMBD;
+    const size_t down_n = (size_t)layer_count * DS4_N_EXPERT * DS4_N_FF_EXP;
     c->gate_up_sum2 = xcalloc(gate_n, sizeof(c->gate_up_sum2[0]));
     c->down_sum2 = xcalloc(down_n, sizeof(c->down_sum2[0]));
     c->ffn_norm_buf = xmalloc((size_t)c->cap_tokens * DS4_N_EMBD * sizeof(c->ffn_norm_buf[0]));
@@ -20753,6 +20756,7 @@ static bool imatrix_collect_layer_batch(
         uint32_t               il,
         uint32_t               n_tokens) {
     if (!c || n_tokens == 0) return true;
+    if (il >= c->layer_count) return false;
     if (n_tokens > c->cap_tokens) return false;
 
     const uint64_t norm_bytes = (uint64_t)n_tokens * DS4_N_EMBD * sizeof(float);
@@ -20838,18 +20842,20 @@ static void imatrix_write_entry(
 
 static bool imatrix_collector_save(
         const ds4_imatrix_collector *c,
-        const ds4_weights           *weights,
+        const ds4_layer_weights     *layers,
+        uint32_t                     layer_count,
         const char                  *path) {
+    if (!c || !layers || layer_count == 0 || layer_count > c->layer_count) return false;
     FILE *fp = fopen(path, "wb");
     if (!fp) {
         fprintf(stderr, "ds4: failed to open imatrix output %s: %s\n", path, strerror(errno));
         return false;
     }
 
-    const int32_t entries = (int32_t)(DS4_N_LAYER * 3);
+    const int32_t entries = (int32_t)(layer_count * 3);
     imatrix_write_i32(fp, entries);
-    for (uint32_t il = 0; il < DS4_N_LAYER; il++) {
-        const ds4_layer_weights *layer = &weights->layer[il];
+    for (uint32_t il = 0; il < layer_count; il++) {
+        const ds4_layer_weights *layer = &layers[il];
         char name[256];
         snprintf(name, sizeof(name), "%.*s", (int)layer->ffn_gate_exps->name.len, layer->ffn_gate_exps->name.ptr);
         imatrix_write_entry(fp, name,
@@ -20886,6 +20892,52 @@ static bool imatrix_collector_save(
     }
     return true;
 }
+
+static int imatrix_u32_cmp(const void *a, const void *b) {
+    const uint32_t ua = *(const uint32_t *)a;
+    const uint32_t ub = *(const uint32_t *)b;
+    return (ua > ub) - (ua < ub);
+}
+
+static uint32_t imatrix_u32_pct(const uint32_t *sorted, uint32_t n, double p) {
+    if (!sorted || n == 0) return 0;
+    int idx = (int)((p / 100.0) * (double)(n - 1) + 0.5);
+    if (idx < 0) idx = 0;
+    if ((uint32_t)idx >= n) idx = (int)n - 1;
+    return sorted[idx];
+}
+
+static void imatrix_report_expert_coverage(const ds4_imatrix_collector *c,
+                                           uint32_t layer_count) {
+    if (!c || layer_count == 0 || layer_count > c->layer_count) return;
+    uint32_t *sorted = xmalloc((size_t)DS4_N_EXPERT * sizeof(sorted[0]));
+    if (!sorted) return;
+    fprintf(stderr, "ds4: DSpark imatrix expert-hit coverage summary:\n");
+    fprintf(stderr, "  layer  mean   min   p10   p50   p90   p99   max  zero\n");
+    for (uint32_t il = 0; il < layer_count; il++) {
+        uint64_t sum = 0;
+        uint32_t zero = 0;
+        for (uint32_t e = 0; e < DS4_N_EXPERT; e++) {
+            const uint32_t count = c->gate_up_count[il][e];
+            sorted[e] = count;
+            sum += count;
+            if (count == 0) zero++;
+        }
+        qsort(sorted, (size_t)DS4_N_EXPERT, sizeof(sorted[0]), imatrix_u32_cmp);
+        fprintf(stderr, "  %5u %5.1f %5u %5u %5u %5u %5u %5u %5u\n",
+                il,
+                (double)sum / (double)DS4_N_EXPERT,
+                sorted[0],
+                imatrix_u32_pct(sorted, DS4_N_EXPERT, 10.0),
+                imatrix_u32_pct(sorted, DS4_N_EXPERT, 50.0),
+                imatrix_u32_pct(sorted, DS4_N_EXPERT, 90.0),
+                imatrix_u32_pct(sorted, DS4_N_EXPERT, 99.0),
+                sorted[DS4_N_EXPERT - 1],
+                zero);
+    }
+    free(sorted);
+}
+
 
 static bool metal_graph_reset_prefill_state(ds4_gpu_graph *g) {
     memset(g->layer_n_comp, 0, sizeof(g->layer_n_comp));
@@ -25595,6 +25647,14 @@ int ds4_dump_text_tokenization(const char *model_path, const char *text, FILE *f
 }
 
 #ifndef DS4_NO_GPU
+static int ds4_engine_collect_dspark_imatrix(ds4_engine *e,
+                                             const char *dataset_path,
+                                             const char *output_path,
+                                             int ctx_size,
+                                             int max_prompts,
+                                             int max_tokens,
+                                             int max_tokens_per_prompt);
+
 static bool imatrix_read_text_file(const char *path, char **out, size_t *len_out) {
     *out = NULL;
     *len_out = 0;
@@ -25644,7 +25704,8 @@ int ds4_engine_collect_imatrix(ds4_engine *e,
                                const char *output_path,
                                int ctx_size,
                                int max_prompts,
-                               int max_tokens) {
+                               int max_tokens,
+                               int max_tokens_per_prompt) {
 #ifdef DS4_NO_GPU
     (void)e;
     (void)dataset_path;
@@ -25652,6 +25713,7 @@ int ds4_engine_collect_imatrix(ds4_engine *e,
     (void)ctx_size;
     (void)max_prompts;
     (void)max_tokens;
+    (void)max_tokens_per_prompt;
     fprintf(stderr, "ds4: imatrix collection requires a graph backend build\n");
     return 1;
 #else
@@ -25661,6 +25723,11 @@ int ds4_engine_collect_imatrix(ds4_engine *e,
         return 1;
     }
     if (ctx_size <= 0) ctx_size = 32768;
+    if (e->dspark_ready) {
+        return ds4_engine_collect_dspark_imatrix(e, dataset_path, output_path,
+                                                 ctx_size, max_prompts, max_tokens,
+                                                 max_tokens_per_prompt);
+    }
 
     char *dataset = NULL;
     size_t dataset_len = 0;
@@ -25687,7 +25754,7 @@ int ds4_engine_collect_imatrix(ds4_engine *e,
     g.power_percent = (uint32_t)e->power_percent;
 
     ds4_imatrix_collector collector;
-    if (!imatrix_collector_init(&collector, prefill_cap, dataset_path)) {
+    if (!imatrix_collector_init(&collector, prefill_cap, dataset_path, DS4_N_LAYER)) {
         fprintf(stderr, "ds4: failed to allocate imatrix collector\n");
         metal_graph_free(&g);
         free(dataset);
@@ -25773,7 +25840,7 @@ int ds4_engine_collect_imatrix(ds4_engine *e,
     fputc('\n', stderr);
 
     if (ok) {
-        ok = imatrix_collector_save(&collector, weights, output_path);
+        ok = imatrix_collector_save(&collector, weights->layer, DS4_N_LAYER, output_path);
         if (ok) {
             fprintf(stderr,
                     "ds4: wrote imatrix %s from %d prompts, %d tokens, %llu routed expert observations\n",
@@ -27967,10 +28034,11 @@ static void ds4_dspark_probe_accept(ds4_session *s) {
     if (!capdir || !capdir[0]) capdir = "issue468/baseline/dspark_capture";
     const char *greedy_path = getenv("DS4_DSPARK_PROBE_GREEDY");
     if (!greedy_path || !greedy_path[0]) greedy_path = "issue468/baseline/dspark_capture/target_greedy_130.json";
-    const long pos0 = 152;
+    const char *pos0_env = getenv("DS4_DSPARK_PROBE_POS");
+    const long pos0 = (pos0_env && pos0_env[0]) ? strtol(pos0_env, NULL, 10) : 152;
     const int n_steps = getenv("DS4_DSPARK_PROBE_ACCEPT_STEPS")
         ? (int)strtol(getenv("DS4_DSPARK_PROBE_ACCEPT_STEPS"), NULL, 10) : 19;
-    if (n_steps <= 0 || n_steps > 120) return;
+    if (pos0 < 0 || n_steps <= 0 || n_steps > 120) return;
 
     /* Load target greedy tokens (JSON array of ints). Minimal parser. */
     FILE *gf = fopen(greedy_path, "r");
@@ -27996,6 +28064,7 @@ static void ds4_dspark_probe_accept(ds4_session *s) {
     const uint64_t vocab = DS4_N_VOCAB;
     float *logits = xmalloc((size_t)DS4_DSPARK_BLOCK_SIZE * vocab * sizeof(float));
     float *mh = xmalloc((size_t)3 * DS4_N_EMBD * sizeof(float));
+    FILE *qdump_fp = NULL;
 
     /* Helper macro: load main_hidden for a position into g->dspark_main_hidden. */
     #define DSPARK_LOAD_MH(POS) do { \
@@ -28003,7 +28072,12 @@ static void ds4_dspark_probe_accept(ds4_session *s) {
         for (uint32_t _li = 0; _ok && _li < 3; _li++) { \
             const uint32_t _layers[3] = {40,41,42}; char _p[1024]; \
             snprintf(_p, sizeof(_p), "%s/ext/hc_dspark_main_hc-%u_pos%ld.bin", capdir, _layers[_li], (long)(POS)); \
-            FILE *_fp = fopen(_p, "rb"); if (!_fp) { _ok=false; break; } \
+            FILE *_fp = fopen(_p, "rb"); \
+            if (!_fp) { \
+                snprintf(_p, sizeof(_p), "%s/hc_dspark_main_hc-%u_pos%ld.bin", capdir, _layers[_li], (long)(POS)); \
+                _fp = fopen(_p, "rb"); \
+            } \
+            if (!_fp) { _ok=false; break; } \
             float *_lhc = xmalloc((size_t)DS4_N_HC*DS4_N_EMBD*sizeof(float)); \
             if (fread(_lhc,sizeof(float),(size_t)DS4_N_HC*DS4_N_EMBD,_fp) != (size_t)DS4_N_HC*DS4_N_EMBD) _ok=false; \
             fclose(_fp); \
@@ -28037,7 +28111,6 @@ static void ds4_dspark_probe_accept(ds4_session *s) {
     long total_match = 0, total_pos = 0;
     long prefix_hist[6] = {0,0,0,0,0,0};
     /* Optional base_logits dump for offline B2 MC (DS4_DSPARK_PROBE_DUMP_Q). */
-    FILE *qdump_fp = NULL;
     if (getenv("DS4_DSPARK_PROBE_DUMP_Q")) {
         char qp[1024]; snprintf(qp, sizeof(qp), "%s/metal_base_logits_%dsteps.bin", capdir, n_steps);
         qdump_fp = fopen(qp, "wb");
@@ -28536,6 +28609,259 @@ static int ds4_session_eval_internal(ds4_session *s, int token, bool probe_mtp,
 int ds4_session_eval(ds4_session *s, int token, char *err, size_t errlen) {
     return ds4_session_eval_internal(s, token, true, err, errlen);
 }
+
+#ifndef DS4_NO_GPU
+static bool dspark_capture_main_hidden(ds4_session *s, float *hc_buf, float *mh_buf) {
+    if (!s || !hc_buf || !mh_buf) return false;
+    ds4_gpu_graph *g = &s->graph;
+    if (!g->dspark_enabled || !g->dspark_main_hidden) return false;
+    if (!ds4_gpu_synchronize()) return false;
+
+    const uint64_t hc_bytes = (uint64_t)DS4_N_HC * DS4_N_EMBD * sizeof(float);
+    for (uint32_t li = 0; li < DS4_DSPARK_N_LAYERS; li++) {
+        if (!g->dspark_mh_capture[li]) return false;
+        if (ds4_gpu_tensor_read(g->dspark_mh_capture[li], 0, hc_buf, hc_bytes) == 0) return false;
+        float *dst = mh_buf + (size_t)li * DS4_N_EMBD;
+        for (uint32_t d = 0; d < DS4_N_EMBD; d++) {
+            double acc = 0.0;
+            for (uint32_t h = 0; h < DS4_N_HC; h++) {
+                acc += hc_buf[(size_t)h * DS4_N_EMBD + d];
+            }
+            dst[d] = (float)(acc / DS4_N_HC);
+        }
+    }
+
+    return ds4_gpu_tensor_write(g->dspark_main_hidden, 0, mh_buf,
+                                (size_t)DS4_DSPARK_N_LAYERS * DS4_N_EMBD * sizeof(float)) != 0;
+}
+
+static bool dspark_seed_anchor_kv(ds4_session *s, uint32_t step_pos) {
+    if (!s || !s->engine) return false;
+    ds4_engine *e = s->engine;
+    ds4_gpu_graph *g = &s->graph;
+    if (!e->dspark_ready || !g->dspark_enabled) return false;
+
+    const uint32_t raw_cap = DS4_N_SWA + DS4_DSPARK_BLOCK_SIZE;
+    for (uint32_t lay = 0; lay < DS4_DSPARK_N_LAYERS; lay++) {
+        ds4_gpu_tensor_fill_f32(g->dspark_kv_cache[lay], 0.0f,
+                                (uint64_t)raw_cap * DS4_N_HEAD_DIM);
+    }
+    g->dspark_n_real = 0;
+
+    for (uint32_t lay = 0; lay < DS4_DSPARK_N_LAYERS; lay++) {
+        if (!ds4_gpu_begin_commands()) return false;
+        bool ok = ds4_gpu_matmul_q8_0_tensor(g->batch_kv_raw,
+                                             e->dspark_model.map,
+                                             e->dspark_model.size,
+                                             e->dspark_weights.block[lay].attn_kv->abs_offset,
+                                             DS4_N_EMBD, DS4_N_HEAD_DIM,
+                                             g->dspark_main_x, 1) != 0;
+        if (ok) ok = ds4_gpu_rms_norm_weight_rows_tensor(g->batch_kv,
+                                                         g->batch_kv_raw,
+                                                         e->dspark_model.map,
+                                                         e->dspark_model.size,
+                                                         e->dspark_weights.block[lay].attn_kv_a_norm->abs_offset,
+                                                         DS4_N_HEAD_DIM, 1,
+                                                         DS4_RMS_EPS) != 0;
+        if (ok) ok = ds4_gpu_rope_tail_tensor(g->batch_kv, 1,
+                                              DS4_N_HEAD_KV, DS4_N_HEAD_DIM, DS4_N_ROT,
+                                              step_pos, 0u, false,
+                                              DS4_ROPE_FREQ_BASE, 1.0f, 0.0f, 1.0f,
+                                              DS4_ROPE_YARN_BETA_FAST,
+                                              DS4_ROPE_YARN_BETA_SLOW) != 0;
+        if (ok && !getenv("DS4_DSPARK_NO_FP8")) {
+            ok = ds4_gpu_dsv4_fp8_kv_quantize_tensor(g->batch_kv, 1,
+                                                     DS4_N_HEAD_DIM, DS4_N_ROT) != 0;
+        }
+        if (ok) ok = ds4_gpu_store_raw_kv_batch_tensor(g->dspark_kv_cache[lay],
+                                                       g->batch_kv, raw_cap,
+                                                       0u, 1, DS4_N_HEAD_DIM) != 0;
+        if (!ds4_gpu_end_commands() || !ok || !ds4_gpu_synchronize()) return false;
+    }
+
+    g->dspark_n_real = 1;
+    return true;
+}
+
+static bool dspark_collect_imatrix_sample(ds4_session *s,
+                                          ds4_imatrix_collector *imatrix,
+                                          int anchor_token,
+                                          uint32_t step_pos,
+                                          float *hc_buf,
+                                          float *mh_buf) {
+    if (!s || !s->engine || !imatrix) return false;
+    ds4_engine *e = s->engine;
+    ds4_gpu_graph *g = &s->graph;
+
+    if (!dspark_capture_main_hidden(s, hc_buf, mh_buf)) return false;
+    if (!metal_graph_dspark_input_stage(g, &e->model, &e->weights,
+                                        &e->dspark_model, &e->dspark_weights,
+                                        anchor_token)) {
+        return false;
+    }
+    if (!ds4_gpu_synchronize()) return false;
+    if (!dspark_seed_anchor_kv(s, step_pos)) return false;
+
+    for (uint32_t lay = 0; lay < DS4_DSPARK_N_LAYERS; lay++) {
+        g->dspark_layer_idx = lay;
+        if (!ds4_gpu_begin_commands()) return false;
+        bool ok = metal_graph_dspark_encode_block(g, &e->dspark_model,
+                                                  &e->dspark_weights.block[lay],
+                                                  step_pos);
+        if (!ds4_gpu_end_commands() || !ok || !ds4_gpu_synchronize()) return false;
+        if (!imatrix_collect_layer_batch(imatrix, g, lay, DS4_DSPARK_BLOCK_SIZE)) return false;
+    }
+
+    return true;
+}
+
+static int ds4_engine_collect_dspark_imatrix(ds4_engine *e,
+                                             const char *dataset_path,
+                                             const char *output_path,
+                                             int ctx_size,
+                                             int max_prompts,
+                                             int max_tokens,
+                                             int max_tokens_per_prompt) {
+    if (!e || !dataset_path || !output_path || ctx_size <= 1 || !e->dspark_ready) return 1;
+
+    char *dataset = NULL;
+    size_t dataset_len = 0;
+    if (!imatrix_read_text_file(dataset_path, &dataset, &dataset_len)) return 1;
+
+    ds4_session *s = NULL;
+    if (ds4_session_create(&s, e, ctx_size) != 0) {
+        fprintf(stderr, "ds4: dspark imatrix: session create failed (ctx=%d)\n", ctx_size);
+        free(dataset);
+        return 1;
+    }
+
+    ds4_imatrix_collector collector;
+    if (!imatrix_collector_init(&collector, DS4_DSPARK_BLOCK_SIZE, dataset_path,
+                                DS4_DSPARK_N_LAYERS)) {
+        fprintf(stderr, "ds4: failed to allocate dspark imatrix collector\n");
+        ds4_session_free(s);
+        free(dataset);
+        return 1;
+    }
+
+    float *hc_buf = xmalloc((size_t)DS4_N_HC * DS4_N_EMBD * sizeof(float));
+    float *mh_buf = xmalloc((size_t)DS4_DSPARK_N_LAYERS * DS4_N_EMBD * sizeof(float));
+    char err[160];
+    bool ok = true;
+    int prompts_done = 0;
+    int tokens_done = 0;
+    char *cursor = dataset;
+    const char *marker_lit = "===== DS4_IMATRIX_PROMPT";
+
+    fprintf(stderr,
+            "ds4: collecting DSpark drafter imatrix from %s (layers=%u, experts=%u, ctx=%d, block=%u, cap/prompt=%d)\n",
+            dataset_path, DS4_DSPARK_N_LAYERS, DS4_N_EXPERT, ctx_size, DS4_DSPARK_BLOCK_SIZE,
+            max_tokens_per_prompt);
+
+    while (*cursor) {
+        char *start = cursor;
+        char *marker = strstr(cursor, marker_lit);
+        if (marker) {
+            char *nl = strchr(marker, '\n');
+            if (!nl) break;
+            start = nl + 1;
+        } else if (prompts_done != 0) {
+            break;
+        }
+
+        char *next = strstr(start, marker_lit);
+        char *end = next ? next : dataset + dataset_len;
+        char saved = *end;
+        char *prompt_text = imatrix_trim_block(start, end);
+        int anchors_this_prompt = 0;
+
+        if (prompt_text[0] != '\0') {
+            token_vec prompt = {0};
+            ds4_tokenize_rendered_chat(e, prompt_text, &prompt);
+
+            if (prompt.len > ctx_size) prompt.len = ctx_size;
+            if (max_tokens > 0) {
+                const int anchors_left = max_tokens - tokens_done;
+                if (anchors_left <= 0) {
+                    prompt.len = 0;
+                } else if (prompt.len > anchors_left + 1) {
+                    prompt.len = anchors_left + 1;
+                }
+            }
+            if (max_tokens_per_prompt > 0 && prompt.len > max_tokens_per_prompt + 1) {
+                prompt.len = max_tokens_per_prompt + 1;
+            }
+
+            if (prompt.len > 1) {
+                ds4_tokens prefix = prompt;
+                prefix.len = 1;
+                if (ds4_session_sync(s, &prefix, err, sizeof(err)) != 0) {
+                    fprintf(stderr, "ds4: dspark imatrix prefill failed: %s\n", err);
+                    ok = false;
+                } else {
+                    for (int i = 1; ok && i < prompt.len; i++) {
+                        s->graph.dspark_capture_active = true;
+                        int eval_rc = ds4_session_eval(s, prompt.v[i], err, sizeof(err));
+                        s->graph.dspark_capture_active = false;
+                        if (eval_rc != 0) {
+                            fprintf(stderr, "ds4: dspark imatrix anchor decode failed: %s\n", err);
+                            ok = false;
+                            break;
+                        }
+                        const uint32_t step_pos = (uint32_t)(s->checkpoint.len - 1);
+                        if (!dspark_collect_imatrix_sample(s, &collector, prompt.v[i],
+                                                           step_pos, hc_buf, mh_buf)) {
+                            fprintf(stderr, "ds4: dspark imatrix sample failed at prompt %d token %d\n",
+                                    prompts_done + 1, i);
+                            ok = false;
+                            break;
+                        }
+                        anchors_this_prompt++;
+                        tokens_done++;
+                    }
+                }
+            }
+
+            token_vec_free(&prompt);
+        }
+
+        *end = saved;
+        if (!ok) break;
+        if (anchors_this_prompt > 0) {
+            prompts_done++;
+            if ((prompts_done % 10) == 0) {
+                fprintf(stderr, "ds4: dspark imatrix progress prompts=%d anchors=%d\n",
+                        prompts_done, tokens_done);
+            }
+        }
+        if ((max_prompts > 0 && prompts_done >= max_prompts) ||
+            (max_tokens > 0 && tokens_done >= max_tokens)) {
+            break;
+        }
+        if (!next) break;
+        cursor = next;
+    }
+
+    if (ok) {
+        imatrix_report_expert_coverage(&collector, DS4_DSPARK_N_LAYERS);
+        ok = imatrix_collector_save(&collector, e->dspark_weights.block,
+                                    DS4_DSPARK_N_LAYERS, output_path);
+        if (ok) {
+            fprintf(stderr,
+                    "ds4: wrote DSpark imatrix %s from %d prompts, %d anchors, %llu routed expert observations\n",
+                    output_path, prompts_done, tokens_done,
+                    (unsigned long long)collector.observed_routes);
+        }
+    }
+
+    free(mh_buf);
+    free(hc_buf);
+    imatrix_collector_free(&collector);
+    ds4_session_free(s);
+    free(dataset);
+    return ok ? 0 : 1;
+}
+#endif
 
 /* Speculative decode state machine:
  * 1. commit the normal target token and use its logits to validate draft[0];
@@ -29740,6 +30066,21 @@ int ds4_engine_verifier_curve_test(ds4_engine *e, const ds4_tokens *prompt, int 
         fprintf(stderr, "ds4: verifier curve test: prefill failed: %s\n", err);
         ds4_session_free(s);
         return 1;
+    }
+
+    if (getenv("DS4_DSPARK_PROBE_ONLY")) {
+        if (e->dspark_ready && getenv("DS4_DSPARK_TIME_BACKBONE")) {
+            ds4_dspark_time_backbone(s);
+        }
+        if (e->dspark_ready && getenv("DS4_DSPARK_PROBE_INPUT")) {
+            ds4_dspark_probe_input_stage(s);
+        }
+        if (e->dspark_ready && getenv("DS4_DSPARK_PROBE_ACCEPT")) {
+            ds4_dspark_probe_accept(s);
+        }
+        ds4_session_free(s);
+        fprintf(stderr, "ds4: verifier curve probe-only session complete\n");
+        return 0;
     }
 
     float *logits_save = xmalloc((size_t)DS4_N_VOCAB * sizeof(float));

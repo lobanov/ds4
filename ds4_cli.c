@@ -43,6 +43,7 @@ typedef struct {
     const char *imatrix_output_path;
     int imatrix_max_prompts;
     int imatrix_max_tokens;
+    int imatrix_max_tokens_per_prompt;
     ds4_think_mode think_mode;
     bool head_test;
     bool first_token_test;
@@ -1588,6 +1589,8 @@ static cli_config parse_options(int argc, char **argv) {
             c.gen.imatrix_max_prompts = parse_int(need_arg(&i, argc, argv, arg), arg);
         } else if (!strcmp(arg, "--imatrix-max-tokens")) {
             c.gen.imatrix_max_tokens = parse_int(need_arg(&i, argc, argv, arg), arg);
+        } else if (!strcmp(arg, "--imatrix-max-tokens-per-prompt")) {
+            c.gen.imatrix_max_tokens_per_prompt = parse_int(need_arg(&i, argc, argv, arg), arg);
         } else if (!strcmp(arg, "--think")) {
             c.gen.think_mode = DS4_THINK_HIGH;
         } else if (!strcmp(arg, "--think-max")) {
@@ -1725,7 +1728,8 @@ int main(int argc, char **argv) {
                                         cfg.gen.imatrix_output_path,
                                         cfg.gen.ctx_size,
                                         cfg.gen.imatrix_max_prompts,
-                                        cfg.gen.imatrix_max_tokens);
+                                        cfg.gen.imatrix_max_tokens,
+                                        cfg.gen.imatrix_max_tokens_per_prompt);
     } else if (cfg.gen.perplexity_file_path) {
         rc = run_perplexity_file(engine, &cfg);
     } else if (cfg.gen.prompt == NULL) {

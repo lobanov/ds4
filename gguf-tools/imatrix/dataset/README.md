@@ -12,9 +12,13 @@ python3 gguf-tools/imatrix/dataset/build_ds4_imatrix_dataset.py
 Generated files:
 
 - `prompts.jsonl`: structured records with messages and rendered prompt text.
-- `rendered_prompts.txt`: all rendered prompts, separated by visible markers.
-- `rendered_prompts_nothink.txt`: only prompts ending with `</think>`.
-- `rendered_prompts_think.txt`: only prompts ending with `<think>`.
+- `rendered_prompts.txt`: all rendered prompts, separated by visible markers,
+  in a balanced category/mode round-robin order so partial-budget imatrix
+  collection sees the full corpus early.
+- `rendered_prompts_nothink.txt`: only prompts ending with `</think>`, in the
+  same balanced order.
+- `rendered_prompts_think.txt`: only prompts ending with `<think>`, in the
+  same balanced order.
 - `manifest.json`: counts, byte totals, and rough token estimate.
 
 The renderer mirrors the server prompt shape:

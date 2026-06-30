@@ -231,6 +231,14 @@ def stable_id(category: str, source: str, mode: str, text: str) -> str:
     return f"{category}-{h.hexdigest()[:12]}"
 
 
+def stable_rank(*parts: str) -> str:
+    h = hashlib.sha1()
+    for part in parts:
+        h.update(part.encode("utf-8", "ignore"))
+        h.update(b"\0")
+    return h.hexdigest()
+
+
 def normalize_rendered_text(text: str) -> str:
     """Keep generated calibration files free of accidental trailing spaces.
 
@@ -240,6 +248,61 @@ def normalize_rendered_text(text: str) -> str:
     """
 
     return "\n".join(line.rstrip() for line in text.split("\n"))
+
+
+def balanced_render_order(records: list[Record]) -> list[Record]:
+    """Emit a broad early prefix from the same prompt inventory.
+
+    Imatrix collection often stops after a partial token budget. A pure
+    ``(category, source, mode)`` sort front-loads the corpus with ``agent``
+    prompts and delays whole categories until very late in the file. For
+    partial-budget collection that behaves like a biased sub-corpus.
+
+    Keep ``prompts.jsonl`` canonically sorted, but interleave the rendered text
+    files across categories and modes so early anchors sample the full prompt
+    inventory more evenly.
+    """
+
+    category_order = [
+        "long_context",
+        "source",
+        "agent",
+        "language",
+        "eval_reasoning",
+        "translation",
+        "programming",
+        "general",
+        "algorithms",
+    ]
+    seen_categories = {r.category for r in records}
+    category_order.extend(sorted(seen_categories - set(category_order)))
+
+    buckets: dict[tuple[str, str], list[Record]] = {}
+    for category in category_order:
+        for mode in ("nothink", "think"):
+            rows = [r for r in records if r.category == category and r.mode == mode]
+            rows.sort(key=lambda r: (
+                stable_rank(r.category, r.source, r.mode),
+                -len(r.rendered),
+                r.source,
+                r.rid,
+            ))
+            buckets[(category, mode)] = rows
+
+    ordered: list[Record] = []
+    idx = 0
+    while True:
+        emitted = False
+        for category in category_order:
+            for mode in ("nothink", "think"):
+                rows = buckets[(category, mode)]
+                if idx < len(rows):
+                    ordered.append(rows[idx])
+                    emitted = True
+        if not emitted:
+            break
+        idx += 1
+    return ordered
 
 
 def add_record(records: list[Record], category: str, source: str,
@@ -2135,6 +2198,7 @@ def write_outputs(outdir: Path, records: list[Record]) -> None:
         seen_rendered.add(r.rendered)
         unique_records.append(r)
     records = unique_records
+    rendered_records = balanced_render_order(records)
 
     jsonl = outdir / "prompts.jsonl"
     with jsonl.open("w", encoding="utf-8") as f:
@@ -2156,9 +2220,9 @@ def write_outputs(outdir: Path, records: list[Record]) -> None:
                 f.write(r.rendered)
         return count
 
-    write_rendered(outdir / "rendered_prompts.txt", records)
-    write_rendered(outdir / "rendered_prompts_nothink.txt", [r for r in records if r.mode == "nothink"])
-    write_rendered(outdir / "rendered_prompts_think.txt", [r for r in records if r.mode == "think"])
+    write_rendered(outdir / "rendered_prompts.txt", rendered_records)
+    write_rendered(outdir / "rendered_prompts_nothink.txt", [r for r in rendered_records if r.mode == "nothink"])
+    write_rendered(outdir / "rendered_prompts_think.txt", [r for r in rendered_records if r.mode == "think"])
 
     categories: dict[str, int] = {}
     modes: dict[str, int] = {}
@@ -2170,11 +2234,12 @@ def write_outputs(outdir: Path, records: list[Record]) -> None:
 
     rendered_bytes = sum(len(r.rendered.encode("utf-8")) for r in records)
     manifest = {
-        "version": 4,
+        "version": 5,
         "purpose": "DeepSeek V4 Flash imatrix calibration prompts",
         "record_count": len(records),
         "rendered_utf8_bytes": rendered_bytes,
         "rough_token_estimate_bytes_div_4": rendered_bytes // 4,
+        "render_order": "balanced-category-mode-round-robin",
         "categories": categories,
         "modes": modes,
         "bytes_by_category": bytes_by_category,
