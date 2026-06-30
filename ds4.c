@@ -10607,6 +10607,8 @@ typedef struct {
     ds4_gpu_tensor *dspark_draft_hc;    /* [BLOCK*HC*DS4_N_EMBD] HC-expanded draft block */
     ds4_gpu_tensor *dspark_kv_cache[3]; /* per-layer window KV [DS4_N_SWA*DS4_N_HEAD_DIM] */
     ds4_gpu_tensor *dspark_mh_capture[3]; /* scratch for GPU-to-GPU cur_hc copy at L40/41/42 */
+    ds4_gpu_tensor *dspark_markov_x;    /* [markov_rank=256] F32 emb input for the GPU Markov matvec */
+    ds4_gpu_tensor *dspark_markov_bias; /* [vocab] F32 output of the GPU Markov matvec */
     uint32_t dspark_layer_idx;          /* current drafter layer (0..2) selecting kv_cache */
     uint32_t dspark_n_real;             /* window fill: anchors cached so far (grows per step) */
     bool dspark_capture_active;         /* when true, capture main_hidden during decode (B2 cycle) */
@@ -11399,6 +11401,9 @@ static bool metal_graph_alloc_raw_cap(
                     (uint64_t)(DS4_N_SWA + DS4_DSPARK_BLOCK_SIZE) * DS4_N_HEAD_DIM * sizeof(float));
             g->dspark_mh_capture[s] = ds4_gpu_tensor_alloc((uint64_t)DS4_N_HC * DS4_N_EMBD * sizeof(float));
         }
+        /* P1: GPU Markov head scratch — emb input [rank=256] and bias output [vocab]. */
+        g->dspark_markov_x = ds4_gpu_tensor_alloc((uint64_t)256 * sizeof(float));
+        g->dspark_markov_bias = ds4_gpu_tensor_alloc((uint64_t)DS4_N_VOCAB * sizeof(float));
         g->dspark_prefilled = false;
     }
 
@@ -22566,6 +22571,11 @@ struct ds4_engine {
     ds4_model model;
     ds4_model mtp_model;
     ds4_model dspark_model;
+    /* P1: markov_w2 converted BF16->F32 into a page-aligned mmap and registered
+     * as an auxiliary Metal model map, so the Markov matvec runs on GPU via
+     * ds4_gpu_matmul_f32_tensor (bit-exact vs the validated F32 reference). */
+    void    *dspark_markov_f32_map;     /* page-aligned mmap of F32 mw2 [vocab,rank] */
+    uint64_t dspark_markov_f32_size;
     ds4_vocab vocab;
     ds4_weights weights;
     ds4_mtp_weights mtp_weights;
@@ -26528,6 +26538,39 @@ int ds4_engine_open(ds4_engine **out, const ds4_engine_options *opt) {
         dspark_weights_bind(&e->dspark_weights, &e->dspark_model);
         dspark_weights_validate_layout(&e->dspark_weights);
         e->dspark_ready = true;
+        /* P1: convert markov_w2 BF16 -> F32 into a page-aligned anon mmap and
+         * register it as an auxiliary Metal model map, so the Markov matvec
+         * (mw2 [vocab,256] @ emb [256]) runs on GPU via ds4_gpu_matmul_f32_tensor.
+         * F32 is bit-exact vs the validated reference (which converts BF16->F32
+         * and accumulates in F32), so draft tokens / acceptance are unchanged. */
+        {
+            const uint64_t vocab = DS4_N_VOCAB;
+            const uint64_t rank = 256;
+            const uint64_t n = vocab * rank;
+            const uint64_t f32_bytes = n * sizeof(float);
+            const uint64_t page = (uint64_t)getpagesize();
+            const uint64_t mapped = (f32_bytes + page - 1) / page * page;
+            void *f32_map = mmap(NULL, mapped, PROT_READ | PROT_WRITE,
+                                 MAP_ANON | MAP_PRIVATE, -1, 0);
+            if (f32_map == MAP_FAILED) {
+                fprintf(stderr, "ds4: DSpark markov F32 mmap failed\n");
+                ds4_engine_close(e); *out = NULL; return 1;
+            }
+            const uint16_t *mw2_bf16 = (const uint16_t *)((const uint8_t *)e->dspark_model.map
+                    + e->dspark_weights.markov_w2->abs_offset);
+            float *dst = (float *)f32_map;
+            for (uint64_t i = 0; i < n; i++) {
+                uint32_t bits = ((uint32_t)mw2_bf16[i]) << 16;
+                memcpy(&dst[i], &bits, sizeof(float));
+            }
+            if (!ds4_gpu_set_model_map_range(f32_map, mapped, 0, mapped, mapped)) {
+                fprintf(stderr, "ds4: DSpark markov model-map registration failed\n");
+                munmap(f32_map, mapped);
+                ds4_engine_close(e); *out = NULL; return 1;
+            }
+            e->dspark_markov_f32_map = f32_map;
+            e->dspark_markov_f32_size = mapped;
+        }
         fprintf(stderr, "ds4: DSpark drafter loaded: %s (3 mtp stages)\n",
                 opt->dspark_path);
     }
@@ -28990,6 +29033,9 @@ int ds4_session_eval_dspark_b2(ds4_session *s, int first_token,
     if (!s || max_tokens <= 0 || accepted_cap <= 0) return 0;
     ds4_engine *e = s->engine;
 #ifndef DS4_NO_GPU
+    const bool _timing = getenv("DS4_DSPARK_B2_DEBUG") != NULL;
+    double _t_anchor = 0, _t_drafter = 0, _t_verify = 0, _t_accept = 0, _t_kv = 0;
+    const double _t0 = _timing ? now_sec() : 0.0;
     /* Step 1: decode the anchor token (captures main_hidden in-GPU). */
     s->graph.dspark_capture_active = true;
     int eval_rc = ds4_session_eval(s, first_token, err, errlen);
@@ -29072,6 +29118,7 @@ int ds4_session_eval_dspark_b2(ds4_session *s, int first_token,
     if (max_drafts <= 0) return n_accept;
 
     ds4_gpu_graph *g = &s->graph;
+    if (_timing) _t_anchor = now_sec();
 
     /* Step 2: DSpark drafter forward -> base_logits [block, vocab] in spec_logits.
      * Needs g->dspark_n_real set correctly (window KV fill). The anchor KV was
@@ -29143,37 +29190,50 @@ int ds4_session_eval_dspark_b2(ds4_session *s, int first_token,
     ok = ds4_gpu_tensor_read(g->spec_logits, 0, base_logits,
             (size_t)block * vocab * sizeof(float)) != 0;
     if (!ok) { free(base_logits); free(q_dist); snprintf(err, errlen, "dspark b2: logits readback failed"); return n_accept; }
+    /* P1: Markov head on GPU. mw2 was converted BF16->F32 at load and registered
+     * as an auxiliary model map (e->dspark_markov_f32_map); reuse the optimized
+     * F32 matvec (ds4_gpu_matmul_f32_tensor) for bias = mw2 @ emb per position.
+     * emb = mw1[prev] is gathered on CPU (256 floats, trivial) since mw1 stays
+     * BF16; the per-position argmax that feeds prev is sequential, so each
+     * position is: gather emb -> upload -> GPU matvec -> readback bias ->
+     * q_row = base[i] + bias (CPU) -> argmax. */
     const uint16_t *mw1 = (const uint16_t *)((const uint8_t *)e->dspark_model.map
             + e->dspark_weights.markov_w1->abs_offset);
-    const uint16_t *mw2 = (const uint16_t *)((const uint8_t *)e->dspark_model.map
-            + e->dspark_weights.markov_w2->abs_offset);
     const uint32_t rank = 256;
     int drafts[DS4_DSPARK_BLOCK_SIZE];
     int prev = first_token;
+    float emb[256];
+    float *markov_bias = xmalloc((size_t)vocab * sizeof(float));
     for (uint32_t i = 0; i < (uint32_t)block; i++) {
-        /* bias[v] = sum_r mw1[prev,r] * mw2[v,r] (BF16 -> F32) */
-        float emb[256];
+        /* emb = mw1[prev] (BF16 -> F32), [rank] */
         for (uint32_t r = 0; r < rank; r++) {
             uint32_t bits = ((uint32_t)mw1[(uint64_t)prev * rank + r]) << 16;
             memcpy(&emb[r], &bits, sizeof(float));
         }
-        /* Compute q_row[v] = base[i,v] + markov_bias[v]. Store in q_dist for B2. */
+        /* GPU matvec: dspark_markov_bias[vocab] = mw2_f32[vocab,256] @ emb[256] */
+        if (!ds4_gpu_tensor_write(g->dspark_markov_x, 0, emb, (uint64_t)rank * sizeof(float)) ||
+            !ds4_gpu_matmul_f32_tensor(g->dspark_markov_bias,
+                                       e->dspark_markov_f32_map, e->dspark_markov_f32_size,
+                                       0, rank, vocab, g->dspark_markov_x, 1) ||
+            !ds4_gpu_tensor_read(g->dspark_markov_bias, 0, markov_bias, (size_t)vocab * sizeof(float)))
+        {
+            free(base_logits); free(q_dist); free(markov_bias);
+            snprintf(err, errlen, "dspark b2: GPU markov matvec failed"); return n_accept;
+        }
+        /* q_row[v] = base[i,v] + markov_bias[v]; argmax (sequential dep on prev). */
         float *q_row = q_dist + (uint64_t)i * vocab;
         int best = -1; float best_l = -1e30f;
         for (uint64_t v = 0; v < vocab; v++) {
-            float acc = base_logits[i * vocab + v];
-            for (uint32_t r = 0; r < rank; r++) {
-                uint32_t bits = ((uint32_t)mw2[v * rank + r]) << 16;
-                float wvf; memcpy(&wvf, &bits, sizeof(float));
-                acc += emb[r] * wvf;
-            }
+            float acc = base_logits[i * vocab + v] + markov_bias[v];
             q_row[v] = acc;
             if (acc > best_l) { best_l = acc; best = (int)v; }
         }
         drafts[i] = best; prev = best;
     }
+    free(markov_bias);
     free(base_logits);
 
+    if (_timing) _t_drafter = now_sec();
     /* Step 3: verify the draft suffix via the batch verifier. */
     ds4_spec_frontier frontier;
     memset(&frontier, 0, sizeof(frontier));
@@ -29201,6 +29261,7 @@ int ds4_session_eval_dspark_b2(ds4_session *s, int first_token,
         return n_accept;
     }
 
+    if (_timing) _t_verify = now_sec();
     /* Step 4: TRUE B2 rejection-sampling acceptance.
      *
      * For each draft position i:
@@ -29264,6 +29325,7 @@ int ds4_session_eval_dspark_b2(ds4_session *s, int first_token,
     /* NOTE: row_logits is freed after Step 5 — the full-accept branch needs
      * row_logits[block-1] to set s->logits for the next cycle. */
 
+    if (_timing) _t_accept = now_sec();
     /* Step 5: KV management (correctness-critical).
      * Full accept: verify's KV is correct, no restore needed; set s->logits from
      * the verify's last row (predicts the position after the last accepted
@@ -29302,8 +29364,12 @@ int ds4_session_eval_dspark_b2(ds4_session *s, int first_token,
     }
     free(row_logits);
     spec_frontier_free(&frontier);
+    if (_timing) _t_kv = now_sec();
     if (getenv("DS4_DSPARK_B2_DEBUG"))
-        fprintf(stderr, "ds4: dspark b2 cycle: n_accept=%d (drafts=%d)\n", n_accept, n_draft_accept);
+        fprintf(stderr, "ds4: dspark b2 cycle: n_accept=%d (drafts=%d) | anchor=%.1f drafter=%.1f verify=%.1f accept=%.1f kv=%.1f total=%.1f ms\n",
+                n_accept, n_draft_accept,
+                (_t_anchor-_t0)*1000.0, (_t_drafter-_t_anchor)*1000.0, (_t_verify-_t_drafter)*1000.0,
+                (_t_accept-_t_verify)*1000.0, (_t_kv-_t_accept)*1000.0, _timing ? (now_sec()-_t0)*1000.0 : 0.0);
     return n_accept;
 #else
     (void)s; (void)first_token; (void)max_tokens; (void)eos_token;
