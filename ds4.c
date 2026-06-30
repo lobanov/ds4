@@ -28089,6 +28089,9 @@ static void ds4_dspark_probe_accept(ds4_session *s) {
         if (!_ok) { fprintf(stderr,"ds4: accept: mh load pos %ld failed\n",(long)(POS)); goto done; } \
     } while (0)
 
+    /* Declared early: the DSPARK_LOAD_MH macros below can goto done before the
+     * dump block opens qdump_fp; init here so the done-label close is safe. */
+    FILE *qdump_fp = NULL;
     /* Prefill slot0 for all 3 layers from mh[pos0] (anchor greedy[0]). */
     DSPARK_LOAD_MH(pos0);
     if (!metal_graph_dspark_input_stage(g, &e->model, &e->weights, &e->dspark_model, &e->dspark_weights, greedy[0])) {
@@ -28967,7 +28970,7 @@ int ds4_session_eval_dspark_b2(ds4_session *s, int first_token,
     const uint32_t block = DS4_DSPARK_BLOCK_SIZE;
     const uint64_t vocab = DS4_N_VOCAB;
     int room = s->ctx_size - s->checkpoint.len;
-    if (room < block + 1) return n_accept;  /* not enough room for a full draft block */
+    if (room < (int)block + 1) return n_accept;  /* not enough room for a full draft block */
     int max_drafts = block;
     if (max_drafts > max_tokens - n_accept) max_drafts = max_tokens - n_accept;
     if (max_drafts > accepted_cap - n_accept) max_drafts = accepted_cap - n_accept;
@@ -29084,7 +29087,7 @@ int ds4_session_eval_dspark_b2(ds4_session *s, int first_token,
     float *row_logits = xmalloc((size_t)block * vocab * sizeof(row_logits[0]));
     bool snap_ok = spec_frontier_snapshot(&frontier, s);
     if (snap_ok) {
-        for (int i = 0; i < block; i++) token_vec_push(&s->checkpoint, drafts[i]);
+        for (int i = 0; i < (int)block; i++) token_vec_push(&s->checkpoint, drafts[i]);
         ok = metal_graph_verify_suffix_tops(g, &e->model, &e->weights,
                 &s->checkpoint, (uint32_t)start, (uint32_t)block,
                 false, row_tops, row_logits);
@@ -29117,7 +29120,7 @@ int ds4_session_eval_dspark_b2(ds4_session *s, int first_token,
                        b2_rng_state ^= b2_rng_state << 17, (double)(b2_rng_state >> 11) / (double)(1ULL << 53))
 
     /* Helper: compute softmax max + sum for a logits row, then p(x)/q(x). */
-    for (int i = 0; i < block && n_accept < accepted_cap && n_accept < max_tokens; i++) {
+    for (int i = 0; i < (int)block && n_accept < accepted_cap && n_accept < max_tokens; i++) {
         int draft_tok = drafts[i];
         float *q_row = q_dist + (uint64_t)i * vocab;
         /* Target p: position 0 uses s->logits, positions 1..4 use row_logits[i-1]. */
@@ -29165,7 +29168,7 @@ int ds4_session_eval_dspark_b2(ds4_session *s, int first_token,
      * (1-step replay was tested: compressed KV cache overflow — the batch-encode
      * verify path and decode path use different KV cache bookkeeping. Full
      * restore+replay is the correct approach matching the MTP path.) */
-    if (n_draft_accept >= block) {
+    if (n_draft_accept >= (int)block) {
         s->checkpoint.len = start + n_draft_accept;
         g->mtp_n_raw = frontier.mtp_n_raw + (uint32_t)n_draft_accept;
         if (g->mtp_n_raw > g->raw_window) g->mtp_n_raw = g->raw_window;
