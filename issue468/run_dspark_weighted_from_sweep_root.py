@@ -38,6 +38,7 @@ DEFAULT_MEASURE_PYTHON = ISSUE468 / ".venv" / "bin" / "python"
 def parse_args() -> argparse.Namespace:
     ap = argparse.ArgumentParser()
     ap.add_argument("--ds4-bin", default="./ds4")
+    ap.add_argument("--backend", default="metal")
     ap.add_argument("--sweep-root", required=True)
     ap.add_argument("--model", default=str(DEFAULT_MODEL))
     ap.add_argument("--baseline-dspark", default=str(DEFAULT_BASELINE_DSPARK))
@@ -178,7 +179,7 @@ def build_weighted_overlay(sweep_root: Path, dirs: list[Path], *, run_label: str
     return overlay_root, manifest
 
 
-def reprobe_bundle(bundle: Path, *, model: str, dspark: str, steps: int, power: int,
+def reprobe_bundle(bundle: Path, *, backend: str, model: str, dspark: str, steps: int, power: int,
                    trials: int, measure_python: str, measure_script: str, label: str) -> dict:
     target = json.loads((bundle / "target_topk.json").read_text())
     pos0 = int(target["prompt_tokens"])
@@ -199,7 +200,7 @@ def reprobe_bundle(bundle: Path, *, model: str, dspark: str, steps: int, power: 
     run(
         [
             args.ds4_bin,
-            "--metal",
+            "--backend", backend,
             "-m", model,
             "--dspark", dspark,
             "--prompt-file", str(bundle / "prompt_rendered.txt"),
@@ -264,7 +265,7 @@ def main() -> int:
     try:
         collect_cmd = [
             args.ds4_bin,
-            "--metal",
+            "--backend", args.backend,
             "-m", str(Path(args.model).resolve()),
             "--dspark", str(Path(args.baseline_dspark).resolve()),
             "--imatrix-dataset", str(collect_root),
@@ -292,6 +293,7 @@ def main() -> int:
             ctx = int(bundle.name.split("_")[1])
             base = reprobe_bundle(
                 bundle,
+                backend=args.backend,
                 model=str(Path(args.model).resolve()),
                 dspark=baseline_path,
                 steps=args.steps,
@@ -303,6 +305,7 @@ def main() -> int:
             )
             cand = reprobe_bundle(
                 bundle,
+                backend=args.backend,
                 model=str(Path(args.model).resolve()),
                 dspark=candidate_path,
                 steps=args.steps,

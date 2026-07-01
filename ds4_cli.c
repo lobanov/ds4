@@ -1631,11 +1631,6 @@ static cli_config parse_options(int argc, char **argv) {
 #endif
         } else if (!strcmp(arg, "--verifier-curve-test")) {
             c.gen.verifier_curve_test = true;
-#ifdef DS4_ROCM_BUILD
-            c.engine.backend = DS4_BACKEND_CUDA;
-#else
-            c.engine.backend = DS4_BACKEND_METAL;
-#endif
         } else if (!strcmp(arg, "--metal-graph-generate")) {
             fprintf(stderr, "ds4: --metal-graph-generate was removed; --metal is the graph path\n");
             exit(2);

@@ -45,6 +45,7 @@ ASSISTANT = "<｜Assistant｜>"
 def parse_args() -> argparse.Namespace:
     ap = argparse.ArgumentParser()
     ap.add_argument("--ds4-bin", default="./ds4")
+    ap.add_argument("--backend", default="metal")
     ap.add_argument("--model", default=str(DEFAULT_MODEL))
     ap.add_argument("--baseline-dspark", default=str(DEFAULT_BASELINE_DSPARK))
     ap.add_argument("--candidate-dspark", required=True)
@@ -239,7 +240,7 @@ def plain_ms_for_context(target_json: Path, override: float | None) -> float:
     return 35.5
 
 
-def measure_probe(ds4_bin: str, model: str, dspark: str, prompt_path: Path, ctx_size: int,
+def measure_probe(ds4_bin: str, backend: str, model: str, dspark: str, prompt_path: Path, ctx_size: int,
                   pos0: int, cap_dir: Path, steps: int, power: int,
                   label: str, plain_ms: float, measure_script: str,
                   measure_python: str) -> dict:
@@ -258,7 +259,7 @@ def measure_probe(ds4_bin: str, model: str, dspark: str, prompt_path: Path, ctx_
     run(
         [
             ds4_bin,
-            "--metal",
+            "--backend", backend,
             "-m", model,
             "--dspark", dspark,
             "--prompt-file", str(prompt_path),
@@ -296,7 +297,7 @@ def measure_probe(ds4_bin: str, model: str, dspark: str, prompt_path: Path, ctx_
     return summary
 
 
-def collect_target_bundle(ds4_bin: str, model: str, prompt_path: Path, ctx_size: int, steps: int, top_k: int,
+def collect_target_bundle(ds4_bin: str, backend: str, model: str, prompt_path: Path, ctx_size: int, steps: int, top_k: int,
                           power: int, cap_dir: Path) -> dict:
     env = os.environ.copy()
     env.update({
@@ -309,7 +310,7 @@ def collect_target_bundle(ds4_bin: str, model: str, prompt_path: Path, ctx_size:
     run(
         [
             ds4_bin,
-            "--metal",
+            "--backend", backend,
             "-m", model,
             "--prompt-file", str(prompt_path),
             "--dump-logprobs", str(target_json),
@@ -380,6 +381,7 @@ def main() -> int:
         ctx_size = prompt_tokens + args.ctx_headroom
         bundle = collect_target_bundle(
             ds4_bin=ds4_bin,
+            backend=args.backend,
             model=model,
             prompt_path=prompt_path,
             ctx_size=ctx_size,
@@ -395,6 +397,7 @@ def main() -> int:
         plain_ms = plain_ms_for_context(ctx_dir / "target_topk.json", args.plain_ms)
         baseline_summary = measure_probe(
             ds4_bin=ds4_bin,
+            backend=args.backend,
             model=model,
             dspark=baseline,
             prompt_path=prompt_path,
@@ -410,6 +413,7 @@ def main() -> int:
         )
         candidate_summary = measure_probe(
             ds4_bin=ds4_bin,
+            backend=args.backend,
             model=model,
             dspark=candidate,
             prompt_path=prompt_path,
