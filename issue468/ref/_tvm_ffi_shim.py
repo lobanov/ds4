@@ -1,4 +1,4 @@
-"""Shim: patch tvm_ffi _add_class_attrs to skip the reserved '__dict__' field.
+"""Shim: patch known tvm_ffi / TVM Python interop bugs on this stack.
 
 tvm_ffi 0.1.12 (pulled in by tilelang 0.1.8) iterates a type's FFI schema fields
 and setattr's each as a property on the Python class. TVM's ir.DictAttrs type
@@ -41,5 +41,32 @@ try:
         return type_cls
 
     _r._add_class_attrs = _add_class_attrs_safe
+except ImportError:
+    pass
+
+try:
+    import tvm.runtime.support as _support
+
+    _derived_object = getattr(_support, "derived_object", None)
+    if _derived_object is None:
+        raise ImportError("no-op: tvm.runtime.support.derived_object missing")
+
+    def _derived_object_safe(cls):
+        derived_cls = _derived_object(cls)
+        original_setattr = derived_cls.__setattr__
+
+        def __setattr__(self, name, value):
+            # tilelang's generated TVMDerivedObject wrappers try to proxy every
+            # attribute assignment through self._inst, but some wrapped classes
+            # assign fields in __init__ before _inst exists. Guard that path.
+            if name not in ["_inst", "key", "handle"] and not hasattr(self, "_inst"):
+                super(derived_cls, self).__setattr__(name, value)
+                return
+            return original_setattr(self, name, value)
+
+        derived_cls.__setattr__ = __setattr__
+        return derived_cls
+
+    _support.derived_object = _derived_object_safe
 except ImportError:
     pass
