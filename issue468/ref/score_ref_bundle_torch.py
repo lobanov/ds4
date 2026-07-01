@@ -67,6 +67,22 @@ def load_target_steps(path: Path) -> tuple[int, list[dict]]:
     return int(data["prompt_tokens"]), data["steps"]
 
 
+def find_target_json(bundle: Path) -> Path:
+    for name in ("target_topk.json", "target_topk200.json"):
+        path = bundle / name
+        if path.exists():
+            return path
+    raise FileNotFoundError(f"no target_topk*.json found in {bundle}")
+
+
+def find_greedy_json(bundle: Path) -> Path:
+    for name in ("target_greedy.json", "greedy25_tokens.json"):
+        path = bundle / name
+        if path.exists():
+            return path
+    raise FileNotFoundError(f"no greedy token json found in {bundle}")
+
+
 def target_dist(step_entry: dict, vocab: int) -> np.ndarray:
     probs = np.zeros(vocab, dtype=np.float64)
     toks = np.array([entry["token"]["id"] for entry in step_entry["top_logprobs"]], dtype=np.int64)
@@ -144,8 +160,10 @@ def score_bundle(
     steps_cap: int,
     seed: int,
 ) -> dict:
-    greedy_tokens = load_greedy_tokens(bundle / "target_greedy.json")
-    prompt_tokens, target_steps = load_target_steps(bundle / "target_topk.json")
+    greedy_path = find_greedy_json(bundle)
+    target_path = find_target_json(bundle)
+    greedy_tokens = load_greedy_tokens(greedy_path)
+    prompt_tokens, target_steps = load_target_steps(target_path)
     pos0 = infer_pos0(bundle)
     n_steps = min(len(greedy_tokens) - 1 - BLOCK, len(target_steps) - 1 - BLOCK)
     if steps_cap > 0:
@@ -237,6 +255,8 @@ def score_bundle(
     return {
         "prompt_tokens": prompt_tokens,
         "pos0": pos0,
+        "target_json": str(target_path),
+        "greedy_json": str(greedy_path),
         "n_steps": n_steps,
         "trials": trials,
         "seed": seed,
