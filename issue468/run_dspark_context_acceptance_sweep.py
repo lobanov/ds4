@@ -44,6 +44,7 @@ ASSISTANT = "<｜Assistant｜>"
 
 def parse_args() -> argparse.Namespace:
     ap = argparse.ArgumentParser()
+    ap.add_argument("--ds4-bin", default="./ds4")
     ap.add_argument("--model", default=str(DEFAULT_MODEL))
     ap.add_argument("--baseline-dspark", default=str(DEFAULT_BASELINE_DSPARK))
     ap.add_argument("--candidate-dspark", required=True)
@@ -103,12 +104,12 @@ def render_prompt(user_content: str) -> str:
     return f"{BOS}{DEFAULT_SYSTEM}{USER}{user_content}{ASSISTANT}</think>"
 
 
-def token_count(model: str, rendered_prompt: str) -> int:
+def token_count(ds4_bin: str, model: str, rendered_prompt: str) -> int:
     tmp = ROOT / ".tmp_dspark_acceptance_prompt.txt"
     tmp.write_text(rendered_prompt, encoding="utf-8")
     try:
         proc = run(
-            ["./ds4", "-m", model, "--dump-tokens", "--prompt-file", str(tmp)],
+            [ds4_bin, "-m", model, "--dump-tokens", "--prompt-file", str(tmp)],
         )
     finally:
         tmp.unlink(missing_ok=True)
@@ -116,7 +117,7 @@ def token_count(model: str, rendered_prompt: str) -> int:
     return len(ast.literal_eval(first))
 
 
-def build_exact_prompt(model: str, template_text: str, target_tokens: int) -> tuple[str, int]:
+def build_exact_prompt(ds4_bin: str, model: str, template_text: str, target_tokens: int) -> tuple[str, int]:
     intro = (
         "Read the following repeated coding tasks as one long context. "
         "Continue the final coding task and keep the continuation code-only.\n\n"
@@ -151,7 +152,7 @@ def build_exact_prompt(model: str, template_text: str, target_tokens: int) -> tu
     def count_for_body(body: str) -> int:
         rendered = render_prompt(body)
         if rendered not in cache:
-            cache[rendered] = token_count(model, rendered)
+            cache[rendered] = token_count(ds4_bin, model, rendered)
         return cache[rendered]
 
     lo, hi = 0, 1
@@ -238,7 +239,7 @@ def plain_ms_for_context(target_json: Path, override: float | None) -> float:
     return 35.5
 
 
-def measure_probe(model: str, dspark: str, prompt_path: Path, ctx_size: int,
+def measure_probe(ds4_bin: str, model: str, dspark: str, prompt_path: Path, ctx_size: int,
                   pos0: int, cap_dir: Path, steps: int, power: int,
                   label: str, plain_ms: float, measure_script: str,
                   measure_python: str) -> dict:
@@ -256,7 +257,7 @@ def measure_probe(model: str, dspark: str, prompt_path: Path, ctx_size: int,
     stderr_path = cap_dir / f"{label}.probe.stderr"
     run(
         [
-            "./ds4",
+            ds4_bin,
             "--metal",
             "-m", model,
             "--dspark", dspark,
@@ -295,7 +296,7 @@ def measure_probe(model: str, dspark: str, prompt_path: Path, ctx_size: int,
     return summary
 
 
-def collect_target_bundle(model: str, prompt_path: Path, ctx_size: int, steps: int, top_k: int,
+def collect_target_bundle(ds4_bin: str, model: str, prompt_path: Path, ctx_size: int, steps: int, top_k: int,
                           power: int, cap_dir: Path) -> dict:
     env = os.environ.copy()
     env.update({
@@ -307,7 +308,7 @@ def collect_target_bundle(model: str, prompt_path: Path, ctx_size: int, steps: i
     target_json = cap_dir / "target_topk.json"
     run(
         [
-            "./ds4",
+            ds4_bin,
             "--metal",
             "-m", model,
             "--prompt-file", str(prompt_path),
@@ -357,6 +358,7 @@ def write_summary(out_dir: Path, rows: Iterable[dict]) -> None:
 def main() -> int:
     global args
     args = parse_args()
+    ds4_bin = str(Path(args.ds4_bin).resolve()) if "/" in args.ds4_bin else args.ds4_bin
     model = str(Path(args.model).resolve())
     baseline = str(Path(args.baseline_dspark).resolve())
     candidate = str(Path(args.candidate_dspark).resolve())
@@ -372,11 +374,12 @@ def main() -> int:
     for ctx in contexts:
         ctx_dir = out_dir / f"ctx_{ctx:05d}"
         ctx_dir.mkdir(parents=True, exist_ok=True)
-        rendered, prompt_tokens = build_exact_prompt(model, template_text, ctx)
+        rendered, prompt_tokens = build_exact_prompt(ds4_bin, model, template_text, ctx)
         prompt_path = ctx_dir / "prompt_rendered.txt"
         prompt_path.write_text(rendered, encoding="utf-8")
         ctx_size = prompt_tokens + args.ctx_headroom
         bundle = collect_target_bundle(
+            ds4_bin=ds4_bin,
             model=model,
             prompt_path=prompt_path,
             ctx_size=ctx_size,
@@ -391,6 +394,7 @@ def main() -> int:
             )
         plain_ms = plain_ms_for_context(ctx_dir / "target_topk.json", args.plain_ms)
         baseline_summary = measure_probe(
+            ds4_bin=ds4_bin,
             model=model,
             dspark=baseline,
             prompt_path=prompt_path,
@@ -405,6 +409,7 @@ def main() -> int:
             measure_python=args.measure_python,
         )
         candidate_summary = measure_probe(
+            ds4_bin=ds4_bin,
             model=model,
             dspark=candidate,
             prompt_path=prompt_path,

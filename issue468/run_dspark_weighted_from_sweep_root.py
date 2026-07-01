@@ -37,6 +37,7 @@ DEFAULT_MEASURE_PYTHON = ISSUE468 / ".venv" / "bin" / "python"
 
 def parse_args() -> argparse.Namespace:
     ap = argparse.ArgumentParser()
+    ap.add_argument("--ds4-bin", default="./ds4")
     ap.add_argument("--sweep-root", required=True)
     ap.add_argument("--model", default=str(DEFAULT_MODEL))
     ap.add_argument("--baseline-dspark", default=str(DEFAULT_BASELINE_DSPARK))
@@ -197,7 +198,7 @@ def reprobe_bundle(bundle: Path, *, model: str, dspark: str, steps: int, power: 
     stderr_path = bundle / f"{label}.probe.stderr"
     run(
         [
-            "./ds4",
+            args.ds4_bin,
             "--metal",
             "-m", model,
             "--dspark", dspark,
@@ -262,7 +263,7 @@ def main() -> int:
 
     try:
         collect_cmd = [
-            "./ds4",
+            args.ds4_bin,
             "--metal",
             "-m", str(Path(args.model).resolve()),
             "--dspark", str(Path(args.baseline_dspark).resolve()),
