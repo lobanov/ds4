@@ -119,6 +119,7 @@ def main():
     ap.add_argument("--greedy-json", default=str(CAP / "greedy25_tokens.json"))
     ap.add_argument("--pos0", type=int, default=152)
     ap.add_argument("--trials", type=int, default=128)
+    ap.add_argument("--steps-cap", type=int, default=19)
     ap.add_argument("--out-json", required=True)
     ap.add_argument("--label", default="ref-oracle-fp8")
     args = ap.parse_args()
@@ -150,6 +151,8 @@ def main():
         win_kv[s][0] = slot0
 
     max_step = min(len(greedy) - 6, len(tgt_steps) - 6)
+    if args.steps_cap > 0:
+        max_step = min(max_step, args.steps_cap)
     base_logits_cache = {}
     for step in range(1, max_step + 1):
         pos = args.pos0 + step
