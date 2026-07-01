@@ -20864,7 +20864,8 @@ static bool imatrix_collect_layer_batch(
         ds4_gpu_graph         *g,
         uint32_t               il,
         uint32_t               n_tokens,
-        const uint8_t         *row_bucket) {
+        const uint8_t         *row_bucket,
+        const float           *row_scale) {
     if (!c || n_tokens == 0) return true;
     if (il >= c->layer_count) return false;
     if (n_tokens > c->cap_tokens) return false;
@@ -20886,10 +20887,12 @@ static bool imatrix_collect_layer_batch(
     for (uint32_t t = 0; t < n_tokens; t++) {
         const uint32_t bucket = row_bucket ? row_bucket[t] : 0u;
         if (bucket >= c->bucket_count) return false;
+        const float sample_scale = row_scale ? row_scale[t] : 1.0f;
+        if (!isfinite(sample_scale) || sample_scale <= 0.0f) return false;
         const float *x = c->ffn_norm_buf + (size_t)t * DS4_N_EMBD;
         c->pos_tokens[bucket]++;
-        c->pos_weight[bucket] += c->bucket_merge_weight[bucket];
-        for (uint32_t i = 0; i < DS4_N_EMBD; i++) c->sq_tmp[i] = x[i] * x[i];
+        c->pos_weight[bucket] += (double)c->bucket_merge_weight[bucket] * sample_scale;
+        for (uint32_t i = 0; i < DS4_N_EMBD; i++) c->sq_tmp[i] = x[i] * x[i] * sample_scale;
 
         for (uint32_t slot = 0; slot < DS4_N_EXPERT_USED; slot++) {
             const int expert = c->selected_buf[(size_t)t * DS4_N_EXPERT_USED + slot];
@@ -20897,7 +20900,7 @@ static bool imatrix_collect_layer_batch(
 
             float *gate_up = imatrix_gate_up_ptr(c, bucket, il, (uint32_t)expert);
             for (uint32_t i = 0; i < DS4_N_EMBD; i++) gate_up[i] += c->sq_tmp[i];
-            imatrix_gate_weight_ptr(c, bucket, il)[expert] += 1.0f;
+            imatrix_gate_weight_ptr(c, bucket, il)[expert] += sample_scale;
             c->gate_up_count[bucket][il][expert]++;
 
             float *down = imatrix_down_ptr(c, bucket, il, (uint32_t)expert);
@@ -20906,13 +20909,13 @@ static bool imatrix_collect_layer_batch(
                 const uint16_t *mid = c->routed_mid_f16_buf + mid_off;
                 for (uint32_t i = 0; i < DS4_N_FF_EXP; i++) {
                     const float v = f16_to_f32(mid[i]);
-                    down[i] += v * v;
+                    down[i] += v * v * sample_scale;
                 }
             } else {
                 const float *mid = c->routed_mid_buf + mid_off;
-                for (uint32_t i = 0; i < DS4_N_FF_EXP; i++) down[i] += mid[i] * mid[i];
+                for (uint32_t i = 0; i < DS4_N_FF_EXP; i++) down[i] += mid[i] * mid[i] * sample_scale;
             }
-            imatrix_down_weight_ptr(c, bucket, il)[expert] += 1.0f;
+            imatrix_down_weight_ptr(c, bucket, il)[expert] += sample_scale;
             c->down_count[bucket][il][expert]++;
             c->observed_routes++;
         }
@@ -21497,7 +21500,9 @@ static bool metal_graph_prefill_layer_major(
                         il,
                         n_tokens);
             }
-            if (ok && imatrix) ok = imatrix_collect_layer_batch(imatrix, g, il, (uint32_t)n_tokens, NULL);
+            if (ok && imatrix) {
+                ok = imatrix_collect_layer_batch(imatrix, g, il, (uint32_t)n_tokens, NULL, NULL);
+            }
             layer_elapsed = (t_attn_done - t_attn0) + (t_ffn_done - t_ffn0);
 
             encode_s += (t_attn_encoded - t_attn0) + (t_ffn_encoded - t_ffn0);
@@ -21543,7 +21548,9 @@ static bool metal_graph_prefill_layer_major(
                         il,
                         n_tokens);
             }
-            if (ok && imatrix) ok = imatrix_collect_layer_batch(imatrix, g, il, (uint32_t)n_tokens, NULL);
+            if (ok && imatrix) {
+                ok = imatrix_collect_layer_batch(imatrix, g, il, (uint32_t)n_tokens, NULL, NULL);
+            }
             layer_elapsed = t_done - t_chunk0;
             if (profile) {
                 encode_s += t_encoded - t_chunk0;
@@ -28928,7 +28935,8 @@ static bool dspark_collect_imatrix_from_current_hidden(ds4_session *s,
                                                        ds4_imatrix_collector *imatrix,
                                                        int anchor_token,
                                                        uint32_t step_pos,
-                                                       const uint8_t *row_bucket) {
+                                                       const uint8_t *row_bucket,
+                                                       const float *row_scale) {
     if (!s || !s->engine || !imatrix) return false;
     ds4_engine *e = s->engine;
     ds4_gpu_graph *g = &s->graph;
@@ -28951,7 +28959,8 @@ static bool dspark_collect_imatrix_from_current_hidden(ds4_session *s,
                                                   &e->dspark_weights.block[lay],
                                                   step_pos);
         if (!ds4_gpu_end_commands() || !ok || !ds4_gpu_synchronize()) return false;
-        if (!imatrix_collect_layer_batch(imatrix, g, lay, DS4_DSPARK_BLOCK_SIZE, row_bucket)) return false;
+        if (!imatrix_collect_layer_batch(imatrix, g, lay, DS4_DSPARK_BLOCK_SIZE,
+                                         row_bucket, row_scale)) return false;
     }
 
     if (g->dspark_n_real < DS4_N_SWA - 1u) g->dspark_n_real++;
@@ -28963,12 +28972,14 @@ static bool dspark_collect_imatrix_sample(ds4_session *s,
                                           int anchor_token,
                                           uint32_t step_pos,
                                           const uint8_t *row_bucket,
+                                          const float *row_scale,
                                           float *hc_buf,
                                           float *mh_buf) {
     if (!s || !s->engine || !imatrix) return false;
 
     if (!dspark_capture_main_hidden(s, hc_buf, mh_buf)) return false;
-    return dspark_collect_imatrix_from_current_hidden(s, imatrix, anchor_token, step_pos, row_bucket);
+    return dspark_collect_imatrix_from_current_hidden(s, imatrix, anchor_token, step_pos,
+                                                      row_bucket, row_scale);
 }
 
 static bool dspark_parse_draft_pos_weights(const char *spec,
@@ -29095,6 +29106,53 @@ static bool dspark_imatrix_read_prompt_tokens(const char *path, int *out_prompt_
     return true;
 }
 
+static bool dspark_imatrix_load_anchor_weights(const char *path,
+                                               float **out_weights,
+                                               int *out_n_weights) {
+    if (!path || !out_weights || !out_n_weights) return false;
+    char *text = NULL;
+    size_t text_len = 0;
+    if (!imatrix_read_text_file(path, &text, &text_len)) return false;
+    (void)text_len;
+
+    size_t cap = 32;
+    int n_weights = 0;
+    float *weights = xmalloc(cap * sizeof(weights[0]));
+    char *cur = text;
+    while (*cur) {
+        while (*cur &&
+               !((*cur >= '0' && *cur <= '9') || *cur == '-' || *cur == '+' || *cur == '.'))
+        {
+            cur++;
+        }
+        if (!*cur) break;
+        char *end = NULL;
+        float value = strtof(cur, &end);
+        if (end == cur || !isfinite(value) || value <= 0.0f) {
+            fprintf(stderr, "ds4: dspark imatrix: bad anchor weight near '%s' in %s\n", cur, path);
+            free(weights);
+            free(text);
+            return false;
+        }
+        if ((size_t)n_weights == cap) {
+            cap *= 2;
+            weights = xrealloc(weights, cap * sizeof(weights[0]));
+        }
+        weights[n_weights++] = value;
+        cur = end;
+    }
+
+    free(text);
+    if (n_weights <= 0) {
+        fprintf(stderr, "ds4: dspark imatrix: no anchor weights found in %s\n", path);
+        free(weights);
+        return false;
+    }
+    *out_weights = weights;
+    *out_n_weights = n_weights;
+    return true;
+}
+
 static bool dspark_imatrix_is_bundle_dir(const char *path) {
     char target_json_path[1024];
     char greedy_path[1024];
@@ -29123,16 +29181,28 @@ static bool dspark_collect_bundle_into_collector(ds4_engine *e,
 
     char greedy_path[1024];
     char target_json_path[1024];
+    char anchor_weights_path[1024];
     if (!imatrix_path_join(greedy_path, sizeof(greedy_path), bundle_path, "target_greedy.json")) return false;
     if (!imatrix_path_join(target_json_path, sizeof(target_json_path), bundle_path, "target_topk.json")) return false;
+    if (!imatrix_path_join(anchor_weights_path, sizeof(anchor_weights_path), bundle_path,
+                           "imatrix_anchor_weights.txt")) return false;
 
     int *greedy = NULL;
     int n_greedy = 0;
     int prompt_tokens = 0;
+    float *anchor_weights = NULL;
+    int n_anchor_weights = 0;
     if (!dspark_imatrix_load_greedy(greedy_path, &greedy, &n_greedy)) return false;
     if (!dspark_imatrix_read_prompt_tokens(target_json_path, &prompt_tokens)) {
         free(greedy);
         return false;
+    }
+    struct stat st_anchor_weights;
+    if (stat(anchor_weights_path, &st_anchor_weights) == 0 && S_ISREG(st_anchor_weights.st_mode)) {
+        if (!dspark_imatrix_load_anchor_weights(anchor_weights_path, &anchor_weights, &n_anchor_weights)) {
+            free(greedy);
+            return false;
+        }
     }
 
     const int available_steps = n_greedy - 1 - (int)DS4_DSPARK_BLOCK_SIZE;
@@ -29164,16 +29234,33 @@ static bool dspark_collect_bundle_into_collector(ds4_engine *e,
             collector->bucket_merge_weight[0], collector->bucket_merge_weight[1],
             collector->bucket_merge_weight[2], collector->bucket_merge_weight[3],
             collector->bucket_merge_weight[4]);
+    if (anchor_weights) {
+        float min_w = anchor_weights[0];
+        float max_w = anchor_weights[0];
+        double sum_w = 0.0;
+        for (int i = 0; i < n_anchor_weights; i++) {
+            if (anchor_weights[i] < min_w) min_w = anchor_weights[i];
+            if (anchor_weights[i] > max_w) max_w = anchor_weights[i];
+            sum_w += anchor_weights[i];
+        }
+        fprintf(stderr,
+                "ds4: DSpark anchor-weight file %s loaded (%d weights, mean=%.3f, min=%.3f, max=%.3f)\n",
+                anchor_weights_path, n_anchor_weights, sum_w / n_anchor_weights, min_w, max_w);
+    }
 
     for (int step = 1; ok && step <= steps; step++) {
         static const uint8_t row_bucket[DS4_DSPARK_BLOCK_SIZE] = {0,1,2,3,4};
+        float row_scale[DS4_DSPARK_BLOCK_SIZE] = {1,1,1,1,1};
         const long pos = (long)prompt_tokens + step;
+        if (anchor_weights && step - 1 < n_anchor_weights) {
+            for (uint32_t i = 0; i < DS4_DSPARK_BLOCK_SIZE; i++) row_scale[i] = anchor_weights[step - 1];
+        }
         if (!dspark_load_main_hidden_capture(s, bundle_path, pos, hc_buf, mh_buf)) {
             ok = false;
             break;
         }
         if (!dspark_collect_imatrix_from_current_hidden(s, collector, greedy[step], (uint32_t)pos,
-                                                        row_bucket)) {
+                                                        row_bucket, row_scale)) {
             fprintf(stderr, "ds4: dspark imatrix: bundle sample failed at step %d pos %ld\n",
                     step, pos);
             ok = false;
@@ -29185,6 +29272,7 @@ static bool dspark_collect_bundle_into_collector(ds4_engine *e,
     free(mh_buf);
     free(hc_buf);
     ds4_session_free(s);
+    free(anchor_weights);
     free(greedy);
     if (anchors_done_out) *anchors_done_out = anchors_done;
     return ok;
@@ -29422,7 +29510,7 @@ static int ds4_engine_collect_dspark_imatrix(ds4_engine *e,
                         }
                         const uint32_t step_pos = (uint32_t)(s->checkpoint.len - 1);
                         if (!dspark_collect_imatrix_sample(s, &collector, prompt.v[i],
-                                                           step_pos, row_bucket,
+                                                           step_pos, row_bucket, NULL,
                                                            hc_buf, mh_buf)) {
                             fprintf(stderr, "ds4: dspark imatrix sample failed at prompt %d token %d\n",
                                     prompts_done + 1, i);

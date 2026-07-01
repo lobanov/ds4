@@ -50,6 +50,11 @@ def parse_args() -> argparse.Namespace:
     ap.add_argument("--power", type=int, default=100)
     ap.add_argument("--steps", type=int, default=19)
     ap.add_argument("--trials", type=int, default=128)
+    ap.add_argument("--anchor-weight-source", choices=["none", "baseline-hardness"], default="none")
+    ap.add_argument("--anchor-weight-b2-label", default="baseline-weighted4ctx_19t_default_256tr")
+    ap.add_argument("--anchor-weight-floor", type=float, default=0.5)
+    ap.add_argument("--anchor-weight-ceil", type=float, default=2.0)
+    ap.add_argument("--anchor-weight-alpha", type=float, default=1.5)
     ap.add_argument("--run-label", default="weighted-root")
     return ap.parse_args()
 
@@ -95,6 +100,81 @@ def bundle_dirs(root: Path) -> list[Path]:
         if (child / "target_topk.json").exists() and (child / "target_greedy.json").exists():
             dirs.append(child)
     return sorted(dirs)
+
+
+def available_steps(bundle: Path, steps_cap: int) -> int:
+    greedy = json.loads((bundle / "target_greedy.json").read_text())
+    if isinstance(greedy, dict):
+        vals = [int(step["selected"]["id"]) for step in greedy.get("steps", [])]
+    else:
+        vals = [int(v) for v in greedy]
+    count = len(vals) - 1 - 5
+    if count <= 0:
+        raise RuntimeError(f"bundle {bundle} has too few greedy steps")
+    if steps_cap > 0:
+        count = min(count, steps_cap)
+    return count
+
+
+def clamp(value: float, lo: float, hi: float) -> float:
+    return min(max(value, lo), hi)
+
+
+def bundle_anchor_weights(bundle: Path, *, source: str, b2_label: str,
+                          floor: float, ceil: float, alpha: float,
+                          steps_cap: int) -> list[float]:
+    n_steps = available_steps(bundle, steps_cap)
+    if source == "none":
+        return [1.0] * n_steps
+    if source != "baseline-hardness":
+        raise RuntimeError(f"unsupported anchor weight source: {source}")
+
+    b2_path = bundle / f"{b2_label}.b2.json"
+    data = json.loads(b2_path.read_text())
+    per_step = [float(v) for v in data["per_step_accepted"][:n_steps]]
+    if len(per_step) != n_steps:
+        raise RuntimeError(f"{b2_path} has {len(per_step)} steps but need {n_steps}")
+    raw = []
+    for accepted in per_step:
+        hardness = clamp((5.0 - accepted) / 5.0, 0.0, 1.0)
+        raw.append(1.0 + alpha * hardness)
+    mean_raw = sum(raw) / len(raw)
+    return [clamp(v / mean_raw, floor, ceil) for v in raw]
+
+
+def build_weighted_overlay(sweep_root: Path, dirs: list[Path], *, run_label: str,
+                           source: str, b2_label: str, floor: float,
+                           ceil: float, alpha: float, steps_cap: int) -> tuple[Path, dict]:
+    overlay_root = sweep_root / f".{run_label}.overlay"
+    if overlay_root.exists():
+        shutil.rmtree(overlay_root)
+    overlay_root.mkdir(parents=True)
+    manifest = {"source": source, "bundles": {}}
+    for bundle in dirs:
+        out_dir = overlay_root / bundle.name
+        out_dir.mkdir()
+        for child in bundle.iterdir():
+            os.symlink(child, out_dir / child.name)
+        weights = bundle_anchor_weights(
+            bundle,
+            source=source,
+            b2_label=b2_label,
+            floor=floor,
+            ceil=ceil,
+            alpha=alpha,
+            steps_cap=steps_cap,
+        )
+        (out_dir / "imatrix_anchor_weights.txt").write_text(
+            "\n".join(f"{w:.8f}" for w in weights) + "\n",
+            encoding="utf-8",
+        )
+        manifest["bundles"][bundle.name] = {
+            "weights": weights,
+            "mean": sum(weights) / len(weights),
+            "min": min(weights),
+            "max": max(weights),
+        }
+    return overlay_root, manifest
 
 
 def reprobe_bundle(bundle: Path, *, model: str, dspark: str, steps: int, power: int,
@@ -161,80 +241,102 @@ def main() -> int:
 
     imatrix_out = sweep_root / f"{args.run_label}.imatrix.dat"
     candidate_out = sweep_root / f"{args.run_label}.gguf"
+    collect_root = sweep_root
+    overlay_root: Path | None = None
 
-    collect_cmd = [
-        "./ds4",
-        "--metal",
-        "-m", str(Path(args.model).resolve()),
-        "--dspark", str(Path(args.baseline_dspark).resolve()),
-        "--imatrix-dataset", str(sweep_root),
-        "--imatrix-out", str(imatrix_out),
-        "--imatrix-draft-pos-weights", args.draft_pos_weights,
-        "--ctx", str(args.ctx_size),
-    ]
-    if args.collector_max_tokens > 0:
-        collect_cmd.extend(["--imatrix-max-tokens", str(args.collector_max_tokens)])
-    run(collect_cmd)
-
-    run([
-        "gguf-tools/deepseek4-quantize",
-        "--hf", str(Path(args.hf_dspark).resolve()),
-        "--template", str(Path(args.template_dspark).resolve()),
-        "--out", str(candidate_out),
-        "--overwrite",
-        "--imatrix", str(imatrix_out),
-    ])
-
-    rows = []
-    baseline_path = str(Path(args.baseline_dspark).resolve())
-    candidate_path = str(candidate_out.resolve())
-    for bundle in dirs:
-        ctx = int(bundle.name.split("_")[1])
-        base = reprobe_bundle(
-            bundle,
-            model=str(Path(args.model).resolve()),
-            dspark=baseline_path,
-            steps=args.steps,
-            power=args.power,
-            trials=args.trials,
-            measure_python=args.measure_python,
-            measure_script=str(Path(args.measure_script).resolve()),
-            label=f"baseline-{args.run_label}",
+    if args.anchor_weight_source != "none":
+        overlay_root, manifest = build_weighted_overlay(
+            sweep_root,
+            dirs,
+            run_label=args.run_label,
+            source=args.anchor_weight_source,
+            b2_label=args.anchor_weight_b2_label,
+            floor=args.anchor_weight_floor,
+            ceil=args.anchor_weight_ceil,
+            alpha=args.anchor_weight_alpha,
+            steps_cap=args.collector_max_tokens,
         )
-        cand = reprobe_bundle(
-            bundle,
-            model=str(Path(args.model).resolve()),
-            dspark=candidate_path,
-            steps=args.steps,
-            power=args.power,
-            trials=args.trials,
-            measure_python=args.measure_python,
-            measure_script=str(Path(args.measure_script).resolve()),
-            label=f"candidate-{args.run_label}",
-        )
-        row = {
-            "context": ctx,
-            "baseline_b2_accepted": base["average_accepted"],
-            "candidate_b2_accepted": cand["average_accepted"],
-            "b2_accepted_delta_pct": 100.0 * (cand["average_accepted"] / max(base["average_accepted"], 1e-9) - 1.0),
-            "baseline_b2_committed": base["average_committed"],
-            "candidate_b2_committed": cand["average_committed"],
-            "b2_committed_delta_pct": 100.0 * (cand["average_committed"] / max(base["average_committed"], 1e-9) - 1.0),
-        }
-        rows.append(row)
-        print(json.dumps(row))
+        collect_root = overlay_root
+        manifest_path = sweep_root / f"{args.run_label}.anchor_weights.json"
+        manifest_path.write_text(json.dumps(manifest, indent=2) + "\n")
 
-    summary_path = sweep_root / f"{args.run_label}.summary.json"
-    summary_tsv = sweep_root / f"{args.run_label}.summary.tsv"
-    summary_path.write_text(json.dumps(rows, indent=2) + "\n")
-    lines = ["context\tbaseline_b2_accepted\tcandidate_b2_accepted\tb2_accepted_delta_pct\tbaseline_b2_committed\tcandidate_b2_committed\tb2_committed_delta_pct"]
-    for row in rows:
-        lines.append(
-            f"{row['context']}\t{row['baseline_b2_accepted']}\t{row['candidate_b2_accepted']}\t"
-            f"{row['b2_accepted_delta_pct']}\t{row['baseline_b2_committed']}\t"
-            f"{row['candidate_b2_committed']}\t{row['b2_committed_delta_pct']}"
-        )
-    summary_tsv.write_text("\n".join(lines) + "\n")
+    try:
+        collect_cmd = [
+            "./ds4",
+            "--metal",
+            "-m", str(Path(args.model).resolve()),
+            "--dspark", str(Path(args.baseline_dspark).resolve()),
+            "--imatrix-dataset", str(collect_root),
+            "--imatrix-out", str(imatrix_out),
+            "--imatrix-draft-pos-weights", args.draft_pos_weights,
+            "--ctx", str(args.ctx_size),
+        ]
+        if args.collector_max_tokens > 0:
+            collect_cmd.extend(["--imatrix-max-tokens", str(args.collector_max_tokens)])
+        run(collect_cmd)
+
+        run([
+            "gguf-tools/deepseek4-quantize",
+            "--hf", str(Path(args.hf_dspark).resolve()),
+            "--template", str(Path(args.template_dspark).resolve()),
+            "--out", str(candidate_out),
+            "--overwrite",
+            "--imatrix", str(imatrix_out),
+        ])
+
+        rows = []
+        baseline_path = str(Path(args.baseline_dspark).resolve())
+        candidate_path = str(candidate_out.resolve())
+        for bundle in dirs:
+            ctx = int(bundle.name.split("_")[1])
+            base = reprobe_bundle(
+                bundle,
+                model=str(Path(args.model).resolve()),
+                dspark=baseline_path,
+                steps=args.steps,
+                power=args.power,
+                trials=args.trials,
+                measure_python=args.measure_python,
+                measure_script=str(Path(args.measure_script).resolve()),
+                label=f"baseline-{args.run_label}",
+            )
+            cand = reprobe_bundle(
+                bundle,
+                model=str(Path(args.model).resolve()),
+                dspark=candidate_path,
+                steps=args.steps,
+                power=args.power,
+                trials=args.trials,
+                measure_python=args.measure_python,
+                measure_script=str(Path(args.measure_script).resolve()),
+                label=f"candidate-{args.run_label}",
+            )
+            row = {
+                "context": ctx,
+                "baseline_b2_accepted": base["average_accepted"],
+                "candidate_b2_accepted": cand["average_accepted"],
+                "b2_accepted_delta_pct": 100.0 * (cand["average_accepted"] / max(base["average_accepted"], 1e-9) - 1.0),
+                "baseline_b2_committed": base["average_committed"],
+                "candidate_b2_committed": cand["average_committed"],
+                "b2_committed_delta_pct": 100.0 * (cand["average_committed"] / max(base["average_committed"], 1e-9) - 1.0),
+            }
+            rows.append(row)
+            print(json.dumps(row))
+
+        summary_path = sweep_root / f"{args.run_label}.summary.json"
+        summary_tsv = sweep_root / f"{args.run_label}.summary.tsv"
+        summary_path.write_text(json.dumps(rows, indent=2) + "\n")
+        lines = ["context\tbaseline_b2_accepted\tcandidate_b2_accepted\tb2_accepted_delta_pct\tbaseline_b2_committed\tcandidate_b2_committed\tb2_committed_delta_pct"]
+        for row in rows:
+            lines.append(
+                f"{row['context']}\t{row['baseline_b2_accepted']}\t{row['candidate_b2_accepted']}\t"
+                f"{row['b2_accepted_delta_pct']}\t{row['baseline_b2_committed']}\t"
+                f"{row['candidate_b2_committed']}\t{row['b2_committed_delta_pct']}"
+            )
+        summary_tsv.write_text("\n".join(lines) + "\n")
+    finally:
+        if overlay_root and overlay_root.exists():
+            shutil.rmtree(overlay_root)
     return 0
 
 
