@@ -28429,6 +28429,15 @@ static void ds4_dspark_probe_accept(ds4_session *s) {
                     if (qfp) { fwrite(qbuf, sizeof(float), q_n, qfp); fclose(qfp); }
                 }
                 free(qbuf);
+                /* Also dump batch_attn_norm (the q_a INPUT, pre-q-pipeline) to bisect
+                 * whether the q divergence is input propagation or in the q matmuls. */
+                float *anbuf = xmalloc((size_t)DS4_DSPARK_BLOCK_SIZE * DS4_N_EMBD * sizeof(float));
+                if (ds4_gpu_tensor_read(g->batch_attn_norm, 0, anbuf, (size_t)DS4_DSPARK_BLOCK_SIZE * DS4_N_EMBD * sizeof(float))) {
+                    char ap[1024]; snprintf(ap, sizeof(ap), "%s/metal_attnnorm_step%02d_lay%u.bin", capdir, step, lay);
+                    FILE *afp = fopen(ap, "wb");
+                    if (afp) { fwrite(anbuf, sizeof(float), DS4_DSPARK_BLOCK_SIZE * DS4_N_EMBD, afp); fclose(afp); }
+                }
+                free(anbuf);
                 float *kvbuf = xmalloc((size_t)kv_n * sizeof(float));
                 if (ds4_gpu_tensor_read(g->batch_kv, 0, kvbuf, (size_t)kv_n * sizeof(float))) {
                     char kp[1024]; snprintf(kp, sizeof(kp), "%s/metal_kv_step%02d_lay%u.bin", capdir, step, lay);

@@ -1168,7 +1168,13 @@ kernel void kernel_mul_mm(
         ushort sgitg[[simdgroup_index_in_threadgroup]]) {
 
     threadgroup S0 * sa = (threadgroup S0 *)(shmem);
-    threadgroup S1 * sb = (threadgroup S1 *)(shmem + 4096);
+    // sa holds 2048 tile elements; sb follows immediately. The byte offset scales
+    // with sizeof(S0) so F32-input instantiations (drafter precision fix:
+    // metal_graph_dspark_encode_attention q_b) place sb at 8192 vs half's 4096,
+    // without changing any half instantiation's layout. Verified: sa max index is
+    // 64*31+8*7+7 = 2047 -> 2048 elements.
+    constexpr uint SHMEM_SB_OFF = 2048u * (uint)sizeof(S0);
+    threadgroup S1 * sb = (threadgroup S1 *)(shmem + SHMEM_SB_OFF);
 
     constexpr int NR0 = 64;
     constexpr int NR1 = 32;
@@ -1598,3 +1604,10 @@ typedef decltype(kernel_mul_mm<half, half4x4, simdgroup_half8x8, half, half2x4, 
 // Host-visible prefill matmul variants for F16 and Q8_0 weights.
 template [[host_name("kernel_mul_mm_f16_f32")]]  kernel mul_mm_t kernel_mul_mm<half, half4x4, simdgroup_half8x8, half, half2x4, simdgroup_half8x8, half4x4, 1, dequantize_f16,  half,  half4x4,  float, float2x4>;
 template [[host_name("kernel_mul_mm_q8_0_f32")]] kernel mul_mm_t kernel_mul_mm<half, half4x4, simdgroup_half8x8, half, half2x4, simdgroup_half8x8, block_q8_0, 2, dequantize_q8_0, float, float4x4, float, float2x4>;
+// F32-input Q8_0 variant (drafter precision fix, issue468/57): dequantizes Q8_0
+// weights to F32 tiles (not half) and uses simdgroup_float8x8 MMA for BOTH input
+// tiles, eliminating the F16-intermediate divergence on mtp.2's q_b weights.
+// Slower than the half variant but bit-exact vs the F32 reference. Selected ONLY
+// by the drafter-only dispatch (ds4_gpu_matmul_q8_0_f32_input_tensor); the target
+// model keeps using kernel_mul_mm_q8_0_f32 (half tiles) unchanged.
+template [[host_name("kernel_mul_mm_q8_0_f32_f32input")]] kernel mul_mm_t kernel_mul_mm<float, float4x4, simdgroup_float8x8, float, float2x4, simdgroup_float8x8, block_q8_0, 2, dequantize_q8_0, float, float4x4, float, float2x4>;

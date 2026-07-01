@@ -12903,6 +12903,73 @@ static int ds4_gpu_matmul_q8_0_legacy_tensor(
     return 1;
 }
 
+/* Drafter-only F32-input Q8_0 batch matmul (issue468/57). Identical to the
+ * legacy fallback batch path above but selects kernel_mul_mm_q8_0_f32_f32input
+ * (F32 weight/activation tiles + simdgroup_float8x8 MMA) and allocates the
+ * larger threadgroup memory the F32 tiles require (sa=8192, sb=8192, +bc temp).
+ * Used ONLY by the DSpark drafter attention matmuls (ds4.c
+ * metal_graph_dspark_encode_attention); the target model keeps calling
+ * ds4_gpu_matmul_q8_0_tensor (half tiles). In-scope precision fix: same Q8_0
+ * weights, dequantized to F32 in-kernel instead of F16 — drafter GGUF byte-
+ * identical. */
+int ds4_gpu_matmul_q8_0_f32_input_tensor(
+        ds4_gpu_tensor       *out,
+        const void             *model_map,
+        uint64_t                model_size,
+        uint64_t                weight_offset,
+        uint64_t                in_dim,
+        uint64_t                out_dim,
+        const ds4_gpu_tensor *x,
+        uint64_t                n_tok) {
+    if (!g_initialized && !ds4_gpu_init()) return 0;
+    if ((in_dim & 31u) != 0 || n_tok == 0 || n_tok == 1 ||
+        in_dim > UINT32_MAX || out_dim > UINT32_MAX || n_tok > UINT32_MAX) {
+        return 0;
+    }
+    @autoreleasepool {
+        id<MTLBuffer> xbuf = ds4_gpu_tensor_buffer(x);
+        id<MTLBuffer> outbuf = ds4_gpu_tensor_buffer(out);
+        const uint64_t x_bytes = n_tok * in_dim * sizeof(float);
+        const uint64_t out_bytes = n_tok * out_dim * sizeof(float);
+        if (!xbuf || !outbuf ||
+            ds4_gpu_tensor_bytes(x) < x_bytes ||
+            ds4_gpu_tensor_bytes(out) < out_bytes) return 0;
+        const uint64_t blocks = in_dim / 32;
+        const uint64_t row_bytes = blocks * 34;
+        const uint64_t weight_bytes = out_dim * row_bytes;
+        if (weight_offset > model_size || weight_bytes > model_size - weight_offset) return 0;
+        uint64_t inner_offset = 0;
+        id<MTLBuffer> wbuf = ds4_gpu_wrap_model_range(model_map, model_size, weight_offset, weight_bytes, &inner_offset);
+        if (!wbuf) return 0;
+        int owned = 0;
+        id<MTLCommandBuffer> cb = ds4_gpu_command_buffer(&owned);
+        if (!cb) return 0;
+        const bool bc_inp = (in_dim % 32u) != 0;
+        const bool bc_out = (out_dim % 64u) != 0 || (n_tok % 32u) != 0;
+        id<MTLComputePipelineState> pipeline =
+            ds4_gpu_get_mul_mm_pipeline("kernel_mul_mm_q8_0_f32_f32input", bc_inp, bc_out);
+        if (!pipeline) return 0;
+        ds4_gpu_mul_mm_args args = ds4_gpu_make_mm_args(in_dim, out_dim, n_tok, row_bytes);
+        id<MTLComputeCommandEncoder> enc = ds4_gpu_compute_encoder(cb);
+        [enc setComputePipelineState:pipeline];
+        [enc setBytes:&args length:sizeof(args) atIndex:0];
+        [enc setBuffer:wbuf offset:(NSUInteger)inner_offset atIndex:1];
+        [enc setBuffer:xbuf offset:ds4_gpu_tensor_offset(x) atIndex:2];
+        [enc setBuffer:outbuf offset:ds4_gpu_tensor_offset(out) atIndex:3];
+        /* F32 tiles: sa=8192 (2048 floats), sb=8192, +bc temp staging (8192). */
+        [enc setThreadgroupMemoryLength:(bc_out ? 24576u : 16384u) atIndex:0];
+        [enc dispatchThreadgroups:MTLSizeMake(((NSUInteger)n_tok + 31u) / 32u,
+                                              ((NSUInteger)out_dim + 63u) / 64u,
+                                              1)
+             threadsPerThreadgroup:MTLSizeMake(128, 1, 1)];
+        ds4_gpu_end_compute_encoder(cb, enc);
+        if (!ds4_gpu_finish_command_buffer(cb, owned, "Q8_0 F32-input drafter matmul")) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
 int ds4_gpu_matmul_q8_0_tensor(
         ds4_gpu_tensor       *out,
         const void             *model_map,
