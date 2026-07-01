@@ -17771,7 +17771,12 @@ static bool metal_graph_dspark_encode_attention(
                                             DS4_N_ROT, start_pos + 1u, 0u, false,
                                             freq_base, freq_scale, ext_factor, attn_factor,
                                             DS4_ROPE_YARN_BETA_FAST, DS4_ROPE_YARN_BETA_SLOW) != 0;
-    if (ok && !getenv("DS4_DSPARK_NO_FP8")) ok = ds4_gpu_dsv4_fp8_kv_quantize_tensor(g->batch_kv, n_tokens,
+    /* Drafter KV precision: default F32 (matches the validated numpy oracle reference,
+     * issue468/51/52). FP8 KV quantization was measured to cost ~2.6% of deterministic
+     * draft quality (probe avg prefix 4.37 -> 4.26) with no speed benefit — it is a
+     * pure accuracy tax. FP8 is opt-in via DS4_DSPARK_FP8=1 (legacy DS4_DSPARK_NO_FP8
+     * is honored for backward compat as a no-op since F32 is now the default). */
+    if (ok && getenv("DS4_DSPARK_FP8")) ok = ds4_gpu_dsv4_fp8_kv_quantize_tensor(g->batch_kv, n_tokens,
                                                        DS4_N_HEAD_DIM, DS4_N_ROT) != 0;
     /* Store the draft-block KV right after all anchors (transient slots
      * [n_real+1 .. n_real+block]). The anchors occupy [0..n_real]; this step's
@@ -17801,7 +17806,7 @@ static bool metal_graph_dspark_encode_attention(
                                             DS4_N_ROT, start_pos, 0u, false,
                                             freq_base, freq_scale, ext_factor, attn_factor,
                                             DS4_ROPE_YARN_BETA_FAST, DS4_ROPE_YARN_BETA_SLOW) != 0;
-    if (ok && !getenv("DS4_DSPARK_NO_FP8")) ok = ds4_gpu_dsv4_fp8_kv_quantize_tensor(g->batch_kv, 1,
+    if (ok && getenv("DS4_DSPARK_FP8")) ok = ds4_gpu_dsv4_fp8_kv_quantize_tensor(g->batch_kv, 1,
                                                        DS4_N_HEAD_DIM, DS4_N_ROT) != 0;
     if (ok) ok = ds4_gpu_store_raw_kv_batch_tensor(kvc, g->batch_kv, raw_cap,
                                                      n_real, 1,
