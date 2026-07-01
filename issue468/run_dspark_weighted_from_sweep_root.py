@@ -72,6 +72,9 @@ def parse_args() -> argparse.Namespace:
     ap.add_argument("--anchor-weight-alpha", type=float, default=1.5)
     ap.add_argument("--anchor-weight-min-gap", type=float, default=0.05)
     ap.add_argument("--anchor-weight-baseline-max", type=float, default=4.999)
+    ap.add_argument("--anchor-weight-mode", choices=["soft", "binary", "boosted"], default="soft")
+    ap.add_argument("--anchor-weight-recoverable-boost", type=float, default=8.0)
+    ap.add_argument("--anchor-weight-nonrecoverable-weight", type=float, default=0.05)
     ap.add_argument("--run-label", default="weighted-root")
     return ap.parse_args()
 
@@ -197,6 +200,7 @@ def build_weighted_overlay(sweep_root: Path, dirs: list[Path], *, run_label: str
 def build_recoverable_gap_overlay(sweep_root: Path, *, run_label: str,
                                   baseline_label: str, oracle_b2_label: str | None,
                                   oracle_details_json: str | None,
+                                  mode: str, recoverable_boost: float, nonrecoverable_weight: float,
                                   floor: float, ceil: float, alpha: float,
                                   min_gap: float, baseline_max: float,
                                   steps_cap: int) -> tuple[Path, dict]:
@@ -206,6 +210,9 @@ def build_recoverable_gap_overlay(sweep_root: Path, *, run_label: str,
         "--sweep-root", str(sweep_root),
         "--baseline-label", baseline_label,
         "--out-label", run_label,
+        "--mode", mode,
+        "--recoverable-boost", str(recoverable_boost),
+        "--nonrecoverable-weight", str(nonrecoverable_weight),
         "--floor", str(floor),
         "--ceil", str(ceil),
         "--alpha", str(alpha),
@@ -316,6 +323,9 @@ def main() -> int:
                 baseline_label=args.anchor_weight_b2_label,
                 oracle_b2_label=args.oracle_b2_label,
                 oracle_details_json=args.oracle_details_json,
+                mode=args.anchor_weight_mode,
+                recoverable_boost=args.anchor_weight_recoverable_boost,
+                nonrecoverable_weight=args.anchor_weight_nonrecoverable_weight,
                 floor=args.anchor_weight_floor,
                 ceil=args.anchor_weight_ceil,
                 alpha=args.anchor_weight_alpha,

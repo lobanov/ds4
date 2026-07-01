@@ -48,6 +48,12 @@ def parse_args() -> argparse.Namespace:
                     help="steps with baseline accepted >= this are treated as already solved")
     ap.add_argument("--min-gap", type=float, default=0.05,
                     help="minimum oracle-baseline accepted gap to count as recoverable")
+    ap.add_argument("--mode", choices=["soft", "binary", "boosted"], default="soft",
+                    help="soft keeps normalized gap weighting; binary and boosted emphasize recoverable steps more aggressively")
+    ap.add_argument("--recoverable-boost", type=float, default=8.0,
+                    help="raw weight used for recoverable steps in boosted mode")
+    ap.add_argument("--nonrecoverable-weight", type=float, default=0.05,
+                    help="raw weight used for non-recoverable steps in binary/boosted modes; must stay >0 for collector compatibility")
     ap.add_argument("--alpha", type=float, default=2.0,
                     help="multiplier applied to normalized recoverable gap")
     ap.add_argument("--floor", type=float, default=0.5)
@@ -88,10 +94,15 @@ def load_oracle_details(path: Path) -> dict[int, list[float]]:
 
 
 def build_weights(per_step_base: list[float], per_step_oracle: list[float], *,
+                  mode: str, recoverable_boost: float, nonrecoverable_weight: float,
                   baseline_max: float, min_gap: float,
                   alpha: float, floor: float, ceil: float) -> tuple[list[float], list[dict]]:
     if len(per_step_base) != len(per_step_oracle):
         raise RuntimeError("baseline/oracle per-step lengths differ")
+    if recoverable_boost <= 0.0:
+        raise RuntimeError("recoverable_boost must be > 0")
+    if nonrecoverable_weight <= 0.0:
+        raise RuntimeError("nonrecoverable_weight must be > 0")
 
     raw = []
     details = []
@@ -101,7 +112,14 @@ def build_weights(per_step_base: list[float], per_step_oracle: list[float], *,
         recoverable = baseline_hard and gap >= min_gap
         # Accepted lengths live on [0, 5]. Normalize the positive recoverable gap to [0, 1].
         gap_norm = clamp(gap / 5.0, 0.0, 1.0)
-        value = 1.0 + alpha * gap_norm if recoverable else 1.0
+        if mode == "soft":
+            value = 1.0 + alpha * gap_norm if recoverable else 1.0
+        elif mode == "binary":
+            value = 1.0 if recoverable else nonrecoverable_weight
+        elif mode == "boosted":
+            value = recoverable_boost if recoverable else nonrecoverable_weight
+        else:
+            raise RuntimeError(f"unsupported mode: {mode}")
         raw.append(value)
         details.append({
             "step": idx,
@@ -110,6 +128,7 @@ def build_weights(per_step_base: list[float], per_step_oracle: list[float], *,
             "recoverable_gap": gap,
             "baseline_hard": baseline_hard,
             "recoverable": recoverable,
+            "mode": mode,
             "raw_weight": value,
         })
 
@@ -144,6 +163,9 @@ def main() -> int:
         "baseline_label": args.baseline_label,
         "oracle_label": args.oracle_label,
         "oracle_details_json": str(Path(args.oracle_details_json).resolve()) if args.oracle_details_json else None,
+        "mode": args.mode,
+        "recoverable_boost": args.recoverable_boost,
+        "nonrecoverable_weight": args.nonrecoverable_weight,
         "baseline_max": args.baseline_max,
         "min_gap": args.min_gap,
         "alpha": args.alpha,
@@ -180,6 +202,9 @@ def main() -> int:
         weights, details = build_weights(
             base_steps,
             oracle_steps,
+            mode=args.mode,
+            recoverable_boost=args.recoverable_boost,
+            nonrecoverable_weight=args.nonrecoverable_weight,
             baseline_max=args.baseline_max,
             min_gap=args.min_gap,
             alpha=args.alpha,

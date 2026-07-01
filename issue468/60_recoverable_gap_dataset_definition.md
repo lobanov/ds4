@@ -69,6 +69,36 @@ This preserves compatibility with the existing weighted-imatrix overlay shape:
 
 - one `imatrix_anchor_weights.txt` per bundle
 
+## Stronger collector modes
+
+The initial implementation used only the soft normalized-gap weighting above.
+
+After the independent review in `63`, the helper now supports stronger
+collector-compatible variants:
+
+- `soft`
+  - the original normalized-gap weighting
+- `binary`
+  - recoverable steps get raw weight `1.0`
+  - non-recoverable steps get a small positive raw weight
+- `boosted`
+  - recoverable steps get a large raw weight such as `8.0`
+  - non-recoverable steps get a small positive raw weight such as `0.05`
+
+Why not use literal zero for non-recoverable steps:
+
+- the DSpark collector currently rejects non-positive anchor weights
+
+So "collect only recoverable steps" must be approximated as:
+
+- very small positive non-recoverable weight
+- large recoverable/non-recoverable ratio
+
+This is still aligned with the review's intent:
+
+- heavily concentrate collector budget on recoverable states
+- without changing collector code
+
 ## Why this is different from the old hardness weighting
 
 The earlier hardness overlay used:
@@ -143,6 +173,19 @@ python issue468/build_recoverable_gap_overlay.py \
   --baseline-label baseline-weighted4ctx_19t_default_256tr \
   --oracle-details-json /tmp/dspark_sweep8/oracle-envelope-existing256.details.json \
   --out-label recoverable-gap-envelope
+```
+
+Hard recoverable-step emphasis example:
+
+```sh
+python issue468/build_recoverable_gap_overlay.py \
+  --sweep-root /tmp/dspark_sweep8 \
+  --baseline-label baseline-weighted4ctx_19t_default_256tr \
+  --oracle-details-json /tmp/dspark_sweep8/oracle-envelope-existing256.details.json \
+  --mode boosted \
+  --recoverable-boost 8.0 \
+  --nonrecoverable-weight 0.05 \
+  --out-label recoverable-gap-envelope-boosted
 ```
 
 This second form is the more faithful oracle-only path when the best available
