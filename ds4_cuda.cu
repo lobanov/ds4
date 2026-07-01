@@ -4795,6 +4795,70 @@ __global__ static void attention_decode_mixed_kernel(
     }
 }
 
+__global__ static void attention_decode_raw_batch_noncausal_kernel(
+        float *heads,
+        const float *sinks,
+        const float *q,
+        const float *raw_kv,
+        uint32_t n_tokens,
+        uint32_t n_raw,
+        uint32_t raw_cap,
+        uint32_t raw_start,
+        uint32_t n_head,
+        uint32_t head_dim) {
+    uint32_t t = blockIdx.x;
+    uint32_t h = blockIdx.y;
+    if (t >= n_tokens || h >= n_head) return;
+    const float *qh = q + ((uint64_t)t * n_head + h) * head_dim;
+    __shared__ float scores[DS4_CUDA_ATTENTION_SCORE_CAP];
+    __shared__ float partial[256];
+    __shared__ float max_s;
+    __shared__ float denom;
+    float scale = rsqrtf((float)head_dim);
+    float local_max = sinks[h];
+
+    for (uint32_t r = threadIdx.x; r < n_raw; r += blockDim.x) {
+        const uint32_t row = (raw_start + r) % raw_cap;
+        const float *kvrow = raw_kv + (uint64_t)row * head_dim;
+        float dot = 0.0f;
+        for (uint32_t d = 0; d < head_dim; d++) dot += qh[d] * kvrow[d];
+        scores[r] = dot * scale;
+        local_max = fmaxf(local_max, scores[r]);
+    }
+    partial[threadIdx.x] = local_max;
+    __syncthreads();
+    for (uint32_t stride = blockDim.x >> 1; stride > 0; stride >>= 1) {
+        if (threadIdx.x < stride) partial[threadIdx.x] = fmaxf(partial[threadIdx.x], partial[threadIdx.x + stride]);
+        __syncthreads();
+    }
+    if (threadIdx.x == 0) max_s = partial[0];
+    __syncthreads();
+
+    float den_local = 0.0f;
+    for (uint32_t r = threadIdx.x; r < n_raw; r += blockDim.x) {
+        scores[r] = expf(scores[r] - max_s);
+        den_local += scores[r];
+    }
+    partial[threadIdx.x] = den_local;
+    __syncthreads();
+    for (uint32_t stride = blockDim.x >> 1; stride > 0; stride >>= 1) {
+        if (threadIdx.x < stride) partial[threadIdx.x] += partial[threadIdx.x + stride];
+        __syncthreads();
+    }
+    if (threadIdx.x == 0) denom = partial[0] + expf(sinks[h] - max_s);
+    __syncthreads();
+
+    float *oh = heads + ((uint64_t)t * n_head + h) * head_dim;
+    for (uint32_t d = threadIdx.x; d < head_dim; d += blockDim.x) {
+        float acc = 0.0f;
+        for (uint32_t r = 0; r < n_raw; r++) {
+            const uint32_t row = (raw_start + r) % raw_cap;
+            acc += raw_kv[(uint64_t)row * head_dim + d] * scores[r];
+        }
+        oh[d] = acc / denom;
+    }
+}
+
 __global__ static void attention_indexed_mixed_kernel(
         float *heads,
         const float *sinks,
@@ -8915,6 +8979,47 @@ extern "C" int ds4_gpu_attention_decode_raw_batch_heads_tensor(
                                       q, raw_kv, NULL, 0, NULL, 0, n_tokens, pos0,
                                       n_raw, raw_cap, raw_start, 0, window, 1,
                                       n_head, head_dim);
+}
+
+extern "C" int ds4_gpu_attention_decode_raw_batch_heads_noncausal_tensor(
+        ds4_gpu_tensor       *heads,
+        const void             *model_map,
+        uint64_t                model_size,
+        uint64_t                sinks_offset,
+        const ds4_gpu_tensor *q,
+        const ds4_gpu_tensor *raw_kv,
+        uint32_t                n_tokens,
+        uint32_t                n_raw,
+        uint32_t                raw_cap,
+        uint32_t                raw_start,
+        uint32_t                n_head,
+        uint32_t                head_dim) {
+    if (!heads || !q || !raw_kv || !model_map || n_tokens == 0 ||
+        n_raw == 0 || raw_cap < n_raw || raw_start >= raw_cap ||
+        n_raw > DS4_CUDA_ATTENTION_SCORE_CAP ||
+        sinks_offset > model_size ||
+        (uint64_t)n_head * sizeof(float) > model_size - sinks_offset ||
+        heads->bytes < (uint64_t)n_tokens * n_head * head_dim * sizeof(float) ||
+        q->bytes < (uint64_t)n_tokens * n_head * head_dim * sizeof(float) ||
+        raw_kv->bytes < (uint64_t)raw_cap * head_dim * sizeof(float)) {
+        return 0;
+    }
+    const float *sinks = (const float *)cuda_model_range_ptr(
+            model_map, sinks_offset, (uint64_t)n_head * sizeof(float), "attn_sinks");
+    if (!sinks) return 0;
+    dim3 grid(n_tokens, n_head, 1);
+    attention_decode_raw_batch_noncausal_kernel<<<grid, 256>>>(
+            (float *)heads->ptr,
+            sinks,
+            (const float *)q->ptr,
+            (const float *)raw_kv->ptr,
+            n_tokens,
+            n_raw,
+            raw_cap,
+            raw_start,
+            n_head,
+            head_dim);
+    return cuda_ok(cudaGetLastError(), "attention decode noncausal batch launch");
 }
 
 extern "C" int ds4_gpu_attention_decode_mixed_batch_heads_tensor(
