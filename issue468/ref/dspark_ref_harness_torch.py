@@ -30,7 +30,7 @@ def install_kernel_fallback():
     sys.modules["kernel"] = module
 
 
-def build_args():
+def build_args(temperature: float):
     with open(os.path.join(REF_DIR, "inference", "config.json")) as f:
         c = json.load(f)
     from model import ModelArgs
@@ -38,7 +38,7 @@ def build_args():
     return ModelArgs(
         max_batch_size=1,
         max_seq_len=4096,
-        temperature=1.0,
+        temperature=temperature,
         dtype=c["dtype"],
         scale_fmt=c["scale_fmt"],
         expert_dtype=c["expert_dtype"],
@@ -99,6 +99,7 @@ def main():
     ap.add_argument("--smoke", action="store_true")
     ap.add_argument("--validate", metavar="NPZ", help="npz with main_hidden + input_ids")
     ap.add_argument("--seed", type=int, default=12345)
+    ap.add_argument("--temperature", type=float, default=1.0)
     args = ap.parse_args()
     if not args.smoke and not args.validate:
         ap.error("need --smoke or --validate NPZ")
@@ -111,7 +112,7 @@ def main():
     from model import Transformer
 
     print("=== build drafter-only Transformer (torch fallback kernel) ===", flush=True)
-    margs = build_args()
+    margs = build_args(args.temperature)
     with torch.device("cuda"):
         model = Transformer(margs)
 
