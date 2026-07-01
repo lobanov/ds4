@@ -476,7 +476,7 @@ static int run_sampled_generation(ds4_engine *engine, const cli_config *cfg, con
         ((uint64_t)time(NULL) ^ ((uint64_t)getpid() << 32) ^ (uint64_t)clock());
     int generated = 0;
     const double t_decode0 = cli_now_sec();
-    /* Bug #3 (issue468/40): seed the B2 RNG from --seed so accept/reject depends
+    /* Bug #3 (productionization note 40): seed the B2 RNG from --seed so accept/reject depends
      * on it (was a fixed file-static). Only affects --dspark; MTP/plain untouched. */
     if (ds4_engine_has_dspark(engine) && getenv("DS4_DSPARK_DISABLE") == NULL)
         ds4_dspark_b2_seed(rng);

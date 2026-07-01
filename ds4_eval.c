@@ -3770,7 +3770,7 @@ static eval_run_result run_one_case(ds4_engine *engine, ds4_session *session,
     const int eos = ds4_token_eos(engine);
     double t0 = ui->phase_start_sec;
     int forced_close_pos = -1;
-    /* Speculative MTP accept buffer (issue468 Branch B quality baseline).
+    /* Speculative MTP accept buffer (the Branch-B spec quality baseline).
      * ds4_session_eval_speculative_argmax advances the session by ntok accepted
      * tokens in one call; we consume them one per loop iteration without a
      * redundant ds4_session_eval (token_evaled skips it). Active only for

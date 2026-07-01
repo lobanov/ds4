@@ -18533,7 +18533,7 @@ static int ds4_gpu_encode_flash_attention_decode_raw_batch_heads(
         /* Non-causal (all-attend) mask: every query attends to every key. Used by
          * the DSpark drafter's block attention, where each of the block_size draft
          * positions attends to the full gathered window+block KV set (see
-         * issue468/dspark_oracle/attention.py sparse_attn + dspark_topk_idxs). */
+         * the numpy reference oracle (attention) sparse_attn + dspark_topk_idxs). */
         memset([mask_buffer contents], 0, mask_bytes);
     } else {
         ds4_gpu_fill_raw_decode_batch_mask((uint16_t *)[mask_buffer contents],
@@ -19077,7 +19077,7 @@ int ds4_gpu_attention_decode_raw_batch_heads_tensor(
 /*
  * Non-causal variant of ds4_gpu_attention_decode_raw_batch_heads_tensor: every
  * query position attends to every key in the gathered window (mask = all-attend).
- * Used by the DSpark drafter's block attention (issue468/dspark_oracle/attention.py
+ * Used by the DSpark drafter's block attention (the numpy reference oracle (attention)
  * sparse_attn): each of the block_size draft positions attends to the SAME
  * gathered set (cached anchors + the draft block itself), with no causal mask.
  * Identical to the causal path except the mask is memset(0). The caller assembles

@@ -318,7 +318,7 @@ static uint32_t g_ds4_compress_ratios[DS4_MAX_LAYER] = {0};
 /* DSpark drafter constants (deepseek-ai/DeepSeek-V4-Flash-DSpark config.json).
  * block_size = number of tokens drafted per cycle; noise_token fills the
  * non-anchor draft positions in mtp.0.forward_embed. */
-/* Compile-time-overridable for the block-size sweep (issue468/37). Default 5
+/* Compile-time-overridable for the block-size sweep (productionization note 37). Default 5
  * (validated). -DDS4_DSPARK_BLOCK_SIZE=N selects the draft depth at build
  * time; PREFIX_CAP (per-position frontier captures) follows. A true runtime
  * override is infeasible: the drafter kernels (metal_graph_dspark_encode_attention /
@@ -3108,8 +3108,8 @@ typedef struct {
  *    confidence_head.proj (per-position confidence scalar for the scheduler).
  *
  * block[0]/[1] have NO output stage; block[2] carries the full head. See
- * issue468/ref/inference/model.py DSparkBlock/forward_embed/forward_head and
- * issue468/09_dspark_integration_plan.md.
+ * the reference model.py DSparkBlock/forward_embed/forward_head and
+ * the integration-plan note.
  */
 typedef struct {
     ds4_layer_weights block[3];   /* mtp.0/1/2 block internals */
@@ -4527,7 +4527,7 @@ static void mtp_weights_bind(ds4_mtp_weights *w, const ds4_model *m) {
 
 /*
  * Bind DSpark drafter weights from a dspark.gguf produced by the Phase-3
- * converter (issue468/build_dspark_template.py naming). Mirrors mtp_weights_bind
+ * converter (the template converter naming). Mirrors mtp_weights_bind
  * per-layer binding but across the 3 mtp stages, reusing ds4_layer_weights for
  * the block internals (identical to target blocks; compress_ratio==0 so no
  * compressor/indexer tensors). DSpark-unique input/output-stage tensors are
@@ -17617,7 +17617,7 @@ static bool metal_graph_q_stage_profile_boundary(
  *       rope @ pos=start) and stored in the persistent window dspark_kv_cache[layer];
  *   (2) the 5 draft positions attend NON-CAUSALLY to the gathered window
  *       (n_real anchors ++ 5 draft kv) via the noncausal batched attention.
- * See issue468/16 + issue468/dspark_oracle/attention.py dspark_attention.
+ * See productionization note 16 + the numpy reference oracle (attention) dspark_attention.
  * Caller sets g->dspark_layer_idx (selects the layer's window KV) and
  * g->dspark_n_real (window fill; grows by 1 per decode step).
  */
@@ -17772,7 +17772,7 @@ static bool metal_graph_dspark_encode_attention(
                                             freq_base, freq_scale, ext_factor, attn_factor,
                                             DS4_ROPE_YARN_BETA_FAST, DS4_ROPE_YARN_BETA_SLOW) != 0;
     /* Drafter KV precision: default F32 (matches the validated numpy oracle reference,
-     * issue468/51/52). FP8 KV quantization was measured to cost ~2.6% of deterministic
+     * productionization note 51/52). FP8 KV quantization was measured to cost ~2.6% of deterministic
      * draft quality (probe avg prefix 4.37 -> 4.26) with no speed benefit — it is a
      * pure accuracy tax. FP8 is opt-in via DS4_DSPARK_FP8=1 (legacy DS4_DSPARK_NO_FP8
      * is honored for backward compat as a no-op since F32 is now the default). */
@@ -17923,7 +17923,7 @@ static bool metal_graph_encode_layer_ffn_batch(ds4_gpu_graph *g,
  * (reused from metal_graph_encode_layer_ffn_batch), with the cur_hc<->next_hc
  * swap. Reads g->batch_cur_hc [block,hc,dim] (and g->dspark_main_x for the
  * anchor KV), writes g->batch_next_hc [block,hc,dim]. Mirrors
- * metal_graph_encode_layer_batch's structure. See issue468/16; oracle
+ * metal_graph_encode_layer_batch's structure. See productionization note 16; oracle
  * block_forward is the spec.
  */
 static bool metal_graph_dspark_encode_block(
@@ -17960,7 +17960,7 @@ static bool metal_graph_dspark_encode_block(
  * [logits in g->spec_logits, n_tokens rows]. The sequential Markov head (which
  * biases logits[i] from output_ids[i] and is sampled greedily) is applied on the
  * CPU side after readback; this function produces the base logits per position.
- * See issue468/16; oracle forward_head is the spec.
+ * See productionization note 16; oracle forward_head is the spec.
  */
 static bool metal_graph_dspark_output_head(
         ds4_gpu_graph        *g,
@@ -22051,7 +22051,7 @@ static bool metal_graph_verify_decode2_exact(
         float                 *logits1) {
     if (!g || !top0 || !logits1 || g->raw_cap == 0) return false;
 
-    /* Phase 1 research probe (issue468): per-phase breakdown of the exact
+    /* Phase 1 research probe (the research notes): per-phase breakdown of the exact
      * verifier, gated so production is untouched.  layers = the 2x single-token
      * layer dispatches + per-layer prefix-1 capture (the dominant cost);
      * out0 = output head + argmax + 2 full-vocab readbacks for token0;
@@ -26903,7 +26903,7 @@ int ds4_engine_open(ds4_engine **out, const ds4_engine_options *opt) {
         /* Register the DSpark drafter model with the Metal device (parallel to the
          * MTP map above). Without this, any GPU matmul on drafter weights reads an
          * unregistered map and fails — required for the Metal drafter forward and
-         * the backbone-timing probe (issue468/19). */
+         * the backbone-timing probe (productionization note 19). */
         if (e->dspark_ready &&
             !ds4_gpu_set_model_map_range(e->dspark_model.map,
                                            e->dspark_model.size,
@@ -28089,7 +28089,7 @@ int ds4_session_set_logits(ds4_session *s, const float *logits, int n) {
  * [in=3*dim, out=dim], so matmul(x, W) == x @ W_hf.T — matches the numpy oracle.
  * Reuses: ds4_gpu_matmul_q8_0_tensor (main_proj), ds4_gpu_rms_norm_weight_tensor
  * (main_norm), metal_graph_upload_prompt_embeddings_hc (embed+HC-expand).
- * See issue468/16_phase4_metal_forward_impl.md stage 1; oracle forward.py
+ * See the phase-4 forward design note stage 1; oracle forward.py
  * forward_embed is the spec.
  */
 static bool metal_graph_dspark_input_stage_tokens(
@@ -28180,7 +28180,7 @@ static bool metal_graph_dspark_input_stage(
  * DSpark drafter backbone timing (research-only, env-gated). Measures the real
  * Metal cost of running the drafter's 3 blocks through metal_graph_encode_layer_batch
  * at n_tokens=block_size(5) on the drafter weights, so the long-context speedup
- * verdict (issue468/19) uses a MEASURED draft backbone cost, not a projection.
+ * verdict (productionization note 19) uses a MEASURED draft backbone cost, not a projection.
  * Reuses the EXACT batch kernels the real drafter forward will use; correctness of
  * the drafter output is NOT exercised here (that is phase4-refcheck's job via the
  * full forward) — this is purely a latency probe on the drafter's actual weights.
@@ -28263,7 +28263,7 @@ static void ds4_dspark_time_backbone(ds4_session *s) {
  * main_hidden from disk, running metal_graph_dspark_input_stage, and dumping
  * g->dspark_main_x for offline comparison with oracle forward_embed's main_x.
  * Gate: DS4_DSPARK_PROBE_INPUT=1. Reads captures from DS4_DSPARK_PROBE_CAPDIR
- * (default issue468/baseline/dspark_capture), pos DS4_DSPARK_PROBE_POS (default 152),
+ * (default the capture dir), pos DS4_DSPARK_PROBE_POS (default 152),
  * anchor DS4_DSPARK_PROBE_ANCHOR (default 2581 = greedy[0] for code prompt).
  * Output: <capdir>/metal_main_x_pos<pos>.bin ([dim] f32).
  */
@@ -28386,7 +28386,7 @@ static void ds4_dspark_probe_accept(ds4_session *s) {
             if (!ds4_gpu_begin_commands()) { ok = false; break; }
             ok = metal_graph_dspark_encode_block(g, &e->dspark_model, &e->dspark_weights.block[lay], (uint32_t)step);
             if (!ds4_gpu_end_commands() || !ok || !ds4_gpu_synchronize()) { ok = false; break; }
-            /* Drift bisection (issue468/53): dump batch_cur_hc (the block output /
+            /* Drift bisection (productionization note 53): dump batch_cur_hc (the block output /
              * running residual stream) AFTER each layer, per step+layer, to bisect
              * which block introduces the divergence vs the numpy oracle. */
             if (getenv("DS4_DSPARK_PROBE_DUMP_H")) {
@@ -28399,7 +28399,7 @@ static void ds4_dspark_probe_accept(ds4_session *s) {
                 }
                 free(hbuf);
             }
-            /* Drift bisection (issue468/54): dump batch_heads (the multi-head
+            /* Drift bisection (productionization note 54): dump batch_heads (the multi-head
              * attention output, pre output-projection) per step+layer, POST-sync
              * (the in-kernel DS4_DSPARK_PROBE_DUMP_HEADS hook is mid-command-
              * buffer and only fires for layer 0). This holds the just-computed
@@ -28415,7 +28415,7 @@ static void ds4_dspark_probe_accept(ds4_session *s) {
                 }
                 free(hbuf);
             }
-            /* Drift bisection (issue468/55): dump the finalized query batch_q
+            /* Drift bisection (productionization note 55): dump the finalized query batch_q
              * (post q_b matmul + head_rms + rope) and the draft-block kv
              * batch_kv (post rmsnorm+rope) per step+layer, to bisect q/kv vs
              * softmax-scores within the MHSA. */
@@ -28446,7 +28446,7 @@ static void ds4_dspark_probe_accept(ds4_session *s) {
                 }
                 free(qrbuf);
             }
-            /* Drift bisection (issue468/53): dump router_selected (the 6 experts
+            /* Drift bisection (productionization note 53): dump router_selected (the 6 experts
              * picked per token) per step+layer, to test whether mtp.2 selects
              * different experts than the numpy oracle (the ffn_gate_inp F16 lead). */
             if (getenv("DS4_DSPARK_PROBE_DUMP_ROUTER")) {
@@ -28478,7 +28478,7 @@ static void ds4_dspark_probe_accept(ds4_session *s) {
             }
         }
         if (!ok) { fprintf(stderr, "ds4: accept: step %d block failed\n", step); goto done; }
-        /* Drift bisection (issue468/53): after the 3-block loop, batch_after_attn_hc
+        /* Drift bisection (productionization note 53): after the 3-block loop, batch_after_attn_hc
          * still holds LAYER 2's post-attention output (each layer's attention
          * overwrites it; the FFN reads but doesn't clear it). Dump it (outside
          * any command buffer, post-sync) to bisect attn-vs-MoE within layer 2. */
@@ -28502,7 +28502,7 @@ static void ds4_dspark_probe_accept(ds4_session *s) {
          * depends only on target anchors (main_x), not on sampled drafts (the 4
          * non-anchor positions are noise tokens), so these base_logits are valid for
          * an offline B2 MC simulation: drafter samples q_i = softmax(base[i] +
-         * markov_bias(prev)), verifier accepts min(1,p/q). See issue468/24 1a. */
+         * markov_bias(prev)), verifier accepts min(1,p/q). See productionization note 24 1a. */
         if (qdump_fp) {
             if (fwrite(logits, sizeof(float), (size_t)DS4_DSPARK_BLOCK_SIZE*vocab, qdump_fp)
                 != (size_t)DS4_DSPARK_BLOCK_SIZE*vocab) { fprintf(stderr,"ds4: accept: q dump write failed\n"); qdump_fp=NULL; }
@@ -29696,9 +29696,9 @@ static int ds4_engine_collect_dspark_imatrix(ds4_engine *e,
  *   4. B2 accept/reject: accept x w.p. min(1,p/q); on reject, resample + stop
  *   5. Commit accepted tokens (n_accept = accepted_drafts + 1)
  * Returns the number of accepted tokens (1 + B2-accepted drafts), or -1 on error.
- * See issue468/28 + issue468/24 Assignment 1a.
+ * See productionization note 28 + productionization note 24 Assignment 1a.
  */
-/* Bug #3 (issue468/40): module-level B2 RNG seed + setter so the B2 accept/reject
+/* Bug #3 (productionization note 40): module-level B2 RNG seed + setter so the B2 accept/reject
  * stream depends on --seed (was a fixed file-static). The CLI calls
  * ds4_dspark_b2_seed(rng) when --dspark is active; 0 = use the prior fixed
  * default (backward compat). Seeded once on first B2 call for stream determinism. */
@@ -29753,7 +29753,7 @@ int ds4_session_eval_dspark_b2(ds4_session *s, int first_token,
         ds4_gpu_synchronize();
         float *hc = xmalloc((size_t)DS4_N_HC * DS4_N_EMBD * sizeof(float));
         float *mean = xmalloc((size_t)DS4_N_EMBD * sizeof(float));
-        /* Bug #4 fix (issue468/40): hard-fail on capture read/write failure (was
+        /* Bug #4 fix (productionization note 40): hard-fail on capture read/write failure (was
          * silently ignored, leaving stale main_hidden from a prior cycle). */
         for (uint32_t li = 0; li < 3; li++) {
             if (!ds4_gpu_tensor_read(s->graph.dspark_mh_capture[li], 0, hc,
@@ -29835,7 +29835,7 @@ int ds4_session_eval_dspark_b2(ds4_session *s, int first_token,
                 (uint64_t)raw_cap * DS4_N_HEAD_DIM);
         g->dspark_n_real = 0;
     }
-    /* Bug #1 fix (issue468/40): the redundant anchor-KV prefill loop that was
+    /* Bug #1 fix (productionization note 40): the redundant anchor-KV prefill loop that was
      * here has been removed — metal_graph_dspark_encode_attention (called inside
      * encode_block below) ALREADY computes and stores this cycle's anchor KV at
      * window slot [dspark_n_real] from g->dspark_main_x (ds4.c:~17806), so the
@@ -29964,7 +29964,7 @@ int ds4_session_eval_dspark_b2(ds4_session *s, int first_token,
      * row_logits has [block, vocab] = the full target distribution per position.
      */
     int n_draft_accept = 0;
-    /* Bug #3 fix (issue468/40): xorshift RNG for B2 accept/reject. Was a
+    /* Bug #3 fix (productionization note 40): xorshift RNG for B2 accept/reject. Was a
      * fixed static (0x9e3779b9...), making the acceptance sequence independent
      * of --seed. Now seeded via ds4_dspark_b2_seed() from the CLI --seed/
      * session RNG; defaults to the prior fixed constant for backward compat if
@@ -30706,7 +30706,7 @@ int ds4_session_prefill_cap(ds4_session *s) {
 
 #ifndef DS4_NO_GPU
 /* =========================================================================
- * Phase 1 verifier cost-curve microbench (issue468/05_phase1_plan.md).
+ * Phase 1 verifier cost-curve microbench (the phase-1 plan note).
  *
  * Research-only: invoked by the --verifier-curve-test CLI flag.  It measures
  * verify(L) for L=1..8 on the three verifier kernels in isolation, at context
@@ -31004,7 +31004,7 @@ int ds4_engine_verifier_curve_test(ds4_engine *e, const ds4_tokens *prompt, int 
         /* DSpark drafter backbone timing: the session graph has batch buffers
          * (prefill_cap >> 5), so we can time the drafter's 3 batch blocks here.
          * Reuses the EXACT batch kernels the real drafter forward will use, on
-         * the drafter weights. See issue468/19 (long-ctx draft-cost decision).
+         * the drafter weights. See productionization note 19 (long-ctx draft-cost decision).
          * Runs regardless of verifier-curve rc (the batch buffers are valid). */
         ds4_dspark_time_backbone(s);
     }
@@ -31015,7 +31015,7 @@ int ds4_engine_verifier_curve_test(ds4_engine *e, const ds4_tokens *prompt, int 
     }
     if (e->dspark_ready && getenv("DS4_DSPARK_PROBE_ACCEPT")) {
         /* DSpark greedy-acceptance sweep with persistent KV (decisive de-risk for
-         * Phase 5/6). See issue468/22. */
+         * Phase 5/6). See productionization note 22. */
         ds4_dspark_probe_accept(s);
     }
     ds4_session_free(s);
