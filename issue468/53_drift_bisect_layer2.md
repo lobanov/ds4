@@ -75,6 +75,58 @@ oracle. If the attn output matches but the post-MoE output diverges → MoE
 expert handling is the bug (suspect 1). If the attn output already diverges →
 window-KV or attn-weight issue for mtp.2 (suspects 2/3).
 
+## 6. Level 5 bisection: ATTENTION is the layer-2 bug (NOT the MoE)
+
+Dumped Metal's `batch_after_attn_hc` (which holds layer-2's post-attention
+output after the 3-block loop — each layer's attention overwrites it; the FFN
+reads but doesn't clear it) and compared to the oracle's layer-2 post-attn
+intermediate (block loop run fully for layers 0,1; for layer 2 only the attn
+branch: hc_pre → rmsnorm → dspark_attn → hc_post):
+
+| step | layer-2 post-attn maxdiff | relative |
+|---|---|---|
+| 1 | 18.4 | **11.1%** |
+| 2 | 27.3 | **15.7%** |
+| 3 | 32.5 | **20.5%** |
+| 4 | 30.4 | **14.4%** |
+| 5 | 32.4 | **18.7%** |
+
+The post-ATTN intermediate already diverges 11-20% — the SAME magnitude as the
+full layer-2 output (10-25%). If the MoE were the bug, post-attn would be small
+(<4%, like layers 0/1) and the full output large. Instead post-attn is already
+large. **→ The divergence originates in mtp.2's ATTENTION, not its MoE.**
+
+## 7. Level 4: routing is NOT the bug (expert selection matches ~93%)
+
+For completeness: dumped Metal's `batch_router_selected` (the 6 experts per
+token) per layer and compared to the oracle's `gate()` selection. Expert-match
+(token sets): layer 0 = 30/30 perfect; layer 1 = 26-30/30; layer 2 = 27-28/30
+(~90-93%). So Metal selects nearly the same experts as the oracle for mtp.2 —
+NOT a routing/`ffn_gate_inp` precision bug. Combined with §6, the layer-2 bug is
+in the attention computation (q/kv projections, window-KV gather, softmax-with-
+sinks, or output projection), with attention weights bound by-name correctly
+(`dspark_layer_weights_bind` is stage-parametric and uniform), making the prime
+remaining suspect the **mtp.2 window-KV handling or an attention-kernel edge
+case for the last drafter stage**.
+
+## 8. Final root-cause step (next session)
+
+Dump layer-2's attention internals (q, kv, gathered window, attention scores,
+output projection) individually and compare to the oracle's layer-2 attention
+(`dspark_attn` / `attention.py:sparse_attn`). The first diverging tensor is the
+bug. Candidates: mtp.2 window-KV slot layout, the attn_sinks handling for the
+last stage, or an output-projection (wo_a/wo_b) precision/offset issue.
+
+## 9. Significance (updated)
+
+The entire +8.27% oracle headroom (issue468/51) traces to **mtp.2's attention**.
+Layers 0,1 are bit-faithful to the oracle (<4.3%); the mtp.2 attention diverges
+11-20%, which the MoE amplifies to 10-25% in the block output, which the head
+maps to the 81%-argmax base_logits gap. Fixing mtp.2's attention to layer-0/1
+fidelity recovers the full +8.27% acceptance → α 0.83→0.90 → ~41.5 t/s,
+**crossing the gate** (issue468/42). This is now a single-kernel bug hunt with
+a clear next dump, not open-ended research.
+
 ## 6. Significance
 
 This makes the gate-crossing path CONCRETE and BOUNDED. The +8.27% oracle

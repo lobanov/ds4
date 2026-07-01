@@ -28399,6 +28399,17 @@ static void ds4_dspark_probe_accept(ds4_session *s) {
                 }
                 free(hbuf);
             }
+            /* Drift bisection (issue468/53): dump router_selected (the 6 experts
+             * picked per token) per step+layer, to test whether mtp.2 selects
+             * different experts than the numpy oracle (the ffn_gate_inp F16 lead). */
+            if (getenv("DS4_DSPARK_PROBE_DUMP_ROUTER")) {
+                int32_t sel[DS4_DSPARK_BLOCK_SIZE * 6];
+                if (ds4_gpu_tensor_read(g->batch_router_selected, 0, sel, sizeof(sel))) {
+                    char rp[1024]; snprintf(rp, sizeof(rp), "%s/metal_router_step%02d_lay%u.bin", capdir, step, lay);
+                    FILE *rfp = fopen(rp, "wb");
+                    if (rfp) { fwrite(sel, sizeof(int32_t), DS4_DSPARK_BLOCK_SIZE*6, rfp); fclose(rfp); }
+                }
+            }
             /* Debug: dump router_selected + ffn_norm for step 1, layer 0 (the FFN
              * bisection — find the structural divergence vs oracle). */
             if (step == 1 && lay == 0 && getenv("DS4_DSPARK_PROBE_DUMP_FFN")) {
@@ -28420,6 +28431,20 @@ static void ds4_dspark_probe_accept(ds4_session *s) {
             }
         }
         if (!ok) { fprintf(stderr, "ds4: accept: step %d block failed\n", step); goto done; }
+        /* Drift bisection (issue468/53): after the 3-block loop, batch_after_attn_hc
+         * still holds LAYER 2's post-attention output (each layer's attention
+         * overwrites it; the FFN reads but doesn't clear it). Dump it (outside
+         * any command buffer, post-sync) to bisect attn-vs-MoE within layer 2. */
+        if (getenv("DS4_DSPARK_PROBE_DUMP_MID")) {
+            const uint64_t mid_n = (uint64_t)DS4_DSPARK_BLOCK_SIZE * DS4_N_HC * DS4_N_EMBD;
+            float *mbuf = xmalloc((size_t)mid_n * sizeof(float));
+            if (ds4_gpu_tensor_read(g->batch_after_attn_hc, 0, mbuf, (size_t)mid_n * sizeof(float))) {
+                char mp[1024]; snprintf(mp, sizeof(mp), "%s/metal_postattn_lay2_step%02d.bin", capdir, step);
+                FILE *mfp = fopen(mp, "wb");
+                if (mfp) { fwrite(mbuf, sizeof(float), mid_n, mfp); fclose(mfp); }
+            }
+            free(mbuf);
+        }
         if (!ds4_gpu_begin_commands()) goto done;
         if (!metal_graph_dspark_output_head(g, &e->model, &e->weights, &e->dspark_model, &e->dspark_weights, DS4_DSPARK_BLOCK_SIZE)) { fprintf(stderr,"ds4: accept: step %d out_head failed\n",step); goto done; }
         if (!ds4_gpu_end_commands() || !ds4_gpu_synchronize()) goto done;
