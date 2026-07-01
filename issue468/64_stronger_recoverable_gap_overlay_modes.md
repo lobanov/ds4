@@ -58,6 +58,8 @@ Strongest collector-compatible version:
 
 - recoverable steps use a large raw weight such as `8.0`
 - non-recoverable steps use a small positive raw weight such as `0.05`
+- clamp bounds should also be widened accordingly, for example
+  `floor=0.05`, `ceil=8.0`
 
 ## Why non-recoverable steps are not zeroed
 

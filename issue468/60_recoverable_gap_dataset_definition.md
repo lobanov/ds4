@@ -185,8 +185,14 @@ python issue468/build_recoverable_gap_overlay.py \
   --mode boosted \
   --recoverable-boost 8.0 \
   --nonrecoverable-weight 0.05 \
+  --floor 0.05 \
+  --ceil 8.0 \
   --out-label recoverable-gap-envelope-boosted
 ```
+
+For `binary` and `boosted`, leaving the old soft-mode clamp defaults
+(`floor=0.5`, `ceil=2.0`) will blunt the recoverable/non-recoverable ratio.
+Use wider clamp bounds when the goal is hard concentration.
 
 This second form is the more faithful oracle-only path when the best available
 model-side reference is a top-level per-step envelope rather than a single
