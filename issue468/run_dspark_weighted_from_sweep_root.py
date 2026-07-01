@@ -37,6 +37,12 @@ DEFAULT_RECOVERABLE_GAP = ISSUE468 / "build_recoverable_gap_overlay.py"
 DEFAULT_QUANTIZER = ROOT / "gguf-tools" / "deepseek4-quantize"
 
 
+def default_measure_python() -> str:
+    if DEFAULT_MEASURE_PYTHON.exists():
+        return str(DEFAULT_MEASURE_PYTHON)
+    return sys.executable
+
+
 def parse_args() -> argparse.Namespace:
     ap = argparse.ArgumentParser()
     ap.add_argument("--ds4-bin", default="./ds4")
@@ -54,7 +60,7 @@ def parse_args() -> argparse.Namespace:
     ap.add_argument("--skip-reprobe", action="store_true",
                     help="stop after imatrix collection / quantization")
     ap.add_argument("--measure-script", default=str(DEFAULT_MEASURE))
-    ap.add_argument("--measure-python", default=str(DEFAULT_MEASURE_PYTHON))
+    ap.add_argument("--measure-python", default=default_measure_python())
     ap.add_argument("--draft-pos-weights", default="1,0.75,0.5,0.33,0.2")
     ap.add_argument("--collector-max-tokens", type=int, default=0)
     ap.add_argument("--ctx-size", type=int, default=4096)
@@ -92,6 +98,27 @@ def run(cmd: list[str], *, env: dict[str, str] | None = None,
             stderr.close()
     if proc.returncode != 0:
         raise RuntimeError(f"command failed ({proc.returncode}): {' '.join(cmd)}")
+
+
+def clear_stale_ds4_lock(lock_path: Path = Path("/tmp/ds4.lock")) -> None:
+    """Remove a dead ds4 singleton lock without touching live ds4 processes."""
+    if not lock_path.exists():
+        return
+    try:
+        text = lock_path.read_text(encoding="utf-8").strip()
+        pid = int(text)
+    except (OSError, ValueError):
+        return
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        lock_path.unlink(missing_ok=True)
+    except PermissionError:
+        # Treat inaccessible live processes as active and leave the lock alone.
+        return
+    else:
+        # Live process; do not interfere.
+        return
 
 
 def plain_ms_for_context(target_json: Path) -> float:
@@ -252,6 +279,7 @@ def reprobe_bundle(bundle: Path, *, ds4_bin: str, backend: str, model: str, dspa
     })
     stdout_path = bundle / f"{label}.probe.stdout"
     stderr_path = bundle / f"{label}.probe.stderr"
+    clear_stale_ds4_lock()
     run(
         [
             ds4_bin,
