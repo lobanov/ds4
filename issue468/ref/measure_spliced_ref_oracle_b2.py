@@ -24,9 +24,9 @@ from ref_ckpt_loader import load_ref_ckpt_dense
 
 
 ROOT = Path(__file__).resolve().parents[2]
-DSPARK_GGUF = os.path.expanduser("~/ds4/gguf/dspark.gguf")
-TARGET_GGUF = os.path.expanduser("~/ds4/gguf/DeepSeek-V4-Flash-IQ2XXS-w2Q2K-AProjQ8-SExpQ8-OutQ8-chat-v2-imatrix.gguf")
-REF_CKPT = os.path.expanduser("~/ds4/ref-ckpt/model0-mp1.safetensors")
+DSPARK_GGUF = str((ROOT / ".." / "ds4" / "gguf" / "dspark.gguf").resolve())
+TARGET_GGUF = str((ROOT / ".." / "ds4" / "gguf" / "DeepSeek-V4-Flash-IQ2XXS-w2Q2K-AProjQ8-SExpQ8-OutQ8-chat-v2-imatrix.gguf").resolve())
+REF_CKPT = str((ROOT / ".." / "ds4" / "ref-ckpt" / "model0-mp1.safetensors").resolve())
 CAP = ROOT / "issue468" / "baseline" / "dspark_capture"
 WIN = 128
 N_HEADS = 64
@@ -132,6 +132,13 @@ def splice_dense_tensors(T_base, T_ref, names: list[str]):
     return T
 
 
+def splice_dense_npy(T_base, mapping: dict[str, str]):
+    T = dict(T_base)
+    for name, path in mapping.items():
+        T[name] = (np.load(path).astype(np.float32),)
+    return T
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--capture-dir", default=str(CAP))
@@ -141,14 +148,22 @@ def main():
     ap.add_argument("--trials", type=int, default=128)
     ap.add_argument("--steps-cap", type=int, default=19)
     ap.add_argument("--replace", action="append", required=True, help="oracle tensor name to splice from ref-ckpt; repeatable")
+    ap.add_argument("--replace-npy", action="append", default=[], help="override source array via oracle_name=/abs/path.npy")
     ap.add_argument("--out-json", required=True)
     ap.add_argument("--label", default="spliced-ref-oracle")
     args = ap.parse_args()
 
     capture_dir = Path(args.capture_dir)
     T_base, infos, data_off, embed_w, lm_head, _ = load_baseline_oracle()
-    _, T_ref, _, _, _, _ = load_ref_ckpt_dense(REF_CKPT)
-    T = splice_dense_tensors(T_base, T_ref, args.replace)
+    if args.replace_npy:
+        mapping = {}
+        for item in args.replace_npy:
+            name, path = item.split("=", 1)
+            mapping[name] = path
+        T = splice_dense_npy(T_base, mapping)
+    else:
+        _, T_ref, _, _, _, _ = load_ref_ckpt_dense(REF_CKPT)
+        T = splice_dense_tensors(T_base, T_ref, args.replace)
 
     cos, sin = precompute_rope(64, 4096)
     greedy = json.loads(Path(args.greedy_json).read_text())
