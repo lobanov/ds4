@@ -1,5 +1,13 @@
 # DSpark Research Goal — Frozen-Runtime Quantization Path to +10% Drafter Quality
 
+> Superseded as the active execution plan on 2026-07-01 by
+> `issue468/59_oracle_only_quantization_search_goal.md`.
+>
+> This note remains useful as the historical statement of the original
+> frozen-runtime deployment target and budget. After the runtime findings in
+> `57` and the pivot in `58`, it should no longer be used as the operative
+> search plan.
+
 Date: 2026-07-01
 
 ## Purpose
