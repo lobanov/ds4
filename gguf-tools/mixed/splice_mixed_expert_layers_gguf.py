@@ -95,6 +95,8 @@ class SplicePlan:
     source: str
     tensor: TensorInfo
     new_rel_offset: int
+    donor_tensor: TensorInfo | None = None
+    donor_block_ids: tuple[int, ...] = ()
 
 
 def read_u32(data: bytes, offset: int) -> int:
@@ -283,11 +285,59 @@ def should_take_donor(name: str, selections: dict[int, set[str] | None]) -> bool
     return tensor_part in chosen
 
 
+def parse_block_delta_specs(specs: list[str] | None) -> dict[str, int]:
+    parsed: dict[str, int] = {}
+    if not specs:
+        return parsed
+    for spec in specs:
+        if ":" not in spec:
+            raise ValueError(f"bad --block-delta-top spec {spec!r}; expected <tensor_name>:<count>")
+        name, count_s = spec.rsplit(":", 1)
+        name = name.strip()
+        count = int(count_s)
+        if not name or count <= 0:
+            raise ValueError(f"bad --block-delta-top spec {spec!r}")
+        parsed[name] = count
+    return parsed
+
+
 def qtype_name(ggml_type: int) -> str:
     return GGML_QUANT_SIZES.get(ggml_type, (0, 0, f"type_{ggml_type}"))[2]
 
 
-def build_plan(base: GGUFInfo, donor: GGUFInfo, selections: dict[int, set[str] | None]) -> list[SplicePlan]:
+def top_delta_block_ids(base: GGUFInfo, donor: GGUFInfo, tensor_name: str, top_n: int) -> tuple[int, ...]:
+    base_tensor = base.tensor_by_name.get(tensor_name)
+    donor_tensor = donor.tensor_by_name.get(tensor_name)
+    if base_tensor is None or donor_tensor is None:
+        raise ValueError(f"missing tensor for block delta selection: {tensor_name}")
+    if base_tensor.ggml_type != donor_tensor.ggml_type:
+        raise ValueError(f"type mismatch for {tensor_name}")
+    q = GGML_QUANT_SIZES.get(base_tensor.ggml_type)
+    if q is None:
+        raise ValueError(f"unsupported block-delta type for {tensor_name}: {base_tensor.ggml_type}")
+    _block_elems, block_bytes, qname = q
+    if qname != "Q4_K":
+        raise ValueError(f"--block-delta-top currently supports Q4_K only, got {qname} for {tensor_name}")
+    n_blocks = base_tensor.n_bytes // block_bytes
+    scores: list[tuple[int, int]] = []
+    with base.path.open("rb") as base_file, donor.path.open("rb") as donor_file:
+        base_file.seek(base_tensor.data_offset)
+        donor_file.seek(donor_tensor.data_offset)
+        for block_id in range(n_blocks):
+            b = read_exact(base_file, block_bytes)
+            d = read_exact(donor_file, block_bytes)
+            diff_l1 = sum(abs(x - y) for x, y in zip(b, d))
+            scores.append((diff_l1, block_id))
+    scores.sort(reverse=True)
+    return tuple(sorted(block_id for _score, block_id in scores[:top_n]))
+
+
+def build_plan(
+    base: GGUFInfo,
+    donor: GGUFInfo,
+    selections: dict[int, set[str] | None],
+    block_delta_specs: dict[str, int],
+) -> list[SplicePlan]:
     if base.version != donor.version:
         raise ValueError(f"GGUF version mismatch: base={base.version} donor={donor.version}")
     if base.tensor_count != donor.tensor_count:
@@ -304,12 +354,24 @@ def build_plan(base: GGUFInfo, donor: GGUFInfo, selections: dict[int, set[str] |
         if base_tensor.dims != donor_tensor.dims:
             raise ValueError(f"shape mismatch for {base_tensor.name}: {base_tensor.dims} vs {donor_tensor.dims}")
         use_donor = should_take_donor(base_tensor.name, selections)
-        source_tensor = donor_tensor if use_donor else base_tensor
+        donor_block_ids: tuple[int, ...] = ()
+        source = "base"
+        source_tensor = base_tensor
+        donor_tensor_ref: TensorInfo | None = None
+        if use_donor:
+            source = "donor"
+            source_tensor = donor_tensor
+        elif base_tensor.name in block_delta_specs:
+            donor_block_ids = top_delta_block_ids(base, donor, base_tensor.name, block_delta_specs[base_tensor.name])
+            source = "mixed_blocks"
+            donor_tensor_ref = donor_tensor
         plan.append(SplicePlan(
             name=base_tensor.name,
-            source="donor" if use_donor else "base",
+            source=source,
             tensor=source_tensor,
             new_rel_offset=next_rel,
+            donor_tensor=donor_tensor_ref,
+            donor_block_ids=donor_block_ids,
         ))
         next_rel += pad_to(source_tensor.n_bytes, base.alignment)
     return plan
@@ -368,9 +430,34 @@ def write_mixed(base: GGUFInfo, donor: GGUFInfo, plan: list[SplicePlan], out_pat
         write_padding(out, out.tell(), base.alignment)
 
         for item in plan:
-            src = donor_file if item.source == "donor" else base_file
-            src.seek(item.tensor.data_offset)
-            copy_exact(src, out, item.tensor.n_bytes)
+            if item.source == "mixed_blocks":
+                assert item.donor_tensor is not None
+                q = GGML_QUANT_SIZES[item.tensor.ggml_type]
+                block_bytes = q[1]
+                base_file.seek(item.tensor.data_offset)
+                donor_file.seek(item.donor_tensor.data_offset)
+                if item.tensor.n_bytes % block_bytes != 0:
+                    raise ValueError(f"tensor {item.name} size is not block-aligned")
+                next_block = 0
+                for donor_block in item.donor_block_ids:
+                    if donor_block < next_block:
+                        continue
+                    base_skip = (donor_block - next_block) * block_bytes
+                    if base_skip:
+                        copy_exact(base_file, out, base_skip)
+                        donor_file.seek(base_skip, os.SEEK_CUR)
+                    donor_chunk = read_exact(donor_file, block_bytes)
+                    out.write(donor_chunk)
+                    base_file.seek(block_bytes, os.SEEK_CUR)
+                    next_block = donor_block + 1
+                remaining = item.tensor.n_bytes - next_block * block_bytes
+                if remaining:
+                    copy_exact(base_file, out, remaining)
+                    donor_file.seek(remaining, os.SEEK_CUR)
+            else:
+                src = donor_file if item.source == "donor" else base_file
+                src.seek(item.tensor.data_offset)
+                copy_exact(src, out, item.tensor.n_bytes)
             write_padding(out, item.tensor.n_bytes, base.alignment)
             copied += item.tensor.n_bytes
             pct = int(copied * 100 / total_payload) if total_payload else 100
@@ -386,6 +473,7 @@ def write_mixed(base: GGUFInfo, donor: GGUFInfo, plan: list[SplicePlan], out_pat
 
 def summarize(base: GGUFInfo, donor: GGUFInfo, plan: list[SplicePlan]) -> None:
     selected = [item for item in plan if item.source == "donor"]
+    block_selected = [item for item in plan if item.source == "mixed_blocks"]
     base_bytes = sum(t.n_bytes for t in base.tensors)
     out_bytes = sum(item.tensor.n_bytes for item in plan)
     delta = out_bytes - base_bytes
@@ -397,6 +485,9 @@ def summarize(base: GGUFInfo, donor: GGUFInfo, plan: list[SplicePlan]) -> None:
     for item in selected:
         by_type[qtype_name(item.tensor.ggml_type)] = by_type.get(qtype_name(item.tensor.ggml_type), 0) + 1
     print("selected donor types:", ", ".join(f"{name}:{count}" for name, count in sorted(by_type.items())) or "none")
+    if block_selected:
+        for item in block_selected:
+            print(f"selected donor blocks: {item.name}:{len(item.donor_block_ids)}")
     print(f"base tensor payload: {base_bytes:,} bytes ({base_bytes / (1024 ** 3):.2f} GiB)")
     print(f"mixed tensor payload: {out_bytes:,} bytes ({out_bytes / (1024 ** 3):.2f} GiB)")
     print(f"payload delta: {delta:,} bytes ({delta / (1024 ** 3):.2f} GiB)")
@@ -412,23 +503,35 @@ def main() -> int:
         "--q4-select",
         help="comma-separated routed selections to take from donor, e.g. 2:down,2:gate or 37",
     )
+    parser.add_argument(
+        "--block-delta-top",
+        action="append",
+        help="copy only the top-N donor-vs-base Q4_K payload blocks for one tensor, format <tensor_name>:<count>",
+    )
     parser.add_argument("--dry-run", action="store_true", help="print the plan without writing the output")
     parser.add_argument("--force", action="store_true", help="overwrite --out if it already exists")
     args = parser.parse_args()
 
-    if bool(args.q4_layers) == bool(args.q4_select):
-        parser.error("pass exactly one of --q4-layers or --q4-select")
+    if not any([args.q4_layers, args.q4_select, args.block_delta_top]):
+        parser.error("pass at least one selection mode")
+    if args.q4_layers and args.q4_select:
+        parser.error("--q4-layers and --q4-select are mutually exclusive")
     if args.q4_select:
         selections = parse_selection_specs(args.q4_select)
         print("q4 select:", args.q4_select)
-    else:
+    elif args.q4_layers:
         q4_layers = parse_layer_set(args.q4_layers)
         print("q4 layers:", ",".join(str(x) for x in sorted(q4_layers)))
         selections = {layer: None for layer in q4_layers}
+    else:
+        selections = {}
+    block_delta_specs = parse_block_delta_specs(args.block_delta_top)
+    for name, count in sorted(block_delta_specs.items()):
+        print(f"block delta top: {name}:{count}")
 
     base = parse_gguf(args.base)
     donor = parse_gguf(args.donor)
-    plan = build_plan(base, donor, selections)
+    plan = build_plan(base, donor, selections, block_delta_specs)
     summarize(base, donor, plan)
 
     if args.dry_run:
