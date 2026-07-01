@@ -56,6 +56,7 @@ GGUF_SCALAR_SIZES = {
 GGML_QUANT_SIZES = {
     0: (1, 4, "F32"),
     1: (1, 2, "F16"),
+    30: (1, 2, "BF16"),
     8: (32, 34, "Q8_0"),
     10: (256, 84, "Q2_K"),
     12: (256, 144, "Q4_K"),
@@ -63,7 +64,7 @@ GGML_QUANT_SIZES = {
     26: (1, 4, "I32"),
 }
 
-EXPERT_TENSOR_RE = re.compile(r"^blk\.(\d+)\.ffn_(gate|up|down)_exps\.weight$")
+EXPERT_TENSOR_RE = re.compile(r"^(?:blk|mtp)\.(\d+)\.ffn_(gate|up|down)_exps\.weight$")
 
 
 @dataclass(frozen=True)
