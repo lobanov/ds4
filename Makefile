@@ -40,7 +40,7 @@ DS4_LINK_LIBS ?= $(CUDA_LDLIBS)
 METAL_LDLIBS := $(LDLIBS)
 endif
 
-.PHONY: all help clean test cpu cuda cuda-spark cuda-generic cuda-regression strix-halo rocm
+.PHONY: all help clean test cpu cuda cuda-spark cuda-generic cuda-regression strix-halo rocm dspark-template dspark-gguf dspark-quantizer
 
 ifeq ($(UNAME_S),Darwin)
 all: ds4 ds4-server ds4-bench ds4-eval ds4-agent
@@ -242,3 +242,30 @@ q4k-dot-test: tests/test_q4k_dot.c
 
 clean:
 	rm -f ds4 ds4-server ds4-bench ds4-eval ds4-agent ds4_cpu ds4_native ds4_server_test ds4_test ds4_agent_test tests/test_q4k_dot *.o tests/cuda_long_context_smoke tests/cuda_long_context_smoke.o
+
+# ---- DSpark drafter GGUF tooling -------------------------------------------
+# Rebuild the DSpark drafter GGUF (dspark.gguf) from the Hugging Face safetensors
+# of deepseek-ai/DeepSeek-V4-Flash-DSpark (shards 46-48, ~10.9 GB). Two stages:
+#   1. build_dspark_template.py emits a metadata-only template GGUF (81 tensors).
+#   2. deepseek4-quantize regenerates the quantized bytes from the safetensors.
+# Fetch the source shards first: ./download_model.sh dspark
+# See DSPARK.md for the full flow.
+DSPARK_HF_DIR  ?= $(CURDIR)/gguf/dspark-hf
+DSPARK_GGUF     ?= $(CURDIR)/gguf/dspark.gguf
+DSPARK_TEMPLATE ?= $(CURDIR)/gguf/dspark_template.gguf
+
+dspark-quantizer:
+	$(MAKE) -C gguf-tools deepseek4-quantize
+
+dspark-template:
+	@mkdir -p $(dir $(DSPARK_TEMPLATE))
+	python3 gguf-tools/build_dspark_template.py $(DSPARK_TEMPLATE)
+
+dspark-gguf: dspark-quantizer dspark-template
+	@if [ ! -f "$(DSPARK_HF_DIR)/model.safetensors.index.json" ]; then \
+		echo "dspark-gguf: missing HF safetensors at $(DSPARK_HF_DIR)" >&2; \
+		echo "Fetch them first with: ./download_model.sh dspark" >&2; \
+		exit 1; \
+	fi
+	gguf-tools/deepseek4-quantize --hf "$(DSPARK_HF_DIR)" --template "$(DSPARK_TEMPLATE)" --out "$(DSPARK_GGUF)" --overwrite
+	@echo "Built $(DSPARK_GGUF)"
