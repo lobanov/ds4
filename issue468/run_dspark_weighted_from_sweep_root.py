@@ -47,6 +47,12 @@ def parse_args() -> argparse.Namespace:
     ap.add_argument("--hf-dspark", default=str(DEFAULT_HF_DSPARK))
     ap.add_argument("--template-dspark", default=str(DEFAULT_BASELINE_DSPARK))
     ap.add_argument("--quantizer-bin", default=str(DEFAULT_QUANTIZER))
+    ap.add_argument("--imatrix-in",
+                    help="use an existing imatrix.dat and skip collection")
+    ap.add_argument("--candidate-gguf",
+                    help="use an existing candidate GGUF and skip quantization")
+    ap.add_argument("--skip-reprobe", action="store_true",
+                    help="stop after imatrix collection / quantization")
     ap.add_argument("--measure-script", default=str(DEFAULT_MEASURE))
     ap.add_argument("--measure-python", default=str(DEFAULT_MEASURE_PYTHON))
     ap.add_argument("--draft-pos-weights", default="1,0.75,0.5,0.33,0.2")
@@ -286,6 +292,8 @@ def main() -> int:
     candidate_out = sweep_root / f"{args.run_label}.gguf"
     collect_root = sweep_root
     overlay_root: Path | None = None
+    imatrix_path = Path(args.imatrix_in).resolve() if args.imatrix_in else imatrix_out
+    candidate_path = Path(args.candidate_gguf).resolve() if args.candidate_gguf else candidate_out
 
     if args.anchor_weight_source != "none":
         if args.anchor_weight_source == "baseline-hardness":
@@ -319,32 +327,50 @@ def main() -> int:
         manifest_path.write_text(json.dumps(manifest, indent=2) + "\n")
 
     try:
-        collect_cmd = [
-            args.ds4_bin,
-            "--backend", args.backend,
-            "-m", str(Path(args.model).resolve()),
-            "--dspark", str(Path(args.baseline_dspark).resolve()),
-            "--imatrix-dataset", str(collect_root),
-            "--imatrix-out", str(imatrix_out),
-            "--imatrix-draft-pos-weights", args.draft_pos_weights,
-            "--ctx", str(args.ctx_size),
-        ]
-        if args.collector_max_tokens > 0:
-            collect_cmd.extend(["--imatrix-max-tokens", str(args.collector_max_tokens)])
-        run(collect_cmd)
+        if args.imatrix_in:
+            if not imatrix_path.exists():
+                raise RuntimeError(f"--imatrix-in not found: {imatrix_path}")
+        else:
+            collect_cmd = [
+                args.ds4_bin,
+                "--backend", args.backend,
+                "-m", str(Path(args.model).resolve()),
+                "--dspark", str(Path(args.baseline_dspark).resolve()),
+                "--imatrix-dataset", str(collect_root),
+                "--imatrix-out", str(imatrix_path),
+                "--imatrix-draft-pos-weights", args.draft_pos_weights,
+                "--ctx", str(args.ctx_size),
+            ]
+            if args.collector_max_tokens > 0:
+                collect_cmd.extend(["--imatrix-max-tokens", str(args.collector_max_tokens)])
+            run(collect_cmd)
 
-        run([
-            str(Path(args.quantizer_bin).resolve()),
-            "--hf", str(Path(args.hf_dspark).resolve()),
-            "--template", str(Path(args.template_dspark).resolve()),
-            "--out", str(candidate_out),
-            "--overwrite",
-            "--imatrix", str(imatrix_out),
-        ])
+        if args.candidate_gguf:
+            if not candidate_path.exists():
+                raise RuntimeError(f"--candidate-gguf not found: {candidate_path}")
+        else:
+            run([
+                str(Path(args.quantizer_bin).resolve()),
+                "--hf", str(Path(args.hf_dspark).resolve()),
+                "--template", str(Path(args.template_dspark).resolve()),
+                "--out", str(candidate_path),
+                "--overwrite",
+                "--imatrix", str(imatrix_path),
+            ])
+
+        if args.skip_reprobe:
+            print(json.dumps({
+                "run_label": args.run_label,
+                "collect_root": str(collect_root),
+                "imatrix_path": str(imatrix_path),
+                "candidate_path": str(candidate_path),
+                "reprobe_skipped": True,
+            }))
+            return 0
 
         rows = []
         baseline_path = str(Path(args.baseline_dspark).resolve())
-        candidate_path = str(candidate_out.resolve())
+        candidate_path_str = str(candidate_path.resolve())
         for bundle in dirs:
             ctx = int(bundle.name.split("_")[1])
             base = reprobe_bundle(
@@ -363,7 +389,7 @@ def main() -> int:
                 bundle,
                 backend=args.backend,
                 model=str(Path(args.model).resolve()),
-                dspark=candidate_path,
+                dspark=candidate_path_str,
                 steps=args.steps,
                 power=args.power,
                 trials=args.trials,
