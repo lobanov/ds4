@@ -17869,7 +17869,7 @@ static bool metal_graph_dspark_encode_attention(
             float *hd = xmalloc((size_t)n_tokens * DS4_N_HEAD * DS4_N_HEAD_DIM * sizeof(float));
             if (ds4_gpu_tensor_read(g->batch_heads, 0, hd, (size_t)n_tokens * DS4_N_HEAD * DS4_N_HEAD_DIM * sizeof(float))) {
                 const char *cd = getenv("DS4_DSPARK_PROBE_CAPDIR"); if(!cd||!cd[0]) cd="issue468/baseline/dspark_capture";
-                char p[1024]; snprintf(p,sizeof(p),"%s/metal_attn_heads_layer0.bin",cd);
+                char p[1024]; snprintf(p,sizeof(p),"%s/metal_attn_heads_lay%u_pos%u.bin",cd,g->dspark_layer_idx,start_pos);
                 FILE *fp=fopen(p,"wb"); if(fp){fwrite(hd,sizeof(float),n_tokens*DS4_N_HEAD*DS4_N_HEAD_DIM,fp);fclose(fp);}
             }
             free(hd);
@@ -28398,6 +28398,53 @@ static void ds4_dspark_probe_accept(ds4_session *s) {
                     if (hfp) { fwrite(hbuf, sizeof(float), h_n, hfp); fclose(hfp); }
                 }
                 free(hbuf);
+            }
+            /* Drift bisection (issue468/54): dump batch_heads (the multi-head
+             * attention output, pre output-projection) per step+layer, POST-sync
+             * (the in-kernel DS4_DSPARK_PROBE_DUMP_HEADS hook is mid-command-
+             * buffer and only fires for layer 0). This holds the just-computed
+             * layer's MHSA before the next layer's encode_attention overwrites it.
+             * Localizes MHSA vs output-projection divergence within layer 2. */
+            if (getenv("DS4_DSPARK_PROBE_DUMP_MHSA")) {
+                const uint64_t mhsa_n = (uint64_t)DS4_DSPARK_BLOCK_SIZE * DS4_N_HEAD * DS4_N_HEAD_DIM;
+                float *hbuf = xmalloc((size_t)mhsa_n * sizeof(float));
+                if (ds4_gpu_tensor_read(g->batch_heads, 0, hbuf, (size_t)mhsa_n * sizeof(float))) {
+                    char hp[1024]; snprintf(hp, sizeof(hp), "%s/metal_mhsa_step%02d_lay%u.bin", capdir, step, lay);
+                    FILE *hfp = fopen(hp, "wb");
+                    if (hfp) { fwrite(hbuf, sizeof(float), mhsa_n, hfp); fclose(hfp); }
+                }
+                free(hbuf);
+            }
+            /* Drift bisection (issue468/55): dump the finalized query batch_q
+             * (post q_b matmul + head_rms + rope) and the draft-block kv
+             * batch_kv (post rmsnorm+rope) per step+layer, to bisect q/kv vs
+             * softmax-scores within the MHSA. */
+            if (getenv("DS4_DSPARK_PROBE_DUMP_QK")) {
+                const uint64_t q_n = (uint64_t)DS4_DSPARK_BLOCK_SIZE * DS4_N_HEAD * DS4_N_HEAD_DIM;
+                const uint64_t kv_n = (uint64_t)DS4_DSPARK_BLOCK_SIZE * DS4_N_HEAD_DIM;
+                float *qbuf = xmalloc((size_t)q_n * sizeof(float));
+                if (ds4_gpu_tensor_read(g->batch_q, 0, qbuf, (size_t)q_n * sizeof(float))) {
+                    char qp[1024]; snprintf(qp, sizeof(qp), "%s/metal_q_step%02d_lay%u.bin", capdir, step, lay);
+                    FILE *qfp = fopen(qp, "wb");
+                    if (qfp) { fwrite(qbuf, sizeof(float), q_n, qfp); fclose(qfp); }
+                }
+                free(qbuf);
+                float *kvbuf = xmalloc((size_t)kv_n * sizeof(float));
+                if (ds4_gpu_tensor_read(g->batch_kv, 0, kvbuf, (size_t)kv_n * sizeof(float))) {
+                    char kp[1024]; snprintf(kp, sizeof(kp), "%s/metal_kv_step%02d_lay%u.bin", capdir, step, lay);
+                    FILE *kfp = fopen(kp, "wb");
+                    if (kfp) { fwrite(kvbuf, sizeof(float), kv_n, kfp); fclose(kfp); }
+                }
+                free(kvbuf);
+                /* Also dump batch_qr (the q_a output, PRE q_b matmul) and
+                 * batch_qr_norm (q_a rmsnorm'd) to bisect q_a vs q_b. */
+                float *qrbuf = xmalloc((size_t)DS4_DSPARK_BLOCK_SIZE * 1024 * sizeof(float));
+                if (ds4_gpu_tensor_read(g->batch_qr, 0, qrbuf, (size_t)DS4_DSPARK_BLOCK_SIZE * 1024 * sizeof(float))) {
+                    char qrp[1024]; snprintf(qrp, sizeof(qrp), "%s/metal_qr_step%02d_lay%u.bin", capdir, step, lay);
+                    FILE *qrfp = fopen(qrp, "wb");
+                    if (qrfp) { fwrite(qrbuf, sizeof(float), DS4_DSPARK_BLOCK_SIZE * 1024, qrfp); fclose(qrfp); }
+                }
+                free(qrbuf);
             }
             /* Drift bisection (issue468/53): dump router_selected (the 6 experts
              * picked per token) per step+layer, to test whether mtp.2 selects
