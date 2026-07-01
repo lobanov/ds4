@@ -245,16 +245,49 @@ def parse_layer_set(spec: str) -> set[int]:
     return layers
 
 
-def should_take_donor(name: str, q4_layers: set[int]) -> bool:
+def parse_selection_specs(spec: str) -> dict[int, set[str] | None]:
+    allowed_parts = {"gate", "up", "down"}
+    selections: dict[int, set[str] | None] = {}
+    for part in spec.split(","):
+        part = part.strip()
+        if not part:
+            continue
+        if ":" in part:
+            layer_s, tensor_part = part.split(":", 1)
+            layer = int(layer_s)
+            if tensor_part not in allowed_parts:
+                raise ValueError(
+                    f"unsupported tensor part {tensor_part!r}; expected one of {sorted(allowed_parts)}"
+                )
+            chosen = selections.setdefault(layer, set())
+            if chosen is None:
+                continue
+            chosen.add(tensor_part)
+        else:
+            layer = int(part)
+            selections[layer] = None
+    if not selections:
+        raise ValueError("no routed-expert selections provided")
+    return selections
+
+
+def should_take_donor(name: str, selections: dict[int, set[str] | None]) -> bool:
     match = EXPERT_TENSOR_RE.match(name)
-    return match is not None and int(match.group(1)) in q4_layers
+    if match is None:
+        return False
+    layer = int(match.group(1))
+    tensor_part = match.group(2)
+    chosen = selections.get(layer)
+    if chosen is None:
+        return layer in selections
+    return tensor_part in chosen
 
 
 def qtype_name(ggml_type: int) -> str:
     return GGML_QUANT_SIZES.get(ggml_type, (0, 0, f"type_{ggml_type}"))[2]
 
 
-def build_plan(base: GGUFInfo, donor: GGUFInfo, q4_layers: set[int]) -> list[SplicePlan]:
+def build_plan(base: GGUFInfo, donor: GGUFInfo, selections: dict[int, set[str] | None]) -> list[SplicePlan]:
     if base.version != donor.version:
         raise ValueError(f"GGUF version mismatch: base={base.version} donor={donor.version}")
     if base.tensor_count != donor.tensor_count:
@@ -270,7 +303,7 @@ def build_plan(base: GGUFInfo, donor: GGUFInfo, q4_layers: set[int]) -> list[Spl
             raise ValueError(f"donor is missing tensor {base_tensor.name}")
         if base_tensor.dims != donor_tensor.dims:
             raise ValueError(f"shape mismatch for {base_tensor.name}: {base_tensor.dims} vs {donor_tensor.dims}")
-        use_donor = should_take_donor(base_tensor.name, q4_layers)
+        use_donor = should_take_donor(base_tensor.name, selections)
         source_tensor = donor_tensor if use_donor else base_tensor
         plan.append(SplicePlan(
             name=base_tensor.name,
@@ -374,17 +407,28 @@ def main() -> int:
     parser.add_argument("--base", required=True, type=Path, help="base GGUF used for metadata and default tensors")
     parser.add_argument("--donor", required=True, type=Path, help="donor GGUF used for selected routed expert layers")
     parser.add_argument("--out", required=True, type=Path, help="output mixed GGUF")
-    parser.add_argument("--q4-layers", required=True, help="comma-separated layer IDs/ranges to take from donor, e.g. 37-42")
+    parser.add_argument("--q4-layers", help="comma-separated layer IDs/ranges to take from donor, e.g. 37-42")
+    parser.add_argument(
+        "--q4-select",
+        help="comma-separated routed selections to take from donor, e.g. 2:down,2:gate or 37",
+    )
     parser.add_argument("--dry-run", action="store_true", help="print the plan without writing the output")
     parser.add_argument("--force", action="store_true", help="overwrite --out if it already exists")
     args = parser.parse_args()
 
-    q4_layers = parse_layer_set(args.q4_layers)
-    print("q4 layers:", ",".join(str(x) for x in sorted(q4_layers)))
+    if bool(args.q4_layers) == bool(args.q4_select):
+        parser.error("pass exactly one of --q4-layers or --q4-select")
+    if args.q4_select:
+        selections = parse_selection_specs(args.q4_select)
+        print("q4 select:", args.q4_select)
+    else:
+        q4_layers = parse_layer_set(args.q4_layers)
+        print("q4 layers:", ",".join(str(x) for x in sorted(q4_layers)))
+        selections = {layer: None for layer in q4_layers}
 
     base = parse_gguf(args.base)
     donor = parse_gguf(args.donor)
-    plan = build_plan(base, donor, q4_layers)
+    plan = build_plan(base, donor, selections)
     summarize(base, donor, plan)
 
     if args.dry_run:
