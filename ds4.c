@@ -19540,6 +19540,175 @@ static bool metal_graph_encode_layer_attention_batch(
     return ok;
 }
 
+/* Exact-Q4 diagnostic (issue468/67): CPU-side Q4_K routed expert matmul with
+ * element-by-element F32 dequant + sequential F32 accumulation, matching the
+ * numpy oracle exactly. Gated by DS4_DSPARK_EXACT_Q4. Replaces
+ * ds4_gpu_routed_moe_batch_tensor for the drafter. Slow (diagnostic-only).
+ * Purpose: prove whether the Q4_K SIMD accumulation order is the source of the
+ * layer-2 MoE divergence (cos 0.996-0.998 vs oracle). */
+static bool cpu_exact_q4k_routed_moe(
+        ds4_gpu_graph  *g,
+        const ds4_model        *model,
+        const ds4_layer_weights *layer,
+        uint32_t                n_tokens) {
+    if (n_tokens == 0 || n_tokens > 64) return false;
+    const uint32_t in_dim  = DS4_N_EMBD;       /* 4096 */
+    const uint32_t mid_dim = DS4_N_FF_EXP;     /* expert intermediate dim */
+    const uint32_t n_expert = DS4_N_EXPERT;    /* 256 */
+    const uint32_t n_sel    = DS4_N_EXPERT_USED;/* 6 */
+    const float clamp_val = DS4_SWIGLU_CLAMP_EXP;
+
+    /* The routed expert tensors are [n_expert, dim, mid_dim] packed as Q4_K.
+     * gate_exps: [n_expert, mid_dim, in_dim] (HF: gate = input @ gate_w → mid_dim)
+     * up_exps:   [n_expert, mid_dim, in_dim]
+     * down_exps: [n_expert, in_dim, mid_dim] (down = swiglu_out @ down_w → in_dim)
+     * Each expert row is in_dim or mid_dim elements of Q4_K blocks. */
+    const uint32_t gate_blocks_per_row = in_dim / QK_K;  /* 4096/256 = 16 blocks/row */
+    const uint32_t gate_row_bytes = gate_blocks_per_row * sizeof(block_q4_K);
+    const uint32_t down_blocks_per_row = mid_dim / QK_K;
+    const uint32_t down_row_bytes = down_blocks_per_row * sizeof(block_q4_K);
+    const uint64_t gate_expert_bytes = (uint64_t)mid_dim * gate_row_bytes;
+    const uint64_t down_expert_bytes = (uint64_t)in_dim * down_row_bytes;
+
+    /* Sync and read GPU inputs */
+    if (!ds4_gpu_end_commands() || !ds4_gpu_synchronize()) return false;
+    float *ffn_norm = xmalloc((size_t)n_tokens * in_dim * sizeof(float));
+    int32_t *selected = xmalloc((size_t)n_tokens * n_sel * sizeof(int32_t));
+    float *weights = xmalloc((size_t)n_tokens * n_sel * sizeof(float));
+    float *routed_out = xcalloc((size_t)n_tokens * in_dim, sizeof(float));
+    if (!ds4_gpu_tensor_read(g->batch_ffn_norm, 0, ffn_norm,
+            (size_t)n_tokens * in_dim * sizeof(float)) ||
+        !ds4_gpu_tensor_read(g->batch_router_selected, 0, selected,
+            (size_t)n_tokens * n_sel * sizeof(int32_t)) ||
+        !ds4_gpu_tensor_read(g->batch_router_weights, 0, weights,
+            (size_t)n_tokens * n_sel * sizeof(float))) {
+        free(ffn_norm); free(selected); free(weights); free(routed_out);
+        return false;
+    }
+
+    /* Temp buffers */
+    float *gate = xmalloc((size_t)mid_dim * sizeof(float));
+    float *up   = xmalloc((size_t)mid_dim * sizeof(float));
+    float *mid  = xmalloc((size_t)mid_dim * sizeof(float));
+
+    /* For each token + selected expert: dequant Q4_K gate/up, SwiGLU, dequant
+     * Q4_K down, accumulate weighted output. */
+    for (uint32_t t = 0; t < n_tokens; t++) {
+        const float *xp = ffn_norm + (size_t)t * in_dim;
+        for (uint32_t e = 0; e < n_sel; e++) {
+            int32_t eid = selected[t * n_sel + e];
+            float w = weights[t * n_sel + e];
+            if (eid < 0 || eid >= (int32_t)n_expert) continue;
+
+            /* Gate: dequant Q4_K row-by-row, dot with input, apply SwiGLU.
+             * gate_weights layout: [n_expert, mid_dim, in_dim] Q4_K blocks.
+             * Each expert's gate matrix is mid_dim rows × in_dim cols.
+             * gate[row] = dot(q4k_weights[eid*mid_dim+row, :], xp) */
+            const uint8_t *gate_base = (const uint8_t *)model->map +
+                layer->ffn_gate_exps->abs_offset + (uint64_t)eid * gate_expert_bytes;
+            const uint8_t *up_base = (const uint8_t *)model->map +
+                layer->ffn_up_exps->abs_offset + (uint64_t)eid * gate_expert_bytes;
+
+            for (uint32_t row = 0; row < mid_dim; row++) {
+                const block_q4_K *gw = (const block_q4_K *)(gate_base + (size_t)row * gate_row_bytes);
+                const block_q4_K *uw = (const block_q4_K *)(up_base + (size_t)row * gate_row_bytes);
+                float gsum = 0.0f, usum = 0.0f;
+                for (uint32_t blk = 0; blk < gate_blocks_per_row; blk++) {
+                    const float d = f16_to_f32(gw[blk].d);
+                    const float dmin = f16_to_f32(gw[blk].dmin);
+                    const uint8_t *sc = gw[blk].scales;
+                    const uint8_t *qs = gw[blk].qs;
+                    const float *y = xp + blk * QK_K;
+                    for (int j = 0; j < 8; j++) {
+                        uint8_t sc_val, m_val;
+                        q4_k_get_scale_min(j, sc, &sc_val, &m_val);
+                        float scale = d * sc_val;
+                        float min = dmin * m_val;
+                        int t_idx = j / 2;
+                        int is_high = j % 2;
+                        for (int ii = 0; ii < 32; ii++) {
+                            uint8_t q = qs[t_idx * 32 + ii];
+                            float nib = is_high ? (float)(q >> 4) : (float)(q & 0xF);
+                            float wgt = nib * scale - min;
+                            gsum += wgt * y[j * 32 + ii];
+                        }
+                    }
+                }
+                gate[row] = gsum;
+                /* Same for up */
+                for (uint32_t blk = 0; blk < gate_blocks_per_row; blk++) {
+                    const float d = f16_to_f32(uw[blk].d);
+                    const float dmin = f16_to_f32(uw[blk].dmin);
+                    const uint8_t *sc = uw[blk].scales;
+                    const uint8_t *qs = uw[blk].qs;
+                    const float *y = xp + blk * QK_K;
+                    for (int j = 0; j < 8; j++) {
+                        uint8_t sc_val, m_val;
+                        q4_k_get_scale_min(j, sc, &sc_val, &m_val);
+                        float scale = d * sc_val;
+                        float min = dmin * m_val;
+                        int t_idx = j / 2;
+                        int is_high = j % 2;
+                        for (int ii = 0; ii < 32; ii++) {
+                            uint8_t q = qs[t_idx * 32 + ii];
+                            float nib = is_high ? (float)(q >> 4) : (float)(q & 0xF);
+                            float wgt = nib * scale - min;
+                            usum += wgt * y[j * 32 + ii];
+                        }
+                    }
+                }
+                up[row] = usum;
+            }
+
+            /* SwiGLU: silu(clamp(gate)) * clamp(up) */
+            for (uint32_t i = 0; i < mid_dim; i++) {
+                float g = clamp_val > 0 ? (gate[i] < clamp_val ? gate[i] : clamp_val) : gate[i];
+                float u = clamp_val > 0 ? (u = up[i] < -clamp_val ? -clamp_val : (up[i] > clamp_val ? clamp_val : up[i])) : up[i];
+                float sig = 1.0f / (1.0f + expf(-g));
+                mid[i] = g * sig * u;
+            }
+
+            /* Down: dequant Q4_K, dot with swiglu output. */
+            const uint8_t *down_base = (const uint8_t *)model->map +
+                layer->ffn_down_exps->abs_offset + (uint64_t)eid * down_expert_bytes;
+            for (uint32_t row = 0; row < in_dim; row++) {
+                const block_q4_K *dw = (const block_q4_K *)(down_base + (size_t)row * down_row_bytes);
+                float dsum = 0.0f;
+                for (uint32_t blk = 0; blk < down_blocks_per_row; blk++) {
+                    const float d = f16_to_f32(dw[blk].d);
+                    const float dmin = f16_to_f32(dw[blk].dmin);
+                    const uint8_t *sc = dw[blk].scales;
+                    const uint8_t *qs = dw[blk].qs;
+                    const float *y = mid + blk * QK_K;
+                    for (int j = 0; j < 8; j++) {
+                        uint8_t sc_val, m_val;
+                        q4_k_get_scale_min(j, sc, &sc_val, &m_val);
+                        float scale = d * sc_val;
+                        float min = dmin * m_val;
+                        int t_idx = j / 2;
+                        int is_high = j % 2;
+                        for (int ii = 0; ii < 32; ii++) {
+                            uint8_t q = qs[t_idx * 32 + ii];
+                            float nib = is_high ? (float)(q >> 4) : (float)(q & 0xF);
+                            float wgt = nib * scale - min;
+                            dsum += wgt * y[j * 32 + ii];
+                        }
+                    }
+                }
+                routed_out[(size_t)t * in_dim + row] += w * dsum;
+            }
+        }
+    }
+
+    /* Write routed output back to GPU */
+    bool ok = ds4_gpu_tensor_write(g->batch_routed_out, 0, routed_out,
+                                    (size_t)n_tokens * in_dim * sizeof(float)) != 0;
+    if (!ds4_gpu_begin_commands()) ok = false;
+    free(ffn_norm); free(selected); free(weights); free(routed_out);
+    free(gate); free(up); free(mid);
+    return ok;
+}
+
 /* Encode the batched prefill FFN half: HC pre/norm, shared expert, routed
  * experts, sum, and HC post. */
 static bool metal_graph_encode_layer_ffn_batch(
@@ -19908,6 +20077,13 @@ static bool metal_graph_encode_layer_ffn_batch(
     }
 #endif
 
+    if (ok && getenv("DS4_DSPARK_EXACT_Q4")) {
+        /* Exact-Q4 diagnostic (issue468/67): CPU-side exact F32 dequant + dot,
+         * replacing the GPU Q4_K SIMD-grouped accumulation. Proves whether the
+         * accumulation order is the source of the layer-2 MoE divergence. */
+        ok = cpu_exact_q4k_routed_moe(g, model, layer, n_tokens);
+        g->batch_routed_mid_is_f16 = false;
+    } else
     if (ok) {
         ok = ds4_gpu_routed_moe_batch_tensor(g->batch_routed_out,
                                                g->batch_routed_gate,
