@@ -2,6 +2,17 @@
 
 Date: 2026-07-01
 
+## Status
+
+This note is now partially superseded by commit `ecb8773`
+(`issue468: allow cuda dspark imatrix collection`).
+
+It remains accurate as the first blocker encountered, but the specific
+"imatrix collection requires Metal" code-path conclusion is no longer current.
+See:
+
+- `issue468/63_independent_review_after_oracle_pivot.md`
+
 ## Purpose
 
 Record the first execution blocker encountered when trying to push the
@@ -107,7 +118,7 @@ The split workflow preserves the actual research logic:
 - DGX still performs the heavy reprobe/measurement step
 - the only Metal-only portion is the existing collector backend
 
-## Practical next step
+## Practical next step at time of writing
 
 Use the new split runner shape to:
 

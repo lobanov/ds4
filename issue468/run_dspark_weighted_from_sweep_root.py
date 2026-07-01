@@ -226,8 +226,9 @@ def build_recoverable_gap_overlay(sweep_root: Path, *, run_label: str,
     return overlay_root, json.loads(manifest_path.read_text())
 
 
-def reprobe_bundle(bundle: Path, *, backend: str, model: str, dspark: str, steps: int, power: int,
-                   trials: int, measure_python: str, measure_script: str, label: str) -> dict:
+def reprobe_bundle(bundle: Path, *, ds4_bin: str, backend: str, model: str, dspark: str, steps: int,
+                   power: int, trials: int, measure_python: str, measure_script: str,
+                   label: str) -> dict:
     target = json.loads((bundle / "target_topk.json").read_text())
     pos0 = int(target["prompt_tokens"])
     ctx_size = pos0 + 96
@@ -246,7 +247,7 @@ def reprobe_bundle(bundle: Path, *, backend: str, model: str, dspark: str, steps
     stderr_path = bundle / f"{label}.probe.stderr"
     run(
         [
-            args.ds4_bin,
+            ds4_bin,
             "--backend", backend,
             "-m", model,
             "--dspark", dspark,
@@ -375,6 +376,7 @@ def main() -> int:
             ctx = int(bundle.name.split("_")[1])
             base = reprobe_bundle(
                 bundle,
+                ds4_bin=args.ds4_bin,
                 backend=args.backend,
                 model=str(Path(args.model).resolve()),
                 dspark=baseline_path,
@@ -387,6 +389,7 @@ def main() -> int:
             )
             cand = reprobe_bundle(
                 bundle,
+                ds4_bin=args.ds4_bin,
                 backend=args.backend,
                 model=str(Path(args.model).resolve()),
                 dspark=candidate_path_str,
