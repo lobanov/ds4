@@ -12,6 +12,7 @@ It remains accurate as the first blocker encountered, but the specific
 See:
 
 - `issue468/63_independent_review_after_oracle_pivot.md`
+- `issue468/65_cuda_imatrix_collection_probe_blocker.md`
 
 ## Purpose
 
