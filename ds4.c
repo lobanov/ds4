@@ -28386,6 +28386,19 @@ static void ds4_dspark_probe_accept(ds4_session *s) {
             if (!ds4_gpu_begin_commands()) { ok = false; break; }
             ok = metal_graph_dspark_encode_block(g, &e->dspark_model, &e->dspark_weights.block[lay], (uint32_t)step);
             if (!ds4_gpu_end_commands() || !ok || !ds4_gpu_synchronize()) { ok = false; break; }
+            /* Drift bisection (issue468/53): dump batch_cur_hc (the block output /
+             * running residual stream) AFTER each layer, per step+layer, to bisect
+             * which block introduces the divergence vs the numpy oracle. */
+            if (getenv("DS4_DSPARK_PROBE_DUMP_H")) {
+                const uint64_t h_n = (uint64_t)DS4_DSPARK_BLOCK_SIZE * DS4_N_HC * DS4_N_EMBD;
+                float *hbuf = xmalloc((size_t)h_n * sizeof(float));
+                if (ds4_gpu_tensor_read(g->batch_cur_hc, 0, hbuf, (size_t)h_n * sizeof(float))) {
+                    char hp[1024]; snprintf(hp, sizeof(hp), "%s/metal_h_step%02d_lay%u.bin", capdir, step, lay);
+                    FILE *hfp = fopen(hp, "wb");
+                    if (hfp) { fwrite(hbuf, sizeof(float), h_n, hfp); fclose(hfp); }
+                }
+                free(hbuf);
+            }
             /* Debug: dump router_selected + ffn_norm for step 1, layer 0 (the FFN
              * bisection — find the structural divergence vs oracle). */
             if (step == 1 && lay == 0 && getenv("DS4_DSPARK_PROBE_DUMP_FFN")) {
