@@ -338,8 +338,20 @@ static void ds4q_get_scale_min_k4(int j, const uint8_t *q, uint8_t *d, uint8_t *
     }
 }
 
+static float ds4q_weighted_q8_0_error(const float *x, const float *weights,
+                                      const int8_t *qs, float d) {
+    float err = 0.0f;
+    for (int j = 0; j < 32; j++) {
+        float diff = x[j] - d * qs[j];
+        float w = weights ? weights[j] : 1.0f;
+        err += w * diff * diff;
+    }
+    return err;
+}
+
 static size_t ds4q_quantize_q8_0(const float *src, void *dst, int64_t start,
-                                 int64_t nrows, int64_t ncols) {
+                                 int64_t nrows, int64_t ncols,
+                                 const float *imatrix) {
     const int64_t qk = 32;
     const size_t row_size = ds4q_row_size(DS4Q_TYPE_Q8_0, ncols);
     const int64_t start_row = start / ncols;
@@ -354,13 +366,52 @@ static size_t ds4q_quantize_q8_0(const float *src, void *dst, int64_t start,
             if (av > amax) amax = av;
         }
 
-        const float d = amax / 127.0f;
-        const float id = d ? 1.0f / d : 0.0f;
+        float d = amax / 127.0f;
+        int8_t *qs = (int8_t *)(out + sizeof(uint16_t));
+        if (imatrix && amax > 0.0f) {
+            const int64_t col0 = ((size_t)b * qk) % ncols;
+            const float *weights = imatrix + col0;
+            int8_t best_qs[32] = {0};
+            float best_d = d;
+            float best_err = FLT_MAX;
+
+            for (int step = -8; step <= 8; step++) {
+                const float id = (127.0f + 0.5f * step) / amax;
+                int8_t trial_qs[32];
+                for (int j = 0; j < qk; j++) {
+                    int q = ds4q_nearest_int(x[j] * id);
+                    q = DS4Q_MAX(-127, DS4Q_MIN(127, q));
+                    trial_qs[j] = (int8_t)q;
+                }
+
+                float sum_xq = 0.0f;
+                float sum_q2 = 0.0f;
+                for (int j = 0; j < qk; j++) {
+                    const float w = weights[j];
+                    sum_xq += w * x[j] * trial_qs[j];
+                    sum_q2 += w * trial_qs[j] * trial_qs[j];
+                }
+                float trial_d = sum_q2 > 0.0f ? sum_xq / sum_q2 : 0.0f;
+                if (!(trial_d > 0.0f)) {
+                    trial_d = d;
+                }
+
+                float err = ds4q_weighted_q8_0_error(x, weights, trial_qs, trial_d);
+                if (err < best_err) {
+                    best_err = err;
+                    best_d = trial_d;
+                    memcpy(best_qs, trial_qs, sizeof(best_qs));
+                }
+            }
+
+            d = best_d;
+            memcpy(qs, best_qs, sizeof(best_qs));
+        } else {
+            const float id = d ? 1.0f / d : 0.0f;
+            for (int j = 0; j < qk; j++) qs[j] = (int8_t)roundf(x[j] * id);
+        }
         const uint16_t hd = ds4q_f32_to_f16(d);
         memcpy(out, &hd, sizeof(hd));
-
-        int8_t *qs = (int8_t *)(out + sizeof(hd));
-        for (int j = 0; j < qk; j++) qs[j] = (int8_t)roundf(x[j] * id);
         out += sizeof(hd) + qk;
     }
     return (size_t)nrows * row_size;
@@ -1051,8 +1102,7 @@ size_t ds4q_quantize_chunk(ds4q_type type, const float *src, void *dst,
                            int64_t start, int64_t nrows, int64_t ncols,
                            const float *imatrix) {
     if (type == DS4Q_TYPE_Q8_0) {
-        (void)imatrix;
-        return ds4q_quantize_q8_0(src, dst, start, nrows, ncols);
+        return ds4q_quantize_q8_0(src, dst, start, nrows, ncols, imatrix);
     }
     if (type == DS4Q_TYPE_Q2_K) {
         return ds4q_quantize_q2_k(src, dst, start, nrows, ncols, imatrix);
