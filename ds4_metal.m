@@ -18501,7 +18501,8 @@ static int ds4_gpu_encode_flash_attention_decode_raw_batch_heads(
         uint32_t               window,
         uint32_t               n_head,
         uint32_t               head_dim,
-        bool                   noncausal) {
+        bool                   noncausal,
+        bool                   f32_kv) {
     if (head_dim != 512 || n_head == 0 || n_tokens == 0 ||
         n_raw == 0 || raw_cap < n_raw || raw_start >= raw_cap) {
         return 0;
@@ -18587,6 +18588,7 @@ static int ds4_gpu_encode_flash_attention_decode_raw_batch_heads(
         kvoff = 0;
     }
 
+    if (!f32_kv) {
     if (!ds4_gpu_encode_cpy_f32_f16_1d(cb,
                                          kvbuf,
                                          kvoff,
@@ -18596,6 +18598,7 @@ static int ds4_gpu_encode_flash_attention_decode_raw_batch_heads(
         return 0;
     }
 
+    }
     if (noncausal) {
         /* Non-causal (all-attend) mask: every query attends to every key. Used by
          * the DSpark drafter's block attention, where each of the block_size draft
@@ -18771,7 +18774,7 @@ static int ds4_gpu_encode_flash_attention_decode_mixed_batch_heads(
                                                                        window,
                                                                        n_head,
                                                                        head_dim,
-                                                                       /*noncausal=*/false);
+/*noncausal=*/false, /*f32_kv=*/false);
     }
     if (head_dim != 512 || n_head == 0 || n_tokens == 0 ||
         n_raw == 0 || raw_cap < n_raw || raw_start >= raw_cap ||
@@ -19131,7 +19134,7 @@ int ds4_gpu_attention_decode_raw_batch_heads_tensor(
                                                                      window,
                                                                      n_head,
                                                                      head_dim,
-                                                                     /*noncausal=*/false)) {
+/*noncausal=*/false, /*f32_kv=*/false)) {
             return 0;
         }
 
@@ -19200,7 +19203,7 @@ int ds4_gpu_attention_decode_raw_batch_heads_noncausal_tensor(
                                                                      /*window=*/0u,
                                                                      n_head,
                                                                      head_dim,
-                                                                     /*noncausal=*/true)) {
+/*noncausal=*/true, /*f32_kv=*/false)) {
             return 0;
         }
 

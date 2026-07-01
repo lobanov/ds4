@@ -17832,6 +17832,69 @@ static bool metal_graph_dspark_encode_attention(
             free(kv);
         }
     }
+    /* Drafter precision fix (issue468/62): the GPU flash attention converts
+     * the F32 KV cache to F16 (ds4_gpu_encode_cpy_f32_f16_1d) before computing
+     * QK^T, which diverges from the numpy oracle's F32 sparse_attn. The CPU F32
+     * attention path (DS4_DSPARK_CPU_ATTN) computes the exact F32 attention on
+     * CPU — the drafter attention is tiny (5 tok x 64 head x 512 dim x ~8 KV
+     * slots), so the readback+compute+upload overhead is <1ms. Proof-of-concept
+     * to confirm the F16 KV conversion is the root cause. */
+    if (ok && getenv("DS4_DSPARK_CPU_ATTN")) {
+        /* Flush pending q/kv matmul commands before reading them on CPU. */
+        if (ok) ok = ds4_gpu_end_commands() != 0;
+        if (ok) ok = ds4_gpu_synchronize();
+        const uint32_t n_raw_attn = n_real + 1u + n_tokens;
+        const float scale = 1.0f / sqrtf((float)DS4_N_HEAD_DIM);
+        const uint64_t q_n = (uint64_t)n_tokens * DS4_N_HEAD * DS4_N_HEAD_DIM;
+        const uint64_t kv_n = (uint64_t)n_raw_attn * DS4_N_HEAD_DIM;
+        float *qbuf = xmalloc((size_t)q_n * sizeof(float));
+        float *kvbuf = xmalloc((size_t)kv_n * sizeof(float));
+        float *obuf = xmalloc((size_t)q_n * sizeof(float));
+        const float *sinks = (const float *)((const uint8_t *)dspark_model->map
+                + layer->attn_sinks->abs_offset);
+        if (ds4_gpu_synchronize() &&
+            ds4_gpu_tensor_read(g->batch_q, 0, qbuf, (size_t)q_n * sizeof(float)) &&
+            ds4_gpu_tensor_read(kvc, 0, kvbuf, (size_t)kv_n * sizeof(float))) {
+            for (uint32_t t = 0; t < n_tokens; t++) {
+                for (uint32_t h = 0; h < DS4_N_HEAD; h++) {
+                    const float *qp = qbuf + ((uint64_t)t * DS4_N_HEAD + h) * DS4_N_HEAD_DIM;
+                    float *op = obuf + ((uint64_t)t * DS4_N_HEAD + h) * DS4_N_HEAD_DIM;
+                    /* QK^T + softmax with per-head sink */
+                    float scores[256]; /* max n_raw_attn (capped at DS4_N_SWA+block=133) */
+                    float smax = sinks[h];
+                    for (uint32_t k = 0; k < n_raw_attn && k < 256; k++) {
+                        const float *kp = kvbuf + (uint64_t)k * DS4_N_HEAD_DIM;
+                        double dot = 0;
+                        for (uint32_t d = 0; d < DS4_N_HEAD_DIM; d++)
+                            dot += (double)qp[d] * kp[d];
+                        scores[k] = (float)(dot * scale);
+                        if (scores[k] > smax) smax = scores[k];
+                    }
+                    if (sinks[h] > smax) smax = sinks[h];
+                    double denom = exp((double)(sinks[h] - smax));
+                    for (uint32_t k = 0; k < n_raw_attn && k < 256; k++) {
+                        scores[k] = (float)exp((double)(scores[k] - smax));
+                        denom += scores[k];
+                    }
+                    /* AV: weighted average of KV rows */
+                    for (uint32_t d = 0; d < DS4_N_HEAD_DIM; d++)
+                        op[d] = 0.0f;
+                    for (uint32_t k = 0; k < n_raw_attn && k < 256; k++) {
+                        const float *kp = kvbuf + (uint64_t)k * DS4_N_HEAD_DIM;
+                        float w = (float)(scores[k] / denom);
+                        for (uint32_t d = 0; d < DS4_N_HEAD_DIM; d++)
+                            op[d] += w * kp[d];
+                    }
+                }
+            }
+            ds4_gpu_tensor_write(g->batch_heads, 0, obuf, (size_t)q_n * sizeof(float));
+            /* Restart the command buffer for the remaining ops (inverse rope, output proj). */
+            if (ok) ok = ds4_gpu_begin_commands() != 0;
+        } else {
+            ok = false;
+        }
+        free(qbuf); free(kvbuf); free(obuf);
+    } else
     if (ok) ok = ds4_gpu_attention_decode_raw_batch_heads_noncausal_tensor(
             g->batch_heads,
             dspark_model->map, dspark_model->size,
@@ -28557,6 +28620,23 @@ static void ds4_dspark_probe_accept(ds4_session *s) {
                     step, pos, g->dspark_n_real, dbuf, gbuf, match, prefix);
         }
         if (g->dspark_n_real < DS4_N_SWA) g->dspark_n_real++;
+    }
+    /* Drift bisection (issue468/61): dump the persistent KV cache per layer
+     * (dspark_kv_cache[lay]) after the sweep, so the accumulated anchor KV
+     * can be compared to the oracle's win_kv state. */
+    if (getenv("DS4_DSPARK_PROBE_DUMP_KVCACHE")) {
+        const uint32_t raw_cap = DS4_N_SWA + DS4_DSPARK_BLOCK_SIZE;
+        for (uint32_t lay = 0; lay < 3; lay++) {
+            float *kvbuf = xmalloc((size_t)raw_cap * DS4_N_HEAD_DIM * sizeof(float));
+            if (ds4_gpu_synchronize() && ds4_gpu_tensor_read(g->dspark_kv_cache[lay], 0, kvbuf,
+                    (size_t)raw_cap * DS4_N_HEAD_DIM * sizeof(float))) {
+                char kp[1024]; snprintf(kp, sizeof(kp), "%s/metal_kvcache_lay%u.bin", capdir, lay);
+                FILE *kfp = fopen(kp, "wb");
+                if (kfp) { fwrite(kvbuf, sizeof(float), (size_t)raw_cap * DS4_N_HEAD_DIM, kfp); fclose(kfp); }
+            }
+            free(kvbuf);
+        }
+        fprintf(stderr, "ds4: dspark probe: dumped kv_cache for 3 layers (n_real=%u)\n", g->dspark_n_real);
     }
     double avg_prefix = (double)(prefix_hist[1]+2*prefix_hist[2]+3*prefix_hist[3]+4*prefix_hist[4]+5*prefix_hist[5]) / n_steps;
     fprintf(stderr, "  SUMMARY: greedy match %ld/%ld (%.1f%%), avg prefix %.2f/5, hist [%ld %ld %ld %ld %ld %ld]\n",
