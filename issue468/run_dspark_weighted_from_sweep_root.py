@@ -34,6 +34,7 @@ DEFAULT_HF_DSPARK = (ROOT / ".." / "ds4" / "hf-dspark").resolve()
 DEFAULT_MEASURE = ISSUE468 / "baseline" / "dspark_capture" / "measure_metal_b2.py"
 DEFAULT_MEASURE_PYTHON = ISSUE468 / ".venv" / "bin" / "python"
 DEFAULT_RECOVERABLE_GAP = ISSUE468 / "build_recoverable_gap_overlay.py"
+DEFAULT_QUANTIZER = ROOT / "gguf-tools" / "deepseek4-quantize"
 
 
 def parse_args() -> argparse.Namespace:
@@ -45,6 +46,7 @@ def parse_args() -> argparse.Namespace:
     ap.add_argument("--baseline-dspark", default=str(DEFAULT_BASELINE_DSPARK))
     ap.add_argument("--hf-dspark", default=str(DEFAULT_HF_DSPARK))
     ap.add_argument("--template-dspark", default=str(DEFAULT_BASELINE_DSPARK))
+    ap.add_argument("--quantizer-bin", default=str(DEFAULT_QUANTIZER))
     ap.add_argument("--measure-script", default=str(DEFAULT_MEASURE))
     ap.add_argument("--measure-python", default=str(DEFAULT_MEASURE_PYTHON))
     ap.add_argument("--draft-pos-weights", default="1,0.75,0.5,0.33,0.2")
@@ -332,7 +334,7 @@ def main() -> int:
         run(collect_cmd)
 
         run([
-            "gguf-tools/deepseek4-quantize",
+            str(Path(args.quantizer_bin).resolve()),
             "--hf", str(Path(args.hf_dspark).resolve()),
             "--template", str(Path(args.template_dspark).resolve()),
             "--out", str(candidate_out),
