@@ -33,6 +33,7 @@ DEFAULT_BASELINE_DSPARK = (ROOT / ".." / "ds4" / "gguf" / "dspark.gguf").resolve
 DEFAULT_HF_DSPARK = (ROOT / ".." / "ds4" / "hf-dspark").resolve()
 DEFAULT_MEASURE = ISSUE468 / "baseline" / "dspark_capture" / "measure_metal_b2.py"
 DEFAULT_MEASURE_PYTHON = ISSUE468 / ".venv" / "bin" / "python"
+DEFAULT_RECOVERABLE_GAP = ISSUE468 / "build_recoverable_gap_overlay.py"
 
 
 def parse_args() -> argparse.Namespace:
@@ -52,11 +53,17 @@ def parse_args() -> argparse.Namespace:
     ap.add_argument("--power", type=int, default=100)
     ap.add_argument("--steps", type=int, default=19)
     ap.add_argument("--trials", type=int, default=128)
-    ap.add_argument("--anchor-weight-source", choices=["none", "baseline-hardness"], default="none")
+    ap.add_argument("--anchor-weight-source", choices=["none", "baseline-hardness", "recoverable-gap"], default="none")
     ap.add_argument("--anchor-weight-b2-label", default="baseline-weighted4ctx_19t_default_256tr")
+    ap.add_argument("--oracle-b2-label",
+                    help="bundle-local oracle label for recoverable-gap weighting")
+    ap.add_argument("--oracle-details-json",
+                    help="top-level oracle-envelope details JSON for recoverable-gap weighting")
     ap.add_argument("--anchor-weight-floor", type=float, default=0.5)
     ap.add_argument("--anchor-weight-ceil", type=float, default=2.0)
     ap.add_argument("--anchor-weight-alpha", type=float, default=1.5)
+    ap.add_argument("--anchor-weight-min-gap", type=float, default=0.05)
+    ap.add_argument("--anchor-weight-baseline-max", type=float, default=4.999)
     ap.add_argument("--run-label", default="weighted-root")
     return ap.parse_args()
 
@@ -179,6 +186,38 @@ def build_weighted_overlay(sweep_root: Path, dirs: list[Path], *, run_label: str
     return overlay_root, manifest
 
 
+def build_recoverable_gap_overlay(sweep_root: Path, *, run_label: str,
+                                  baseline_label: str, oracle_b2_label: str | None,
+                                  oracle_details_json: str | None,
+                                  floor: float, ceil: float, alpha: float,
+                                  min_gap: float, baseline_max: float,
+                                  steps_cap: int) -> tuple[Path, dict]:
+    cmd = [
+        sys.executable,
+        str(DEFAULT_RECOVERABLE_GAP),
+        "--sweep-root", str(sweep_root),
+        "--baseline-label", baseline_label,
+        "--out-label", run_label,
+        "--floor", str(floor),
+        "--ceil", str(ceil),
+        "--alpha", str(alpha),
+        "--min-gap", str(min_gap),
+        "--baseline-max", str(baseline_max),
+    ]
+    if steps_cap > 0:
+        cmd.extend(["--steps-cap", str(steps_cap)])
+    if oracle_b2_label:
+        cmd.extend(["--oracle-label", oracle_b2_label])
+    elif oracle_details_json:
+        cmd.extend(["--oracle-details-json", str(Path(oracle_details_json).resolve())])
+    else:
+        raise RuntimeError("recoverable-gap requires --oracle-b2-label or --oracle-details-json")
+    run(cmd)
+    overlay_root = sweep_root / f".{run_label}.overlay"
+    manifest_path = sweep_root / f"{run_label}.anchor_weights.json"
+    return overlay_root, json.loads(manifest_path.read_text())
+
+
 def reprobe_bundle(bundle: Path, *, backend: str, model: str, dspark: str, steps: int, power: int,
                    trials: int, measure_python: str, measure_script: str, label: str) -> dict:
     target = json.loads((bundle / "target_topk.json").read_text())
@@ -247,17 +286,32 @@ def main() -> int:
     overlay_root: Path | None = None
 
     if args.anchor_weight_source != "none":
-        overlay_root, manifest = build_weighted_overlay(
-            sweep_root,
-            dirs,
-            run_label=args.run_label,
-            source=args.anchor_weight_source,
-            b2_label=args.anchor_weight_b2_label,
-            floor=args.anchor_weight_floor,
-            ceil=args.anchor_weight_ceil,
-            alpha=args.anchor_weight_alpha,
-            steps_cap=args.collector_max_tokens,
-        )
+        if args.anchor_weight_source == "baseline-hardness":
+            overlay_root, manifest = build_weighted_overlay(
+                sweep_root,
+                dirs,
+                run_label=args.run_label,
+                source=args.anchor_weight_source,
+                b2_label=args.anchor_weight_b2_label,
+                floor=args.anchor_weight_floor,
+                ceil=args.anchor_weight_ceil,
+                alpha=args.anchor_weight_alpha,
+                steps_cap=args.collector_max_tokens,
+            )
+        else:
+            overlay_root, manifest = build_recoverable_gap_overlay(
+                sweep_root,
+                run_label=args.run_label,
+                baseline_label=args.anchor_weight_b2_label,
+                oracle_b2_label=args.oracle_b2_label,
+                oracle_details_json=args.oracle_details_json,
+                floor=args.anchor_weight_floor,
+                ceil=args.anchor_weight_ceil,
+                alpha=args.anchor_weight_alpha,
+                min_gap=args.anchor_weight_min_gap,
+                baseline_max=args.anchor_weight_baseline_max,
+                steps_cap=args.collector_max_tokens,
+            )
         collect_root = overlay_root
         manifest_path = sweep_root / f"{args.run_label}.anchor_weights.json"
         manifest_path.write_text(json.dumps(manifest, indent=2) + "\n")

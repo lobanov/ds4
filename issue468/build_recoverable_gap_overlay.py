@@ -4,7 +4,9 @@
 Inputs:
 - an existing sweep root containing ``ctx_#####`` bundle directories
 - one baseline ``*.b2.json`` label per bundle
-- one oracle ``*.b2.json`` label per bundle
+- either:
+  - one oracle ``*.b2.json`` label per bundle
+  - or one top-level oracle-envelope ``*.details.json`` file
 
 Output:
 - a symlink overlay root mirroring the bundle tree
@@ -35,8 +37,10 @@ def parse_args() -> argparse.Namespace:
     ap.add_argument("--sweep-root", required=True)
     ap.add_argument("--baseline-label", required=True,
                     help="bundle-local label prefix, e.g. baseline-weighted4ctx_19t_default_256tr")
-    ap.add_argument("--oracle-label", required=True,
+    ap.add_argument("--oracle-label",
                     help="bundle-local label prefix for the oracle-side scorer")
+    ap.add_argument("--oracle-details-json",
+                    help="top-level oracle-envelope details JSON with per-context per-step oracle values")
     ap.add_argument("--out-label", default="recoverable-gap")
     ap.add_argument("--steps-cap", type=int, default=0,
                     help="if >0, limit weighting to the first N anchor steps")
@@ -74,6 +78,15 @@ def read_b2(bundle: Path, label: str) -> dict:
     return json.loads(path.read_text())
 
 
+def load_oracle_details(path: Path) -> dict[int, list[float]]:
+    details = json.loads(path.read_text())
+    out: dict[int, list[float]] = {}
+    for item in details:
+        ctx = int(item["context"])
+        out[ctx] = [float(v) for v in item["per_step_oracle_envelope"]]
+    return out
+
+
 def build_weights(per_step_base: list[float], per_step_oracle: list[float], *,
                   baseline_max: float, min_gap: float,
                   alpha: float, floor: float, ceil: float) -> tuple[list[float], list[dict]]:
@@ -109,6 +122,8 @@ def build_weights(per_step_base: list[float], per_step_oracle: list[float], *,
 
 def main() -> int:
     args = parse_args()
+    if bool(args.oracle_label) == bool(args.oracle_details_json):
+        raise RuntimeError("provide exactly one of --oracle-label or --oracle-details-json")
     sweep_root = Path(args.sweep_root).resolve()
     bundles = bundle_dirs(sweep_root)
     if not bundles:
@@ -119,10 +134,16 @@ def main() -> int:
         shutil.rmtree(overlay_root)
     overlay_root.mkdir(parents=True)
 
+    oracle_details = (
+        load_oracle_details(Path(args.oracle_details_json).resolve())
+        if args.oracle_details_json else None
+    )
+
     manifest = {
         "source": "recoverable-gap",
         "baseline_label": args.baseline_label,
         "oracle_label": args.oracle_label,
+        "oracle_details_json": str(Path(args.oracle_details_json).resolve()) if args.oracle_details_json else None,
         "baseline_max": args.baseline_max,
         "min_gap": args.min_gap,
         "alpha": args.alpha,
@@ -143,9 +164,15 @@ def main() -> int:
             os.symlink(child, out_dir / child.name)
 
         base = read_b2(bundle, args.baseline_label)
-        oracle = read_b2(bundle, args.oracle_label)
+        ctx = int(bundle.name.split("_")[1])
+        oracle = read_b2(bundle, args.oracle_label) if args.oracle_label else None
         base_steps = [float(v) for v in base["per_step_accepted"]]
-        oracle_steps = [float(v) for v in oracle["per_step_accepted"]]
+        oracle_steps = (
+            [float(v) for v in oracle["per_step_accepted"]]
+            if oracle is not None else oracle_details.get(ctx)
+        )
+        if oracle_steps is None:
+            raise RuntimeError(f"missing oracle details for context {ctx}")
         if args.steps_cap > 0:
             base_steps = base_steps[:args.steps_cap]
             oracle_steps = oracle_steps[:args.steps_cap]
@@ -178,7 +205,10 @@ def main() -> int:
             "max": max(weights) if weights else 1.0,
             "recoverable_steps": bundle_recoverable,
             "baseline_average_accepted": float(base["average_accepted"]),
-            "oracle_average_accepted": float(oracle["average_accepted"]),
+            "oracle_average_accepted": (
+                float(oracle["average_accepted"])
+                if oracle is not None else (sum(oracle_steps) / len(oracle_steps) if oracle_steps else 0.0)
+            ),
             "details": details,
         }
 

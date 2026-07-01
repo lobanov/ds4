@@ -102,7 +102,9 @@ Inputs:
 
 - sweep root with `ctx_#####` bundles
 - one baseline `*.b2.json` label
-- one oracle `*.b2.json` label
+- and either:
+  - one oracle `*.b2.json` label
+  - or one top-level oracle-envelope `*.details.json`
 
 Outputs:
 
@@ -115,6 +117,8 @@ The overlay mirrors the existing weighted-collector format, so it can feed the
 same collector path used by `run_dspark_weighted_from_sweep_root.py`.
 
 ## Example usage
+
+Bundle-local oracle label example:
 
 ```sh
 python issue468/build_recoverable_gap_overlay.py \
@@ -130,6 +134,20 @@ This does **not** assume that the oracle label is deployable. It only assumes:
 
 In other words, `--oracle-label` must name a **bundle-local** `*.b2.json`
 series, not a top-level sweep summary file.
+
+Oracle-envelope details example:
+
+```sh
+python issue468/build_recoverable_gap_overlay.py \
+  --sweep-root /tmp/dspark_sweep8 \
+  --baseline-label baseline-weighted4ctx_19t_default_256tr \
+  --oracle-details-json /tmp/dspark_sweep8/oracle-envelope-existing256.details.json \
+  --out-label recoverable-gap-envelope
+```
+
+This second form is the more faithful oracle-only path when the best available
+model-side reference is a top-level per-step envelope rather than a single
+bundle-local candidate label.
 
 ## What this enables next
 
