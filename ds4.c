@@ -28087,15 +28087,17 @@ int ds4_session_set_logits(ds4_session *s, const float *logits, int n) {
  * See issue468/16_phase4_metal_forward_impl.md stage 1; oracle forward.py
  * forward_embed is the spec.
  */
-static bool metal_graph_dspark_input_stage(
+static bool metal_graph_dspark_input_stage_tokens(
         ds4_gpu_graph              *g,
         const ds4_model            *target_model,
         const ds4_weights          *target_weights,
         const ds4_model            *dspark_model,
         const ds4_dspark_weights   *dw,
-        int                          anchor_tok) {
+        const int                  *draft_toks,
+        uint32_t                    n_draft_toks) {
     if (!g || !target_model || !target_weights || !dspark_model || !dw) return false;
     if (!g->dspark_main_hidden || !g->dspark_main_x || !g->batch_cur_hc) return false;
+    if (!draft_toks || n_draft_toks != DS4_DSPARK_BLOCK_SIZE) return false;
 
     if (getenv("DS4_DSPARK_PROBE_DEBUG")) {
         fprintf(stderr, "ds4: dspark input debug: main_proj abs_off=%llu dim=[%u,%u] type=%u; "
@@ -28137,15 +28139,12 @@ static bool metal_graph_dspark_input_stage(
                                                   DS4_RMS_EPS) != 0;
     if (ok) ok = ds4_gpu_end_commands() != 0;
 
-    /* 2. embed draft block [anchor, NOISE x4] -> batch_cur_hc [block,hc,dim].
+    /* 2. embed draft block -> batch_cur_hc [block,hc,dim].
      * The drafter shares the target's token_embd (doc 13). HC-expand is built
      * into metal_graph_upload_prompt_embeddings_hc (n_tokens < gpu_min -> CPU path,
      * correctness-first). */
     token_vec draft_ids = {0};
-    token_vec_push(&draft_ids, anchor_tok);
-    for (uint32_t i = 1; i < DS4_DSPARK_BLOCK_SIZE; i++) {
-        token_vec_push(&draft_ids, DS4_DSPARK_NOISE_TOK);
-    }
+    for (uint32_t i = 0; i < DS4_DSPARK_BLOCK_SIZE; i++) token_vec_push(&draft_ids, draft_toks[i]);
     if (ok) ok = metal_graph_upload_prompt_embeddings_hc(g->batch_cur_hc,
                                                            NULL,
                                                            target_model,
@@ -28155,6 +28154,21 @@ static bool metal_graph_dspark_input_stage(
                                                            DS4_DSPARK_BLOCK_SIZE);
     token_vec_free(&draft_ids);
     return ok;
+}
+
+static bool metal_graph_dspark_input_stage(
+        ds4_gpu_graph              *g,
+        const ds4_model            *target_model,
+        const ds4_weights          *target_weights,
+        const ds4_model            *dspark_model,
+        const ds4_dspark_weights   *dw,
+        int                          anchor_tok) {
+    int draft_toks[DS4_DSPARK_BLOCK_SIZE];
+    draft_toks[0] = anchor_tok;
+    for (uint32_t i = 1; i < DS4_DSPARK_BLOCK_SIZE; i++) draft_toks[i] = DS4_DSPARK_NOISE_TOK;
+    return metal_graph_dspark_input_stage_tokens(g, target_model, target_weights,
+                                                 dspark_model, dw, draft_toks,
+                                                 DS4_DSPARK_BLOCK_SIZE);
 }
 
 /*
@@ -28933,7 +28947,7 @@ static bool dspark_load_main_hidden_capture(ds4_session *s,
 
 static bool dspark_collect_imatrix_from_current_hidden(ds4_session *s,
                                                        ds4_imatrix_collector *imatrix,
-                                                       int anchor_token,
+                                                       const int *draft_tokens,
                                                        uint32_t step_pos,
                                                        const uint8_t *row_bucket,
                                                        const float *row_scale) {
@@ -28941,9 +28955,10 @@ static bool dspark_collect_imatrix_from_current_hidden(ds4_session *s,
     ds4_engine *e = s->engine;
     ds4_gpu_graph *g = &s->graph;
 
-    if (!metal_graph_dspark_input_stage(g, &e->model, &e->weights,
-                                        &e->dspark_model, &e->dspark_weights,
-                                        anchor_token)) {
+    if (!metal_graph_dspark_input_stage_tokens(g, &e->model, &e->weights,
+                                               &e->dspark_model, &e->dspark_weights,
+                                               draft_tokens,
+                                               DS4_DSPARK_BLOCK_SIZE)) {
         return false;
     }
     if (!ds4_gpu_synchronize()) return false;
@@ -28978,7 +28993,10 @@ static bool dspark_collect_imatrix_sample(ds4_session *s,
     if (!s || !s->engine || !imatrix) return false;
 
     if (!dspark_capture_main_hidden(s, hc_buf, mh_buf)) return false;
-    return dspark_collect_imatrix_from_current_hidden(s, imatrix, anchor_token, step_pos,
+    int draft_tokens[DS4_DSPARK_BLOCK_SIZE];
+    draft_tokens[0] = anchor_token;
+    for (uint32_t i = 1; i < DS4_DSPARK_BLOCK_SIZE; i++) draft_tokens[i] = DS4_DSPARK_NOISE_TOK;
+    return dspark_collect_imatrix_from_current_hidden(s, imatrix, draft_tokens, step_pos,
                                                       row_bucket, row_scale);
 }
 
@@ -29234,6 +29252,9 @@ static bool dspark_collect_bundle_into_collector(ds4_engine *e,
             collector->bucket_merge_weight[0], collector->bucket_merge_weight[1],
             collector->bucket_merge_weight[2], collector->bucket_merge_weight[3],
             collector->bucket_merge_weight[4]);
+    fprintf(stderr,
+            "ds4: DSpark acceptance-bundle collector uses teacher-forced block inputs "
+            "[anchor,target+1..target+4] from target_greedy.json\n");
     if (anchor_weights) {
         float min_w = anchor_weights[0];
         float max_w = anchor_weights[0];
@@ -29251,15 +29272,17 @@ static bool dspark_collect_bundle_into_collector(ds4_engine *e,
     for (int step = 1; ok && step <= steps; step++) {
         static const uint8_t row_bucket[DS4_DSPARK_BLOCK_SIZE] = {0,1,2,3,4};
         float row_scale[DS4_DSPARK_BLOCK_SIZE] = {1,1,1,1,1};
+        int draft_tokens[DS4_DSPARK_BLOCK_SIZE];
         const long pos = (long)prompt_tokens + step;
         if (anchor_weights && step - 1 < n_anchor_weights) {
             for (uint32_t i = 0; i < DS4_DSPARK_BLOCK_SIZE; i++) row_scale[i] = anchor_weights[step - 1];
         }
+        for (uint32_t i = 0; i < DS4_DSPARK_BLOCK_SIZE; i++) draft_tokens[i] = greedy[step + (int)i];
         if (!dspark_load_main_hidden_capture(s, bundle_path, pos, hc_buf, mh_buf)) {
             ok = false;
             break;
         }
-        if (!dspark_collect_imatrix_from_current_hidden(s, collector, greedy[step], (uint32_t)pos,
+        if (!dspark_collect_imatrix_from_current_hidden(s, collector, draft_tokens, (uint32_t)pos,
                                                         row_bucket, row_scale)) {
             fprintf(stderr, "ds4: dspark imatrix: bundle sample failed at step %d pos %ld\n",
                     step, pos);
