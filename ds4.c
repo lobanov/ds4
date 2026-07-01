@@ -17695,7 +17695,7 @@ static bool metal_graph_dspark_encode_attention(
         if (ds4_gpu_synchronize()) {
             float *y = xmalloc((size_t)n_tokens * DS4_N_EMBD * sizeof(float));
             if (ds4_gpu_tensor_read(g->batch_attn_cur, 0, y, (size_t)n_tokens * DS4_N_EMBD * sizeof(float))) {
-                const char *cd = getenv("DS4_DSPARK_PROBE_CAPDIR"); if(!cd||!cd[0]) cd="issue468/baseline/dspark_capture";
+                const char *cd = getenv("DS4_DSPARK_PROBE_CAPDIR"); if(!cd||!cd[0]) cd="dspark_capture";
                 char p[1024]; snprintf(p,sizeof(p),"%s/metal_hc_pre_y_layer0.bin",cd);
                 FILE *fp=fopen(p,"wb"); if(fp){fwrite(y,sizeof(float),n_tokens*DS4_N_EMBD,fp);fclose(fp);}
             }
@@ -17868,7 +17868,7 @@ static bool metal_graph_dspark_encode_attention(
         if (ds4_gpu_synchronize()) {
             float *hd = xmalloc((size_t)n_tokens * DS4_N_HEAD * DS4_N_HEAD_DIM * sizeof(float));
             if (ds4_gpu_tensor_read(g->batch_heads, 0, hd, (size_t)n_tokens * DS4_N_HEAD * DS4_N_HEAD_DIM * sizeof(float))) {
-                const char *cd = getenv("DS4_DSPARK_PROBE_CAPDIR"); if(!cd||!cd[0]) cd="issue468/baseline/dspark_capture";
+                const char *cd = getenv("DS4_DSPARK_PROBE_CAPDIR"); if(!cd||!cd[0]) cd="dspark_capture";
                 char p[1024]; snprintf(p,sizeof(p),"%s/metal_attn_heads_lay%u_pos%u.bin",cd,g->dspark_layer_idx,start_pos);
                 FILE *fp=fopen(p,"wb"); if(fp){fwrite(hd,sizeof(float),n_tokens*DS4_N_HEAD*DS4_N_HEAD_DIM,fp);fclose(fp);}
             }
@@ -17890,7 +17890,7 @@ static bool metal_graph_dspark_encode_attention(
         if (ds4_gpu_synchronize()) {
             float *ao = xmalloc((size_t)n_tokens * DS4_N_EMBD * sizeof(float));
             if (ds4_gpu_tensor_read(g->batch_attn_out, 0, ao, (size_t)n_tokens * DS4_N_EMBD * sizeof(float))) {
-                const char *cd = getenv("DS4_DSPARK_PROBE_CAPDIR"); if(!cd||!cd[0]) cd="issue468/baseline/dspark_capture";
+                const char *cd = getenv("DS4_DSPARK_PROBE_CAPDIR"); if(!cd||!cd[0]) cd="dspark_capture";
                 char p[1024]; snprintf(p,sizeof(p),"%s/metal_attn_out_layer0.bin",cd);
                 FILE *fp=fopen(p,"wb"); if(fp){fwrite(ao,sizeof(float),n_tokens*DS4_N_EMBD,fp);fclose(fp);}
             }
@@ -28284,9 +28284,9 @@ static void ds4_dspark_probe_accept(ds4_session *s) {
     if (!e || !e->dspark_ready) return;
     ds4_gpu_graph *g = &s->graph;
     const char *capdir = getenv("DS4_DSPARK_PROBE_CAPDIR");
-    if (!capdir || !capdir[0]) capdir = "issue468/baseline/dspark_capture";
+    if (!capdir || !capdir[0]) capdir = "dspark_capture";
     const char *greedy_path = getenv("DS4_DSPARK_PROBE_GREEDY");
-    if (!greedy_path || !greedy_path[0]) greedy_path = "issue468/baseline/dspark_capture/target_greedy_130.json";
+    if (!greedy_path || !greedy_path[0]) greedy_path = "dspark_capture/target_greedy.json";
     const char *pos0_env = getenv("DS4_DSPARK_PROBE_POS");
     const long pos0 = (pos0_env && pos0_env[0]) ? strtol(pos0_env, NULL, 10) : 152;
     const int n_steps = getenv("DS4_DSPARK_PROBE_ACCEPT_STEPS")
@@ -28561,7 +28561,7 @@ static void ds4_dspark_probe_input_stage(ds4_session *s) {
     if (!e || !e->dspark_ready) return;
     ds4_gpu_graph *g = &s->graph;
     const char *capdir = getenv("DS4_DSPARK_PROBE_CAPDIR");
-    if (!capdir || !capdir[0]) capdir = "issue468/baseline/dspark_capture";
+    if (!capdir || !capdir[0]) capdir = "dspark_capture";
     const long pos = getenv("DS4_DSPARK_PROBE_POS")
         ? strtol(getenv("DS4_DSPARK_PROBE_POS"), NULL, 10) : 152;
     const int anchor = getenv("DS4_DSPARK_PROBE_ANCHOR")
@@ -28615,7 +28615,7 @@ static void ds4_dspark_probe_input_stage(ds4_session *s) {
             float *pre = xmalloc((size_t)DS4_N_EMBD * sizeof(float));
             if (ds4_gpu_tensor_read(g->dspark_main_x, 0, pre, (size_t)DS4_N_EMBD * sizeof(float))) {
                 const char *cd = getenv("DS4_DSPARK_PROBE_CAPDIR");
-                if (!cd || !cd[0]) cd = "issue468/baseline/dspark_capture";
+                if (!cd || !cd[0]) cd = "dspark_capture";
                 char p[1024]; snprintf(p, sizeof(p), "%s/metal_main_x_prenorm_pos152.bin", cd);
                 FILE *fp = fopen(p, "wb");
                 if (fp) { fwrite(pre, sizeof(float), DS4_N_EMBD, fp); fclose(fp); }
@@ -28638,7 +28638,7 @@ static void ds4_dspark_probe_input_stage(ds4_session *s) {
                 float *post = xmalloc((size_t)DS4_N_EMBD * sizeof(float));
                 if (ds4_gpu_tensor_read(g->batch_attn_norm, 0, post, (size_t)DS4_N_EMBD * sizeof(float))) {
                     const char *cd = getenv("DS4_DSPARK_PROBE_CAPDIR");
-                    if (!cd || !cd[0]) cd = "issue468/baseline/dspark_capture";
+                    if (!cd || !cd[0]) cd = "dspark_capture";
                     char p[1024]; snprintf(p, sizeof(p), "%s/metal_main_x_oop_norm_pos152.bin", cd);
                     FILE *fp = fopen(p, "wb");
                     if (fp) { fwrite(post, sizeof(float), DS4_N_EMBD, fp); fclose(fp); }
@@ -29727,7 +29727,7 @@ int ds4_session_eval_dspark_b2(ds4_session *s, int first_token,
         if (getenv("DS4_DSPARK_B2_DISKMH")) {
             float *mh_disk = xmalloc((size_t)3 * DS4_N_EMBD * sizeof(float));
             const char *capdir = getenv("DS4_DSPARK_PROBE_CAPDIR");
-            if (!capdir || !capdir[0]) capdir = "issue468/baseline/dspark_capture";
+            if (!capdir || !capdir[0]) capdir = "dspark_capture";
             bool mhok = true;
             for (uint32_t li = 0; mhok && li < 3; li++) {
                 const uint32_t layers[3] = {40,41,42};
