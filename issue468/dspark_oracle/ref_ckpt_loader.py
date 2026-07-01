@@ -23,8 +23,8 @@ FP4_TABLE = np.array(
 KEY_MAP = {
     "embed.weight": "embed.weight",
     "head.weight": "head.weight",
-    "mtp.{s}.main_proj.weight": "mtp.{s}.main_proj.weight",
-    "mtp.{s}.main_norm.weight": "mtp.{s}.main_norm.weight",
+    "mtp.0.main_proj.weight": "mtp.0.main_proj.weight",
+    "mtp.0.main_norm.weight": "mtp.0.main_norm.weight",
     "mtp.{s}.hc_attn_fn": "mtp.{s}.hc_attn_fn.weight",
     "mtp.{s}.hc_attn_scale": "mtp.{s}.hc_attn_scale.weight",
     "mtp.{s}.hc_attn_base": "mtp.{s}.hc_attn_base.weight",
