@@ -28454,6 +28454,20 @@ static void ds4_dspark_probe_accept(ds4_session *s) {
                     if (qrfp) { fwrite(qrbuf, sizeof(float), DS4_DSPARK_BLOCK_SIZE * 1024, qrfp); fclose(qrfp); }
                 }
                 free(qrbuf);
+                /* Drift bisection (issue468/61): dump batch_after_attn_hc per layer
+                 * (post-attention, pre-FFN mid-block state). Survives until the
+                 * next layer's encode_attention overwrites it. If this is clean for
+                 * layer 1 but the block output diverges -> the MoE (FFN) is the bug. */
+                if (getenv("DS4_DSPARK_PROBE_DUMP_MID")) {
+                    const uint64_t mid_n = (uint64_t)DS4_DSPARK_BLOCK_SIZE * DS4_N_HC * DS4_N_EMBD;
+                    float *mbuf = xmalloc((size_t)mid_n * sizeof(float));
+                    if (ds4_gpu_tensor_read(g->batch_after_attn_hc, 0, mbuf, (size_t)mid_n * sizeof(float))) {
+                        char mp[1024]; snprintf(mp, sizeof(mp), "%s/metal_mid_step%02d_lay%u.bin", capdir, step, lay);
+                        FILE *mfp = fopen(mp, "wb");
+                        if (mfp) { fwrite(mbuf, sizeof(float), mid_n, mfp); fclose(mfp); }
+                    }
+                    free(mbuf);
+                }
             }
             /* Drift bisection (productionization note 53): dump router_selected (the 6 experts
              * picked per token) per step+layer, to test whether mtp.2 selects
