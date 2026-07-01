@@ -1589,7 +1589,6 @@ static cli_config parse_options(int argc, char **argv) {
             c.gen.imatrix_dataset_path = need_arg(&i, argc, argv, arg);
         } else if (!strcmp(arg, "--imatrix-out")) {
             c.gen.imatrix_output_path = need_arg(&i, argc, argv, arg);
-            c.engine.backend = DS4_BACKEND_METAL;
         } else if (!strcmp(arg, "--imatrix-draft-pos-weights")) {
             c.gen.imatrix_draft_pos_weights = need_arg(&i, argc, argv, arg);
         } else if (!strcmp(arg, "--imatrix-max-prompts")) {

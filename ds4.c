@@ -25923,8 +25923,9 @@ int ds4_engine_collect_imatrix(ds4_engine *e,
     return 1;
 #else
     if (!e || !dataset_path || !output_path) return 1;
-    if (e->backend != DS4_BACKEND_METAL || !e->metal_ready) {
-        fprintf(stderr, "ds4: imatrix collection currently requires --metal\n");
+    if (!ds4_backend_uses_graph(e->backend) || !e->metal_ready) {
+        fprintf(stderr, "ds4: imatrix collection requires an available graph backend; got %s\n",
+                ds4_backend_name(e->backend));
         return 1;
     }
     if (ctx_size <= 0) ctx_size = 32768;
