@@ -30142,8 +30142,27 @@ int ds4_session_eval_dspark_b2(ds4_session *s, int first_token,
      * DS4_N_SWA + block, so n_real must stay <= DS4_N_SWA - 1. (Iteration-2 codex
      * review caught an off-by-one: capping at DS4_N_SWA let n_real reach 128,
      * making the window 134 > raw_cap=133 on cycle 129+.) Mirrors the probe's
-     * accumulation intent (ds4.c:28345) with the corrected bound. */
-    if (g->dspark_n_real < DS4_N_SWA - 1u) g->dspark_n_real++;
+     * accumulation intent (ds4.c:28345) with the corrected bound.
+     *
+     * pi-agent-review (issue468/70): live-B2 measurement shows the drafter's
+     * non-causal attention over a LARGE historical-anchor window (n_real -> 128)
+     * collapses draft acceptance (committed/cycle 4.11 -> 2.89, full-accept
+     * 27% -> 0% across a 384-token generation). The 19-step acceptance probe
+     * (n_real max ~19) never exposed this; only the live multi-cycle path does.
+     * The drafter was trained on a small window, so attending over 100+ anchors
+     * is out of distribution. DS4_DSPARK_NREAL_CAP lets the window cap be tuned
+     * below DS4_N_SWA-1 without recompile. B2-exactness is preserved for any q
+     * (rejection sampling samples from target p regardless of drafter q), so
+     * changing the cap affects only efficiency, never output correctness. */
+    {
+        uint32_t nreal_cap = DS4_N_SWA - 1u;
+        const char *_capenv = getenv("DS4_DSPARK_NREAL_CAP");
+        if (_capenv && _capenv[0]) {
+            long _v = strtol(_capenv, NULL, 10);
+            if (_v >= 1 && _v < (long)DS4_N_SWA) nreal_cap = (uint32_t)_v;
+        }
+        if (g->dspark_n_real < nreal_cap) g->dspark_n_real++;
+    }
     if (ok) { if (!ds4_gpu_begin_commands()) ok = false; }
     if (ok) ok = metal_graph_dspark_output_head(g, &e->model, &e->weights,
             &e->dspark_model, &e->dspark_weights, block);
