@@ -266,6 +266,9 @@ Current branch read after the completed coarse layer grid:
 - a larger coupled follow-on that preserves `mtp2 gate/up` and restores the
   full `mtp1 gate/up` pair is the first post-frontier add-back that remains
   genuinely competitive on the 4-context mean
+- restoring `mtp2 down` on top of that coupled point produces the first
+  reduced-size artifact that is effectively at baseline quality while still
+  staying below baseline bytes
 
 ## Final read
 
@@ -275,10 +278,15 @@ This goal matches the actual state of the branch better than the old
 The current evidence suggests that:
 
 - upward quality headroom is small
+- remaining sub-baseline upward headroom now appears very small, because the
+  best reduced-size point is only one routed `down` tensor away from full
+  baseline precision
 - downward size headroom is real
 - the remaining useful question is how much of the current quality can be
   preserved as the routed-expert budget is reduced
 - the best next search, if any, is no longer broad layer allocation but
   targeted `Q4` budget placement inside the `mtp0/mtp2` routed family
+- once this coupled near-baseline lane is exhausted, the next step should
+  return to the mandatory independent `gpt-5.5 xhigh` review loop from `53`
 
 That is exactly a Pareto-frontier problem.
