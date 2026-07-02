@@ -35,9 +35,9 @@ def routed_overrides(layer: str, q4: bool) -> list[str]:
         gate_up = "iq2_xxs"
         down = "q2_k"
     return [
-        f"--tensor-type={layer}.ffn_gate_exps.weight={gate_up}",
-        f"--tensor-type={layer}.ffn_up_exps.weight={gate_up}",
-        f"--tensor-type={layer}.ffn_down_exps.weight={down}",
+        f"{layer}.ffn_gate_exps.weight={gate_up}",
+        f"{layer}.ffn_up_exps.weight={gate_up}",
+        f"{layer}.ffn_down_exps.weight={down}",
     ]
 
 
@@ -67,7 +67,7 @@ def main() -> int:
         print("overrides:")
         for layer in LAYERS:
             for override in routed_overrides(layer, layer in q4_layers):
-                print(f"  {override}")
+                print(f"  --tensor-type {override}")
         print()
     return 0
 
