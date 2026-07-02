@@ -260,6 +260,9 @@ Current branch read after the completed coarse layer grid:
   (`main_proj_q8imat`) is slightly negative on the 4-context mean, so the old
   2-context complementarity signal does not automatically survive as one static
   artifact
+- the first same-size `9.013335 GiB` coupled follow-on that preserves
+  `mtp2 gate/up` but adds only `mtp1 down` also underperforms the existing
+  `9.013335 GiB` points
 
 ## Final read
 
