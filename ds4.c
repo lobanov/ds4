@@ -22194,6 +22194,10 @@ static bool metal_graph_verify_suffix_tops(
     const uint32_t top_rows = n_tokens > 1 ? n_tokens - 1 : 0;
     if (top_rows && !row_tops) return false;
 
+    const bool vp = getenv("DS4_DSPARK_VERIFY_PROFILE") != NULL;
+    double vp_t0 = 0.0, vp_t_upload = 0.0, vp_t_layers = 0.0, vp_t_head = 0.0, vp_t_tops = 0.0, vp_t_read_tops = 0.0, vp_t_read_logits = 0.0;
+    if (vp) vp_t0 = now_sec();
+
     bool ok = metal_graph_upload_prompt_tokens(g->prefill_tokens, prompt, start, n_tokens);
     if (ok) ok = metal_graph_upload_prompt_embeddings_hc(g->batch_cur_hc,
                                                          g->prefill_tokens,
@@ -22202,6 +22206,7 @@ static bool metal_graph_verify_suffix_tops(
                                                          prompt,
                                                          start,
                                                          n_tokens);
+    if (vp) vp_t_upload = now_sec();
     if (!ok) return false;
 
     const bool saved_capture = g->spec_capture_prefix1;
@@ -22218,6 +22223,7 @@ static bool metal_graph_verify_suffix_tops(
     }
     if (ok) ok = ds4_gpu_end_commands() != 0;
     else (void)ds4_gpu_synchronize();
+    if (vp) vp_t_layers = now_sec();
     g->spec_capture_prefix1 = saved_capture;
     if (!ok) return false;
 
@@ -22227,6 +22233,7 @@ static bool metal_graph_verify_suffix_tops(
                                                       weights,
                                                       n_tokens,
                                                       weights->output->dim[1]);
+    if (vp) vp_t_head = now_sec();
     if (ok) {
         if (top_rows == 1) {
             /* Common K=2 verify case: top_k=1 over n_vocab → use the dedicated
@@ -22248,17 +22255,32 @@ static bool metal_graph_verify_suffix_tops(
     }
     if (ok) ok = ds4_gpu_end_commands() != 0;
     else (void)ds4_gpu_synchronize();
+    if (vp) vp_t_tops = now_sec();
     if (ok && top_rows) {
         ok = ds4_gpu_tensor_read(g->comp_selected,
                                    0,
                                    row_tops,
                                    (uint64_t)top_rows * sizeof(row_tops[0])) != 0;
     }
+    if (vp) vp_t_read_tops = now_sec();
     if (ok && row_logits) {
         ok = ds4_gpu_tensor_read(g->spec_logits,
                                    0,
                                    row_logits,
                                    (uint64_t)n_tokens * DS4_N_VOCAB * sizeof(row_logits[0])) != 0;
+    }
+    if (vp) {
+        vp_t_read_logits = now_sec();
+        fprintf(stderr,
+                "ds4: verify profile: n=%u upload=%.2f layers=%.2f head=%.2f tops=%.2f read_tops=%.2f read_logits=%.2f total=%.2f ms\n",
+                n_tokens,
+                (vp_t_upload - vp_t0) * 1000.0,
+                (vp_t_layers - vp_t_upload) * 1000.0,
+                (vp_t_head - vp_t_layers) * 1000.0,
+                (vp_t_tops - vp_t_head) * 1000.0,
+                (vp_t_read_tops - vp_t_tops) * 1000.0,
+                (vp_t_read_logits - vp_t_read_tops) * 1000.0,
+                (vp_t_read_logits - vp_t0) * 1000.0);
     }
     return ok;
 }
