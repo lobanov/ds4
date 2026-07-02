@@ -317,6 +317,33 @@ def parse_expert_specs(specs: list[str] | None) -> dict[str, tuple[int, ...]]:
     return parsed
 
 
+def parse_expert_block_specs(specs: list[str] | None) -> dict[str, tuple[tuple[int, int], ...]]:
+    parsed: dict[str, tuple[tuple[int, int], ...]] = {}
+    if not specs:
+        return parsed
+    for spec in specs:
+        if ":" not in spec:
+            raise ValueError(
+                f"bad --expert-block-select spec {spec!r}; expected <tensor_name>:expert:block,expert:block,..."
+            )
+        name, pairs_s = spec.split(":", 1)
+        pairs: set[tuple[int, int]] = set()
+        for part in pairs_s.split(","):
+            part = part.strip()
+            if not part:
+                continue
+            if ":" not in part:
+                raise ValueError(
+                    f"bad --expert-block-select pair {part!r}; expected expert:block"
+                )
+            expert_s, block_s = part.split(":", 1)
+            pairs.add((int(expert_s), int(block_s)))
+        if not name.strip() or not pairs:
+            raise ValueError(f"bad --expert-block-select spec {spec!r}")
+        parsed[name.strip()] = tuple(sorted(pairs))
+    return parsed
+
+
 def qtype_name(ggml_type: int) -> str:
     return GGML_QUANT_SIZES.get(ggml_type, (0, 0, f"type_{ggml_type}"))[2]
 
@@ -362,12 +389,43 @@ def expert_slice_bytes(tensor: TensorInfo) -> tuple[int, int]:
     return n_exp, (elems_per_exp // block_elems) * block_bytes
 
 
+def expert_col_block_ids(tensor: TensorInfo, expert_block_pairs: tuple[tuple[int, int], ...]) -> tuple[int, ...]:
+    if len(tensor.dims) != 3:
+        raise ValueError(f"tensor {tensor.name} is not a 3D expert tensor")
+    in_dim, out_dim, n_exp = tensor.dims
+    q = GGML_QUANT_SIZES.get(tensor.ggml_type)
+    if q is None:
+        raise ValueError(f"unsupported expert tensor type for {tensor.name}: {tensor.ggml_type}")
+    block_elems, _block_bytes, qname = q
+    if qname != "Q4_K":
+        raise ValueError(
+            f"--expert-block-select currently supports Q4_K only, got {qname} for {tensor.name}"
+        )
+    if in_dim % block_elems != 0:
+        raise ValueError(f"tensor {tensor.name} in_dim={in_dim} is not aligned to block_elems={block_elems}")
+    blocks_per_row = in_dim // block_elems
+    blocks_per_expert = out_dim * blocks_per_row
+    out: set[int] = set()
+    for expert, block_idx in expert_block_pairs:
+        if expert < 0 or expert >= n_exp:
+            raise ValueError(f"expert index out of range for {tensor.name}: {expert}")
+        if block_idx < 0 or block_idx >= blocks_per_row:
+            raise ValueError(
+                f"column-block index out of range for {tensor.name}: {block_idx} (blocks_per_row={blocks_per_row})"
+            )
+        base_block = expert * blocks_per_expert
+        for row in range(out_dim):
+            out.add(base_block + row * blocks_per_row + block_idx)
+    return tuple(sorted(out))
+
+
 def build_plan(
     base: GGUFInfo,
     donor: GGUFInfo,
     selections: dict[int, set[str] | None],
     block_delta_specs: dict[str, int],
     expert_specs: dict[str, tuple[int, ...]],
+    expert_block_specs: dict[str, tuple[tuple[int, int], ...]],
 ) -> list[SplicePlan]:
     if base.version != donor.version:
         raise ValueError(f"GGUF version mismatch: base={base.version} donor={donor.version}")
@@ -396,6 +454,10 @@ def build_plan(
         elif base_tensor.name in expert_specs:
             donor_expert_ids = expert_specs[base_tensor.name]
             source = "mixed_experts"
+            donor_tensor_ref = donor_tensor
+        elif base_tensor.name in expert_block_specs:
+            donor_block_ids = expert_col_block_ids(base_tensor, expert_block_specs[base_tensor.name])
+            source = "mixed_blocks"
             donor_tensor_ref = donor_tensor
         elif base_tensor.name in block_delta_specs:
             donor_block_ids = top_delta_block_ids(base, donor, base_tensor.name, block_delta_specs[base_tensor.name])
@@ -577,11 +639,16 @@ def main() -> int:
         action="append",
         help="copy only selected expert slices from one routed tensor, format <tensor_name>:id,id,...",
     )
+    parser.add_argument(
+        "--expert-block-select",
+        action="append",
+        help="copy all rows for selected expert/column-block pairs in one Q4_K expert tensor, format <tensor_name>:expert:block,expert:block,...",
+    )
     parser.add_argument("--dry-run", action="store_true", help="print the plan without writing the output")
     parser.add_argument("--force", action="store_true", help="overwrite --out if it already exists")
     args = parser.parse_args()
 
-    if not any([args.q4_layers, args.q4_select, args.block_delta_top, args.expert_select]):
+    if not any([args.q4_layers, args.q4_select, args.block_delta_top, args.expert_select, args.expert_block_select]):
         parser.error("pass at least one selection mode")
     if args.q4_layers and args.q4_select:
         parser.error("--q4-layers and --q4-select are mutually exclusive")
@@ -600,10 +667,14 @@ def main() -> int:
     expert_specs = parse_expert_specs(args.expert_select)
     for name, ids in sorted(expert_specs.items()):
         print(f"expert select: {name}:{','.join(str(x) for x in ids)}")
+    expert_block_specs = parse_expert_block_specs(args.expert_block_select)
+    for name, pairs in sorted(expert_block_specs.items()):
+        spec = ",".join(f"{expert}:{block}" for expert, block in pairs)
+        print(f"expert block select: {name}:{spec}")
 
     base = parse_gguf(args.base)
     donor = parse_gguf(args.donor)
-    plan = build_plan(base, donor, selections, block_delta_specs, expert_specs)
+    plan = build_plan(base, donor, selections, block_delta_specs, expert_specs, expert_block_specs)
     summarize(base, donor, plan)
 
     if args.dry_run:
