@@ -30220,7 +30220,7 @@ int ds4_session_eval_dspark_b2(ds4_session *s, int first_token,
         drafts[i] = best; prev = best;
     }
     free(markov_bias);
-    free(base_logits);
+    /* NOTE: base_logits kept alive for the target-pos0 Markov recompute below. */
 
     /* Codex lead #1 (issue468/76): target-sampled position 0. Override drafts[0]
      * with a sample from softmax(s->logits) (the target's distribution). This
@@ -30234,7 +30234,6 @@ int ds4_session_eval_dspark_b2(ds4_session *s, int first_token,
         double psum = 0;
         for (uint64_t v = 0; v < vocab; v++)
             psum += exp((double)(s->logits[v] - pmax));
-        /* Sample from softmax(s->logits) using the B2 RNG */
         static uint64_t b2_rng_state_pos0 = 0;
         static bool b2_rng_pos0_seeded = false;
         if (!b2_rng_pos0_seeded) {
@@ -30251,7 +30250,39 @@ int ds4_session_eval_dspark_b2(ds4_session *s, int first_token,
         }
         if (getenv("DS4_DSPARK_B2_DEBUG"))
             fprintf(stderr, "ds4: b2: pos 0 OVERRIDE target-sampled draft=%d\n", drafts[0]);
+
+        /* Recompute drafts[1..4] Markov chain with prev = drafts[0] (the target
+         * token, not the drafter's original argmax). base_logits is still alive.
+         * Re-allocate markov_bias for the recompute. */
+        float *mb_recompute = xmalloc((size_t)vocab * sizeof(float));
+        float emb_recompute[256];
+        int prev_r = drafts[0];
+        for (uint32_t i = 1; i < (uint32_t)block; i++) {
+            for (uint32_t r = 0; r < rank; r++) {
+                uint32_t bits = ((uint32_t)mw1[(uint64_t)prev_r * rank + r]) << 16;
+                memcpy(&emb_recompute[r], &bits, sizeof(float));
+            }
+            if (!ds4_gpu_tensor_write(g->dspark_markov_x, 0, emb_recompute, (uint64_t)rank * sizeof(float)) ||
+                !ds4_gpu_matmul_f32_tensor(g->dspark_markov_bias,
+                                           e->dspark_markov_f32_map, e->dspark_markov_f32_size,
+                                           0, rank, vocab, g->dspark_markov_x, 1) ||
+                !ds4_gpu_tensor_read(g->dspark_markov_bias, 0, mb_recompute, (size_t)vocab * sizeof(float)))
+            {
+                free(mb_recompute); free(base_logits); free(q_dist);
+                snprintf(err, errlen, "dspark b2: target-pos0 markov recompute failed"); return n_accept;
+            }
+            float *q_row = q_dist + (uint64_t)i * vocab;
+            int best = -1; float best_l = -1e30f;
+            for (uint64_t v = 0; v < vocab; v++) {
+                float acc = base_logits[i * vocab + v] + mb_recompute[v];
+                q_row[v] = acc;
+                if (acc > best_l) { best_l = acc; best = (int)v; }
+            }
+            drafts[i] = best; prev_r = best;
+        }
+        free(mb_recompute);
     }
+    free(base_logits);
 
     if (_timing) _t_drafter = now_sec();
     /* Step 3: verify the draft suffix via the batch verifier. */
