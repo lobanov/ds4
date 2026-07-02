@@ -32,6 +32,7 @@ Artifacts built so far:
 | `mtp02_q4` | `9678000832` | `9.013335` |
 | `mtp12_q4` | `9678000832` | `9.013335` |
 | `mtp0_full_mtp2_gateup_q4` | `9174684352` | `8.544585` |
+| `mtp0_full_mtp2_gateup_mainproj_q8imat` | `9174684352` | `8.544585` |
 | `mtp0_full_mtp2_gate_q4` | `8520372928` | `7.935210` |
 | `mtp0_full_mtp2_up_q4` | `8520372928` | `7.935210` |
 | `mtp0_full_mtp2_down_q4` | `8369377984` | `7.794585` |
@@ -105,6 +106,7 @@ Mean results:
 | baseline `Q4_K` | `10.700835` | `4.229749` | `0.000%` | `4.557052` | `0.000%` | `drop-in` |
 | `mtp02_q4` | `9.013335` | `4.212788` | `-0.401%` | `4.536595` | `-0.449%` | `drop-in` |
 | `mtp0_full_mtp2_gateup_q4` | `8.544585` | `4.202200` | `-0.651%` | `4.532689` | `-0.535%` | `drop-in` |
+| `mtp0_full_mtp2_gateup_mainproj_q8imat` | `8.544585` | `4.196238` | `-0.792%` | `4.526419` | `-0.672%` | `drop-in` |
 | `mtp0_full_mtp2_gate_q4` | `7.935210` | `0.638055` | `-84.915%` | `1.629626` | `-64.239%` | `drop-in` |
 | `mtp0_full_mtp2_up_q4` | `7.935210` | `0.586143` | `-86.142%` | `1.584601` | `-65.227%` | `drop-in` |
 | `mtp0_full_mtp2_down_q4` | `7.794585` | `4.196752` | `-0.780%` | `4.526933` | `-0.661%` | `drop-in` |
@@ -127,12 +129,12 @@ Reference points outside this GGUF frontier should be read differently:
 
 Per-context accepted-token deltas vs baseline:
 
-| context | `mtp02_q4` | `mtp0_full_mtp2_gateup_q4` | `mtp0_full_mtp2_gate_q4` | `mtp0_full_mtp2_up_q4` | `mtp0_full_mtp2_down_q4` | `mtp2_full_mtp0_gateup_q4` | `mtp2_full_mtp0_down_q4` | `mtp01_q4` | `only_mtp0_q4` | `only_mtp2_q4` | `mtp12_q4` | `only_mtp1_q4` | `all_q2` |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| `8192` | `-0.216%` | `-0.020%` | `-90.416%` | `-91.183%` | `-0.374%` | `-1.691%` | `-1.396%` | `-0.845%` | `-0.167%` | `-3.175%` | `-4.109%` | `-3.785%` | `-3.234%` |
-| `16384` | `-0.720%` | `-0.486%` | `-77.823%` | `-82.862%` | `-1.041%` | `-0.739%` | `-1.002%` | `-0.204%` | `-1.138%` | `-1.031%` | `-0.788%` | `-2.091%` | `-2.033%` |
-| `24576` | `-0.234%` | `-0.964%` | `-91.426%` | `-90.998%` | `-1.071%` | `-0.185%` | `-1.946%` | `-0.973%` | `-1.148%` | `-1.713%` | `-3.689%` | `-3.474%` | `-2.453%` |
-| `32768` | `-0.432%` | `-1.123%` | `-80.121%` | `-79.670%` | `-0.634%` | `-0.998%` | `-0.825%` | `-0.557%` | `-1.670%` | `-1.113%` | `-0.355%` | `-2.400%` | `-2.304%` |
+| context | `mtp02_q4` | `mtp0_full_mtp2_gateup_q4` | `mtp0_full_mtp2_gateup_mainproj_q8imat` | `mtp0_full_mtp2_gate_q4` | `mtp0_full_mtp2_up_q4` | `mtp0_full_mtp2_down_q4` | `mtp2_full_mtp0_gateup_q4` | `mtp2_full_mtp0_down_q4` | `mtp01_q4` | `only_mtp0_q4` | `only_mtp2_q4` | `mtp12_q4` | `only_mtp1_q4` | `all_q2` |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| `8192` | `-0.216%` | `-0.020%` | `-0.521%` | `-90.416%` | `-91.183%` | `-0.374%` | `-1.691%` | `-1.396%` | `-0.845%` | `-0.167%` | `-3.175%` | `-4.109%` | `-3.785%` | `-3.234%` |
+| `16384` | `-0.720%` | `-0.486%` | `-0.477%` | `-77.823%` | `-82.862%` | `-1.041%` | `-0.739%` | `-1.002%` | `-0.204%` | `-1.138%` | `-1.031%` | `-0.788%` | `-2.091%` | `-2.033%` |
+| `24576` | `-0.234%` | `-0.964%` | `-0.993%` | `-91.426%` | `-90.998%` | `-1.071%` | `-0.185%` | `-1.946%` | `-0.973%` | `-1.148%` | `-1.713%` | `-3.689%` | `-3.474%` | `-2.453%` |
+| `32768` | `-0.432%` | `-1.123%` | `-1.171%` | `-80.121%` | `-79.670%` | `-0.634%` | `-0.998%` | `-0.825%` | `-0.557%` | `-1.670%` | `-1.113%` | `-0.355%` | `-2.400%` | `-2.304%` |
 
 ## Interpretation
 
@@ -159,13 +161,22 @@ The first focused mixed-family point lands between the coarse tiers:
 
 The second focused mixed-family point pushes farther down the size curve:
 
+- `mtp0_full_mtp2_gateup_mainproj_q8imat` at `8.544585 GiB`
+- same routed layout as `mtp0_full_mtp2_gateup_q4`
+- plus the calibrated `mtp.0.main_proj.weight` payload from the earlier
+  `mainproj_q8imat` donor
+- no tensor count, qtype, or total-size change relative to
+  `mtp0_full_mtp2_gateup_q4`
+
+The third focused mixed-family point pushes farther down the size curve:
+
 - `mtp0_full_mtp2_gate_q4` at `7.935210 GiB`
 - full `Q4` for all routed tensors in `mtp.0`
 - `Q4` only for `mtp.2` `ffn_gate_exps.weight`
 - `Q2` retained for `mtp.2` `ffn_up_exps.weight` and
   `ffn_down_exps.weight`
 
-The third focused mixed-family point pushes farther down the size curve:
+The fourth focused mixed-family point pushes farther down the size curve:
 
 - `mtp0_full_mtp2_up_q4` at `7.935210 GiB`
 - full `Q4` for all routed tensors in `mtp.0`
@@ -173,7 +184,7 @@ The third focused mixed-family point pushes farther down the size curve:
 - `Q2` retained for `mtp.2` `ffn_gate_exps.weight` and
   `ffn_down_exps.weight`
 
-The fourth focused mixed-family point pushes farther down the size curve:
+The fifth focused mixed-family point pushes farther down the size curve:
 
 - `mtp0_full_mtp2_down_q4` at `7.794585 GiB`
 - full `Q4` for all routed tensors in `mtp.0`
@@ -181,7 +192,7 @@ The fourth focused mixed-family point pushes farther down the size curve:
 - `Q2` retained for `mtp.2` `ffn_gate_exps.weight` and
   `ffn_up_exps.weight`
 
-The fifth focused mixed-family point is the symmetry test at the earlier
+The sixth focused mixed-family point is the symmetry test at the earlier
 middle tier:
 
 - `mtp2_full_mtp0_gateup_q4` at `8.544585 GiB`
@@ -190,7 +201,7 @@ middle tier:
   `ffn_up_exps.weight`
 - `Q2` retained for `mtp.0` `ffn_down_exps.weight`
 
-The sixth focused mixed-family point closes the same symmetry test at the
+The seventh focused mixed-family point closes the same symmetry test at the
 smaller tier:
 
 - `mtp2_full_mtp0_down_q4` at `7.794585 GiB`
@@ -265,6 +276,24 @@ while saving:
 
 - `0.468750 GiB` vs `mtp02_q4`
 - `0.468750 GiB` vs `mtp01_q4`
+
+The first real dense add-back composition on top of that routed point does not
+improve it:
+
+- `mtp0_full_mtp2_gateup_mainproj_q8imat` mean accepted `4.196238`
+- only `-0.792%` vs baseline
+- `-0.005962` mean accepted vs plain `mtp0_full_mtp2_gateup_q4`
+- `-0.016550` mean accepted vs `mtp02_q4`
+- even slightly `-0.000514` below `mtp0_full_mtp2_down_q4`
+
+So the old 2-context complementarity signal from `mainproj_q8imat` does **not**
+survive here as a useful static artifact composition. The correct read is now:
+
+- `main_proj_q8imat` is not a good add-back on top of the reduced routed
+  `mtp0_full_mtp2_gateup_q4` recipe
+- the winning routed point remains better without this dense substitution
+- any remaining dense-addback search should treat this specific composition as
+  a negative control, not a leading candidate
 
 So the new evidence is that imatrix-style `Q2` still appears useful, but not
 as a blunt all-layer choice. The promising regime is selective:
@@ -399,9 +428,9 @@ Instead, the first same-size contrast suggests:
 
 Current local state after build:
 
-- `/private/tmp/dspark_pareto_q2q4`: about `103 GiB`
+- `/private/tmp/dspark_pareto_q2q4`: about `112 GiB`
 - `/private/tmp/dspark_sweep8`: about `6.6 GiB`
-- free disk: about `267 GiB`
+- free disk: about `258 GiB`
 
 Transient reprobe artifacts for the measured 4-context runs were pruned after
 summary extraction:
@@ -440,7 +469,9 @@ plan:
   `gate` as a standalone `mtp.2` spend
 - `mtp0_full_mtp2_up_q4` is now measured and catastrophically falsifies
   `up` as a standalone `mtp.2` spend
+- `mtp0_full_mtp2_gateup_mainproj_q8imat` is now measured and slightly
+  underperforms the plain routed-only `mtp0_full_mtp2_gateup_q4` point
 - the next highest-value follow-on should therefore move away from
-  single-family routed splits and instead test either:
-  - small dense add-backs on top of `mtp0_full_mtp2_gateup_q4`, or
-  - coupled routed spends that preserve the successful `mtp2 gate/up` pair
+  both single-family routed splits and this specific `main_proj` dense add-back
+  and instead test other coupled spends that preserve the successful
+  `mtp2 gate/up` pair

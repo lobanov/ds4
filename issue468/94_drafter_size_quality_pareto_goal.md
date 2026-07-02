@@ -256,6 +256,10 @@ Current branch read after the completed coarse layer grid:
   spends
 - the surviving local interpretation is that the winning `mtp2 gate/up` point
   depends on the pair staying coupled rather than on either family alone
+- the first real dense add-back composition on top of that routed point
+  (`main_proj_q8imat`) is slightly negative on the 4-context mean, so the old
+  2-context complementarity signal does not automatically survive as one static
+  artifact
 
 ## Final read
 
