@@ -28,6 +28,7 @@ Artifacts built so far:
 | `only_mtp0_q4` | `7866061504` | `7.325835` |
 | `only_mtp1_q4` | `7866061504` | `7.325835` |
 | `only_mtp2_q4` | `7866061504` | `7.325835` |
+| `mtp01_q4` | `9678000832` | `9.013335` |
 
 These exactly match the size estimates from `95` and `96` to the byte-level
 `approx_file_bytes` reported by the quantizer dry-run / build path.
@@ -85,6 +86,7 @@ Mean results:
 | label | size GiB | mean accepted | accepted delta vs baseline | mean committed | committed delta vs baseline |
 |---|---:|---:|---:|---:|---:|
 | baseline `Q4_K` | `10.700835` | `4.229749` | `0.000%` | `4.557052` | `0.000%` |
+| `mtp01_q4` | `9.013335` | `4.202508` | `-0.644%` | `4.542044` | `-0.329%` |
 | `only_mtp0_q4` | `7.325835` | `4.185958` | `-1.035%` | `4.522718` | `-0.753%` |
 | `only_mtp2_q4` | `7.325835` | `4.155633` | `-1.752%` | `4.495785` | `-1.344%` |
 | `all_q2` | `5.638335` | `4.123869` | `-2.503%` | `4.476151` | `-1.775%` |
@@ -92,12 +94,12 @@ Mean results:
 
 Per-context accepted-token deltas vs baseline:
 
-| context | `only_mtp0_q4` | `only_mtp2_q4` | `only_mtp1_q4` | `all_q2` |
-|---|---:|---:|---:|---:|
-| `8192` | `-0.167%` | `-3.175%` | `-3.785%` | `-3.234%` |
-| `16384` | `-1.138%` | `-1.031%` | `-2.091%` | `-2.033%` |
-| `24576` | `-1.148%` | `-1.713%` | `-3.474%` | `-2.453%` |
-| `32768` | `-1.670%` | `-1.113%` | `-2.400%` | `-2.304%` |
+| context | `mtp01_q4` | `only_mtp0_q4` | `only_mtp2_q4` | `only_mtp1_q4` | `all_q2` |
+|---|---:|---:|---:|---:|---:|
+| `8192` | `-0.845%` | `-0.167%` | `-3.175%` | `-3.785%` | `-3.234%` |
+| `16384` | `-0.204%` | `-1.138%` | `-1.031%` | `-2.091%` | `-2.033%` |
+| `24576` | `-0.973%` | `-1.148%` | `-1.713%` | `-3.474%` | `-2.453%` |
+| `32768` | `-0.557%` | `-1.670%` | `-1.113%` | `-2.400%` | `-2.304%` |
 
 ## Interpretation
 
@@ -137,6 +139,18 @@ attention as a deployment point:
 - `-0.049959` mean accepted vs `only_mtp2_q4`
 - even `-0.018195` mean accepted vs `all_q2` despite costing `+1.687500 GiB`
 
+The first `9.013335 GiB` point, `mtp01_q4`, does recover additional quality:
+
+- mean accepted `4.202508`
+- only `-0.644%` vs baseline
+- `+0.016550` mean accepted vs `only_mtp0_q4`
+
+But the recovery is still modest for the added size:
+
+- `+1.687500 GiB` over `only_mtp0_q4`
+- closes only about `37.8%` of the remaining accepted-token gap from
+  `only_mtp0_q4` to baseline
+
 So the current evidence still supports the branch hypothesis that:
 
 - the interesting frontier lies in mixed routed `Q2/Q4` recipes, not pure
@@ -151,17 +165,19 @@ Instead, the first same-size contrast suggests:
 - `mtp.0` is the strongest measured single-layer `Q4` keep on this metric
 - `mtp.1` is a poor use of the `Q4` budget at this size
 - `mtp.2` is helpful, but not the best single-layer keep
-- the next unresolved frontier question is whether any `9.01 GiB` two-layer
-  `Q4` recipe closes enough of the remaining `only_mtp0_q4 -> baseline` gap to
-  justify its extra `1.687500 GiB`
+- `mtp01_q4` is a credible larger-knee point, but not an obvious baseline
+  replacement
+- the next unresolved frontier question is whether the other `9.01 GiB`
+  variants can beat `mtp01_q4`, or whether the tier is already effectively
+  characterized
 
 ## Disk-space state
 
 Current local state after build:
 
-- `/private/tmp/dspark_pareto_q2q4`: about `28 GiB`
+- `/private/tmp/dspark_pareto_q2q4`: about `37 GiB`
 - `/private/tmp/dspark_sweep8`: about `6.6 GiB`
-- free disk: about `342 GiB`
+- free disk: about `333 GiB`
 
 Transient reprobe artifacts for the measured 4-context runs were pruned after
 summary extraction:
@@ -172,7 +188,7 @@ summary extraction:
 
 No further cleanup was applied here because:
 
-- the four frontier artifacts are active research outputs
+- the five frontier artifacts are active research outputs
 - the remaining large files in `/private/tmp/dspark_sweep2ctx` are the three
   intentionally retained reference GGUFs plus the imatrix path used by this
   sweep
@@ -185,9 +201,8 @@ continue pruning superseded GGUFs as soon as they are no longer needed.
 The next branch action should be more selective than the original full-grid
 plan:
 
-- decide whether the measured gain from `only_mtp0_q4` over the rest of the
-  `7.33 GiB` tier is strong enough to justify spending on the `9.01 GiB`
-  two-layer-`Q4` tier
-- if more builds are justified, prioritize `mtp01_q4` before the other
-  `9.01 GiB` variants because `mtp.0` is clearly worth keeping and `mtp.1`
-  looks weak in isolation
+- decide whether the modest `mtp01_q4` gain over `only_mtp0_q4` is already
+  enough to stop the larger-tier search
+- if one more `9.01 GiB` build is justified, prioritize `mtp02_q4` rather than
+  `mtp12_q4` because `mtp.0` is clearly strong and `mtp.1` is weak in
+  isolation
