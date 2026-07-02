@@ -31,6 +31,7 @@ Artifacts built so far:
 | `mtp01_q4` | `9678000832` | `9.013335` |
 | `mtp02_q4` | `9678000832` | `9.013335` |
 | `mtp12_q4` | `9678000832` | `9.013335` |
+| `mtp0_full_mtp2_gateup_q4` | `9174684352` | `8.544585` |
 
 These exactly match the size estimates from `95` and `96` to the byte-level
 `approx_file_bytes` reported by the quantizer dry-run / build path.
@@ -89,6 +90,7 @@ Mean results:
 |---|---:|---:|---:|---:|---:|
 | baseline `Q4_K` | `10.700835` | `4.229749` | `0.000%` | `4.557052` | `0.000%` |
 | `mtp02_q4` | `9.013335` | `4.212788` | `-0.401%` | `4.536595` | `-0.449%` |
+| `mtp0_full_mtp2_gateup_q4` | `8.544585` | `4.202200` | `-0.651%` | `4.532689` | `-0.535%` |
 | `mtp01_q4` | `9.013335` | `4.202508` | `-0.644%` | `4.542044` | `-0.329%` |
 | `only_mtp0_q4` | `7.325835` | `4.185958` | `-1.035%` | `4.522718` | `-0.753%` |
 | `only_mtp2_q4` | `7.325835` | `4.155633` | `-1.752%` | `4.495785` | `-1.344%` |
@@ -98,12 +100,12 @@ Mean results:
 
 Per-context accepted-token deltas vs baseline:
 
-| context | `mtp02_q4` | `mtp01_q4` | `only_mtp0_q4` | `only_mtp2_q4` | `mtp12_q4` | `only_mtp1_q4` | `all_q2` |
-|---|---:|---:|---:|---:|---:|---:|---:|
-| `8192` | `-0.216%` | `-0.845%` | `-0.167%` | `-3.175%` | `-4.109%` | `-3.785%` | `-3.234%` |
-| `16384` | `-0.720%` | `-0.204%` | `-1.138%` | `-1.031%` | `-0.788%` | `-2.091%` | `-2.033%` |
-| `24576` | `-0.234%` | `-0.973%` | `-1.148%` | `-1.713%` | `-3.689%` | `-3.474%` | `-2.453%` |
-| `32768` | `-0.432%` | `-0.557%` | `-1.670%` | `-1.113%` | `-0.355%` | `-2.400%` | `-2.304%` |
+| context | `mtp02_q4` | `mtp0_full_mtp2_gateup_q4` | `mtp01_q4` | `only_mtp0_q4` | `only_mtp2_q4` | `mtp12_q4` | `only_mtp1_q4` | `all_q2` |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| `8192` | `-0.216%` | `-0.020%` | `-0.845%` | `-0.167%` | `-3.175%` | `-4.109%` | `-3.785%` | `-3.234%` |
+| `16384` | `-0.720%` | `-0.486%` | `-0.204%` | `-1.138%` | `-1.031%` | `-0.788%` | `-2.091%` | `-2.033%` |
+| `24576` | `-0.234%` | `-0.964%` | `-0.973%` | `-1.148%` | `-1.713%` | `-3.689%` | `-3.474%` | `-2.453%` |
+| `32768` | `-0.432%` | `-1.123%` | `-0.557%` | `-1.670%` | `-1.113%` | `-0.355%` | `-2.400%` | `-2.304%` |
 
 ## Interpretation
 
@@ -120,6 +122,13 @@ The currently measured `9.013335 GiB` tier is now:
 1. `mtp02_q4`
 2. `mtp01_q4`
 3. `mtp12_q4`
+
+The first focused mixed-family point lands between the coarse tiers:
+
+- `mtp0_full_mtp2_gateup_q4` at `8.544585 GiB`
+- full `Q4` for all routed tensors in `mtp.0`
+- `Q4` only for `ffn_gate_exps.weight` and `ffn_up_exps.weight` in `mtp.2`
+- `Q2` retained for `mtp.2` `ffn_down_exps.weight`
 
 `all_q2` establishes the current size floor:
 
@@ -174,6 +183,27 @@ Even so, the larger-tier improvement remains incremental rather than dramatic:
 - closes about `61.3%` of the remaining accepted-token gap from
   `only_mtp0_q4` to baseline
 
+The first focused `mtp0/mtp2` family probe is a more interesting trade:
+
+- `mtp0_full_mtp2_gateup_q4` mean accepted `4.202200`
+- only `-0.651%` vs baseline
+- `+0.016242` mean accepted vs `only_mtp0_q4`
+- only `-0.010588` mean accepted vs `mtp02_q4`
+- effectively tied with `mtp01_q4` at `-0.000308` mean accepted
+
+That result matters because it buys most of the `mtp02_q4` quality recovery
+while saving:
+
+- `0.468750 GiB` vs `mtp02_q4`
+- `0.468750 GiB` vs `mtp01_q4`
+
+So the new evidence is that imatrix-style `Q2` still appears useful, but not
+as a blunt all-layer choice. The promising regime is selective:
+
+- keep `mtp.0` fully at `Q4`
+- spend additional `Q4` budget in `mtp.2` primarily on gate/up tensors
+- leave lower-value routed tensors such as `mtp.2` down experts at `Q2`
+
 `mtp12_q4` falsifies the hope that any two-layer `Q4` recipe at this size is
 automatically good:
 
@@ -205,9 +235,9 @@ Instead, the first same-size contrast suggests:
 
 Current local state after build:
 
-- `/private/tmp/dspark_pareto_q2q4`: about `55 GiB`
+- `/private/tmp/dspark_pareto_q2q4`: about `63 GiB`
 - `/private/tmp/dspark_sweep8`: about `6.6 GiB`
-- free disk: about `315 GiB`
+- free disk: about `306 GiB`
 
 Transient reprobe artifacts for the measured 4-context runs were pruned after
 summary extraction:
@@ -233,6 +263,8 @@ plan:
 
 - decide whether the modest `mtp02_q4` gain over `only_mtp0_q4` is already
   enough to stop the larger-tier search entirely
-- if any further search is justified, it should likely move away from this
-  coarse layer grid and toward a more targeted tensor-family or mixed-precision
-  spend around the `mtp0/mtp2` recipe family
+- if any further search is justified, it should continue in the targeted
+  `mtp0/mtp2` tensor-family space rather than returning to the coarse layer
+  grid
+- the next informative probes are likely `mtp0_full_mtp2_down_q4` or the
+  symmetric `mtp2`-anchored gate/up variant
