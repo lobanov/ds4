@@ -33,6 +33,7 @@ Artifacts built so far:
 | `mtp12_q4` | `9678000832` | `9.013335` |
 | `mtp0_full_mtp2_gateup_q4` | `9174684352` | `8.544585` |
 | `mtp0_full_mtp2_down_q4` | `8369377984` | `7.794585` |
+| `mtp2_full_mtp0_gateup_q4` | `9174684352` | `8.544585` |
 
 These exactly match the size estimates from `95` and `96` to the byte-level
 `approx_file_bytes` reported by the quantizer dry-run / build path.
@@ -85,29 +86,47 @@ using:
 - `19` draft steps
 - `128` B2 trials
 
+Compatibility status used below:
+
+- `drop-in`: already loadable and measurable in the frozen `ds4` runtime with
+  existing kernels and metadata
+- `can be made compatible`: expected to fit the frozen runtime with conversion
+  or packaging work, but not yet a measured drop-in GGUF
+- `requires new kernels`: would need runtime/kernel support beyond the current
+  frozen `ds4` surface
+
 Mean results:
 
-| label | size GiB | mean accepted | accepted delta vs baseline | mean committed | committed delta vs baseline |
-|---|---:|---:|---:|---:|---:|
-| baseline `Q4_K` | `10.700835` | `4.229749` | `0.000%` | `4.557052` | `0.000%` |
-| `mtp02_q4` | `9.013335` | `4.212788` | `-0.401%` | `4.536595` | `-0.449%` |
-| `mtp0_full_mtp2_gateup_q4` | `8.544585` | `4.202200` | `-0.651%` | `4.532689` | `-0.535%` |
-| `mtp0_full_mtp2_down_q4` | `7.794585` | `4.196752` | `-0.780%` | `4.526933` | `-0.661%` |
-| `mtp01_q4` | `9.013335` | `4.202508` | `-0.644%` | `4.542044` | `-0.329%` |
-| `only_mtp0_q4` | `7.325835` | `4.185958` | `-1.035%` | `4.522718` | `-0.753%` |
-| `only_mtp2_q4` | `7.325835` | `4.155633` | `-1.752%` | `4.495785` | `-1.344%` |
-| `mtp12_q4` | `9.013335` | `4.135691` | `-2.224%` | `4.487973` | `-1.516%` |
-| `all_q2` | `5.638335` | `4.123869` | `-2.503%` | `4.476151` | `-1.775%` |
-| `only_mtp1_q4` | `7.325835` | `4.105674` | `-2.933%` | `4.468750` | `-1.938%` |
+| label | size GiB | mean accepted | accepted delta vs baseline | mean committed | committed delta vs baseline | runtime status |
+|---|---:|---:|---:|---:|---:|---|
+| baseline `Q4_K` | `10.700835` | `4.229749` | `0.000%` | `4.557052` | `0.000%` | `drop-in` |
+| `mtp02_q4` | `9.013335` | `4.212788` | `-0.401%` | `4.536595` | `-0.449%` | `drop-in` |
+| `mtp0_full_mtp2_gateup_q4` | `8.544585` | `4.202200` | `-0.651%` | `4.532689` | `-0.535%` | `drop-in` |
+| `mtp0_full_mtp2_down_q4` | `7.794585` | `4.196752` | `-0.780%` | `4.526933` | `-0.661%` | `drop-in` |
+| `mtp2_full_mtp0_gateup_q4` | `8.544585` | `4.191612` | `-0.902%` | `4.521382` | `-0.783%` | `drop-in` |
+| `mtp01_q4` | `9.013335` | `4.202508` | `-0.644%` | `4.542044` | `-0.329%` | `drop-in` |
+| `only_mtp0_q4` | `7.325835` | `4.185958` | `-1.035%` | `4.522718` | `-0.753%` | `drop-in` |
+| `only_mtp2_q4` | `7.325835` | `4.155633` | `-1.752%` | `4.495785` | `-1.344%` | `drop-in` |
+| `mtp12_q4` | `9.013335` | `4.135691` | `-2.224%` | `4.487973` | `-1.516%` | `drop-in` |
+| `all_q2` | `5.638335` | `4.123869` | `-2.503%` | `4.476151` | `-1.775%` | `drop-in` |
+| `only_mtp1_q4` | `7.325835` | `4.105674` | `-2.933%` | `4.468750` | `-1.938%` | `drop-in` |
+
+Reference points outside this GGUF frontier should be read differently:
+
+| reference | role | runtime status | reason |
+|---|---|---|---|
+| raw-HF DSpark oracle from `93` | ceiling/reference only | `can be made compatible` | source tensors are architecturally compatible with the frozen runtime, but they are not themselves a measured drop-in deployment artifact until converted and packaged into a GGUF |
+| numpy oracle / ref-ckpt paths | analysis only | `can be made compatible` | useful for oracle-level scoring and tensor surgery, but not directly loadable by production `ds4` without conversion into the existing GGUF/runtime surface |
+| any FP8-or-other new tensor-type experiment outside current GGUF types | hypothetical search space | `requires new kernels` | frozen runtime does not currently expose those expert/storage kernels |
 
 Per-context accepted-token deltas vs baseline:
 
-| context | `mtp02_q4` | `mtp0_full_mtp2_gateup_q4` | `mtp0_full_mtp2_down_q4` | `mtp01_q4` | `only_mtp0_q4` | `only_mtp2_q4` | `mtp12_q4` | `only_mtp1_q4` | `all_q2` |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| `8192` | `-0.216%` | `-0.020%` | `-0.374%` | `-0.845%` | `-0.167%` | `-3.175%` | `-4.109%` | `-3.785%` | `-3.234%` |
-| `16384` | `-0.720%` | `-0.486%` | `-1.041%` | `-0.204%` | `-1.138%` | `-1.031%` | `-0.788%` | `-2.091%` | `-2.033%` |
-| `24576` | `-0.234%` | `-0.964%` | `-1.071%` | `-0.973%` | `-1.148%` | `-1.713%` | `-3.689%` | `-3.474%` | `-2.453%` |
-| `32768` | `-0.432%` | `-1.123%` | `-0.634%` | `-0.557%` | `-1.670%` | `-1.113%` | `-0.355%` | `-2.400%` | `-2.304%` |
+| context | `mtp02_q4` | `mtp0_full_mtp2_gateup_q4` | `mtp0_full_mtp2_down_q4` | `mtp2_full_mtp0_gateup_q4` | `mtp01_q4` | `only_mtp0_q4` | `only_mtp2_q4` | `mtp12_q4` | `only_mtp1_q4` | `all_q2` |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| `8192` | `-0.216%` | `-0.020%` | `-0.374%` | `-1.691%` | `-0.845%` | `-0.167%` | `-3.175%` | `-4.109%` | `-3.785%` | `-3.234%` |
+| `16384` | `-0.720%` | `-0.486%` | `-1.041%` | `-0.739%` | `-0.204%` | `-1.138%` | `-1.031%` | `-0.788%` | `-2.091%` | `-2.033%` |
+| `24576` | `-0.234%` | `-0.964%` | `-1.071%` | `-0.185%` | `-0.973%` | `-1.148%` | `-1.713%` | `-3.689%` | `-3.474%` | `-2.453%` |
+| `32768` | `-0.432%` | `-1.123%` | `-0.634%` | `-0.998%` | `-0.557%` | `-1.670%` | `-1.113%` | `-0.355%` | `-2.400%` | `-2.304%` |
 
 ## Interpretation
 
@@ -139,6 +158,15 @@ The second focused mixed-family point pushes farther down the size curve:
 - `Q4` only for `mtp.2` `ffn_down_exps.weight`
 - `Q2` retained for `mtp.2` `ffn_gate_exps.weight` and
   `ffn_up_exps.weight`
+
+The third focused mixed-family point is the symmetry test at the earlier
+middle tier:
+
+- `mtp2_full_mtp0_gateup_q4` at `8.544585 GiB`
+- full `Q4` for all routed tensors in `mtp.2`
+- `Q4` only for `mtp.0` `ffn_gate_exps.weight` and
+  `ffn_up_exps.weight`
+- `Q2` retained for `mtp.0` `ffn_down_exps.weight`
 
 `all_q2` establishes the current size floor:
 
@@ -238,6 +266,23 @@ but gives back enough quality that the structural conclusion is now clearer:
 - the `mtp0`-anchored family still looks promising, but the local frontier now
   bends toward `gate/up`-first allocations
 
+The symmetry test makes the layer-identity conclusion much harder to dismiss:
+
+- `mtp2_full_mtp0_gateup_q4` mean accepted `4.191612`
+- only `-0.902%` vs baseline
+- `-0.010588` mean accepted vs `mtp0_full_mtp2_gateup_q4` at the same byte size
+- `-0.005140` mean accepted vs `mtp0_full_mtp2_down_q4` despite costing
+  `+0.750000 GiB`
+- only `+0.035979` mean accepted vs `only_mtp2_q4` for `+1.218750 GiB`
+
+So the best current read is no longer only "preserve gate/up where possible."
+It is more specific:
+
+- `mtp.0` is the strongest routed layer to keep fully at `Q4`
+- additional `Q4` spend in `mtp.2` helps most when directed to `gate/up`
+- the symmetric `mtp.2`-anchored allocation does not recover comparable
+  quality at the same size
+
 `mtp12_q4` falsifies the hope that any two-layer `Q4` recipe at this size is
 automatically good:
 
@@ -269,9 +314,9 @@ Instead, the first same-size contrast suggests:
 
 Current local state after build:
 
-- `/private/tmp/dspark_pareto_q2q4`: about `71 GiB`
+- `/private/tmp/dspark_pareto_q2q4`: about `80 GiB`
 - `/private/tmp/dspark_sweep8`: about `6.6 GiB`
-- free disk: about `298 GiB`
+- free disk: about `289 GiB`
 
 Transient reprobe artifacts for the measured 4-context runs were pruned after
 summary extraction:
@@ -302,6 +347,9 @@ plan:
   grid
 - `mtp0_full_mtp2_down_q4` is now measured and underperforms the earlier
   `mtp0_full_mtp2_gateup_q4` quality recovery
-- the next informative probe is therefore the symmetric
-  `mtp2_full_mtp0_gateup_q4` variant, to test whether the winning signal is
-  really tied to `mtp.0` dominance or more generally to gate/up preservation
+- the symmetric `mtp2_full_mtp0_gateup_q4` probe is now measured and supports
+  `mtp.0` dominance rather than a layer-agnostic gate/up story
+- the next highest-value follow-on is likely `mtp2_full_mtp0_down_q4` only if
+  there is value in fully closing the symmetry table; otherwise the current
+  evidence is already strong enough to stop the `mtp2`-anchored branch and
+  concentrate future search on `mtp0`-anchored recipes
