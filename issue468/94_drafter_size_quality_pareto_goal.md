@@ -166,6 +166,23 @@ Purpose:
 - see whether the frontier can be bent upward by spending limited `Q4` budget
   only where it matters most
 
+Current best focused follow-on after the completed coarse layer grid:
+
+- keep `mtp.0` and `mtp.2` as the favored routed layers
+- treat `mtp.1` as a weak `Q4` spend unless a later targeted result falsifies
+  that
+- test family-level spends such as:
+  - `mtp0` full `Q4` with only `mtp2 gate/up` kept at `Q4`
+  - `mtp0` full `Q4` with only `mtp2 down` kept at `Q4`
+  - symmetric variants around full-`Q4` `mtp2`
+
+Reason:
+
+- the coarse grid now shows `mtp0` is the strongest single-layer `Q4` keep
+- `mtp02_q4` is the strongest measured two-layer `Q4` point
+- `mtp12_q4` underperformed badly enough that more coarse layer-allocation
+  search is low value
+
 ### Tier 3. Small dense add-backs
 
 On promising reduced-size routed recipes, test cheap dense controls such as:
@@ -224,6 +241,15 @@ After the first coarse frontier is measured:
 - if a mixed point is nearly flat in quality, prioritize it as the new main
   deployment candidate
 
+Current branch read after the completed coarse layer grid:
+
+- the best measured reduced-size point so far is `mtp02_q4`
+- the coarse layer-allocation frontier is now characterized well enough for
+  decision use
+- if more search is justified, it should move to targeted tensor-family spends
+  around the `mtp0/mtp2` recipe family rather than more coarse layer-grid
+  points
+
 ## Final read
 
 This goal matches the actual state of the branch better than the old
@@ -235,5 +261,7 @@ The current evidence suggests that:
 - downward size headroom is real
 - the remaining useful question is how much of the current quality can be
   preserved as the routed-expert budget is reduced
+- the best next search, if any, is no longer broad layer allocation but
+  targeted `Q4` budget placement inside the `mtp0/mtp2` routed family
 
 That is exactly a Pareto-frontier problem.

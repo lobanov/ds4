@@ -7,7 +7,8 @@ This helper starts from an existing DSpark drafter GGUF and:
 - assumes a routed Q2 recipe of:
   - gate/up experts -> IQ2_XXS
   - down experts -> Q2_K
-- estimates total artifact size for any subset of layers kept at Q4_K
+- estimates total artifact size for any subset of layers or expert tensor parts
+  kept at Q4_K
 
 It is a planning tool for the first-pass size/quality Pareto frontier, not a
 GGUF writer.
@@ -83,11 +84,44 @@ def build_layer_inventory(path: Path) -> dict[str, dict[str, int]]:
     return per_layer
 
 
+def build_expert_tensor_inventory(path: Path) -> dict[str, dict[str, dict[str, int]]]:
+    info = parse_gguf(path)
+    per_layer: dict[str, dict[str, dict[str, int]]] = {}
+    for tensor in info.tensors:
+        layer = layer_of(tensor.name)
+        if layer is None:
+            continue
+        leaf = ".".join(tensor.name.split(".")[2:])
+        if leaf not in EXPERT_NAMES:
+            continue
+        per_layer.setdefault(layer, {})[leaf] = {
+            "q4": tensor.n_bytes,
+            "q2": estimate_q2_bytes(tensor.n_bytes, leaf),
+        }
+    return per_layer
+
+
 def total_for_q4_layers(per_layer: dict[str, dict[str, int]], q4_layers: set[str]) -> int:
     total = 0
     for layer, inv in per_layer.items():
         total += inv["nonexpert"]
         total += inv["q4_expert"] if layer in q4_layers else inv["q2_expert"]
+    return total
+
+
+def total_for_tensor_modes(
+    per_layer: dict[str, dict[str, int]],
+    expert_inventory: dict[str, dict[str, dict[str, int]]],
+    tensor_modes: dict[str, str],
+) -> int:
+    total = 0
+    for layer, inv in per_layer.items():
+        total += inv["nonexpert"]
+        for leaf in EXPERT_NAMES:
+            mode = tensor_modes.get(f"{layer}.{leaf}", "q2")
+            if mode not in {"q2", "q4"}:
+                raise ValueError(f"unexpected mode {mode} for {layer}.{leaf}")
+            total += expert_inventory[layer][leaf][mode]
     return total
 
 
