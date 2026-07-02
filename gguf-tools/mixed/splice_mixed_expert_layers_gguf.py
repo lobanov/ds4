@@ -344,6 +344,15 @@ def parse_expert_block_specs(specs: list[str] | None) -> dict[str, tuple[tuple[i
     return parsed
 
 
+def parse_tensor_select(spec: str | None) -> set[str]:
+    if not spec:
+        return set()
+    out = {part.strip() for part in spec.split(",") if part.strip()}
+    if not out:
+        raise ValueError("empty --tensor-select")
+    return out
+
+
 def qtype_name(ggml_type: int) -> str:
     return GGML_QUANT_SIZES.get(ggml_type, (0, 0, f"type_{ggml_type}"))[2]
 
@@ -426,6 +435,7 @@ def build_plan(
     block_delta_specs: dict[str, int],
     expert_specs: dict[str, tuple[int, ...]],
     expert_block_specs: dict[str, tuple[tuple[int, int], ...]],
+    tensor_select: set[str],
 ) -> list[SplicePlan]:
     if base.version != donor.version:
         raise ValueError(f"GGUF version mismatch: base={base.version} donor={donor.version}")
@@ -448,7 +458,10 @@ def build_plan(
         source = "base"
         source_tensor = base_tensor
         donor_tensor_ref: TensorInfo | None = None
-        if use_donor:
+        if base_tensor.name in tensor_select:
+            source = "donor"
+            source_tensor = donor_tensor
+        elif use_donor:
             source = "donor"
             source_tensor = donor_tensor
         elif base_tensor.name in expert_specs:
@@ -644,11 +657,15 @@ def main() -> int:
         action="append",
         help="copy all rows for selected expert/column-block pairs in one Q4_K expert tensor, format <tensor_name>:expert:block,expert:block,...",
     )
+    parser.add_argument(
+        "--tensor-select",
+        help="comma-separated exact tensor names to copy from donor",
+    )
     parser.add_argument("--dry-run", action="store_true", help="print the plan without writing the output")
     parser.add_argument("--force", action="store_true", help="overwrite --out if it already exists")
     args = parser.parse_args()
 
-    if not any([args.q4_layers, args.q4_select, args.block_delta_top, args.expert_select, args.expert_block_select]):
+    if not any([args.q4_layers, args.q4_select, args.block_delta_top, args.expert_select, args.expert_block_select, args.tensor_select]):
         parser.error("pass at least one selection mode")
     if args.q4_layers and args.q4_select:
         parser.error("--q4-layers and --q4-select are mutually exclusive")
@@ -671,10 +688,13 @@ def main() -> int:
     for name, pairs in sorted(expert_block_specs.items()):
         spec = ",".join(f"{expert}:{block}" for expert, block in pairs)
         print(f"expert block select: {name}:{spec}")
+    tensor_select = parse_tensor_select(args.tensor_select)
+    if tensor_select:
+        print("tensor select:", ",".join(sorted(tensor_select)))
 
     base = parse_gguf(args.base)
     donor = parse_gguf(args.donor)
-    plan = build_plan(base, donor, selections, block_delta_specs, expert_specs, expert_block_specs)
+    plan = build_plan(base, donor, selections, block_delta_specs, expert_specs, expert_block_specs, tensor_select)
     summarize(base, donor, plan)
 
     if args.dry_run:
