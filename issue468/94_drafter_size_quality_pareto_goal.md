@@ -263,6 +263,9 @@ Current branch read after the completed coarse layer grid:
 - the first same-size `9.013335 GiB` coupled follow-on that preserves
   `mtp2 gate/up` but adds only `mtp1 down` also underperforms the existing
   `9.013335 GiB` points
+- a larger coupled follow-on that preserves `mtp2 gate/up` and restores the
+  full `mtp1 gate/up` pair is the first post-frontier add-back that remains
+  genuinely competitive on the 4-context mean
 
 ## Final read
 
