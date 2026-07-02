@@ -309,4 +309,22 @@ The review did still preserve three bounded follow-ons:
 3. if tooling permits, try tensor-specific `Q2` calibration on the sole
    remaining `Q2` payload, `mtp.1.ffn_down_exps.weight`
 
+The first of those preserved controls is now resolved:
+
+- `mtp02_q4_mtp1_down_q4` lands at mean accepted `4.198424`
+- that is `-0.741%` vs baseline
+- it is also `-0.014364` below plain `mtp02_q4` despite costing
+  `+0.468750 GiB`
+
+So the main remaining caveat from the independent review is now materially
+weaker:
+
+- the useful `mtp.1` signal does appear to be `gate/up`-specific rather than a
+  hidden `down` effect on top of the strong `mtp02` core
+- the current branch does not support spending more `Q4` budget on `mtp.1 down`
+  as a promising frontier move
+- the highest-value remaining work is now confirmation of
+  `mtp02_q4_mtp1_gateup_q4`, plus at most the final symmetry control
+  `mtp0_full_mtp1_gateup_q4`
+
 That is exactly a Pareto-frontier problem.
