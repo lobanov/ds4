@@ -30337,7 +30337,15 @@ int ds4_session_eval_dspark_b2(ds4_session *s, int first_token,
                        b2_rng_state ^= b2_rng_state << 17, (double)(b2_rng_state >> 11) / (double)(1ULL << 53))
 
     /* Helper: compute softmax max + sum for a logits row, then p(x)/q(x). */
-    for (int i = 0; i < (int)block && n_accept < accepted_cap && n_accept < max_tokens; i++) {
+    int b2_start_pos = 0;
+    /* Target-pos0: commit pos 0 unconditionally (it IS the target distribution).
+     * Skip B2 accept at pos 0, start the accept loop at pos 1. */
+    if (getenv("DS4_DSPARK_TARGET_POS0") && n_accept < accepted_cap && n_accept < max_tokens) {
+        accepted[n_accept++] = drafts[0];
+        n_draft_accept++;
+        b2_start_pos = 1;
+    }
+    for (int i = b2_start_pos; i < (int)block && n_accept < accepted_cap && n_accept < max_tokens; i++) {
         int draft_tok = drafts[i];
         float *q_row = q_dist + (uint64_t)i * vocab;
         /* Target p: position 0 uses s->logits, positions 1..4 use row_logits[i-1]. */
