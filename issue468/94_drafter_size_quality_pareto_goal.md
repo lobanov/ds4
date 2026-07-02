@@ -252,9 +252,10 @@ Current branch read after the completed coarse layer grid:
 - the completed focused symmetry table now retires the `mtp2`-anchored branch
 - the next highest-value split inside the winning `mtp0`-anchored family is to
   separate `mtp2 gate` from `mtp2 up`
-- early evidence already falsifies `mtp2 gate` as a standalone spend, so the
-  remaining live question is whether `mtp2 up` is the real local driver or
-  whether `gate/up` only works as a coupled bundle
+- both `mtp2 gate` and `mtp2 up` now fail catastrophically as standalone
+  spends
+- the surviving local interpretation is that the winning `mtp2 gate/up` point
+  depends on the pair staying coupled rather than on either family alone
 
 ## Final read
 
