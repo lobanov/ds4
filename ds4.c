@@ -30222,6 +30222,37 @@ int ds4_session_eval_dspark_b2(ds4_session *s, int first_token,
     free(markov_bias);
     free(base_logits);
 
+    /* Codex lead #1 (issue468/76): target-sampled position 0. Override drafts[0]
+     * with a sample from softmax(s->logits) (the target's distribution). This
+     * attacks the measured pos-0 failure (68% live vs 95.5% oracle) by proposing
+     * a token from the target distribution instead of the drafter's OOD argmax.
+     * The drafter's q_dist[0] is still used for the accept probability. */
+    if (getenv("DS4_DSPARK_TARGET_POS0")) {
+        float pmax = -1e30f;
+        for (uint64_t v = 0; v < vocab; v++)
+            if (s->logits[v] > pmax) pmax = s->logits[v];
+        double psum = 0;
+        for (uint64_t v = 0; v < vocab; v++)
+            psum += exp((double)(s->logits[v] - pmax));
+        /* Sample from softmax(s->logits) using the B2 RNG */
+        static uint64_t b2_rng_state_pos0 = 0;
+        static bool b2_rng_pos0_seeded = false;
+        if (!b2_rng_pos0_seeded) {
+            b2_rng_state_pos0 = g_dspark_b2_seed ? g_dspark_b2_seed : 0x9e3779b97f4a7c15ULL;
+            b2_rng_pos0_seeded = true;
+        }
+        double u = (b2_rng_state_pos0 ^= b2_rng_state_pos0 << 13, b2_rng_state_pos0 ^= b2_rng_state_pos0 >> 7,
+                    b2_rng_state_pos0 ^= b2_rng_state_pos0 << 17, (double)(b2_rng_state_pos0 >> 11) / (double)(1ULL << 53));
+        double target_cum = u * psum;
+        double cdf = 0;
+        for (uint64_t v = 0; v < vocab; v++) {
+            cdf += exp((double)(s->logits[v] - pmax));
+            if (cdf >= target_cum) { drafts[0] = (int)v; break; }
+        }
+        if (getenv("DS4_DSPARK_B2_DEBUG"))
+            fprintf(stderr, "ds4: b2: pos 0 OVERRIDE target-sampled draft=%d\n", drafts[0]);
+    }
+
     if (_timing) _t_drafter = now_sec();
     /* Step 3: verify the draft suffix via the batch verifier. */
     ds4_spec_frontier frontier;
