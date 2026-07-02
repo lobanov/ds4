@@ -30264,12 +30264,7 @@ int ds4_session_eval_dspark_b2(ds4_session *s, int first_token,
      * row_logits has [block, vocab] = the full target distribution per position.
      */
     int n_draft_accept = 0;
-    /* Bug #3 fix (productionization note 40): xorshift RNG for B2 accept/reject. Was a
-     * fixed static (0x9e3779b9...), making the acceptance sequence independent
-     * of --seed. Now seeded via ds4_dspark_b2_seed() from the CLI --seed/
-     * session RNG; defaults to the prior fixed constant for backward compat if
-     * the setter was never called. g_b2_rng_seeded guards one-time init so a
-     * fixed --seed yields a deterministic stream across the whole generation. */
+    /* Bug #3 fix (productionization note 40): xorshift RNG for B2 accept/reject. */
     static uint64_t b2_rng_state = 0;
     static bool b2_rng_seeded = false;
     if (!b2_rng_seeded) {
