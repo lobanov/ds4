@@ -76,6 +76,14 @@ def focused_candidate_specs() -> list[tuple[str, dict[str, str]]]:
     base_mtp02 = tensor_mode_map({"mtp.0", "mtp.2"})
     specs.append(("mtp02_q4", base_mtp02))
 
+    mtp0_full_mtp2_gate = tensor_mode_map({"mtp.0"})
+    mtp0_full_mtp2_gate["mtp.2.ffn_gate_exps.weight"] = "q4"
+    specs.append(("mtp0_full_mtp2_gate_q4", mtp0_full_mtp2_gate))
+
+    mtp0_full_mtp2_up = tensor_mode_map({"mtp.0"})
+    mtp0_full_mtp2_up["mtp.2.ffn_up_exps.weight"] = "q4"
+    specs.append(("mtp0_full_mtp2_up_q4", mtp0_full_mtp2_up))
+
     mtp0_full_mtp2_gateup = tensor_mode_map({"mtp.0"})
     for leaf in ("ffn_gate_exps.weight", "ffn_up_exps.weight"):
         mtp0_full_mtp2_gateup[f"mtp.2.{leaf}"] = "q4"

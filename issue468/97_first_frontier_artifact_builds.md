@@ -32,6 +32,7 @@ Artifacts built so far:
 | `mtp02_q4` | `9678000832` | `9.013335` |
 | `mtp12_q4` | `9678000832` | `9.013335` |
 | `mtp0_full_mtp2_gateup_q4` | `9174684352` | `8.544585` |
+| `mtp0_full_mtp2_gate_q4` | `8520372928` | `7.935210` |
 | `mtp0_full_mtp2_down_q4` | `8369377984` | `7.794585` |
 | `mtp2_full_mtp0_gateup_q4` | `9174684352` | `8.544585` |
 | `mtp2_full_mtp0_down_q4` | `8369377984` | `7.794585` |
@@ -103,6 +104,7 @@ Mean results:
 | baseline `Q4_K` | `10.700835` | `4.229749` | `0.000%` | `4.557052` | `0.000%` | `drop-in` |
 | `mtp02_q4` | `9.013335` | `4.212788` | `-0.401%` | `4.536595` | `-0.449%` | `drop-in` |
 | `mtp0_full_mtp2_gateup_q4` | `8.544585` | `4.202200` | `-0.651%` | `4.532689` | `-0.535%` | `drop-in` |
+| `mtp0_full_mtp2_gate_q4` | `7.935210` | `0.638055` | `-84.915%` | `1.629626` | `-64.239%` | `drop-in` |
 | `mtp0_full_mtp2_down_q4` | `7.794585` | `4.196752` | `-0.780%` | `4.526933` | `-0.661%` | `drop-in` |
 | `mtp2_full_mtp0_gateup_q4` | `8.544585` | `4.191612` | `-0.902%` | `4.521382` | `-0.783%` | `drop-in` |
 | `mtp2_full_mtp0_down_q4` | `7.794585` | `4.175164` | `-1.290%` | `4.519840` | `-0.817%` | `drop-in` |
@@ -123,12 +125,12 @@ Reference points outside this GGUF frontier should be read differently:
 
 Per-context accepted-token deltas vs baseline:
 
-| context | `mtp02_q4` | `mtp0_full_mtp2_gateup_q4` | `mtp0_full_mtp2_down_q4` | `mtp2_full_mtp0_gateup_q4` | `mtp2_full_mtp0_down_q4` | `mtp01_q4` | `only_mtp0_q4` | `only_mtp2_q4` | `mtp12_q4` | `only_mtp1_q4` | `all_q2` |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| `8192` | `-0.216%` | `-0.020%` | `-0.374%` | `-1.691%` | `-1.396%` | `-0.845%` | `-0.167%` | `-3.175%` | `-4.109%` | `-3.785%` | `-3.234%` |
-| `16384` | `-0.720%` | `-0.486%` | `-1.041%` | `-0.739%` | `-1.002%` | `-0.204%` | `-1.138%` | `-1.031%` | `-0.788%` | `-2.091%` | `-2.033%` |
-| `24576` | `-0.234%` | `-0.964%` | `-1.071%` | `-0.185%` | `-1.946%` | `-0.973%` | `-1.148%` | `-1.713%` | `-3.689%` | `-3.474%` | `-2.453%` |
-| `32768` | `-0.432%` | `-1.123%` | `-0.634%` | `-0.998%` | `-0.825%` | `-0.557%` | `-1.670%` | `-1.113%` | `-0.355%` | `-2.400%` | `-2.304%` |
+| context | `mtp02_q4` | `mtp0_full_mtp2_gateup_q4` | `mtp0_full_mtp2_gate_q4` | `mtp0_full_mtp2_down_q4` | `mtp2_full_mtp0_gateup_q4` | `mtp2_full_mtp0_down_q4` | `mtp01_q4` | `only_mtp0_q4` | `only_mtp2_q4` | `mtp12_q4` | `only_mtp1_q4` | `all_q2` |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| `8192` | `-0.216%` | `-0.020%` | `-90.416%` | `-0.374%` | `-1.691%` | `-1.396%` | `-0.845%` | `-0.167%` | `-3.175%` | `-4.109%` | `-3.785%` | `-3.234%` |
+| `16384` | `-0.720%` | `-0.486%` | `-77.823%` | `-1.041%` | `-0.739%` | `-1.002%` | `-0.204%` | `-1.138%` | `-1.031%` | `-0.788%` | `-2.091%` | `-2.033%` |
+| `24576` | `-0.234%` | `-0.964%` | `-91.426%` | `-1.071%` | `-0.185%` | `-1.946%` | `-0.973%` | `-1.148%` | `-1.713%` | `-3.689%` | `-3.474%` | `-2.453%` |
+| `32768` | `-0.432%` | `-1.123%` | `-80.121%` | `-0.634%` | `-0.998%` | `-0.825%` | `-0.557%` | `-1.670%` | `-1.113%` | `-0.355%` | `-2.400%` | `-2.304%` |
 
 ## Interpretation
 
@@ -155,13 +157,21 @@ The first focused mixed-family point lands between the coarse tiers:
 
 The second focused mixed-family point pushes farther down the size curve:
 
+- `mtp0_full_mtp2_gate_q4` at `7.935210 GiB`
+- full `Q4` for all routed tensors in `mtp.0`
+- `Q4` only for `mtp.2` `ffn_gate_exps.weight`
+- `Q2` retained for `mtp.2` `ffn_up_exps.weight` and
+  `ffn_down_exps.weight`
+
+The third focused mixed-family point pushes farther down the size curve:
+
 - `mtp0_full_mtp2_down_q4` at `7.794585 GiB`
 - full `Q4` for all routed tensors in `mtp.0`
 - `Q4` only for `mtp.2` `ffn_down_exps.weight`
 - `Q2` retained for `mtp.2` `ffn_gate_exps.weight` and
   `ffn_up_exps.weight`
 
-The third focused mixed-family point is the symmetry test at the earlier
+The fourth focused mixed-family point is the symmetry test at the earlier
 middle tier:
 
 - `mtp2_full_mtp0_gateup_q4` at `8.544585 GiB`
@@ -170,7 +180,7 @@ middle tier:
   `ffn_up_exps.weight`
 - `Q2` retained for `mtp.0` `ffn_down_exps.weight`
 
-The fourth focused mixed-family point closes the same symmetry test at the
+The fifth focused mixed-family point closes the same symmetry test at the
 smaller tier:
 
 - `mtp2_full_mtp0_down_q4` at `7.794585 GiB`
@@ -277,6 +287,23 @@ but gives back enough quality that the structural conclusion is now clearer:
 - the `mtp0`-anchored family still looks promising, but the local frontier now
   bends toward `gate/up`-first allocations
 
+The new single-family `gate` split is not a frontier refinement at all. It is
+a hard falsification:
+
+- `mtp0_full_mtp2_gate_q4` mean accepted `0.638055`
+- `-84.915%` vs baseline
+- `-3.564145` mean accepted vs `mtp0_full_mtp2_gateup_q4`
+- `-3.558697` mean accepted vs `mtp0_full_mtp2_down_q4`
+
+This is strong enough to rule out the idea that the earlier `gate/up` win is
+mostly driven by `mtp.2 gate` precision alone. The current branch read should
+therefore be:
+
+- `mtp.2 gate` by itself is catastrophically insufficient
+- the remaining live single-family question is `mtp.2 up`
+- if `mtp.2 up` also fails, then the observed `gate/up` value is likely a
+  coupled effect rather than a single-family one
+
 The symmetry test makes the layer-identity conclusion much harder to dismiss:
 
 - `mtp2_full_mtp0_gateup_q4` mean accepted `4.191612`
@@ -348,9 +375,9 @@ Instead, the first same-size contrast suggests:
 
 Current local state after build:
 
-- `/private/tmp/dspark_pareto_q2q4`: about `88 GiB`
+- `/private/tmp/dspark_pareto_q2q4`: about `95 GiB`
 - `/private/tmp/dspark_sweep8`: about `6.6 GiB`
-- free disk: about `282 GiB`
+- free disk: about `274 GiB`
 
 Transient reprobe artifacts for the measured 4-context runs were pruned after
 summary extraction:
@@ -385,6 +412,7 @@ plan:
   `mtp.0` dominance rather than a layer-agnostic gate/up story
 - `mtp2_full_mtp0_down_q4` is now measured and confirms that the
   `mtp2`-anchored branch is not competitive
-- the next highest-value follow-on should therefore stay entirely inside the
-  `mtp0`-anchored family rather than spending more runs on `mtp2`-anchored
-  symmetry variants
+- `mtp0_full_mtp2_gate_q4` is now measured and catastrophically falsifies
+  `gate` as a standalone `mtp.2` spend
+- the next highest-value follow-on should therefore stay inside the
+  `mtp0`-anchored family and measure `mtp0_full_mtp2_up_q4`

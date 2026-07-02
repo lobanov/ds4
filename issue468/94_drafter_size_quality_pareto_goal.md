@@ -249,6 +249,12 @@ Current branch read after the completed coarse layer grid:
 - if more search is justified, it should move to targeted tensor-family spends
   around the `mtp0/mtp2` recipe family rather than more coarse layer-grid
   points
+- the completed focused symmetry table now retires the `mtp2`-anchored branch
+- the next highest-value split inside the winning `mtp0`-anchored family is to
+  separate `mtp2 gate` from `mtp2 up`
+- early evidence already falsifies `mtp2 gate` as a standalone spend, so the
+  remaining live question is whether `mtp2 up` is the real local driver or
+  whether `gate/up` only works as a coupled bundle
 
 ## Final read
 
