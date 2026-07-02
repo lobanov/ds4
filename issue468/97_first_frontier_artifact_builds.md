@@ -34,6 +34,7 @@ Artifacts built so far:
 | `mtp0_full_mtp2_gateup_q4` | `9174684352` | `8.544585` |
 | `mtp0_full_mtp2_down_q4` | `8369377984` | `7.794585` |
 | `mtp2_full_mtp0_gateup_q4` | `9174684352` | `8.544585` |
+| `mtp2_full_mtp0_down_q4` | `8369377984` | `7.794585` |
 
 These exactly match the size estimates from `95` and `96` to the byte-level
 `approx_file_bytes` reported by the quantizer dry-run / build path.
@@ -104,6 +105,7 @@ Mean results:
 | `mtp0_full_mtp2_gateup_q4` | `8.544585` | `4.202200` | `-0.651%` | `4.532689` | `-0.535%` | `drop-in` |
 | `mtp0_full_mtp2_down_q4` | `7.794585` | `4.196752` | `-0.780%` | `4.526933` | `-0.661%` | `drop-in` |
 | `mtp2_full_mtp0_gateup_q4` | `8.544585` | `4.191612` | `-0.902%` | `4.521382` | `-0.783%` | `drop-in` |
+| `mtp2_full_mtp0_down_q4` | `7.794585` | `4.175164` | `-1.290%` | `4.519840` | `-0.817%` | `drop-in` |
 | `mtp01_q4` | `9.013335` | `4.202508` | `-0.644%` | `4.542044` | `-0.329%` | `drop-in` |
 | `only_mtp0_q4` | `7.325835` | `4.185958` | `-1.035%` | `4.522718` | `-0.753%` | `drop-in` |
 | `only_mtp2_q4` | `7.325835` | `4.155633` | `-1.752%` | `4.495785` | `-1.344%` | `drop-in` |
@@ -121,12 +123,12 @@ Reference points outside this GGUF frontier should be read differently:
 
 Per-context accepted-token deltas vs baseline:
 
-| context | `mtp02_q4` | `mtp0_full_mtp2_gateup_q4` | `mtp0_full_mtp2_down_q4` | `mtp2_full_mtp0_gateup_q4` | `mtp01_q4` | `only_mtp0_q4` | `only_mtp2_q4` | `mtp12_q4` | `only_mtp1_q4` | `all_q2` |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| `8192` | `-0.216%` | `-0.020%` | `-0.374%` | `-1.691%` | `-0.845%` | `-0.167%` | `-3.175%` | `-4.109%` | `-3.785%` | `-3.234%` |
-| `16384` | `-0.720%` | `-0.486%` | `-1.041%` | `-0.739%` | `-0.204%` | `-1.138%` | `-1.031%` | `-0.788%` | `-2.091%` | `-2.033%` |
-| `24576` | `-0.234%` | `-0.964%` | `-1.071%` | `-0.185%` | `-0.973%` | `-1.148%` | `-1.713%` | `-3.689%` | `-3.474%` | `-2.453%` |
-| `32768` | `-0.432%` | `-1.123%` | `-0.634%` | `-0.998%` | `-0.557%` | `-1.670%` | `-1.113%` | `-0.355%` | `-2.400%` | `-2.304%` |
+| context | `mtp02_q4` | `mtp0_full_mtp2_gateup_q4` | `mtp0_full_mtp2_down_q4` | `mtp2_full_mtp0_gateup_q4` | `mtp2_full_mtp0_down_q4` | `mtp01_q4` | `only_mtp0_q4` | `only_mtp2_q4` | `mtp12_q4` | `only_mtp1_q4` | `all_q2` |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| `8192` | `-0.216%` | `-0.020%` | `-0.374%` | `-1.691%` | `-1.396%` | `-0.845%` | `-0.167%` | `-3.175%` | `-4.109%` | `-3.785%` | `-3.234%` |
+| `16384` | `-0.720%` | `-0.486%` | `-1.041%` | `-0.739%` | `-1.002%` | `-0.204%` | `-1.138%` | `-1.031%` | `-0.788%` | `-2.091%` | `-2.033%` |
+| `24576` | `-0.234%` | `-0.964%` | `-1.071%` | `-0.185%` | `-1.946%` | `-0.973%` | `-1.148%` | `-1.713%` | `-3.689%` | `-3.474%` | `-2.453%` |
+| `32768` | `-0.432%` | `-1.123%` | `-0.634%` | `-0.998%` | `-0.825%` | `-0.557%` | `-1.670%` | `-1.113%` | `-0.355%` | `-2.400%` | `-2.304%` |
 
 ## Interpretation
 
@@ -167,6 +169,15 @@ middle tier:
 - `Q4` only for `mtp.0` `ffn_gate_exps.weight` and
   `ffn_up_exps.weight`
 - `Q2` retained for `mtp.0` `ffn_down_exps.weight`
+
+The fourth focused mixed-family point closes the same symmetry test at the
+smaller tier:
+
+- `mtp2_full_mtp0_down_q4` at `7.794585 GiB`
+- full `Q4` for all routed tensors in `mtp.2`
+- `Q4` only for `mtp.0` `ffn_down_exps.weight`
+- `Q2` retained for `mtp.0` `ffn_gate_exps.weight` and
+  `ffn_up_exps.weight`
 
 `all_q2` establishes the current size floor:
 
@@ -283,6 +294,29 @@ It is more specific:
 - the symmetric `mtp.2`-anchored allocation does not recover comparable
   quality at the same size
 
+The smaller-tier symmetry close strengthens that conclusion further:
+
+- `mtp2_full_mtp0_down_q4` mean accepted `4.175164`
+- only `-1.290%` vs baseline
+- `-0.021587` mean accepted vs `mtp0_full_mtp2_down_q4` at the same byte size
+- `-0.016447` mean accepted vs `mtp2_full_mtp0_gateup_q4` despite identical
+  full-`Q4` `mtp.2` anchoring
+- worse even than `only_mtp0_q4` while costing `+0.468750 GiB`
+
+That effectively closes the focused symmetry table:
+
+- both `mtp0`-anchored variants beat their `mtp2`-anchored counterparts
+- within the winning `mtp0`-anchored family, `mtp2 gate/up` beats `mtp2 down`
+- within the losing `mtp2`-anchored family, even the better `gate/up` variant
+  does not challenge the `mtp0`-anchored frontier
+
+So the current local search conclusion is now strong enough to be operational:
+
+- retire the `mtp2`-anchored branch from further frontier search
+- keep future mixed `Q2/Q4` work concentrated on `mtp0`-anchored recipes
+- treat `mtp0_full_mtp2_gateup_q4` as the best measured focused compromise
+  below the `9.013335 GiB` tier so far
+
 `mtp12_q4` falsifies the hope that any two-layer `Q4` recipe at this size is
 automatically good:
 
@@ -314,9 +348,9 @@ Instead, the first same-size contrast suggests:
 
 Current local state after build:
 
-- `/private/tmp/dspark_pareto_q2q4`: about `80 GiB`
+- `/private/tmp/dspark_pareto_q2q4`: about `88 GiB`
 - `/private/tmp/dspark_sweep8`: about `6.6 GiB`
-- free disk: about `289 GiB`
+- free disk: about `282 GiB`
 
 Transient reprobe artifacts for the measured 4-context runs were pruned after
 summary extraction:
@@ -349,7 +383,8 @@ plan:
   `mtp0_full_mtp2_gateup_q4` quality recovery
 - the symmetric `mtp2_full_mtp0_gateup_q4` probe is now measured and supports
   `mtp.0` dominance rather than a layer-agnostic gate/up story
-- the next highest-value follow-on is likely `mtp2_full_mtp0_down_q4` only if
-  there is value in fully closing the symmetry table; otherwise the current
-  evidence is already strong enough to stop the `mtp2`-anchored branch and
-  concentrate future search on `mtp0`-anchored recipes
+- `mtp2_full_mtp0_down_q4` is now measured and confirms that the
+  `mtp2`-anchored branch is not competitive
+- the next highest-value follow-on should therefore stay entirely inside the
+  `mtp0`-anchored family rather than spending more runs on `mtp2`-anchored
+  symmetry variants
