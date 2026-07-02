@@ -30078,6 +30078,13 @@ int ds4_session_eval_dspark_b2(ds4_session *s, int first_token,
     }
 
     const uint32_t block = DS4_DSPARK_BLOCK_SIZE;
+    /* Codex lead #2: runtime verify-length truncation. The verifier already
+     * accepts a runtime n_tokens; expose it as DS4_DSPARK_VERIFY_N to measure
+     * whether verifying fewer positions saves time (less verify compute + fewer
+     * wasted corrections on likely-reject positions). */
+    const uint32_t verify_n = getenv("DS4_DSPARK_VERIFY_N")
+        ? (uint32_t)strtol(getenv("DS4_DSPARK_VERIFY_N"), NULL, 10) : block;
+    const uint32_t eff_block = (verify_n > 0 && verify_n <= block) ? verify_n : block;
     const uint64_t vocab = DS4_N_VOCAB;
     int room = s->ctx_size - s->checkpoint.len;
     if (room < (int)block + 1) return n_accept;  /* not enough room for a full draft block */
@@ -30293,13 +30300,13 @@ int ds4_session_eval_dspark_b2(ds4_session *s, int first_token,
     float *row_logits = xmalloc((size_t)block * vocab * sizeof(row_logits[0]));
     bool snap_ok = spec_frontier_snapshot(&frontier, s);
     if (snap_ok) {
-        for (int i = 0; i < (int)block; i++) token_vec_push(&s->checkpoint, drafts[i]);
+        for (int i = 0; i < (int)eff_block; i++) token_vec_push(&s->checkpoint, drafts[i]);
         /* Enable per-position compressor-frontier capture so partial-accept can
          * restore the frontier to "after the last accepted draft" and decode only
          * the correction (O(1)) instead of restoring+replaying O(k+1) tokens. */
         g->spec_capture_prefixN = true;
         ok = metal_graph_verify_suffix_tops(g, &e->model, &e->weights,
-                &s->checkpoint, (uint32_t)start, (uint32_t)block,
+                &s->checkpoint, (uint32_t)start, (uint32_t)eff_block,
                 false, row_tops, row_logits);
         g->spec_capture_prefixN = false;
     }
@@ -30345,7 +30352,7 @@ int ds4_session_eval_dspark_b2(ds4_session *s, int first_token,
         n_draft_accept++;
         b2_start_pos = 1;
     }
-    for (int i = b2_start_pos; i < (int)block && n_accept < accepted_cap && n_accept < max_tokens; i++) {
+    for (int i = b2_start_pos; i < (int)eff_block && n_accept < accepted_cap && n_accept < max_tokens; i++) {
         int draft_tok = drafts[i];
         float *q_row = q_dist + (uint64_t)i * vocab;
         /* Target p: position 0 uses s->logits, positions 1..4 use row_logits[i-1]. */
