@@ -20,10 +20,13 @@ from hc_primitives import rmsnorm, hc_pre, hc_post, hc_head
 from moe import moe
 from ref_ckpt_loader import load_ref_ckpt_dense
 from ref_expert_store import RefExpertStore
+from raw_hf_ckpt_loader import load_raw_hf_dense
+from raw_hf_expert_store import RawHFExpertStore
 
 
 ROOT = Path(__file__).resolve().parents[2]
 REF_CKPT = os.path.expanduser("~/ds4/ref-ckpt/model0-mp1.safetensors")
+HF_DSPARK = os.path.expanduser("~/ds4/hf-dspark")
 CAP = ROOT / "issue468" / "baseline" / "dspark_capture"
 WIN = 128
 N_HEADS = 64
@@ -122,17 +125,24 @@ def main():
     ap.add_argument("--steps-cap", type=int, default=19)
     ap.add_argument("--out-json", required=True)
     ap.add_argument("--label", default="ref-oracle-fp8")
+    ap.add_argument("--source", choices=["ref_ckpt", "raw_hf"], default="ref_ckpt")
+    ap.add_argument("--ref-ckpt", default=REF_CKPT)
+    ap.add_argument("--hf-dspark", default=HF_DSPARK)
     args = ap.parse_args()
 
     capture_dir = Path(args.capture_dir)
-    _, T, _, _, embed_w, lm_head = load_ref_ckpt_dense(REF_CKPT)
+    if args.source == "ref_ckpt":
+        _, T, _, _, embed_w, lm_head = load_ref_ckpt_dense(args.ref_ckpt)
+        stores = [RefExpertStore(args.ref_ckpt, s) for s in range(3)]
+    else:
+        _, T, _, _, embed_w, lm_head = load_raw_hf_dense(args.hf_dspark)
+        stores = [RawHFExpertStore(args.hf_dspark, s) for s in range(3)]
     cos, sin = precompute_rope(64, 4096)
     greedy = json.loads(Path(args.greedy_json).read_text())
     tgt_steps = json.loads(Path(args.target_json).read_text())["steps"]
     main_proj = T["mtp.0.main_proj.weight"][0]
     main_norm_w = T["mtp.0.main_norm.weight"][0]
     layers = [layer_weights(T, s) for s in range(3)]
-    stores = [RefExpertStore(REF_CKPT, s) for s in range(3)]
     mw1 = T["mtp.2.markov_head.markov_w1.weight"][0]
     mw2 = T["mtp.2.markov_head.markov_w2.weight"][0]
 
@@ -238,6 +248,7 @@ def main():
 
     out = {
         "label": args.label,
+        "source": args.source,
         "target_json": args.target_json,
         "greedy_json": args.greedy_json,
         "pos0": args.pos0,
