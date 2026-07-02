@@ -98,10 +98,19 @@ def focused_candidate_specs() -> list[tuple[str, dict[str, str]]]:
         mtp0_full_mtp2_gateup_mtp1_gateup[f"mtp.1.{leaf}"] = "q4"
     specs.append(("mtp0_full_mtp2_gateup_mtp1_gateup_q4", mtp0_full_mtp2_gateup_mtp1_gateup))
 
+    mtp0_full_mtp1_gateup = tensor_mode_map({"mtp.0"})
+    for leaf in ("ffn_gate_exps.weight", "ffn_up_exps.weight"):
+        mtp0_full_mtp1_gateup[f"mtp.1.{leaf}"] = "q4"
+    specs.append(("mtp0_full_mtp1_gateup_q4", mtp0_full_mtp1_gateup))
+
     mtp02_q4_mtp1_gateup = dict(base_mtp02)
     for leaf in ("ffn_gate_exps.weight", "ffn_up_exps.weight"):
         mtp02_q4_mtp1_gateup[f"mtp.1.{leaf}"] = "q4"
     specs.append(("mtp02_q4_mtp1_gateup_q4", mtp02_q4_mtp1_gateup))
+
+    mtp02_q4_mtp1_down = dict(base_mtp02)
+    mtp02_q4_mtp1_down["mtp.1.ffn_down_exps.weight"] = "q4"
+    specs.append(("mtp02_q4_mtp1_down_q4", mtp02_q4_mtp1_down))
 
     mtp0_full_mtp2_down = tensor_mode_map({"mtp.0"})
     mtp0_full_mtp2_down["mtp.2.ffn_down_exps.weight"] = "q4"

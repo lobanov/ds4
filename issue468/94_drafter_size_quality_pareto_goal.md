@@ -289,4 +289,24 @@ The current evidence suggests that:
 - once this coupled near-baseline lane is exhausted, the next step should
   return to the mandatory independent `gpt-5.5 xhigh` review loop from `53`
 
+Independent review from that mandatory step now sharpens the read further:
+
+- the current coupled `gate/up` family is exhausted as a lead for upward
+  quality improvement
+- `mtp02_q4_mtp1_gateup_q4` is best read as a compression/retention point, not
+  as evidence of remaining positive quality headroom
+- the `-0.046%` gap should be treated as effectively tied until repeated or
+  wider-context confirmation is run
+- the original frozen-runtime `+10%` quality-improvement target now has a
+  practical negative verdict unless a new non-obvious in-scope idea appears
+
+The review did still preserve three bounded follow-ons:
+
+1. confirm the near-baseline point on repeats and the full 8-context sweep
+2. close the missing `mtp.1` controls, especially:
+   - `mtp02_q4_mtp1_down_q4`
+   - `mtp0_full_mtp1_gateup_q4`
+3. if tooling permits, try tensor-specific `Q2` calibration on the sole
+   remaining `Q2` payload, `mtp.1.ffn_down_exps.weight`
+
 That is exactly a Pareto-frontier problem.

@@ -571,6 +571,12 @@ plan:
   reduced-size point overall, only `-0.046%` vs baseline at `10.232085 GiB`
 - the remaining sub-baseline gap is now concentrated almost entirely in the
   single `mtp.1 down` routed payload that remains at `Q2`
-- after this coupled near-baseline lane is exhausted, the next process step
-  should return to the mandatory independent `gpt-5.5 xhigh` review loop from
-  `53` rather than reopening broad local search
+- the mandatory independent `gpt-5.5 xhigh` review from `53` now reads this
+  coupled `gate/up` family as exhausted for upward-quality search
+- that review treats the current result as a compression/retention success, not
+  as evidence of hidden positive headroom above baseline
+- the two clean missing routed controls preserved by the review are:
+  - `mtp02_q4_mtp1_down_q4`
+  - `mtp0_full_mtp1_gateup_q4`
+- beyond those controls, the next highest-value work is confirmation:
+  repeat runs and the full 8-context sweep for `mtp02_q4_mtp1_gateup_q4`
