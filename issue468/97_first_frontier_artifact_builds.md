@@ -30,6 +30,7 @@ Artifacts built so far:
 | `only_mtp2_q4` | `7866061504` | `7.325835` |
 | `mtp01_q4` | `9678000832` | `9.013335` |
 | `mtp02_q4` | `9678000832` | `9.013335` |
+| `mtp12_q4` | `9678000832` | `9.013335` |
 
 These exactly match the size estimates from `95` and `96` to the byte-level
 `approx_file_bytes` reported by the quantizer dry-run / build path.
@@ -91,17 +92,18 @@ Mean results:
 | `mtp01_q4` | `9.013335` | `4.202508` | `-0.644%` | `4.542044` | `-0.329%` |
 | `only_mtp0_q4` | `7.325835` | `4.185958` | `-1.035%` | `4.522718` | `-0.753%` |
 | `only_mtp2_q4` | `7.325835` | `4.155633` | `-1.752%` | `4.495785` | `-1.344%` |
+| `mtp12_q4` | `9.013335` | `4.135691` | `-2.224%` | `4.487973` | `-1.516%` |
 | `all_q2` | `5.638335` | `4.123869` | `-2.503%` | `4.476151` | `-1.775%` |
 | `only_mtp1_q4` | `7.325835` | `4.105674` | `-2.933%` | `4.468750` | `-1.938%` |
 
 Per-context accepted-token deltas vs baseline:
 
-| context | `mtp02_q4` | `mtp01_q4` | `only_mtp0_q4` | `only_mtp2_q4` | `only_mtp1_q4` | `all_q2` |
-|---|---:|---:|---:|---:|---:|---:|
-| `8192` | `-0.216%` | `-0.845%` | `-0.167%` | `-3.175%` | `-3.785%` | `-3.234%` |
-| `16384` | `-0.720%` | `-0.204%` | `-1.138%` | `-1.031%` | `-2.091%` | `-2.033%` |
-| `24576` | `-0.234%` | `-0.973%` | `-1.148%` | `-1.713%` | `-3.474%` | `-2.453%` |
-| `32768` | `-0.432%` | `-0.557%` | `-1.670%` | `-1.113%` | `-2.400%` | `-2.304%` |
+| context | `mtp02_q4` | `mtp01_q4` | `only_mtp0_q4` | `only_mtp2_q4` | `mtp12_q4` | `only_mtp1_q4` | `all_q2` |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| `8192` | `-0.216%` | `-0.845%` | `-0.167%` | `-3.175%` | `-4.109%` | `-3.785%` | `-3.234%` |
+| `16384` | `-0.720%` | `-0.204%` | `-1.138%` | `-1.031%` | `-0.788%` | `-2.091%` | `-2.033%` |
+| `24576` | `-0.234%` | `-0.973%` | `-1.148%` | `-1.713%` | `-3.689%` | `-3.474%` | `-2.453%` |
+| `32768` | `-0.432%` | `-0.557%` | `-1.670%` | `-1.113%` | `-0.355%` | `-2.400%` | `-2.304%` |
 
 ## Interpretation
 
@@ -113,10 +115,11 @@ The full single-layer-`Q4` tier at `7.325835 GiB` is now resolved:
 2. `only_mtp2_q4`
 3. `only_mtp1_q4`
 
-The first two points in the `9.013335 GiB` tier are now measured:
+The currently measured `9.013335 GiB` tier is now:
 
 1. `mtp02_q4`
 2. `mtp01_q4`
+3. `mtp12_q4`
 
 `all_q2` establishes the current size floor:
 
@@ -171,6 +174,14 @@ Even so, the larger-tier improvement remains incremental rather than dramatic:
 - closes about `61.3%` of the remaining accepted-token gap from
   `only_mtp0_q4` to baseline
 
+`mtp12_q4` falsifies the hope that any two-layer `Q4` recipe at this size is
+automatically good:
+
+- mean accepted `4.135691`
+- `-0.076872` mean accepted vs `mtp02_q4`
+- `-0.066592` mean accepted vs `mtp01_q4`
+- only a small improvement over `all_q2` despite costing `+3.375000 GiB`
+
 So the current evidence still supports the branch hypothesis that:
 
 - the interesting frontier lies in mixed routed `Q2/Q4` recipes, not pure
@@ -187,17 +198,16 @@ Instead, the first same-size contrast suggests:
 - `mtp.2` is helpful, but not the best single-layer keep
 - `mtp02_q4` is the best measured larger-knee point so far
 - the extra `Q4` layer beyond `only_mtp0_q4` helps, but by a modest amount
-- the main unresolved larger-tier question is now whether `mtp12_q4` is worth
-  measuring at all, given that both `mtp.0` and `mtp.2` have individually
-  outperformed `mtp.1`
+- `mtp12_q4` performs badly enough that the `9.013335 GiB` tier is probably
+  characterized well enough for decision use
 
 ## Disk-space state
 
 Current local state after build:
 
-- `/private/tmp/dspark_pareto_q2q4`: about `46 GiB`
+- `/private/tmp/dspark_pareto_q2q4`: about `55 GiB`
 - `/private/tmp/dspark_sweep8`: about `6.6 GiB`
-- free disk: about `324 GiB`
+- free disk: about `315 GiB`
 
 Transient reprobe artifacts for the measured 4-context runs were pruned after
 summary extraction:
@@ -208,7 +218,7 @@ summary extraction:
 
 No further cleanup was applied here because:
 
-- the six frontier artifacts are active research outputs
+- the seven frontier artifacts are active research outputs
 - the remaining large files in `/private/tmp/dspark_sweep2ctx` are the three
   intentionally retained reference GGUFs plus the imatrix path used by this
   sweep
@@ -222,6 +232,7 @@ The next branch action should be more selective than the original full-grid
 plan:
 
 - decide whether the modest `mtp02_q4` gain over `only_mtp0_q4` is already
-  enough to stop the larger-tier search
-- if one more `9.01 GiB` build is justified at all, `mtp12_q4` is now mostly a
-  falsification point rather than a likely winner
+  enough to stop the larger-tier search entirely
+- if any further search is justified, it should likely move away from this
+  coarse layer grid and toward a more targeted tensor-family or mixed-precision
+  spend around the `mtp0/mtp2` recipe family
