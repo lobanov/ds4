@@ -24376,6 +24376,8 @@ struct ds4_session {
     int ctx_size;
     bool checkpoint_valid;
     bool mtp_draft_valid;
+    bool dspark_pending_anchor_valid;
+    int dspark_pending_anchor;
 };
 
 /* =========================================================================
@@ -29986,6 +29988,7 @@ static int ds4_engine_collect_dspark_imatrix(ds4_engine *e,
 uint64_t g_dspark_b2_seed = 0;
 void ds4_dspark_b2_seed(uint64_t seed) { g_dspark_b2_seed = seed; }
 int ds4_session_eval_dspark_b2(ds4_session *s, int first_token,
+                               bool first_token_already_emitted,
                                int max_tokens, int eos_token,
                                int *accepted, int accepted_cap,
                                char *err, size_t errlen) {
@@ -30069,9 +30072,12 @@ int ds4_session_eval_dspark_b2(ds4_session *s, int first_token,
     }
     if (eval_rc != 0) return -1;
     int n_accept = 0;
-    accepted[n_accept++] = first_token;
-    if (first_token == eos_token || max_tokens == 1 || n_accept >= accepted_cap)
-        return n_accept;
+    if (!first_token_already_emitted) {
+        accepted[n_accept++] = first_token;
+        if (first_token == eos_token || max_tokens == 1 || n_accept >= accepted_cap)
+            return n_accept;
+    }
+    s->dspark_pending_anchor_valid = false;
     if (!e->dspark_ready) {
         if (getenv("DS4_DSPARK_B2_DEBUG")) fprintf(stderr, "ds4: b2: dspark not ready\n");
         return n_accept;
@@ -30426,19 +30432,48 @@ int ds4_session_eval_dspark_b2(ds4_session *s, int first_token,
         }
         g->mtp_n_raw = frontier.mtp_n_raw + (uint32_t)n_draft_accept;
         if (g->mtp_n_raw > g->raw_window) g->mtp_n_raw = g->raw_window;
-        char sub_err[128];
-        if (ds4_session_eval(s, accepted[n_accept - 1], sub_err, sizeof(sub_err)) != 0) {
-            snprintf(err, errlen, "dspark b2: correction decode failed: %s", sub_err);
-            spec_frontier_free(&frontier);
-            return -1;
+        /* Opp-a (issue468/80): MERGED CORRECTION-ANCHOR. On partial accept,
+         * SKIP the correction decode. The correction token C (already in
+         * accepted[]) IS the next cycle's anchor. The next anchor forward will
+         * decode C, install KV[C], and set s->logits = predict-after-C.
+         * This eliminates ~25ms from ~82% of cycles.
+         *
+         * Losslessness: at temp=1, C is a valid B2 correction sample from p
+         * (the target distribution). Using it as the next anchor is equivalent
+         * to sampling it — the next anchor forward processes C exactly as if
+         * the main loop had sampled C from s->logits.
+         *
+         * The main loop (ds4_cli.c) must check: if B2 returned without a
+         * correction decode, the LAST accepted token IS the next anchor —
+         * skip ds4_session_sample and pass it directly.
+         *
+         * Gated by DS4_DSPARK_MERGE_CORRECTION. When NOT active: the original
+         * correction decode runs as before. */
+        if (!getenv("DS4_DSPARK_MERGE_CORRECTION")) {
+            char sub_err[128];
+            if (ds4_session_eval(s, accepted[n_accept - 1], sub_err, sizeof(sub_err)) != 0) {
+                snprintf(err, errlen, "dspark b2: correction decode failed: %s", sub_err);
+                spec_frontier_free(&frontier);
+                return -1;
+            }
+        } else {
+            /* Merged mode: skip the standalone correction decode and carry the
+             * correction token into the next cycle as a pending anchor. The
+             * next cycle must decode this token as its anchor, but MUST NOT
+             * emit it again because it was already committed in accepted[]. */
+            s->dspark_pending_anchor = accepted[n_accept - 1];
+            s->dspark_pending_anchor_valid = true;
+            if (getenv("DS4_DSPARK_B2_DEBUG"))
+                fprintf(stderr, "ds4: b2: MERGED correction-anchor pending C=%d\n",
+                        s->dspark_pending_anchor);
         }
     }
     free(row_logits);
     spec_frontier_free(&frontier);
     if (_timing) _t_kv = now_sec();
     if (getenv("DS4_DSPARK_B2_DEBUG"))
-        fprintf(stderr, "ds4: dspark b2 cycle: n_accept=%d (drafts=%d) | anchor=%.1f drafter=%.1f verify=%.1f accept=%.1f kv=%.1f total=%.1f ms\n",
-                n_accept, n_draft_accept,
+        fprintf(stderr, "ds4: dspark b2 cycle: n_accept=%d logical_commits=%d emitted_anchor=%d (drafts=%d) | anchor=%.1f drafter=%.1f verify=%.1f accept=%.1f kv=%.1f total=%.1f ms\n",
+                n_accept, n_accept + (first_token_already_emitted ? 1 : 0), first_token_already_emitted ? 1 : 0, n_draft_accept,
                 (_t_anchor-_t0)*1000.0, (_t_drafter-_t_anchor)*1000.0, (_t_verify-_t_drafter)*1000.0,
                 (_t_accept-_t_verify)*1000.0, (_t_kv-_t_accept)*1000.0, _timing ? (now_sec()-_t0)*1000.0 : 0.0);
     return n_accept;
@@ -31055,6 +31090,7 @@ void ds4_session_invalidate(ds4_session *s) {
     s->checkpoint_valid = false;
     s->checkpoint.len = 0;
     s->mtp_draft_valid = false;
+    s->dspark_pending_anchor_valid = false;
 }
 
 void ds4_session_rewind(ds4_session *s, int pos) {
@@ -31062,6 +31098,14 @@ void ds4_session_rewind(ds4_session *s, int pos) {
     if (pos > s->checkpoint.len) pos = s->checkpoint.len;
     s->checkpoint.len = pos;
     s->mtp_draft_valid = false;
+    s->dspark_pending_anchor_valid = false;
+}
+
+bool ds4_session_take_dspark_pending_anchor(ds4_session *s, int *token) {
+    if (!s || !token || !s->dspark_pending_anchor_valid) return false;
+    *token = s->dspark_pending_anchor;
+    s->dspark_pending_anchor_valid = false;
+    return true;
 }
 
 int ds4_session_pos(ds4_session *s) {

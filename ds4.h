@@ -274,9 +274,11 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
 /* DSpark B2 speculative decode cycle (experimental). Like the above but uses
  * the DSpark drafter (3 MTP layers + Markov head) and B2 acceptance. */
 int ds4_session_eval_dspark_b2(ds4_session *s, int first_token,
+                               bool first_token_already_emitted,
                                int max_tokens, int eos_token,
                                int *accepted, int accepted_cap,
                                char *err, size_t errlen);
+bool ds4_session_take_dspark_pending_anchor(ds4_session *s, int *token);
 /* Bug #3 (issue468/40): seed the B2 accept/reject RNG from --seed (was a fixed
  * static). Call from the CLI when --dspark is active. 0 = prior fixed default. */
 void ds4_dspark_b2_seed(uint64_t seed);

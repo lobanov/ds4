@@ -481,15 +481,23 @@ static int run_sampled_generation(ds4_engine *engine, const cli_config *cfg, con
     if (ds4_engine_has_dspark(engine) && getenv("DS4_DSPARK_DISABLE") == NULL)
         ds4_dspark_b2_seed(rng);
     while (generated < max_tokens && !cli_interrupt_requested()) {
-        int token = ds4_session_sample(session, cfg->gen.temperature, 0,
+        bool dspark_pending = false;
+        int token;
+        if (ds4_engine_has_dspark(engine) && getenv("DS4_DSPARK_DISABLE") == NULL &&
+            ds4_session_take_dspark_pending_anchor(session, &token)) {
+            dspark_pending = true;
+        } else {
+            token = ds4_session_sample(session, cfg->gen.temperature, 0,
                                        cfg->gen.top_p, cfg->gen.min_p, &rng);
-        if (token == ds4_token_eos(engine)) break;
+        }
+        if (!dspark_pending && token == ds4_token_eos(engine)) break;
 
         int toks[17];
         int ntok = 0;
         if (ds4_engine_has_dspark(engine) && getenv("DS4_DSPARK_DISABLE") == NULL) {
             cli_dist_busy_set(cfg, true);
             ntok = ds4_session_eval_dspark_b2(session, token,
+                                               dspark_pending,
                                                max_tokens - generated,
                                                ds4_token_eos(engine),
                                                toks, (int)(sizeof(toks)/sizeof(toks[0])),

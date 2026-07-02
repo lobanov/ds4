@@ -3888,11 +3888,19 @@ static eval_run_result run_one_case(ds4_engine *engine, ds4_session *session,
                 token = spec_tok[spec_i++];
                 token_evaled = true;
             } else if (spec_active) {
-                int first = ds4_session_sample(session, cfg->temperature, 0,
+                bool dspark_pending = false;
+                int first;
+                if (ds4_engine_has_dspark(engine) && getenv("DS4_DSPARK_DISABLE") == NULL &&
+                    ds4_session_take_dspark_pending_anchor(session, &first)) {
+                    dspark_pending = true;
+                } else {
+                    first = ds4_session_sample(session, cfg->temperature, 0,
                                                cfg->top_p, cfg->min_p, rng);
+                }
                 int ntok;
                 if (ds4_engine_has_dspark(engine) && getenv("DS4_DSPARK_DISABLE") == NULL) {
                     ntok = ds4_session_eval_dspark_b2(session, first,
+                                    dspark_pending,
                                     remaining_budget, eos, spec_tok,
                                     (int)(sizeof(spec_tok) / sizeof(spec_tok[0])),
                                     err, sizeof(err));
