@@ -532,7 +532,24 @@ Current process conclusion:
 
 ---
 
-## 12. Minimal “fastest validated current DSpark” command
+## 12. Standard temperature sweep convention
+
+For future DSpark temperature-sensitive measurements, use these **4 temperature regimes** by default unless a note explicitly says otherwise:
+
+- `1.0`
+- `0.8`
+- `0.7`
+- `0.5`
+
+This keeps sub-1.0 comparisons consistent across runs and makes it easier to compare:
+
+- accepted drafts/cycle
+- committed tokens/cycle
+- ms/token
+- end-to-end generation t/s
+- plain-vs-DSpark behavior at the same temperature
+
+## 13. Minimal “fastest validated current DSpark” command
 
 If you only want the shortest reliable rerun of the best current validated DSpark settings:
 
