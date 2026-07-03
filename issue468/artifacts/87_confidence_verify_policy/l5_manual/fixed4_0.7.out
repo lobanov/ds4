@@ -1,0 +1,9 @@
+We need to explain speculative vs non-speculative execution, why branch mispredictions are expensive, how branch predictor uses history, and give two analogies. The user wants 3-4 short paragraphs, then two analogies. Keep it concise.
+
+Let me structure:
+
+Paragraph 1: Define speculative execution (CPU guesses which path to take before knowing condition) vs non-speculative (wait for actual condition). Mention that speculative allows parallelism but risks mispredictions.
+
+Paragraph 2: Explain why mispredictions are expensive: pipeline flush, wasted work, need to restore correct state, causing performance penalty.
+
+Paragraph 3: How

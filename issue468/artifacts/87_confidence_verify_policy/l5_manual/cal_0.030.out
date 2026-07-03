@@ -1,0 +1,7 @@
+We need to explain speculative vs non-speculative execution, why branch mispredictions are expensive, how branch predictors use history, and give two analogies. The answer should be 3-4 short paragraphs. Then two analogies.
+
+First paragraph: define speculative and non-speculative execution. Non-speculative: execute instructions in order, wait for branch resolution. Speculative: guess outcome and execute ahead, but may need to discard if wrong.
+
+Second paragraph: why branch mispredictions are expensive: they cause pipeline flush, wasted work, and performance penalty. Explain the cost of discarding results and refetching.
+
+Third

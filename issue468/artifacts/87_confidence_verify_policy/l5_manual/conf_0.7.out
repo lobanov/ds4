@@ -1,0 +1,6 @@
+We need to explain in 3-4 short paragraphs: difference between speculative and non-speculative CPU execution, why branch mispredictions are expensive, how branch predictor uses history to reduce mispredictions. Then two concrete everyday analogies.
+
+I'll structure: 
+Paragraph 1: Define speculative vs non-speculative execution. Non-speculative executes instructions in order, waiting for branch resolution. Speculative executes instructions ahead of time based on prediction.
+Paragraph 2: Why branch mispredictions are expensive: they cause pipeline flush, wasted work, and performance penalty.
+Paragraph 3: How branch predictor uses history: records outcomes

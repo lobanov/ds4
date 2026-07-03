@@ -1,0 +1,9 @@
+{
+  "total_logs": 76,
+  "groups": {
+    "l5_manual": 15,
+    "l5_sweep": 40,
+    "l7_sweep": 21
+  },
+  "review_artifact": "issue468/artifacts/87_confidence_verify_policy/review/codex_gpt55_xhigh_review.txt"
+}

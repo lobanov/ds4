@@ -1,0 +1,6 @@
+We need to explain speculative vs non-speculative execution, why branch mispredictions are expensive, how branch predictors use history, and give two everyday analogies. The user wants 3-4 short paragraphs, then two analogies. So we'll structure: first paragraph: define speculative and non-speculative execution. Second: why mispredictions are costly. Third: how branch predictor uses history. Then two analogies. Keep it concise.
+
+Let me write the answer.
+### Speculative vs. Non-Speculative Execution
+
+In non-speculative execution, the CPU follows the exact sequence of instructions as they appear in

@@ -1,0 +1,284 @@
+ds4: Metal device Apple M5 Max, 128.00 GiB RAM
+ds4: Metal 4 tensor API enabled for Tensor kernels
+ds4: drift-patch flags hc_stable=on norm_unify=on kv_raw_f32=off rope_exp2_log2=off math_safe=off tensor_matmul=on
+ds4: Metal model views created in 0.016 ms, residency requested in 1.235 ms, warmup 2.972 ms (mapped 126.25 MiB from offset 0.00 MiB)
+ds4: Metal mapped mmaped model as 1 overlapping shared buffers
+ds4: DSpark drafter loaded: ../ds4/gguf/dspark.gguf (3 mtp stages)
+ds4: Metal model views created in 1.999 ms, residency requested in 771.457 ms, warmup 1.338 ms (mapped 82697.67 MiB from offset 5.09 MiB)
+ds4: Metal mapped mmaped model as 3 overlapping shared buffers
+ds4: Metal model views created in 0.291 ms, residency requested in 1282.235 ms, warmup 2.780 ms (mapped 10957.67 MiB from offset 0.01 MiB)
+ds4: Metal mapped mmaped model as 4 overlapping shared buffers
+ds4: metal backend initialized for graph diagnostics
+ds4: context buffers 495.92 MiB (ctx=8192, backend=metal, prefill_chunk=4096, raw_kv_rows=4352, compressed_kv_rows=2050)
+ds4: dispatch -> run_sampled_generation (temp=0.8 mtp=0 dspark=1)
+ds4: b2 ENTER first_token=2581 max=128 cap=17 temp=0.800 top_p=1.000 min_p=0.050
+ds4: b2: main_hidden[0..5]=1.6575 0.9929 -0.1991 0.4064 6.5112 -1.3568
+ds4: b2: pos 0 OVERRIDE target-sampled draft=1309 temp=0.800
+ds4: b2: pos 1 draft=304 qT=1.00000 pT=1.00000 accept_p=1.0000 u=0.0000 ACCEPT
+ds4: b2: pos 2 draft=8470 qT=1.00000 pT=1.00000 accept_p=1.0000 u=0.0625 ACCEPT
+ds4: b2: pos 3 draft=270 qT=0.75871 pT=0.03671 accept_p=0.0484 u=0.6059 reject
+ds4: b2: MERGED correction-anchor pending C=71350
+ds4: dspark b2 cycle: n_accept=5 logical_commits=5 emitted_anchor=0 (drafts=3) | anchor=26.1 drafter=18.3 verify=88.8 accept=3.5 kv=1.0 total=137.7 ms
+ds4: b2 ENTER first_token=71350 max=123 cap=17 temp=0.800 top_p=1.000 min_p=0.050
+ds4: b2: main_hidden[0..5]=1.4367 -1.1211 -4.6996 -1.6968 1.1519 1.2630
+ds4: b2: pos 0 OVERRIDE target-sampled draft=8062 temp=0.800
+ds4: b2: pos 1 draft=2408 qT=0.25537 pT=1.00000 accept_p=1.0000 u=0.5236 ACCEPT
+ds4: b2: pos 2 draft=101616 qT=1.00000 pT=0.00000 accept_p=0.0000 u=0.9636 reject
+ds4: b2: MERGED correction-anchor pending C=1715
+ds4: dspark b2 cycle: n_accept=3 logical_commits=4 emitted_anchor=1 (drafts=2) | anchor=25.0 drafter=17.3 verify=84.3 accept=2.1 kv=1.3 total=130.0 ms
+ds4: b2 ENTER first_token=1715 max=120 cap=17 temp=0.800 top_p=1.000 min_p=0.050
+ds4: b2: main_hidden[0..5]=-0.9251 1.1152 -3.8341 -0.0655 5.4285 -1.2382
+ds4: b2: pos 0 OVERRIDE target-sampled draft=1065 temp=0.800
+ds4: b2: pos 1 draft=20828 qT=1.00000 pT=1.00000 accept_p=1.0000 u=0.7741 ACCEPT
+ds4: b2: pos 2 draft=16846 qT=1.00000 pT=0.87472 accept_p=0.8747 u=0.4892 ACCEPT
+ds4: b2: pos 3 draft=14 qT=1.00000 pT=1.00000 accept_p=1.0000 u=0.4517 ACCEPT
+ds4: b2: pos 4 draft=2408 qT=0.68412 pT=0.00000 accept_p=0.0000 u=0.1125 reject
+ds4: b2: MERGED correction-anchor pending C=14531
+ds4: dspark b2 cycle: n_accept=5 logical_commits=6 emitted_anchor=1 (drafts=4) | anchor=26.6 drafter=17.5 verify=83.6 accept=4.5 kv=1.5 total=133.7 ms
+ds4: b2 ENTER first_token=14531 max=115 cap=17 temp=0.800 top_p=1.000 min_p=0.050
+ds4: b2: main_hidden[0..5]=-0.6893 -2.0160 -5.8407 0.5134 7.9027 -4.6674
+ds4: b2: pos 0 OVERRIDE target-sampled draft=6521 temp=0.800
+ds4: b2: pos 1 draft=92980 qT=0.74060 pT=0.95009 accept_p=1.0000 u=0.3053 ACCEPT
+ds4: b2: pos 2 draft=685 qT=0.69437 pT=1.00000 accept_p=1.0000 u=0.5660 ACCEPT
+ds4: b2: pos 3 draft=14 qT=1.00000 pT=0.00000 accept_p=0.0000 u=0.5372 reject
+ds4: b2: MERGED correction-anchor pending C=2753
+ds4: dspark b2 cycle: n_accept=4 logical_commits=5 emitted_anchor=1 (drafts=3) | anchor=25.0 drafter=17.8 verify=84.4 accept=3.3 kv=1.5 total=132.1 ms
+ds4: b2 ENTER first_token=2753 max=111 cap=17 temp=0.800 top_p=1.000 min_p=0.050
+ds4: b2: main_hidden[0..5]=5.3273 -0.0111 -9.6585 2.2928 -1.1358 -2.0349
+ds4: b2: pos 0 OVERRIDE target-sampled draft=14 temp=0.800
+ds4: b2: pos 1 draft=14531 qT=1.00000 pT=0.42679 accept_p=0.4268 u=0.1061 ACCEPT
+ds4: b2: pos 2 draft=53510 qT=1.00000 pT=1.00000 accept_p=1.0000 u=0.6606 ACCEPT
+ds4: b2: pos 3 draft=14 qT=0.77359 pT=0.00000 accept_p=0.0000 u=0.0584 reject
+ds4: b2: MERGED correction-anchor pending C=1812
+ds4: dspark b2 cycle: n_accept=4 logical_commits=5 emitted_anchor=1 (drafts=3) | anchor=24.9 drafter=17.2 verify=84.9 accept=3.4 kv=1.3 total=131.7 ms
+ds4: b2 ENTER first_token=1812 max=107 cap=17 temp=0.800 top_p=1.000 min_p=0.050
+ds4: b2: main_hidden[0..5]=-0.7050 -2.0093 -8.3718 7.1394 -0.2267 -0.4098
+ds4: b2: pos 0 OVERRIDE target-sampled draft=3980 temp=0.800
+ds4: b2: pos 1 draft=14 qT=0.73891 pT=0.91929 accept_p=1.0000 u=0.9461 ACCEPT
+ds4: b2: pos 2 draft=305 qT=1.00000 pT=0.56686 accept_p=0.5669 u=0.2679 ACCEPT
+ds4: b2: pos 3 draft=3287 qT=0.02290 pT=0.00000 accept_p=0.0000 u=0.1462 reject
+ds4: b2: MERGED correction-anchor pending C=1234
+ds4: dspark b2 cycle: n_accept=4 logical_commits=5 emitted_anchor=1 (drafts=3) | anchor=25.4 drafter=17.4 verify=84.6 accept=3.3 kv=1.4 total=132.1 ms
+ds4: b2 ENTER first_token=1234 max=103 cap=17 temp=0.800 top_p=1.000 min_p=0.050
+ds4: b2: main_hidden[0..5]=2.9892 8.4138 -5.3791 -1.4344 5.5465 3.1701
+ds4: b2: pos 0 OVERRIDE target-sampled draft=20586 temp=0.800
+ds4: b2: pos 1 draft=517 qT=1.00000 pT=1.00000 accept_p=1.0000 u=0.7631 ACCEPT
+ds4: b2: pos 2 draft=16 qT=0.76867 pT=1.00000 accept_p=1.0000 u=0.9481 ACCEPT
+ds4: b2: pos 3 draft=21017 qT=1.00000 pT=0.00000 accept_p=0.0000 u=0.3014 reject
+ds4: b2: MERGED correction-anchor pending C=455
+ds4: dspark b2 cycle: n_accept=4 logical_commits=5 emitted_anchor=1 (drafts=3) | anchor=25.1 drafter=17.3 verify=84.7 accept=3.3 kv=1.3 total=131.7 ms
+ds4: b2 ENTER first_token=455 max=99 cap=17 temp=0.800 top_p=1.000 min_p=0.050
+ds4: b2: main_hidden[0..5]=2.9235 -1.7801 -7.8187 -1.8372 2.6620 3.4677
+ds4: b2: pos 0 OVERRIDE target-sampled draft=3967 temp=0.800
+ds4: b2: pos 1 draft=10059 qT=0.93835 pT=0.94996 accept_p=1.0000 u=0.3225 ACCEPT
+ds4: b2: pos 2 draft=260 qT=0.20421 pT=0.00000 accept_p=0.0000 u=0.3571 reject
+ds4: b2: MERGED correction-anchor pending C=223
+ds4: dspark b2 cycle: n_accept=3 logical_commits=4 emitted_anchor=1 (drafts=2) | anchor=25.2 drafter=17.4 verify=84.7 accept=2.2 kv=0.8 total=130.4 ms
+ds4: b2 ENTER first_token=223 max=96 cap=17 temp=0.800 top_p=1.000 min_p=0.050
+ds4: b2: main_hidden[0..5]=0.1262 -3.8386 -0.6793 2.0148 0.8371 2.2872
+ds4: b2: pos 0 OVERRIDE target-sampled draft=21 temp=0.800
+ds4: b2: pos 1 draft=15 qT=1.00000 pT=1.00000 accept_p=1.0000 u=0.9207 ACCEPT
+ds4: b2: pos 2 draft=22 qT=1.00000 pT=1.00000 accept_p=1.0000 u=0.1933 ACCEPT
+ds4: b2: pos 3 draft=3107 qT=0.94388 pT=1.00000 accept_p=1.0000 u=0.2361 ACCEPT
+ds4: b2: pos 4 draft=42830 qT=1.00000 pT=1.00000 accept_p=1.0000 u=0.7442 ACCEPT
+ds4: b2: pos 5 draft=16 qT=0.74530 pT=0.48799 accept_p=0.6548 u=0.5437 ACCEPT
+ds4: b2: pos 6 draft=1350 qT=0.47111 pT=0.00000 accept_p=0.0000 u=0.0374 reject
+ds4: b2: MERGED correction-anchor pending C=4480
+ds4: dspark b2 cycle: n_accept=7 logical_commits=8 emitted_anchor=1 (drafts=6) | anchor=26.8 drafter=17.1 verify=83.3 accept=6.7 kv=1.4 total=135.4 ms
+ds4: b2 ENTER first_token=4480 max=89 cap=17 temp=0.800 top_p=1.000 min_p=0.050
+ds4: b2: main_hidden[0..5]=-0.1786 6.4963 -2.2275 -7.2647 9.3036 4.5685
+ds4: b2: pos 0 OVERRIDE target-sampled draft=734 temp=0.800
+ds4: b2: pos 1 draft=4456 qT=0.87402 pT=1.00000 accept_p=1.0000 u=0.6630 ACCEPT
+ds4: b2: pos 2 draft=339 qT=0.36316 pT=0.10635 accept_p=0.2928 u=0.1993 ACCEPT
+ds4: b2: pos 3 draft=10318 qT=0.76336 pT=0.56868 accept_p=0.7450 u=0.1323 ACCEPT
+ds4: b2: pos 4 draft=15363 qT=0.11616 pT=1.00000 accept_p=1.0000 u=0.7931 ACCEPT
+ds4: b2: pos 5 draft=28 qT=0.83583 pT=1.00000 accept_p=1.0000 u=0.1945 ACCEPT
+ds4: b2: pos 6 draft=582 qT=0.21196 pT=0.00000 accept_p=0.0000 u=0.2899 reject
+ds4: b2: MERGED correction-anchor pending C=39285
+ds4: dspark b2 cycle: n_accept=7 logical_commits=8 emitted_anchor=1 (drafts=6) | anchor=25.2 drafter=17.1 verify=85.0 accept=6.6 kv=1.6 total=135.6 ms
+ds4: b2 ENTER first_token=39285 max=82 cap=17 temp=0.800 top_p=1.000 min_p=0.050
+ds4: b2: main_hidden[0..5]=-0.8744 4.0556 -7.5115 -1.1446 3.6689 -2.5276
+ds4: b2: pos 0 OVERRIDE target-sampled draft=71350 temp=0.800
+ds4: b2: pos 1 draft=16846 qT=1.00000 pT=0.51727 accept_p=0.5173 u=0.9777 reject
+ds4: b2: MERGED correction-anchor pending C=305
+ds4: dspark b2 cycle: n_accept=2 logical_commits=3 emitted_anchor=1 (drafts=1) | anchor=25.4 drafter=17.5 verify=84.3 accept=1.1 kv=0.4 total=128.6 ms
+ds4: b2 ENTER first_token=305 max=80 cap=17 temp=0.800 top_p=1.000 min_p=0.050
+ds4: b2: main_hidden[0..5]=-0.4063 0.9913 -4.5956 -2.3329 1.8855 -1.0435
+ds4: b2: pos 0 OVERRIDE target-sampled draft=2408 temp=0.800
+ds4: b2: pos 1 draft=1715 qT=1.00000 pT=1.00000 accept_p=1.0000 u=0.0607 ACCEPT
+ds4: b2: pos 2 draft=1065 qT=1.00000 pT=1.00000 accept_p=1.0000 u=0.8721 ACCEPT
+ds4: b2: pos 3 draft=20828 qT=1.00000 pT=1.00000 accept_p=1.0000 u=0.6900 ACCEPT
+ds4: b2: pos 4 draft=16846 qT=1.00000 pT=0.87634 accept_p=0.8763 u=0.0358 ACCEPT
+ds4: b2: pos 5 draft=16 qT=1.00000 pT=1.00000 accept_p=1.0000 u=0.3078 ACCEPT
+ds4: b2: pos 6 draft=10403 qT=1.00000 pT=0.83252 accept_p=0.8325 u=0.2415 ACCEPT
+ds4: dspark b2 cycle: n_accept=7 logical_commits=8 emitted_anchor=1 (drafts=7) | anchor=26.7 drafter=17.1 verify=83.8 accept=6.6 kv=0.0 total=134.2 ms
+ds4: b2 ENTER first_token=1715 max=73 cap=17 temp=0.800 top_p=1.000 min_p=0.050
+ds4: b2: main_hidden[0..5]=-0.1184 1.4744 -2.6758 5.3716 -0.5794 2.3026
+ds4: b2: pos 0 OVERRIDE target-sampled draft=1065 temp=0.800
+ds4: b2: pos 1 draft=20828 qT=1.00000 pT=1.00000 accept_p=1.0000 u=0.4290 ACCEPT
+ds4: b2: pos 2 draft=16846 qT=1.00000 pT=0.00000 accept_p=0.0000 u=0.6530 reject
+ds4: b2: MERGED correction-anchor pending C=3189
+ds4: dspark b2 cycle: n_accept=4 logical_commits=4 emitted_anchor=0 (drafts=2) | anchor=27.5 drafter=17.6 verify=83.4 accept=2.2 kv=1.6 total=132.3 ms
+ds4: b2 ENTER first_token=3189 max=69 cap=17 temp=0.800 top_p=1.000 min_p=0.050
+ds4: b2: main_hidden[0..5]=-2.6582 7.5255 -5.9229 1.2156 0.1267 5.3478
+ds4: b2: pos 0 OVERRIDE target-sampled draft=12846 temp=0.800
+ds4: b2: pos 1 draft=477 qT=0.92469 pT=0.67012 accept_p=0.7247 u=0.8606 reject
+ds4: b2: MERGED correction-anchor pending C=22218
+ds4: dspark b2 cycle: n_accept=2 logical_commits=3 emitted_anchor=1 (drafts=1) | anchor=25.2 drafter=17.0 verify=84.2 accept=1.1 kv=0.3 total=127.8 ms
+ds4: b2 ENTER first_token=22218 max=67 cap=17 temp=0.800 top_p=1.000 min_p=0.050
+ds4: b2: main_hidden[0..5]=2.0469 3.0463 -8.1813 0.5945 3.5350 -2.7454
+ds4: b2: pos 0 OVERRIDE target-sampled draft=1353 temp=0.800
+ds4: b2: pos 1 draft=1561 qT=0.67376 pT=0.79659 accept_p=1.0000 u=0.9557 ACCEPT
+ds4: b2: pos 2 draft=710 qT=1.00000 pT=0.05380 accept_p=0.0538 u=0.2896 reject
+ds4: b2: MERGED correction-anchor pending C=786
+ds4: dspark b2 cycle: n_accept=3 logical_commits=4 emitted_anchor=1 (drafts=2) | anchor=25.0 drafter=17.4 verify=85.8 accept=2.3 kv=1.0 total=131.5 ms
+ds4: b2 ENTER first_token=786 max=64 cap=17 temp=0.800 top_p=1.000 min_p=0.050
+ds4: b2: main_hidden[0..5]=2.3547 -0.1190 -3.4356 2.7889 -0.3125 -2.9581
+ds4: b2: pos 0 OVERRIDE target-sampled draft=38937 temp=0.800
+ds4: b2: pos 1 draft=477 qT=1.00000 pT=0.89921 accept_p=0.8992 u=0.4705 ACCEPT
+ds4: b2: pos 2 draft=3459 qT=1.00000 pT=0.00000 accept_p=0.0000 u=0.0455 reject
+ds4: b2: MERGED correction-anchor pending C=27081
+ds4: dspark b2 cycle: n_accept=3 logical_commits=4 emitted_anchor=1 (drafts=2) | anchor=26.8 drafter=17.0 verify=83.3 accept=2.3 kv=0.7 total=130.1 ms
+ds4: b2 ENTER first_token=27081 max=61 cap=17 temp=0.800 top_p=1.000 min_p=0.050
+ds4: b2: main_hidden[0..5]=3.4561 1.9782 -8.2159 2.2092 3.8744 -2.5268
+ds4: b2: pos 0 OVERRIDE target-sampled draft=305 temp=0.800
+ds4: b2: pos 1 draft=5930 qT=0.34837 pT=0.00000 accept_p=0.0000 u=0.6254 reject
+ds4: b2: MERGED correction-anchor pending C=270
+ds4: dspark b2 cycle: n_accept=2 logical_commits=3 emitted_anchor=1 (drafts=1) | anchor=25.4 drafter=17.2 verify=86.6 accept=1.3 kv=0.4 total=130.8 ms
+ds4: b2 ENTER first_token=270 max=59 cap=17 temp=0.800 top_p=1.000 min_p=0.050
+ds4: b2: main_hidden[0..5]=0.1743 0.4969 -1.7626 3.4827 -1.6470 2.1336
+ds4: b2: pos 0 OVERRIDE target-sampled draft=3618 temp=0.800
+ds4: b2: pos 1 draft=344 qT=1.00000 pT=1.00000 accept_p=1.0000 u=0.4407 ACCEPT
+ds4: b2: pos 2 draft=4813 qT=0.43184 pT=0.00000 accept_p=0.0000 u=0.5650 reject
+ds4: b2: MERGED correction-anchor pending C=3480
+ds4: dspark b2 cycle: n_accept=3 logical_commits=4 emitted_anchor=1 (drafts=2) | anchor=25.9 drafter=17.5 verify=85.8 accept=2.3 kv=1.1 total=132.8 ms
+ds4: b2 ENTER first_token=3480 max=56 cap=17 temp=0.800 top_p=1.000 min_p=0.050
+ds4: b2: main_hidden[0..5]=-0.2415 2.4731 -10.1308 2.7311 5.3792 -0.4551
+ds4: b2: pos 0 OVERRIDE target-sampled draft=16 temp=0.800
+ds4: b2: pos 1 draft=5930 qT=1.00000 pT=1.00000 accept_p=1.0000 u=0.3546 ACCEPT
+ds4: b2: pos 2 draft=20828 qT=1.00000 pT=1.00000 accept_p=1.0000 u=0.1325 ACCEPT
+ds4: b2: pos 3 draft=16846 qT=0.93320 pT=0.25324 accept_p=0.2714 u=0.4789 reject
+ds4: b2: MERGED correction-anchor pending C=3189
+ds4: dspark b2 cycle: n_accept=4 logical_commits=5 emitted_anchor=1 (drafts=3) | anchor=27.3 drafter=17.2 verify=83.9 accept=3.3 kv=1.5 total=133.2 ms
+ds4: b2 ENTER first_token=3189 max=52 cap=17 temp=0.800 top_p=1.000 min_p=0.050
+ds4: b2: main_hidden[0..5]=3.0378 1.7280 -0.7807 5.6248 -5.3558 4.1828
+ds4: b2: pos 0 OVERRIDE target-sampled draft=270 temp=0.800
+ds4: b2: pos 1 draft=25454 qT=1.00000 pT=1.00000 accept_p=1.0000 u=0.6496 ACCEPT
+ds4: b2: pos 2 draft=12846 qT=0.27720 pT=0.00000 accept_p=0.0000 u=0.7963 reject
+ds4: b2: MERGED correction-anchor pending C=111855
+ds4: dspark b2 cycle: n_accept=3 logical_commits=4 emitted_anchor=1 (drafts=2) | anchor=27.4 drafter=17.3 verify=84.4 accept=2.2 kv=1.5 total=132.7 ms
+ds4: b2 ENTER first_token=111855 max=49 cap=17 temp=0.800 top_p=1.000 min_p=0.050
+ds4: b2: main_hidden[0..5]=0.9746 -0.9820 -2.7180 2.9899 0.9488 -4.8337
+ds4: b2: pos 0 OVERRIDE target-sampled draft=778 temp=0.800
+ds4: b2: pos 1 draft=74638 qT=0.86333 pT=0.00000 accept_p=0.0000 u=0.7515 reject
+ds4: b2: MERGED correction-anchor pending C=14531
+ds4: dspark b2 cycle: n_accept=2 logical_commits=3 emitted_anchor=1 (drafts=1) | anchor=25.7 drafter=17.4 verify=85.5 accept=1.1 kv=0.4 total=130.1 ms
+ds4: b2 ENTER first_token=14531 max=47 cap=17 temp=0.800 top_p=1.000 min_p=0.050
+ds4: b2: main_hidden[0..5]=2.0423 3.9256 -3.9598 1.0871 -1.4301 -3.3290
+ds4: b2: pos 0 OVERRIDE target-sampled draft=759 temp=0.800
+ds4: b2: pos 1 draft=366 qT=0.69601 pT=1.00000 accept_p=1.0000 u=0.7936 ACCEPT
+ds4: b2: pos 2 draft=4737 qT=1.00000 pT=1.00000 accept_p=1.0000 u=0.6560 ACCEPT
+ds4: b2: pos 3 draft=305 qT=1.00000 pT=1.00000 accept_p=1.0000 u=0.0530 ACCEPT
+ds4: b2: pos 4 draft=22218 qT=0.35700 pT=0.00000 accept_p=0.0000 u=0.4953 reject
+ds4: b2: MERGED correction-anchor pending C=74638
+ds4: dspark b2 cycle: n_accept=5 logical_commits=6 emitted_anchor=1 (drafts=4) | anchor=25.8 drafter=17.3 verify=85.0 accept=4.4 kv=1.1 total=133.6 ms
+ds4: b2 ENTER first_token=74638 max=42 cap=17 temp=0.800 top_p=1.000 min_p=0.050
+ds4: b2: main_hidden[0..5]=6.6552 6.1086 -1.3557 3.5307 -4.7507 0.2020
+ds4: b2: pos 0 OVERRIDE target-sampled draft=12846 temp=0.800
+ds4: b2: pos 1 draft=10300 qT=0.47403 pT=1.00000 accept_p=1.0000 u=0.7385 ACCEPT
+ds4: b2: pos 2 draft=294 qT=0.66507 pT=0.91423 accept_p=1.0000 u=0.0350 ACCEPT
+ds4: b2: pos 3 draft=270 qT=0.70763 pT=0.00000 accept_p=0.0000 u=0.3757 reject
+ds4: b2: MERGED correction-anchor pending C=1014
+ds4: dspark b2 cycle: n_accept=4 logical_commits=5 emitted_anchor=1 (drafts=3) | anchor=25.8 drafter=17.6 verify=86.2 accept=3.3 kv=1.5 total=134.4 ms
+ds4: b2 ENTER first_token=1014 max=38 cap=17 temp=0.800 top_p=1.000 min_p=0.050
+ds4: b2: main_hidden[0..5]=7.1454 -1.8583 -1.4438 6.3023 -1.4979 2.1353
+ds4: b2: pos 0 OVERRIDE target-sampled draft=14 temp=0.800
+ds4: b2: pos 1 draft=832 qT=0.09354 pT=0.00000 accept_p=0.0000 u=0.5415 reject
+ds4: b2: MERGED correction-anchor pending C=304
+ds4: dspark b2 cycle: n_accept=2 logical_commits=3 emitted_anchor=1 (drafts=1) | anchor=25.9 drafter=16.9 verify=85.1 accept=1.1 kv=0.3 total=129.3 ms
+ds4: b2 ENTER first_token=304 max=36 cap=17 temp=0.800 top_p=1.000 min_p=0.050
+ds4: b2: main_hidden[0..5]=0.1300 2.8390 0.7819 0.6563 -1.5928 1.6594
+ds4: b2: pos 0 OVERRIDE target-sampled draft=3144 temp=0.800
+ds4: b2: pos 1 draft=1387 qT=0.39500 pT=0.00000 accept_p=0.0000 u=0.3718 reject
+ds4: b2: MERGED correction-anchor pending C=270
+ds4: dspark b2 cycle: n_accept=2 logical_commits=3 emitted_anchor=1 (drafts=1) | anchor=27.9 drafter=17.0 verify=83.5 accept=1.1 kv=0.3 total=129.8 ms
+ds4: b2 ENTER first_token=270 max=34 cap=17 temp=0.800 top_p=1.000 min_p=0.050
+ds4: b2: main_hidden[0..5]=0.8722 1.7720 2.4608 2.8459 -2.1842 3.3306
+ds4: b2: pos 0 OVERRIDE target-sampled draft=28499 temp=0.800
+ds4: b2: pos 1 draft=16527 qT=1.00000 pT=1.00000 accept_p=1.0000 u=0.9469 ACCEPT
+ds4: b2: pos 2 draft=16 qT=0.77616 pT=0.66779 accept_p=0.8604 u=0.2104 ACCEPT
+ds4: b2: pos 3 draft=5930 qT=0.59847 pT=0.04807 accept_p=0.0803 u=0.5581 reject
+ds4: b2: MERGED correction-anchor pending C=2275
+ds4: dspark b2 cycle: n_accept=4 logical_commits=5 emitted_anchor=1 (drafts=3) | anchor=25.9 drafter=17.2 verify=85.6 accept=3.8 kv=1.0 total=133.5 ms
+ds4: b2 ENTER first_token=2275 max=30 cap=17 temp=0.800 top_p=1.000 min_p=0.050
+ds4: b2: main_hidden[0..5]=0.5977 -1.2979 -7.2382 2.5042 2.7894 1.2408
+ds4: b2: pos 0 OVERRIDE target-sampled draft=855 temp=0.800
+ds4: b2: pos 1 draft=436 qT=0.44949 pT=0.00000 accept_p=0.0000 u=0.7687 reject
+ds4: b2: MERGED correction-anchor pending C=11446
+ds4: dspark b2 cycle: n_accept=2 logical_commits=3 emitted_anchor=1 (drafts=1) | anchor=26.3 drafter=18.2 verify=86.7 accept=1.4 kv=1.0 total=133.7 ms
+ds4: b2 ENTER first_token=11446 max=28 cap=17 temp=0.800 top_p=1.000 min_p=0.050
+ds4: b2: main_hidden[0..5]=3.4612 1.6935 0.4254 2.2509 3.5724 -3.0344
+ds4: b2: pos 0 OVERRIDE target-sampled draft=344 temp=0.800
+ds4: b2: pos 1 draft=7139 qT=1.00000 pT=1.00000 accept_p=1.0000 u=0.2400 ACCEPT
+ds4: b2: pos 2 draft=14 qT=1.00000 pT=1.00000 accept_p=1.0000 u=0.2566 ACCEPT
+ds4: b2: pos 3 draft=436 qT=0.83845 pT=0.05674 accept_p=0.0677 u=0.5932 reject
+ds4: b2: MERGED correction-anchor pending C=1309
+ds4: dspark b2 cycle: n_accept=4 logical_commits=5 emitted_anchor=1 (drafts=3) | anchor=27.6 drafter=18.2 verify=84.0 accept=3.6 kv=1.0 total=134.3 ms
+ds4: b2 ENTER first_token=1309 max=24 cap=17 temp=0.800 top_p=1.000 min_p=0.050
+ds4: b2: main_hidden[0..5]=-3.8738 0.0022 -2.7891 -1.6192 -1.7421 2.2830
+ds4: b2: pos 0 OVERRIDE target-sampled draft=304 temp=0.800
+ds4: b2: pos 1 draft=50015 qT=0.77957 pT=0.00000 accept_p=0.0000 u=0.2431 reject
+ds4: b2: MERGED correction-anchor pending C=75746
+ds4: dspark b2 cycle: n_accept=2 logical_commits=3 emitted_anchor=1 (drafts=1) | anchor=27.6 drafter=17.3 verify=84.5 accept=1.5 kv=0.9 total=131.7 ms
+ds4: b2 ENTER first_token=75746 max=22 cap=17 temp=0.800 top_p=1.000 min_p=0.050
+ds4: b2: main_hidden[0..5]=-2.8111 5.2565 -1.9934 8.5509 0.3562 -0.7486
+ds4: b2: pos 0 OVERRIDE target-sampled draft=3083 temp=0.800
+ds4: b2: pos 1 draft=339 qT=0.91857 pT=0.56513 accept_p=0.6152 u=0.3511 ACCEPT
+ds4: b2: pos 2 draft=13613 qT=1.00000 pT=0.00000 accept_p=0.0000 u=0.4193 reject
+ds4: b2: MERGED correction-anchor pending C=18653
+ds4: dspark b2 cycle: n_accept=3 logical_commits=4 emitted_anchor=1 (drafts=2) | anchor=26.1 drafter=19.0 verify=86.5 accept=3.2 kv=1.2 total=135.9 ms
+ds4: b2 ENTER first_token=18653 max=19 cap=17 temp=0.800 top_p=1.000 min_p=0.050
+ds4: b2: main_hidden[0..5]=-0.8427 4.6442 -2.8172 2.6373 0.4116 -0.1574
+ds4: b2: pos 0 OVERRIDE target-sampled draft=15363 temp=0.800
+ds4: b2: pos 1 draft=28 qT=1.00000 pT=1.00000 accept_p=1.0000 u=0.2153 ACCEPT
+ds4: b2: pos 2 draft=36363 qT=0.89429 pT=0.00000 accept_p=0.0000 u=0.0440 reject
+ds4: b2: MERGED correction-anchor pending C=7492
+ds4: dspark b2 cycle: n_accept=3 logical_commits=4 emitted_anchor=1 (drafts=2) | anchor=26.0 drafter=18.3 verify=85.8 accept=2.7 kv=0.3 total=133.1 ms
+ds4: b2 ENTER first_token=7492 max=16 cap=17 temp=0.800 top_p=1.000 min_p=0.050
+ds4: b2: main_hidden[0..5]=0.9057 3.3299 -9.0400 7.7002 3.5740 -4.3435
+ds4: b2: pos 0 OVERRIDE target-sampled draft=14531 temp=0.800
+ds4: b2: pos 1 draft=6521 qT=1.00000 pT=1.00000 accept_p=1.0000 u=0.1186 ACCEPT
+ds4: b2: pos 2 draft=92980 qT=1.00000 pT=1.00000 accept_p=1.0000 u=0.9575 ACCEPT
+ds4: b2: pos 3 draft=685 qT=1.00000 pT=1.00000 accept_p=1.0000 u=0.3148 ACCEPT
+ds4: b2: pos 4 draft=477 qT=0.79468 pT=1.00000 accept_p=1.0000 u=0.9633 ACCEPT
+ds4: b2: pos 5 draft=14738 qT=0.90402 pT=1.00000 accept_p=1.0000 u=0.1088 ACCEPT
+ds4: b2: pos 6 draft=33 qT=0.38034 pT=0.00000 accept_p=0.0000 u=0.7482 reject
+ds4: b2: MERGED correction-anchor pending C=28
+ds4: dspark b2 cycle: n_accept=7 logical_commits=8 emitted_anchor=1 (drafts=6) | anchor=27.8 drafter=18.8 verify=84.4 accept=8.1 kv=1.0 total=140.1 ms
+ds4: b2 ENTER first_token=28 max=9 cap=17 temp=0.800 top_p=1.000 min_p=0.050
+ds4: b2: main_hidden[0..5]=3.5824 2.1926 -4.9919 2.7320 1.2823 4.2908
+ds4: b2: pos 0 OVERRIDE target-sampled draft=1754 temp=0.800
+ds4: b2: pos 1 draft=28499 qT=1.00000 pT=0.00000 accept_p=0.0000 u=0.0497 reject
+ds4: b2: MERGED correction-anchor pending C=270
+ds4: dspark b2 cycle: n_accept=2 logical_commits=3 emitted_anchor=1 (drafts=1) | anchor=26.0 drafter=18.6 verify=85.6 accept=1.4 kv=1.2 total=132.8 ms
+ds4: b2 ENTER first_token=270 max=7 cap=17 temp=0.800 top_p=1.000 min_p=0.050
+ds4: b2: main_hidden[0..5]=-3.3573 0.2198 -5.4054 4.1012 -3.2261 3.9248
+ds4: b2: pos 0 OVERRIDE target-sampled draft=25454 temp=0.800
+ds4: b2: pos 1 draft=2231 qT=1.00000 pT=0.20797 accept_p=0.2080 u=0.6921 reject
+ds4: b2: MERGED correction-anchor pending C=769
+ds4: dspark b2 cycle: n_accept=2 logical_commits=3 emitted_anchor=1 (drafts=1) | anchor=26.1 drafter=18.3 verify=85.8 accept=1.3 kv=0.4 total=131.9 ms
+ds4: b2 ENTER first_token=769 max=5 cap=17 temp=0.800 top_p=1.000 min_p=0.050
+ds4: b2: main_hidden[0..5]=-0.8561 2.6442 0.5929 4.0897 -1.4461 3.7959
+ds4: b2: pos 0 OVERRIDE target-sampled draft=304 temp=0.800
+ds4: b2: pos 1 draft=1116 qT=0.12627 pT=0.00000 accept_p=0.0000 u=0.9004 reject
+ds4: b2: MERGED correction-anchor pending C=50015
+ds4: dspark b2 cycle: n_accept=2 logical_commits=3 emitted_anchor=1 (drafts=1) | anchor=26.2 drafter=17.7 verify=85.4 accept=1.4 kv=0.9 total=131.6 ms
+ds4: b2 ENTER first_token=50015 max=3 cap=17 temp=0.800 top_p=1.000 min_p=0.050
+ds4: b2: main_hidden[0..5]=-2.1358 -2.5720 -3.6983 2.4971 0.0708 2.7572
+ds4: b2: pos 0 OVERRIDE target-sampled draft=270 temp=0.800
+ds4: b2: pos 1 draft=28499 qT=1.00000 pT=1.00000 accept_p=1.0000 u=0.6263 ACCEPT
+ds4: b2: pos 2 draft=14 qT=0.90916 pT=0.30621 accept_p=0.3368 u=0.0265 ACCEPT
+ds4: b2: MERGED correction-anchor pending C=14
+ds4: dspark b2 cycle: n_accept=3 logical_commits=4 emitted_anchor=1 (drafts=3) | anchor=26.0 drafter=18.4 verify=85.9 accept=2.6 kv=1.1 total=133.9 ms
+ds4: prefill: 77.38 t/s, generation: 26.80 t/s
+ds4: Metal cleanup discarded 11 live tensor handles

@@ -1,0 +1,406 @@
+ds4: Metal device Apple M5 Max, 128.00 GiB RAM
+ds4: Metal 4 tensor API enabled for Tensor kernels
+ds4: drift-patch flags hc_stable=on norm_unify=on kv_raw_f32=off rope_exp2_log2=off math_safe=off tensor_matmul=on
+ds4: Metal model views created in 0.019 ms, residency requested in 1.232 ms, warmup 2.842 ms (mapped 126.25 MiB from offset 0.00 MiB)
+ds4: Metal mapped mmaped model as 1 overlapping shared buffers
+ds4: DSpark drafter loaded: ../ds4/gguf/dspark.gguf (3 mtp stages)
+ds4: Metal model views created in 1.865 ms, residency requested in 843.758 ms, warmup 0.953 ms (mapped 82697.67 MiB from offset 5.09 MiB)
+ds4: Metal mapped mmaped model as 3 overlapping shared buffers
+ds4: Metal model views created in 0.268 ms, residency requested in 813.120 ms, warmup 1.118 ms (mapped 10957.67 MiB from offset 0.01 MiB)
+ds4: Metal mapped mmaped model as 4 overlapping shared buffers
+ds4: metal backend initialized for graph diagnostics
+ds4: context buffers 495.92 MiB (ctx=8192, backend=metal, prefill_chunk=4096, raw_kv_rows=4352, compressed_kv_rows=2050)
+ds4: dispatch -> run_sampled_generation (temp=1.0 mtp=0 dspark=1)
+ds4: b2 ENTER first_token=2581 max=128 cap=17 temp=1.000 top_p=1.000 min_p=0.050
+ds4: b2: main_hidden[0..5]=1.6575 0.9929 -0.1991 0.4064 6.5112 -1.3568
+ds4: b2: pos 0 OVERRIDE target-sampled draft=1309 temp=1.000
+ds4: b2: verify-policy=rank pos=1 draft=304 qT=1.000000 margin=1.000000 entropy=0.000000 rank=1 need=1.000000 keep=1
+ds4: b2: verify-policy=rank pos=2 draft=8470 qT=0.927819 margin=0.855639 entropy=0.259243 rank=1 need=1.000000 keep=1
+ds4: b2: verify-policy=rank pos=3 draft=270 qT=0.686374 margin=0.497084 entropy=0.832585 rank=1 need=1.000000 keep=1
+ds4: b2: verify-policy=rank pos=4 draft=2038 qT=0.240546 margin=0.227481 entropy=1.444515 rank=2 need=1.000000 keep=0
+ds4: b2: verify-policy summary policy=rank chosen=5 base=7 prob_min=0.030000 margin_min=0.020000 entropy_max=4.000000 rank_max=1
+ds4: b2: pos 1 draft=304 qT=1.00000 pT=1.00000 accept_p=1.0000 u=0.0000 ACCEPT
+ds4: b2: pos 2 draft=8470 qT=0.92782 pT=0.94153 accept_p=1.0000 u=0.0625 ACCEPT
+ds4: b2: pos 3 draft=270 qT=0.68637 pT=0.05646 accept_p=0.0823 u=0.6059 reject
+ds4: b2: MERGED correction-anchor pending C=71350
+ds4: dspark b2 cycle: n_accept=5 logical_commits=5 emitted_anchor=0 (drafts=3) | anchor=26.0 drafter=21.0 verify=73.6 accept=3.8 kv=1.4 total=125.8 ms
+ds4: b2 ENTER first_token=71350 max=123 cap=17 temp=1.000 top_p=1.000 min_p=0.050
+ds4: b2: main_hidden[0..5]=1.4281 -1.1078 -4.7166 -1.7096 1.1423 1.3033
+ds4: b2: pos 0 OVERRIDE target-sampled draft=8062 temp=1.000
+ds4: b2: verify-policy=rank pos=1 draft=2408 qT=0.257951 margin=0.202345 entropy=1.200320 rank=2 need=1.000000 keep=0
+ds4: b2: verify-policy summary policy=rank chosen=2 base=7 prob_min=0.030000 margin_min=0.020000 entropy_max=4.000000 rank_max=1
+ds4: b2: pos 1 draft=2408 qT=0.25795 pT=1.00000 accept_p=1.0000 u=0.5236 ACCEPT
+ds4: dspark b2 cycle: n_accept=2 logical_commits=3 emitted_anchor=1 (drafts=2) | anchor=25.1 drafter=18.4 verify=41.1 accept=1.2 kv=0.0 total=85.9 ms
+ds4: b2 ENTER first_token=1715 max=121 cap=17 temp=1.000 top_p=1.000 min_p=0.050
+ds4: b2: main_hidden[0..5]=-0.8625 1.0253 -3.8138 -0.0364 5.3967 -1.1569
+ds4: b2: pos 0 OVERRIDE target-sampled draft=1065 temp=1.000
+ds4: b2: verify-policy=rank pos=1 draft=20828 qT=1.000000 margin=1.000000 entropy=0.000000 rank=1 need=1.000000 keep=1
+ds4: b2: verify-policy=rank pos=2 draft=16846 qT=1.000000 margin=1.000000 entropy=0.000000 rank=1 need=1.000000 keep=1
+ds4: b2: verify-policy=rank pos=3 draft=14 qT=1.000000 margin=1.000000 entropy=0.000000 rank=1 need=1.000000 keep=1
+ds4: b2: verify-policy=rank pos=4 draft=2408 qT=0.499350 margin=0.295682 entropy=1.523464 rank=1 need=1.000000 keep=1
+ds4: b2: verify-policy=rank pos=5 draft=101616 qT=0.630818 margin=0.261636 entropy=0.658519 rank=1 need=1.000000 keep=1
+ds4: b2: verify-policy=rank pos=6 draft=1332 qT=1.000000 margin=1.000000 entropy=0.000000 rank=1 need=1.000000 keep=1
+ds4: b2: verify-policy summary policy=rank chosen=7 base=7 prob_min=0.030000 margin_min=0.020000 entropy_max=4.000000 rank_max=1
+ds4: b2: pos 1 draft=20828 qT=1.00000 pT=1.00000 accept_p=1.0000 u=0.9636 ACCEPT
+ds4: b2: pos 2 draft=16846 qT=1.00000 pT=0.83154 accept_p=0.8315 u=0.6339 ACCEPT
+ds4: b2: pos 3 draft=14 qT=1.00000 pT=1.00000 accept_p=1.0000 u=0.7741 ACCEPT
+ds4: b2: pos 4 draft=2408 qT=0.49935 pT=0.00000 accept_p=0.0000 u=0.4892 reject
+ds4: b2: MERGED correction-anchor pending C=3939
+ds4: dspark b2 cycle: n_accept=6 logical_commits=6 emitted_anchor=0 (drafts=4) | anchor=27.3 drafter=22.2 verify=85.2 accept=5.0 kv=0.7 total=140.4 ms
+ds4: b2 ENTER first_token=3939 max=115 cap=17 temp=1.000 top_p=1.000 min_p=0.050
+ds4: b2: main_hidden[0..5]=3.6228 1.7657 -9.4354 3.6706 2.9551 -2.1814
+ds4: b2: pos 0 OVERRIDE target-sampled draft=14531 temp=1.000
+ds4: b2: verify-policy=rank pos=1 draft=6521 qT=1.000000 margin=1.000000 entropy=0.000000 rank=1 need=1.000000 keep=1
+ds4: b2: verify-policy=rank pos=2 draft=92980 qT=1.000000 margin=1.000000 entropy=0.000000 rank=1 need=1.000000 keep=1
+ds4: b2: verify-policy=rank pos=3 draft=85 qT=0.302013 margin=0.395974 entropy=0.612560 rank=2 need=1.000000 keep=0
+ds4: b2: verify-policy summary policy=rank chosen=4 base=7 prob_min=0.030000 margin_min=0.020000 entropy_max=4.000000 rank_max=1
+ds4: b2: pos 1 draft=6521 qT=1.00000 pT=1.00000 accept_p=1.0000 u=0.1125 ACCEPT
+ds4: b2: pos 2 draft=92980 qT=1.00000 pT=1.00000 accept_p=1.0000 u=0.9362 ACCEPT
+ds4: b2: pos 3 draft=85 qT=0.30201 pT=0.00000 accept_p=0.0000 u=0.3053 reject
+ds4: b2: MERGED correction-anchor pending C=685
+ds4: dspark b2 cycle: n_accept=4 logical_commits=5 emitted_anchor=1 (drafts=3) | anchor=25.1 drafter=19.9 verify=60.0 accept=3.7 kv=1.1 total=109.8 ms
+ds4: b2 ENTER first_token=685 max=111 cap=17 temp=1.000 top_p=1.000 min_p=0.050
+ds4: b2: main_hidden[0..5]=0.9291 7.0022 0.4369 3.4813 5.6006 -4.3070
+ds4: b2: pos 0 OVERRIDE target-sampled draft=477 temp=1.000
+ds4: b2: verify-policy=rank pos=1 draft=14738 qT=0.913891 margin=0.827781 entropy=0.293443 rank=1 need=1.000000 keep=1
+ds4: b2: verify-policy=rank pos=2 draft=14 qT=1.000000 margin=1.000000 entropy=0.000000 rank=1 need=1.000000 keep=1
+ds4: b2: verify-policy=rank pos=3 draft=305 qT=0.725104 margin=0.548501 entropy=0.835427 rank=1 need=1.000000 keep=1
+ds4: b2: verify-policy=rank pos=4 draft=71350 qT=0.948166 margin=0.896332 entropy=0.203881 rank=1 need=1.000000 keep=1
+ds4: b2: verify-policy=rank pos=5 draft=16846 qT=1.000000 margin=1.000000 entropy=0.000000 rank=1 need=1.000000 keep=1
+ds4: b2: verify-policy=rank pos=6 draft=16 qT=1.000000 margin=1.000000 entropy=0.000000 rank=1 need=1.000000 keep=1
+ds4: b2: verify-policy summary policy=rank chosen=7 base=7 prob_min=0.030000 margin_min=0.020000 entropy_max=4.000000 rank_max=1
+ds4: b2: pos 1 draft=14738 qT=0.91389 pT=1.00000 accept_p=1.0000 u=0.5372 ACCEPT
+ds4: b2: pos 2 draft=14 qT=1.00000 pT=1.00000 accept_p=1.0000 u=0.8110 ACCEPT
+ds4: b2: pos 3 draft=305 qT=0.72510 pT=0.06689 accept_p=0.0923 u=0.1061 reject
+ds4: b2: MERGED correction-anchor pending C=1192
+ds4: dspark b2 cycle: n_accept=4 logical_commits=5 emitted_anchor=1 (drafts=3) | anchor=25.0 drafter=21.8 verify=84.3 accept=3.8 kv=0.9 total=135.8 ms
+ds4: b2 ENTER first_token=1192 max=107 cap=17 temp=1.000 top_p=1.000 min_p=0.050
+ds4: b2: main_hidden[0..5]=4.2395 -2.8336 -10.4328 2.0359 0.1298 -2.2892
+ds4: b2: pos 0 OVERRIDE target-sampled draft=14531 temp=1.000
+ds4: b2: verify-policy=rank pos=1 draft=54649 qT=1.000000 margin=1.000000 entropy=0.000000 rank=1 need=1.000000 keep=1
+ds4: b2: verify-policy=rank pos=2 draft=1347 qT=1.000000 margin=1.000000 entropy=0.000000 rank=1 need=1.000000 keep=1
+ds4: b2: verify-policy=rank pos=3 draft=3980 qT=0.482637 margin=0.345453 entropy=1.729543 rank=1 need=1.000000 keep=1
+ds4: b2: verify-policy=rank pos=4 draft=14 qT=1.000000 margin=1.000000 entropy=0.000000 rank=1 need=1.000000 keep=1
+ds4: b2: verify-policy=rank pos=5 draft=1505 qT=0.033631 margin=0.544992 entropy=1.274284 rank=6 need=1.000000 keep=0
+ds4: b2: verify-policy summary policy=rank chosen=6 base=7 prob_min=0.030000 margin_min=0.020000 entropy_max=4.000000 rank_max=1
+ds4: b2: pos 1 draft=54649 qT=1.00000 pT=0.17315 accept_p=0.1731 u=0.0584 ACCEPT
+ds4: b2: pos 2 draft=1347 qT=1.00000 pT=1.00000 accept_p=1.0000 u=0.4419 ACCEPT
+ds4: b2: pos 3 draft=3980 qT=0.48264 pT=1.00000 accept_p=1.0000 u=0.9461 ACCEPT
+ds4: b2: pos 4 draft=14 qT=1.00000 pT=0.78601 accept_p=0.7860 u=0.2679 ACCEPT
+ds4: b2: pos 5 draft=1505 qT=0.03363 pT=0.00000 accept_p=0.0000 u=0.1462 reject
+ds4: b2: MERGED correction-anchor pending C=305
+ds4: dspark b2 cycle: n_accept=6 logical_commits=7 emitted_anchor=1 (drafts=5) | anchor=25.1 drafter=21.2 verify=75.8 accept=6.2 kv=1.6 total=129.9 ms
+ds4: b2 ENTER first_token=305 max=101 cap=17 temp=1.000 top_p=1.000 min_p=0.050
+ds4: b2: main_hidden[0..5]=3.9909 8.2631 -0.2725 -0.7068 2.0812 2.4265
+ds4: b2: pos 0 OVERRIDE target-sampled draft=3475 temp=1.000
+ds4: b2: verify-policy=rank pos=1 draft=1234 qT=1.000000 margin=1.000000 entropy=0.000000 rank=1 need=1.000000 keep=1
+ds4: b2: verify-policy=rank pos=2 draft=15699 qT=0.575438 margin=0.303293 entropy=0.958893 rank=1 need=1.000000 keep=1
+ds4: b2: verify-policy=rank pos=3 draft=20586 qT=1.000000 margin=1.000000 entropy=0.000000 rank=1 need=1.000000 keep=1
+ds4: b2: verify-policy=rank pos=4 draft=517 qT=1.000000 margin=1.000000 entropy=0.000000 rank=1 need=1.000000 keep=1
+ds4: b2: verify-policy=rank pos=5 draft=16 qT=0.948052 margin=0.896105 entropy=0.204211 rank=1 need=1.000000 keep=1
+ds4: b2: verify-policy=rank pos=6 draft=128822 qT=0.045701 margin=0.159614 entropy=1.080079 rank=3 need=1.000000 keep=0
+ds4: b2: verify-policy summary policy=rank chosen=7 base=7 prob_min=0.030000 margin_min=0.020000 entropy_max=4.000000 rank_max=1
+ds4: b2: pos 1 draft=1234 qT=1.00000 pT=1.00000 accept_p=1.0000 u=0.7631 ACCEPT
+ds4: b2: pos 2 draft=15699 qT=0.57544 pT=0.18518 accept_p=0.3218 u=0.9481 reject
+ds4: b2: MERGED correction-anchor pending C=20586
+ds4: dspark b2 cycle: n_accept=3 logical_commits=4 emitted_anchor=1 (drafts=2) | anchor=25.0 drafter=22.2 verify=85.7 accept=2.5 kv=1.4 total=136.9 ms
+ds4: b2 ENTER first_token=20586 max=98 cap=17 temp=1.000 top_p=1.000 min_p=0.050
+ds4: b2: main_hidden[0..5]=1.5007 2.1989 -10.2606 -1.6605 5.9710 1.8740
+ds4: b2: pos 0 OVERRIDE target-sampled draft=517 temp=1.000
+ds4: b2: verify-policy=rank pos=1 draft=16 qT=1.000000 margin=1.000000 entropy=0.000000 rank=1 need=1.000000 keep=1
+ds4: b2: verify-policy=rank pos=2 draft=21017 qT=0.447203 margin=0.206979 entropy=1.266056 rank=1 need=1.000000 keep=1
+ds4: b2: verify-policy=rank pos=3 draft=304 qT=1.000000 margin=1.000000 entropy=0.000000 rank=1 need=1.000000 keep=1
+ds4: b2: verify-policy=rank pos=4 draft=36455 qT=0.044861 margin=0.628251 entropy=0.620224 rank=3 need=1.000000 keep=0
+ds4: b2: verify-policy summary policy=rank chosen=5 base=7 prob_min=0.030000 margin_min=0.020000 entropy_max=4.000000 rank_max=1
+ds4: b2: pos 1 draft=16 qT=1.00000 pT=1.00000 accept_p=1.0000 u=0.2085 ACCEPT
+ds4: b2: pos 2 draft=21017 qT=0.44720 pT=0.00000 accept_p=0.0000 u=0.3225 reject
+ds4: b2: MERGED correction-anchor pending C=455
+ds4: dspark b2 cycle: n_accept=3 logical_commits=4 emitted_anchor=1 (drafts=2) | anchor=25.0 drafter=20.6 verify=70.0 accept=2.5 kv=1.4 total=119.5 ms
+ds4: b2 ENTER first_token=455 max=95 cap=17 temp=1.000 top_p=1.000 min_p=0.050
+ds4: b2: main_hidden[0..5]=3.2167 -1.4779 -8.6195 -2.0644 2.6148 4.0352
+ds4: b2: pos 0 OVERRIDE target-sampled draft=3967 temp=1.000
+ds4: b2: verify-policy=rank pos=1 draft=10059 qT=0.912540 margin=0.825081 entropy=0.296620 rank=1 need=1.000000 keep=1
+ds4: b2: verify-policy=rank pos=2 draft=582 qT=0.134108 margin=0.267362 entropy=1.711048 rank=3 need=1.000000 keep=0
+ds4: b2: verify-policy summary policy=rank chosen=3 base=7 prob_min=0.030000 margin_min=0.020000 entropy_max=4.000000 rank_max=1
+ds4: b2: pos 1 draft=10059 qT=0.91254 pT=0.85313 accept_p=0.9349 u=0.6611 ACCEPT
+ds4: b2: pos 2 draft=582 qT=0.13411 pT=0.00000 accept_p=0.0000 u=0.9207 reject
+ds4: b2: MERGED correction-anchor pending C=223
+ds4: dspark b2 cycle: n_accept=3 logical_commits=4 emitted_anchor=1 (drafts=2) | anchor=25.3 drafter=18.9 verify=54.1 accept=2.4 kv=1.6 total=102.2 ms
+ds4: b2 ENTER first_token=223 max=92 cap=17 temp=1.000 top_p=1.000 min_p=0.050
+ds4: b2: main_hidden[0..5]=0.6882 -3.8909 -1.5095 2.2853 1.0399 2.5487
+ds4: b2: pos 0 OVERRIDE target-sampled draft=21 temp=1.000
+ds4: b2: verify-policy=rank pos=1 draft=15 qT=1.000000 margin=1.000000 entropy=0.000000 rank=1 need=1.000000 keep=1
+ds4: b2: verify-policy=rank pos=2 draft=22 qT=1.000000 margin=1.000000 entropy=0.000000 rank=1 need=1.000000 keep=1
+ds4: b2: verify-policy=rank pos=3 draft=3107 qT=1.000000 margin=1.000000 entropy=0.000000 rank=1 need=1.000000 keep=1
+ds4: b2: verify-policy=rank pos=4 draft=42830 qT=1.000000 margin=1.000000 entropy=0.000000 rank=1 need=1.000000 keep=1
+ds4: b2: verify-policy=rank pos=5 draft=16 qT=0.556914 margin=0.216361 entropy=0.926352 rank=1 need=1.000000 keep=1
+ds4: b2: verify-policy=rank pos=6 draft=1350 qT=0.498982 margin=0.306981 entropy=1.458526 rank=1 need=1.000000 keep=1
+ds4: b2: verify-policy summary policy=rank chosen=7 base=7 prob_min=0.030000 margin_min=0.020000 entropy_max=4.000000 rank_max=1
+ds4: b2: pos 1 draft=15 qT=1.00000 pT=1.00000 accept_p=1.0000 u=0.2361 ACCEPT
+ds4: b2: pos 2 draft=22 qT=1.00000 pT=1.00000 accept_p=1.0000 u=0.7442 ACCEPT
+ds4: b2: pos 3 draft=3107 qT=1.00000 pT=1.00000 accept_p=1.0000 u=0.5437 ACCEPT
+ds4: b2: pos 4 draft=42830 qT=1.00000 pT=1.00000 accept_p=1.0000 u=0.0374 ACCEPT
+ds4: b2: pos 5 draft=16 qT=0.55691 pT=0.64115 accept_p=1.0000 u=0.8930 ACCEPT
+ds4: b2: pos 6 draft=1350 qT=0.49898 pT=0.03488 accept_p=0.0699 u=0.6630 reject
+ds4: b2: MERGED correction-anchor pending C=3016
+ds4: dspark b2 cycle: n_accept=7 logical_commits=8 emitted_anchor=1 (drafts=6) | anchor=26.5 drafter=22.2 verify=84.6 accept=7.5 kv=1.6 total=142.3 ms
+ds4: b2 ENTER first_token=3016 max=85 cap=17 temp=1.000 top_p=1.000 min_p=0.050
+ds4: b2: main_hidden[0..5]=4.2854 6.2667 -4.4051 -6.9538 6.1747 4.4235
+ds4: b2: pos 0 OVERRIDE target-sampled draft=579 temp=1.000
+ds4: b2: verify-policy=rank pos=1 draft=588 qT=0.454464 margin=0.091072 entropy=0.688994 rank=2 need=1.000000 keep=0
+ds4: b2: verify-policy summary policy=rank chosen=2 base=7 prob_min=0.030000 margin_min=0.020000 entropy_max=4.000000 rank_max=1
+ds4: b2: pos 1 draft=588 qT=0.45446 pT=0.11169 accept_p=0.2458 u=0.1323 ACCEPT
+ds4: dspark b2 cycle: n_accept=2 logical_commits=3 emitted_anchor=1 (drafts=2) | anchor=25.0 drafter=18.2 verify=42.3 accept=1.4 kv=0.0 total=86.9 ms
+ds4: b2 ENTER first_token=4456 max=83 cap=17 temp=1.000 top_p=1.000 min_p=0.050
+ds4: b2: main_hidden[0..5]=-0.1906 7.5267 -4.3997 -2.0487 4.9115 2.0827
+ds4: b2: pos 0 OVERRIDE target-sampled draft=28 temp=1.000
+ds4: b2: verify-policy=rank pos=1 draft=1257 qT=1.000000 margin=1.000000 entropy=0.000000 rank=1 need=1.000000 keep=1
+ds4: b2: verify-policy=rank pos=2 draft=15363 qT=1.000000 margin=1.000000 entropy=0.000000 rank=1 need=1.000000 keep=1
+ds4: b2: verify-policy=rank pos=3 draft=28 qT=0.269829 margin=0.325577 entropy=1.076192 rank=2 need=1.000000 keep=0
+ds4: b2: verify-policy summary policy=rank chosen=4 base=7 prob_min=0.030000 margin_min=0.020000 entropy_max=4.000000 rank_max=1
+ds4: b2: pos 1 draft=1257 qT=1.00000 pT=0.92729 accept_p=0.9273 u=0.7931 ACCEPT
+ds4: b2: pos 2 draft=15363 qT=1.00000 pT=1.00000 accept_p=1.0000 u=0.1945 ACCEPT
+ds4: b2: pos 3 draft=28 qT=0.26983 pT=0.41448 accept_p=1.0000 u=0.2899 ACCEPT
+ds4: dspark b2 cycle: n_accept=5 logical_commits=5 emitted_anchor=0 (drafts=4) | anchor=25.8 drafter=20.0 verify=61.0 accept=3.7 kv=0.0 total=110.4 ms
+ds4: b2 ENTER first_token=5335 max=78 cap=17 temp=1.000 top_p=1.000 min_p=0.050
+ds4: b2: main_hidden[0..5]=-3.7659 3.3530 -6.3191 0.8227 4.0917 -1.4784
+ds4: b2: pos 0 OVERRIDE target-sampled draft=1469 temp=1.000
+ds4: b2: verify-policy=rank pos=1 draft=1957 qT=0.494805 margin=0.260414 entropy=1.443598 rank=1 need=1.000000 keep=1
+ds4: b2: verify-policy=rank pos=2 draft=305 qT=0.129012 margin=0.647810 entropy=0.747233 rank=2 need=1.000000 keep=0
+ds4: b2: verify-policy summary policy=rank chosen=3 base=7 prob_min=0.030000 margin_min=0.020000 entropy_max=4.000000 rank_max=1
+ds4: b2: pos 1 draft=1957 qT=0.49481 pT=0.00000 accept_p=0.0000 u=0.9129 reject
+ds4: b2: MERGED correction-anchor pending C=71350
+ds4: dspark b2 cycle: n_accept=3 logical_commits=3 emitted_anchor=0 (drafts=1) | anchor=25.9 drafter=19.0 verify=54.6 accept=1.2 kv=0.3 total=101.1 ms
+ds4: b2 ENTER first_token=71350 max=75 cap=17 temp=1.000 top_p=1.000 min_p=0.050
+ds4: b2: main_hidden[0..5]=-2.6467 4.5046 -6.4446 -1.1241 1.1761 3.0310
+ds4: b2: pos 0 OVERRIDE target-sampled draft=305 temp=1.000
+ds4: b2: verify-policy=rank pos=1 draft=2408 qT=1.000000 margin=1.000000 entropy=0.000000 rank=1 need=1.000000 keep=1
+ds4: b2: verify-policy=rank pos=2 draft=1715 qT=0.732004 margin=0.464008 entropy=0.581255 rank=1 need=1.000000 keep=1
+ds4: b2: verify-policy=rank pos=3 draft=1065 qT=1.000000 margin=1.000000 entropy=0.000000 rank=1 need=1.000000 keep=1
+ds4: b2: verify-policy=rank pos=4 draft=20828 qT=1.000000 margin=1.000000 entropy=0.000000 rank=1 need=1.000000 keep=1
+ds4: b2: verify-policy=rank pos=5 draft=16 qT=0.372518 margin=0.254965 entropy=0.660282 rank=2 need=1.000000 keep=0
+ds4: b2: verify-policy summary policy=rank chosen=6 base=7 prob_min=0.030000 margin_min=0.020000 entropy_max=4.000000 rank_max=1
+ds4: b2: pos 1 draft=2408 qT=1.00000 pT=1.00000 accept_p=1.0000 u=0.2202 ACCEPT
+ds4: b2: pos 2 draft=1715 qT=0.73200 pT=1.00000 accept_p=1.0000 u=0.0607 ACCEPT
+ds4: b2: pos 3 draft=1065 qT=1.00000 pT=1.00000 accept_p=1.0000 u=0.8721 ACCEPT
+ds4: b2: pos 4 draft=20828 qT=1.00000 pT=1.00000 accept_p=1.0000 u=0.6900 ACCEPT
+ds4: b2: pos 5 draft=16 qT=0.37252 pT=0.80832 accept_p=1.0000 u=0.0358 ACCEPT
+ds4: dspark b2 cycle: n_accept=6 logical_commits=7 emitted_anchor=1 (drafts=6) | anchor=25.1 drafter=21.2 verify=76.0 accept=6.2 kv=0.0 total=128.4 ms
+ds4: b2 ENTER first_token=8279 max=69 cap=17 temp=1.000 top_p=1.000 min_p=0.050
+ds4: b2: main_hidden[0..5]=0.2024 3.2239 -2.1790 2.3199 0.7198 -0.8330
+ds4: b2: pos 0 OVERRIDE target-sampled draft=28 temp=1.000
+ds4: b2: verify-policy=rank pos=1 draft=3939 qT=1.000000 margin=1.000000 entropy=0.000000 rank=1 need=1.000000 keep=1
+ds4: b2: verify-policy=rank pos=2 draft=14531 qT=1.000000 margin=1.000000 entropy=0.000000 rank=1 need=1.000000 keep=1
+ds4: b2: verify-policy=rank pos=3 draft=6521 qT=1.000000 margin=1.000000 entropy=0.000000 rank=1 need=1.000000 keep=1
+ds4: b2: verify-policy=rank pos=4 draft=92980 qT=0.872143 margin=0.744286 entropy=0.382293 rank=1 need=1.000000 keep=1
+ds4: b2: verify-policy=rank pos=5 draft=685 qT=1.000000 margin=1.000000 entropy=0.000000 rank=1 need=1.000000 keep=1
+ds4: b2: verify-policy=rank pos=6 draft=28 qT=0.791556 margin=0.583112 entropy=0.511887 rank=1 need=1.000000 keep=1
+ds4: b2: verify-policy summary policy=rank chosen=7 base=7 prob_min=0.030000 margin_min=0.020000 entropy_max=4.000000 rank_max=1
+ds4: b2: pos 1 draft=3939 qT=1.00000 pT=1.00000 accept_p=1.0000 u=0.3078 ACCEPT
+ds4: b2: pos 2 draft=14531 qT=1.00000 pT=0.05204 accept_p=0.0520 u=0.2415 reject
+ds4: b2: MERGED correction-anchor pending C=6521
+ds4: dspark b2 cycle: n_accept=4 logical_commits=4 emitted_anchor=0 (drafts=2) | anchor=27.4 drafter=22.2 verify=84.3 accept=2.5 kv=1.6 total=138.0 ms
+ds4: b2 ENTER first_token=6521 max=65 cap=17 temp=1.000 top_p=1.000 min_p=0.050
+ds4: b2: main_hidden[0..5]=1.3098 1.4634 -6.1372 4.5176 9.7634 -2.9885
+ds4: b2: pos 0 OVERRIDE target-sampled draft=92980 temp=1.000
+ds4: b2: verify-policy=rank pos=1 draft=685 qT=1.000000 margin=1.000000 entropy=0.000000 rank=1 need=1.000000 keep=1
+ds4: b2: verify-policy=rank pos=2 draft=14738 qT=0.832277 margin=0.710229 entropy=0.550468 rank=1 need=1.000000 keep=1
+ds4: b2: verify-policy=rank pos=3 draft=16 qT=1.000000 margin=1.000000 entropy=0.000000 rank=1 need=1.000000 keep=1
+ds4: b2: verify-policy=rank pos=4 draft=19350 qT=0.695224 margin=0.390448 entropy=0.614857 rank=1 need=1.000000 keep=1
+ds4: b2: verify-policy=rank pos=5 draft=28 qT=1.000000 margin=1.000000 entropy=0.000000 rank=1 need=1.000000 keep=1
+ds4: b2: verify-policy=rank pos=6 draft=1234 qT=0.433950 margin=0.066069 entropy=1.246264 rank=1 need=1.000000 keep=1
+ds4: b2: verify-policy summary policy=rank chosen=7 base=7 prob_min=0.030000 margin_min=0.020000 entropy_max=4.000000 rank_max=1
+ds4: b2: pos 1 draft=685 qT=1.00000 pT=1.00000 accept_p=1.0000 u=0.6530 ACCEPT
+ds4: b2: pos 2 draft=14738 qT=0.83228 pT=0.37168 accept_p=0.4466 u=0.4005 ACCEPT
+ds4: b2: pos 3 draft=16 qT=1.00000 pT=1.00000 accept_p=1.0000 u=0.8606 ACCEPT
+ds4: b2: pos 4 draft=19350 qT=0.69522 pT=1.00000 accept_p=1.0000 u=0.1596 ACCEPT
+ds4: b2: pos 5 draft=28 qT=1.00000 pT=1.00000 accept_p=1.0000 u=0.9557 ACCEPT
+ds4: b2: pos 6 draft=1234 qT=0.43395 pT=0.00000 accept_p=0.0000 u=0.2896 reject
+ds4: b2: MERGED correction-anchor pending C=1192
+ds4: dspark b2 cycle: n_accept=7 logical_commits=8 emitted_anchor=1 (drafts=6) | anchor=25.1 drafter=22.3 verify=87.4 accept=7.5 kv=1.7 total=144.0 ms
+ds4: b2 ENTER first_token=1192 max=58 cap=17 temp=1.000 top_p=1.000 min_p=0.050
+ds4: b2: main_hidden[0..5]=2.5827 0.1278 -10.9153 2.8451 0.3573 -4.3844
+ds4: b2: pos 0 OVERRIDE target-sampled draft=14531 temp=1.000
+ds4: b2: verify-policy=rank pos=1 draft=53510 qT=0.936989 margin=0.873977 entropy=0.235175 rank=1 need=1.000000 keep=1
+ds4: b2: verify-policy=rank pos=2 draft=6623 qT=0.318136 margin=0.363727 entropy=0.625457 rank=2 need=1.000000 keep=0
+ds4: b2: verify-policy summary policy=rank chosen=3 base=7 prob_min=0.030000 margin_min=0.020000 entropy_max=4.000000 rank_max=1
+ds4: b2: pos 1 draft=53510 qT=0.93699 pT=1.00000 accept_p=1.0000 u=0.4705 ACCEPT
+ds4: b2: pos 2 draft=6623 qT=0.31814 pT=1.00000 accept_p=1.0000 u=0.0455 ACCEPT
+ds4: dspark b2 cycle: n_accept=3 logical_commits=4 emitted_anchor=1 (drafts=3) | anchor=25.8 drafter=19.1 verify=55.4 accept=2.5 kv=0.0 total=102.7 ms
+ds4: b2 ENTER first_token=3980 max=55 cap=17 temp=1.000 top_p=1.000 min_p=0.050
+ds4: b2: main_hidden[0..5]=2.3238 4.2133 -2.5401 2.5617 3.5770 2.5083
+ds4: b2: pos 0 OVERRIDE target-sampled draft=16 temp=1.000
+ds4: b2: verify-policy=rank pos=1 draft=36244 qT=0.154753 margin=0.690495 entropy=0.430865 rank=2 need=1.000000 keep=0
+ds4: b2: verify-policy summary policy=rank chosen=2 base=7 prob_min=0.030000 margin_min=0.020000 entropy_max=4.000000 rank_max=1
+ds4: b2: pos 1 draft=36244 qT=0.15475 pT=0.47754 accept_p=1.0000 u=0.1834 ACCEPT
+ds4: dspark b2 cycle: n_accept=3 logical_commits=3 emitted_anchor=0 (drafts=2) | anchor=26.5 drafter=18.3 verify=43.5 accept=1.2 kv=0.0 total=89.5 ms
+ds4: b2 ENTER first_token=28 max=52 cap=17 temp=1.000 top_p=1.000 min_p=0.050
+ds4: b2: main_hidden[0..5]=4.4402 10.9720 -2.8926 2.1296 4.9585 2.6401
+ds4: b2: pos 0 OVERRIDE target-sampled draft=1234 temp=1.000
+ds4: b2: verify-policy=rank pos=1 draft=20586 qT=0.894736 margin=0.789472 entropy=0.336498 rank=1 need=1.000000 keep=1
+ds4: b2: verify-policy=rank pos=2 draft=517 qT=1.000000 margin=1.000000 entropy=0.000000 rank=1 need=1.000000 keep=1
+ds4: b2: verify-policy=rank pos=3 draft=1660 qT=0.059902 margin=0.829737 entropy=0.423361 rank=2 need=1.000000 keep=0
+ds4: b2: verify-policy summary policy=rank chosen=4 base=7 prob_min=0.030000 margin_min=0.020000 entropy_max=4.000000 rank_max=1
+ds4: b2: pos 1 draft=20586 qT=0.89474 pT=1.00000 accept_p=1.0000 u=0.6254 ACCEPT
+ds4: b2: pos 2 draft=517 qT=1.00000 pT=1.00000 accept_p=1.0000 u=0.1683 ACCEPT
+ds4: b2: pos 3 draft=1660 qT=0.05990 pT=0.00000 accept_p=0.0000 u=0.4407 reject
+ds4: b2: MERGED correction-anchor pending C=16
+ds4: dspark b2 cycle: n_accept=5 logical_commits=5 emitted_anchor=0 (drafts=3) | anchor=26.4 drafter=19.9 verify=61.9 accept=3.7 kv=1.0 total=112.9 ms
+ds4: b2 ENTER first_token=16 max=47 cap=17 temp=1.000 top_p=1.000 min_p=0.050
+ds4: b2: main_hidden[0..5]=4.6748 5.1101 -4.2640 -1.5632 2.4494 2.1794
+ds4: b2: pos 0 OVERRIDE target-sampled draft=19018 temp=1.000
+ds4: b2: verify-policy=rank pos=1 draft=436 qT=0.394552 margin=0.128809 entropy=0.967354 rank=2 need=1.000000 keep=0
+ds4: b2: verify-policy summary policy=rank chosen=2 base=7 prob_min=0.030000 margin_min=0.020000 entropy_max=4.000000 rank_max=1
+ds4: b2: pos 1 draft=436 qT=0.39455 pT=0.42814 accept_p=1.0000 u=0.8073 ACCEPT
+ds4: dspark b2 cycle: n_accept=2 logical_commits=3 emitted_anchor=1 (drafts=2) | anchor=26.1 drafter=18.0 verify=41.5 accept=1.2 kv=0.0 total=86.8 ms
+ds4: b2 ENTER first_token=47468 max=45 cap=17 temp=1.000 top_p=1.000 min_p=0.050
+ds4: b2: main_hidden[0..5]=1.1078 -3.7565 -3.3136 -0.1695 7.0722 -3.7525
+ds4: b2: pos 0 OVERRIDE target-sampled draft=339 temp=1.000
+ds4: b2: verify-policy=rank pos=1 draft=5718 qT=0.913392 margin=0.826784 entropy=0.294618 rank=1 need=1.000000 keep=1
+ds4: b2: verify-policy=rank pos=2 draft=734 qT=0.773901 margin=0.547802 entropy=0.534519 rank=1 need=1.000000 keep=1
+ds4: b2: verify-policy=rank pos=3 draft=5085 qT=0.893627 margin=0.787253 entropy=0.338865 rank=1 need=1.000000 keep=1
+ds4: b2: verify-policy=rank pos=4 draft=339 qT=0.136417 margin=0.062177 entropy=1.876617 rank=3 need=1.000000 keep=0
+ds4: b2: verify-policy summary policy=rank chosen=5 base=7 prob_min=0.030000 margin_min=0.020000 entropy_max=4.000000 rank_max=1
+ds4: b2: pos 1 draft=5718 qT=0.91339 pT=0.86442 accept_p=0.9464 u=0.3546 ACCEPT
+ds4: b2: pos 2 draft=734 qT=0.77390 pT=0.12009 accept_p=0.1552 u=0.1325 ACCEPT
+ds4: b2: pos 3 draft=5085 qT=0.89363 pT=0.84119 accept_p=0.9413 u=0.4789 ACCEPT
+ds4: b2: pos 4 draft=339 qT=0.13642 pT=0.20029 accept_p=1.0000 u=0.0372 ACCEPT
+ds4: dspark b2 cycle: n_accept=6 logical_commits=6 emitted_anchor=0 (drafts=5) | anchor=28.1 drafter=20.5 verify=71.7 accept=4.7 kv=0.0 total=125.0 ms
+ds4: b2 ENTER first_token=10318 max=39 cap=17 temp=1.000 top_p=1.000 min_p=0.050
+ds4: b2: main_hidden[0..5]=-0.1386 3.6207 -2.6603 -0.2664 0.9955 0.7995
+ds4: b2: pos 0 OVERRIDE target-sampled draft=15363 temp=1.000
+ds4: b2: verify-policy=rank pos=1 draft=28 qT=1.000000 margin=1.000000 entropy=0.000000 rank=1 need=1.000000 keep=1
+ds4: b2: verify-policy=rank pos=2 draft=5930 qT=0.132728 margin=0.154253 entropy=1.111408 rank=3 need=1.000000 keep=0
+ds4: b2: verify-policy summary policy=rank chosen=3 base=7 prob_min=0.030000 margin_min=0.020000 entropy_max=4.000000 rank_max=1
+ds4: b2: pos 1 draft=28 qT=1.00000 pT=1.00000 accept_p=1.0000 u=0.6496 ACCEPT
+ds4: b2: pos 2 draft=5930 qT=0.13273 pT=0.52091 accept_p=1.0000 u=0.7963 ACCEPT
+ds4: dspark b2 cycle: n_accept=4 logical_commits=4 emitted_anchor=0 (drafts=3) | anchor=26.4 drafter=18.8 verify=55.3 accept=2.4 kv=0.0 total=102.9 ms
+ds4: b2 ENTER first_token=20828 max=35 cap=17 temp=1.000 top_p=1.000 min_p=0.050
+ds4: b2: main_hidden[0..5]=2.5219 4.3109 -1.1292 2.7421 -0.6784 -1.2496
+ds4: b2: pos 0 OVERRIDE target-sampled draft=16846 temp=1.000
+ds4: b2: verify-policy=rank pos=1 draft=3189 qT=0.110103 margin=0.534305 entropy=1.190220 rank=2 need=1.000000 keep=0
+ds4: b2: verify-policy summary policy=rank chosen=2 base=7 prob_min=0.030000 margin_min=0.020000 entropy_max=4.000000 rank_max=1
+ds4: b2: pos 1 draft=3189 qT=0.11010 pT=0.72393 accept_p=1.0000 u=0.8554 ACCEPT
+ds4: dspark b2 cycle: n_accept=3 logical_commits=3 emitted_anchor=0 (drafts=2) | anchor=26.6 drafter=18.7 verify=43.4 accept=1.2 kv=0.0 total=89.9 ms
+ds4: b2 ENTER first_token=270 max=32 cap=17 temp=1.000 top_p=1.000 min_p=0.050
+ds4: b2: main_hidden[0..5]=4.2041 0.7870 -0.5127 4.4541 -6.3160 1.3151
+ds4: b2: pos 0 OVERRIDE target-sampled draft=25454 temp=1.000
+ds4: b2: verify-policy=rank pos=1 draft=74638 qT=0.810087 margin=0.664884 entropy=0.589740 rank=1 need=1.000000 keep=1
+ds4: b2: verify-policy=rank pos=2 draft=4181 qT=0.421640 margin=0.027327 entropy=1.114827 rank=2 need=1.000000 keep=0
+ds4: b2: verify-policy summary policy=rank chosen=3 base=7 prob_min=0.030000 margin_min=0.020000 entropy_max=4.000000 rank_max=1
+ds4: b2: pos 1 draft=74638 qT=0.81009 pT=0.00000 accept_p=0.0000 u=0.7515 reject
+ds4: b2: MERGED correction-anchor pending C=111855
+ds4: dspark b2 cycle: n_accept=3 logical_commits=3 emitted_anchor=0 (drafts=1) | anchor=26.4 drafter=18.9 verify=55.0 accept=1.3 kv=0.3 total=102.0 ms
+ds4: b2 ENTER first_token=111855 max=29 cap=17 temp=1.000 top_p=1.000 min_p=0.050
+ds4: b2: main_hidden[0..5]=1.4511 -1.2719 -3.1962 3.0312 -1.1080 -5.9472
+ds4: b2: pos 0 OVERRIDE target-sampled draft=778 temp=1.000
+ds4: b2: verify-policy=rank pos=1 draft=5260 qT=0.012672 margin=0.010784 entropy=2.467339 rank=14 need=1.000000 keep=0
+ds4: b2: verify-policy summary policy=rank chosen=2 base=7 prob_min=0.030000 margin_min=0.020000 entropy_max=4.000000 rank_max=1
+ds4: b2: pos 1 draft=5260 qT=0.01267 pT=0.00000 accept_p=0.0000 u=0.7936 reject
+ds4: b2: MERGED correction-anchor pending C=3618
+ds4: dspark b2 cycle: n_accept=2 logical_commits=3 emitted_anchor=1 (drafts=1) | anchor=25.9 drafter=18.2 verify=44.1 accept=1.3 kv=0.3 total=89.8 ms
+ds4: b2 ENTER first_token=3618 max=27 cap=17 temp=1.000 top_p=1.000 min_p=0.050
+ds4: b2: main_hidden[0..5]=3.4304 1.4741 -5.2051 3.1946 1.7373 -4.2694
+ds4: b2: pos 0 OVERRIDE target-sampled draft=304 temp=1.000
+ds4: b2: verify-policy=rank pos=1 draft=2188 qT=1.000000 margin=1.000000 entropy=0.000000 rank=1 need=1.000000 keep=1
+ds4: b2: verify-policy=rank pos=2 draft=305 qT=0.563731 margin=0.163930 entropy=0.810407 rank=1 need=1.000000 keep=1
+ds4: b2: verify-policy=rank pos=3 draft=2188 qT=0.257756 margin=0.032720 entropy=1.526411 rank=3 need=1.000000 keep=0
+ds4: b2: verify-policy summary policy=rank chosen=4 base=7 prob_min=0.030000 margin_min=0.020000 entropy_max=4.000000 rank_max=1
+ds4: b2: pos 1 draft=2188 qT=1.00000 pT=0.92132 accept_p=0.9213 u=0.0530 ACCEPT
+ds4: b2: pos 2 draft=305 qT=0.56373 pT=0.05103 accept_p=0.0905 u=0.4953 reject
+ds4: b2: MERGED correction-anchor pending C=1936
+ds4: dspark b2 cycle: n_accept=3 logical_commits=4 emitted_anchor=1 (drafts=2) | anchor=26.0 drafter=19.7 verify=61.9 accept=2.2 kv=1.2 total=111.0 ms
+ds4: b2 ENTER first_token=1936 max=24 cap=17 temp=1.000 top_p=1.000 min_p=0.050
+ds4: b2: main_hidden[0..5]=3.3899 -0.3856 -4.7028 0.0343 -0.7412 -3.0799
+ds4: b2: pos 0 OVERRIDE target-sampled draft=12761 temp=1.000
+ds4: b2: verify-policy=rank pos=1 draft=270 qT=1.000000 margin=1.000000 entropy=0.000000 rank=1 need=1.000000 keep=1
+ds4: b2: verify-policy=rank pos=2 draft=14531 qT=0.439930 margin=0.020088 entropy=1.015719 rank=2 need=1.000000 keep=0
+ds4: b2: verify-policy summary policy=rank chosen=3 base=7 prob_min=0.030000 margin_min=0.020000 entropy_max=4.000000 rank_max=1
+ds4: b2: pos 1 draft=270 qT=1.00000 pT=1.00000 accept_p=1.0000 u=0.7385 ACCEPT
+ds4: b2: pos 2 draft=14531 qT=0.43993 pT=0.14758 accept_p=0.3355 u=0.0350 ACCEPT
+ds4: dspark b2 cycle: n_accept=3 logical_commits=4 emitted_anchor=1 (drafts=3) | anchor=27.6 drafter=19.1 verify=52.5 accept=2.5 kv=0.0 total=101.6 ms
+ds4: b2 ENTER first_token=12230 max=21 cap=17 temp=1.000 top_p=1.000 min_p=0.050
+ds4: b2: main_hidden[0..5]=5.7111 -2.7375 -5.2792 3.3052 -0.9570 1.2723
+ds4: b2: pos 0 OVERRIDE target-sampled draft=14 temp=1.000
+ds4: b2: verify-policy=rank pos=1 draft=1901 qT=0.529386 margin=0.321196 entropy=1.354095 rank=1 need=1.000000 keep=1
+ds4: b2: verify-policy=rank pos=2 draft=2408 qT=0.405189 margin=0.264091 entropy=1.931793 rank=1 need=1.000000 keep=1
+ds4: b2: verify-policy=rank pos=3 draft=101616 qT=0.412143 margin=0.232184 entropy=1.885793 rank=1 need=1.000000 keep=1
+ds4: b2: verify-policy=rank pos=4 draft=1332 qT=0.713723 margin=0.510404 entropy=0.771110 rank=1 need=1.000000 keep=1
+ds4: b2: verify-policy=rank pos=5 draft=16 qT=0.320834 margin=0.096999 entropy=1.921925 rank=1 need=1.000000 keep=1
+ds4: b2: verify-policy=rank pos=6 draft=983 qT=0.212327 margin=0.137858 entropy=1.848683 rank=2 need=1.000000 keep=0
+ds4: b2: verify-policy summary policy=rank chosen=7 base=7 prob_min=0.030000 margin_min=0.020000 entropy_max=4.000000 rank_max=1
+ds4: b2: pos 1 draft=1901 qT=0.52939 pT=0.06487 accept_p=0.1225 u=0.3757 reject
+ds4: b2: MERGED correction-anchor pending C=42608
+ds4: dspark b2 cycle: n_accept=3 logical_commits=3 emitted_anchor=0 (drafts=1) | anchor=28.1 drafter=21.7 verify=85.4 accept=1.2 kv=0.3 total=136.7 ms
+ds4: b2 ENTER first_token=42608 max=18 cap=17 temp=1.000 top_p=1.000 min_p=0.050
+ds4: b2: main_hidden[0..5]=6.1332 4.3073 -1.2916 2.2511 -2.1036 1.0301
+ds4: b2: pos 0 OVERRIDE target-sampled draft=12846 temp=1.000
+ds4: b2: verify-policy=rank pos=1 draft=10300 qT=0.854268 margin=0.760624 entropy=0.510239 rank=1 need=1.000000 keep=1
+ds4: b2: verify-policy=rank pos=2 draft=294 qT=1.000000 margin=1.000000 entropy=0.000000 rank=1 need=1.000000 keep=1
+ds4: b2: verify-policy=rank pos=3 draft=270 qT=0.768748 margin=0.537496 entropy=0.540785 rank=1 need=1.000000 keep=1
+ds4: b2: verify-policy=rank pos=4 draft=16846 qT=0.171776 margin=0.030093 entropy=2.030150 rank=3 need=1.000000 keep=0
+ds4: b2: verify-policy summary policy=rank chosen=5 base=7 prob_min=0.030000 margin_min=0.020000 entropy_max=4.000000 rank_max=1
+ds4: b2: pos 1 draft=10300 qT=0.85427 pT=1.00000 accept_p=1.0000 u=0.5415 ACCEPT
+ds4: b2: pos 2 draft=294 qT=1.00000 pT=0.60565 accept_p=0.6057 u=0.0659 ACCEPT
+ds4: b2: pos 3 draft=270 qT=0.76875 pT=0.00000 accept_p=0.0000 u=0.3718 reject
+ds4: b2: MERGED correction-anchor pending C=1014
+ds4: dspark b2 cycle: n_accept=4 logical_commits=5 emitted_anchor=1 (drafts=3) | anchor=25.9 drafter=20.1 verify=71.8 accept=3.7 kv=1.3 total=122.8 ms
+ds4: b2 ENTER first_token=1014 max=14 cap=17 temp=1.000 top_p=1.000 min_p=0.050
+ds4: b2: main_hidden[0..5]=0.9603 -0.2348 -3.7257 4.0209 2.6254 3.2477
+ds4: b2: pos 0 OVERRIDE target-sampled draft=16 temp=1.000
+ds4: b2: verify-policy=rank pos=1 draft=10403 qT=1.000000 margin=1.000000 entropy=0.000000 rank=1 need=1.000000 keep=1
+ds4: b2: verify-policy=rank pos=2 draft=101616 qT=0.152011 margin=0.033003 entropy=2.331497 rank=3 need=1.000000 keep=0
+ds4: b2: verify-policy summary policy=rank chosen=3 base=7 prob_min=0.030000 margin_min=0.020000 entropy_max=4.000000 rank_max=1
+ds4: b2: pos 1 draft=10403 qT=1.00000 pT=1.00000 accept_p=1.0000 u=0.9469 ACCEPT
+ds4: b2: pos 2 draft=101616 qT=0.15201 pT=0.00000 accept_p=0.0000 u=0.2104 reject
+ds4: b2: MERGED correction-anchor pending C=1715
+ds4: dspark b2 cycle: n_accept=3 logical_commits=4 emitted_anchor=1 (drafts=2) | anchor=25.9 drafter=19.1 verify=55.6 accept=2.5 kv=1.3 total=104.4 ms
+ds4: b2 ENTER first_token=1715 max=11 cap=17 temp=1.000 top_p=1.000 min_p=0.050
+ds4: b2: main_hidden[0..5]=-1.0837 -0.0793 -3.6517 3.9467 7.5601 -0.5291
+ds4: b2: pos 0 OVERRIDE target-sampled draft=1065 temp=1.000
+ds4: b2: verify-policy=rank pos=1 draft=20828 qT=1.000000 margin=1.000000 entropy=0.000000 rank=1 need=1.000000 keep=1
+ds4: b2: verify-policy=rank pos=2 draft=16846 qT=1.000000 margin=1.000000 entropy=0.000000 rank=1 need=1.000000 keep=1
+ds4: b2: verify-policy=rank pos=3 draft=10224 qT=0.728747 margin=0.517065 entropy=0.727292 rank=1 need=1.000000 keep=1
+ds4: b2: verify-policy=rank pos=4 draft=304 qT=0.233411 margin=0.118295 entropy=1.526489 rank=3 need=1.000000 keep=0
+ds4: b2: verify-policy summary policy=rank chosen=5 base=7 prob_min=0.030000 margin_min=0.020000 entropy_max=4.000000 rank_max=1
+ds4: b2: pos 1 draft=20828 qT=1.00000 pT=1.00000 accept_p=1.0000 u=0.7853 ACCEPT
+ds4: b2: pos 2 draft=16846 qT=1.00000 pT=0.25388 accept_p=0.2539 u=0.7687 reject
+ds4: b2: MERGED correction-anchor pending C=78297
+ds4: dspark b2 cycle: n_accept=3 logical_commits=4 emitted_anchor=1 (drafts=2) | anchor=26.0 drafter=20.2 verify=71.6 accept=2.4 kv=1.0 total=121.1 ms
+ds4: b2 ENTER first_token=78297 max=8 cap=17 temp=1.000 top_p=1.000 min_p=0.050
+ds4: b2: main_hidden[0..5]=3.5541 2.1838 -0.9826 -2.8349 3.9857 -7.4069
+ds4: b2: pos 0 OVERRIDE target-sampled draft=362 temp=1.000
+ds4: b2: verify-policy=rank pos=1 draft=270 qT=0.808158 margin=0.665604 entropy=0.598195 rank=1 need=1.000000 keep=1
+ds4: b2: verify-policy=rank pos=2 draft=7717 qT=0.424111 margin=0.106479 entropy=1.335993 rank=1 need=1.000000 keep=1
+ds4: b2: verify-policy=rank pos=3 draft=14531 qT=0.613417 margin=0.272779 entropy=0.808152 rank=1 need=1.000000 keep=1
+ds4: b2: verify-policy=rank pos=4 draft=14 qT=0.626293 margin=0.322170 entropy=0.840528 rank=1 need=1.000000 keep=1
+ds4: b2: verify-policy=rank pos=5 draft=1539 qT=1.000000 margin=1.000000 entropy=0.000000 rank=1 need=1.000000 keep=1
+ds4: b2: verify-policy=rank pos=6 draft=74638 qT=0.304165 margin=0.077789 entropy=2.218634 rank=1 need=1.000000 keep=1
+ds4: b2: verify-policy summary policy=rank chosen=7 base=7 prob_min=0.030000 margin_min=0.020000 entropy_max=4.000000 rank_max=1
+ds4: b2: pos 1 draft=270 qT=0.80816 pT=1.00000 accept_p=1.0000 u=0.2400 ACCEPT
+ds4: b2: pos 2 draft=7717 qT=0.42411 pT=0.38724 accept_p=0.9131 u=0.2566 ACCEPT
+ds4: b2: pos 3 draft=14531 qT=0.61342 pT=0.09501 accept_p=0.1549 u=0.5932 reject
+ds4: b2: MERGED correction-anchor pending C=5664
+ds4: dspark b2 cycle: n_accept=4 logical_commits=5 emitted_anchor=1 (drafts=3) | anchor=27.5 drafter=21.6 verify=84.9 accept=3.7 kv=1.2 total=138.9 ms
+ds4: b2 ENTER first_token=5664 max=4 cap=17 temp=1.000 top_p=1.000 min_p=0.050
+ds4: b2: main_hidden[0..5]=2.3027 -1.0131 -2.8470 1.6041 1.4615 -8.2157
+ds4: b2: pos 0 OVERRIDE target-sampled draft=304 temp=1.000
+ds4: b2: verify-policy=rank pos=1 draft=366 qT=0.710633 margin=0.507924 entropy=0.837933 rank=1 need=1.000000 keep=1
+ds4: b2: verify-policy=rank pos=2 draft=20739 qT=0.752431 margin=0.592790 entropy=0.720714 rank=1 need=1.000000 keep=1
+ds4: b2: verify-policy=rank pos=3 draft=16 qT=1.000000 margin=1.000000 entropy=0.000000 rank=1 need=1.000000 keep=1
+ds4: b2: verify-policy=rank pos=4 draft=10403 qT=0.193949 margin=0.612102 entropy=0.491898 rank=2 need=1.000000 keep=0
+ds4: b2: verify-policy summary policy=rank chosen=5 base=7 prob_min=0.030000 margin_min=0.020000 entropy_max=4.000000 rank_max=1
+ds4: b2: pos 1 draft=366 qT=0.71063 pT=0.72266 accept_p=1.0000 u=0.2431 ACCEPT
+ds4: b2: pos 2 draft=20739 qT=0.75243 pT=0.00000 accept_p=0.0000 u=0.2305 reject
+ds4: b2: MERGED correction-anchor pending C=27081
+ds4: dspark b2 cycle: n_accept=3 logical_commits=4 emitted_anchor=1 (drafts=2) | anchor=27.5 drafter=20.1 verify=71.6 accept=2.5 kv=1.3 total=123.1 ms
+ds4: b2 ENTER first_token=27081 max=1 cap=17 temp=1.000 top_p=1.000 min_p=0.050
+ds4: b2: main_hidden[0..5]=5.6011 1.4466 -0.8800 2.2074 2.9433 -1.0153
+ds4: b2: pos 0 OVERRIDE target-sampled draft=16 temp=1.000
+ds4: b2: verify-policy=rank pos=1 draft=1162 qT=1.000000 margin=1.000000 entropy=0.000000 rank=1 need=1.000000 keep=1
+ds4: b2: verify-policy=rank pos=2 draft=6382 qT=0.039253 margin=0.031624 entropy=1.956203 rank=7 need=1.000000 keep=0
+ds4: b2: verify-policy summary policy=rank chosen=3 base=7 prob_min=0.030000 margin_min=0.020000 entropy_max=4.000000 rank_max=1
+ds4: b2: MERGED correction-anchor pending C=16
+ds4: dspark b2 cycle: n_accept=1 logical_commits=2 emitted_anchor=1 (drafts=1) | anchor=26.0 drafter=18.8 verify=55.4 accept=0.0 kv=0.3 total=100.4 ms
+ds4: prefill: 77.70 t/s, generation: 32.77 t/s
+ds4: Metal cleanup discarded 11 live tensor handles

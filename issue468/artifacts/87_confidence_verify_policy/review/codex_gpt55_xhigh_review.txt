@@ -1,0 +1,63 @@
+Reading additional input from stdin...
+OpenAI Codex v0.142.4
+--------
+workdir: /Users/lobanov/Projects/ds4-dspark
+model: gpt-5.5
+provider: openai
+approval: never
+sandbox: workspace-write [workdir, /tmp, $TMPDIR]
+reasoning effort: xhigh
+reasoning summaries: none
+session id: 019f279b-5e01-7390-b48b-266469fec7f5
+--------
+user
+You are reviewing a bounded DSpark search over verifier-policy improvements and longer draft lengths.
+
+Context:
+- Current exact DSpark path is temperature-aware for T>0 and disallowed at temp<=0.
+- Material upside bar for this goal = any tested combination beating the best current policy baseline by >= 1.0 t/s on the benchmark setup.
+- Baseline used:
+  - fixed verifier depth N=4
+  - temps / t/s: 1.0->35.26, 0.8->31.67, 0.7->30.96, 0.5->35.24
+- L=5 sweep tested full N=5, fixed N=4, and five drafter-side policies:
+  prob, margin_pos, entropy, margin_prob, rank.
+- Result: prob/margin_pos/entropy/margin_prob mostly collapsed to full verify; rank shortened depth but did not produce robust cross-temp superiority.
+- L=7 sweep rebuilt with DS4_DSPARK_BLOCK_SIZE=7 and tested bounded candidates:
+  full N=7, entropy representative, rank representative.
+- Best L=7 per temp:
+  - 1.0: rank 32.79
+  - 0.8: rank 32.52
+  - 0.7: rank 30.55
+  - 0.5: rank 27.22
+  None clears the material-upside bars (36.26, 32.67, 31.96, 36.24).
+- Constraints: stay within verifier-policy / draft-length space only; no kernel rewrites, retraining, quant changes, or algorithm redesign outside that space.
+
+Question:
+Given this bounded search, is it now reasonable to conclude that no material upside remains in verifier-policy calibration / combined signals / modest longer draft length (L=7) space? Identify any flaw in that conclusion, and say whether one more bounded experiment in the same space is still strongly justified.
+codex
+Yes, it is reasonable as an engineering conclusion, but not as a mathematical proof.
+
+The main flaw is the wording: “no material upside remains” is too absolute. The search sampled representative L=7 policies, not every calibration, threshold, combined-signal rule, or per-temperature policy. Also, without repeated runs or confidence intervals, the 0.8 result is close enough to notice: `32.52 t/s` versus the material bar `32.67 t/s`. That is only `0.15 t/s` short, so run noise could matter there.
+
+That said, one more bounded experiment is not strongly justified unless it is extremely cheap and targeted. The evidence is mostly negative:
+
+- L=5 policies either collapsed to full verification or failed to beat fixed N=4 robustly.
+- L=7 full verify and representative adaptive policies underperformed materially.
+- Longer drafts hurt badly at lower temps, especially `T=0.5`.
+- The only near-miss is `T=0.8`, and even that does not clear the stated `+1.0 t/s` bar.
+
+If you do run one more experiment, the only defensible one is a narrow repeat/confirmation around the `T=0.8` L=7 rank case, ideally with multiple seeds/runs and maybe a tiny threshold neighborhood. I would not broaden into combined-signal calibration unless there is a specific mechanism that explains why the prior collapse behavior would reverse. Otherwise, the bounded search has reached a reasonable stop point.
+tokens used
+3,314
+Yes, it is reasonable as an engineering conclusion, but not as a mathematical proof.
+
+The main flaw is the wording: “no material upside remains” is too absolute. The search sampled representative L=7 policies, not every calibration, threshold, combined-signal rule, or per-temperature policy. Also, without repeated runs or confidence intervals, the 0.8 result is close enough to notice: `32.52 t/s` versus the material bar `32.67 t/s`. That is only `0.15 t/s` short, so run noise could matter there.
+
+That said, one more bounded experiment is not strongly justified unless it is extremely cheap and targeted. The evidence is mostly negative:
+
+- L=5 policies either collapsed to full verification or failed to beat fixed N=4 robustly.
+- L=7 full verify and representative adaptive policies underperformed materially.
+- Longer drafts hurt badly at lower temps, especially `T=0.5`.
+- The only near-miss is `T=0.8`, and even that does not clear the stated `+1.0 t/s` bar.
+
+If you do run one more experiment, the only defensible one is a narrow repeat/confirmation around the `T=0.8` L=7 rank case, ideally with multiple seeds/runs and maybe a tiny threshold neighborhood. I would not broaden into combined-signal calibration unless there is a specific mechanism that explains why the prior collapse behavior would reverse. Otherwise, the bounded search has reached a reasonable stop point.
