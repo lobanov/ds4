@@ -476,20 +476,28 @@ static int run_sampled_generation(ds4_engine *engine, const cli_config *cfg, con
         ((uint64_t)time(NULL) ^ ((uint64_t)getpid() << 32) ^ (uint64_t)clock());
     int generated = 0;
     const double t_decode0 = cli_now_sec();
-    /* Bug #3 (issue468/40): seed the B2 RNG from --seed so accept/reject depends
+    /* Bug #3 (productionization note 40): seed the B2 RNG from --seed so accept/reject depends
      * on it (was a fixed file-static). Only affects --dspark; MTP/plain untouched. */
     if (ds4_engine_has_dspark(engine) && getenv("DS4_DSPARK_DISABLE") == NULL)
         ds4_dspark_b2_seed(rng);
     while (generated < max_tokens && !cli_interrupt_requested()) {
-        int token = ds4_session_sample(session, cfg->gen.temperature, 0,
+        bool dspark_pending = false;
+        int token;
+        if (ds4_engine_has_dspark(engine) && getenv("DS4_DSPARK_DISABLE") == NULL &&
+            ds4_session_take_dspark_pending_anchor(session, &token)) {
+            dspark_pending = true;
+        } else {
+            token = ds4_session_sample(session, cfg->gen.temperature, 0,
                                        cfg->gen.top_p, cfg->gen.min_p, &rng);
-        if (token == ds4_token_eos(engine)) break;
+        }
+        if (!dspark_pending && token == ds4_token_eos(engine)) break;
 
         int toks[17];
         int ntok = 0;
         if (ds4_engine_has_dspark(engine) && getenv("DS4_DSPARK_DISABLE") == NULL) {
             cli_dist_busy_set(cfg, true);
             ntok = ds4_session_eval_dspark_b2(session, token,
+                                               dspark_pending,
                                                max_tokens - generated,
                                                ds4_token_eos(engine),
                                                toks, (int)(sizeof(toks)/sizeof(toks[0])),
@@ -1589,6 +1597,7 @@ static cli_config parse_options(int argc, char **argv) {
             c.gen.imatrix_dataset_path = need_arg(&i, argc, argv, arg);
         } else if (!strcmp(arg, "--imatrix-out")) {
             c.gen.imatrix_output_path = need_arg(&i, argc, argv, arg);
+            c.engine.backend = DS4_BACKEND_METAL;
         } else if (!strcmp(arg, "--imatrix-draft-pos-weights")) {
             c.gen.imatrix_draft_pos_weights = need_arg(&i, argc, argv, arg);
         } else if (!strcmp(arg, "--imatrix-max-prompts")) {
@@ -1630,6 +1639,11 @@ static cli_config parse_options(int argc, char **argv) {
 #endif
         } else if (!strcmp(arg, "--verifier-curve-test")) {
             c.gen.verifier_curve_test = true;
+#ifdef DS4_ROCM_BUILD
+            c.engine.backend = DS4_BACKEND_CUDA;
+#else
+            c.engine.backend = DS4_BACKEND_METAL;
+#endif
         } else if (!strcmp(arg, "--metal-graph-generate")) {
             fprintf(stderr, "ds4: --metal-graph-generate was removed; --metal is the graph path\n");
             exit(2);

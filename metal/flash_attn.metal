@@ -929,6 +929,25 @@ kernel flash_attn_ext_dk512_t kernel_flash_attn_ext<FA_NONVEC_TYPES, half4x4, 1,
 
 #undef FA_NONVEC_TYPES
 
+// F32-KV variant (drafter precision fix, issue468/62): same FA_NONVEC_TYPES for
+// Q/score/accumulation, but F32 K/V tiles (float4x4 + simdgroup_float8x8) instead
+// of F16. Eliminates the F32->F16 KV conversion that diverges from the numpy oracle.
+// Drafter-only dispatch; the target model keeps the F16 variant above.
+#define FA_NONVEC_TYPES_F32KV \
+    half,   half4,     simdgroup_half8x8,  \
+    float,  float4x4,  simdgroup_float8x8,  \
+    float,  float4x4,  simdgroup_float8x8,  \
+    float,             simdgroup_float8x8, \
+    float,  float2,    simdgroup_float8x8, \
+    float,  float4,    simdgroup_float8x8
+
+typedef decltype(kernel_flash_attn_ext<FA_NONVEC_TYPES_F32KV, float4x4, 1, dequantize_f32, float4x4, 1, dequantize_f32, 512, 512>) flash_attn_ext_dk512_f32kv_t;
+
+template [[host_name("kernel_flash_attn_ext_f32kv_dk512_dv512")]]
+kernel flash_attn_ext_dk512_f32kv_t kernel_flash_attn_ext<FA_NONVEC_TYPES_F32KV, float4x4, 1, dequantize_f32, float4x4, 1, dequantize_f32, 512, 512>;
+
+#undef FA_NONVEC_TYPES_F32KV
+
 constant bool FC_flash_attn_ext_vec_has_mask  [[function_constant(FC_FLASH_ATTN_EXT_VEC + 0)]];
 constant bool FC_flash_attn_ext_vec_has_sinks [[function_constant(FC_FLASH_ATTN_EXT_VEC + 1)]];
 constant bool FC_flash_attn_ext_vec_has_bias  [[function_constant(FC_FLASH_ATTN_EXT_VEC + 2)]];

@@ -5,29 +5,16 @@ Runs inference/model.py.forward_spec with a DRAFTER-ONLY instantiation
 (n_layers=0, so no target layers / no 167 GB target needed). The drafter reads:
   - its own mtp.{0,1,2}.* weights (shards 46-48)
   - the SHARED target embed (shard 1) and head/lm_head (shard 45)
-  - target-side main_hidden captures from ds4
+  - main_hidden, captured from ds4's validated target and shipped in
 
 Two modes:
-  --smoke       synthetic hidden states (random bf16, correct shapes). Proves the
+  --smoke       synthetic main_hidden (random bf16, correct shape). Proves the
                 official tilelang kernels compile+run on this GPU and the drafter
                 emits tokens. Output tokens are garbage (untrained cache) but
                 execution success is the de-risk signal.
-  --validate F  load a validation npz and run a real two-step DSpark scenario:
-                prefill (start_pos=0) with one hidden/token pair, then decode
-                (start_pos=1) with the next hidden/token pair. Save reference
-                draft tokens + logits to F.ref.npz for comparison/scoring.
-
-The preferred validation NPZ format is:
-  - main_hidden_prefill [1,1,3*dim]
-  - input_ids_prefill   [1]
-  - main_hidden_decode  [1,1,3*dim]
-  - input_ids_decode    [1]
-
-Legacy NPZs with:
-  - main_hidden [1,1,3*dim]
-  - input_ids   [1]
-
-are still accepted and are treated as "same input for prefill and decode".
+  --validate F  load main_hidden + input_ids from npz F (produced by ds4's hidden
+                capture), run forward_spec, save reference draft tokens + logits
+                to F.ref.npz for byte/token comparison against the Metal port.
 
 Memory: drafter ~11 GB (fp8/fp4 resident) + embed 1 GB + head 1 GB + torch/CUDA
 overhead ~= 15 GB. Fits the 128 GB DGX with the target NOT resident.
@@ -86,45 +73,6 @@ def build_args():
     )
 
 
-def patch_tilelang_semantic_checks():
-    """Work around a tilelang/TVM Python wrapper bug on this DGX environment.
-
-    tilelang 0.1.8 on the current Python 3.12 stack reaches the JIT path, then
-    crashes inside the Python-side semantic-check visitors before any real
-    semantic validation or lowering result is produced:
-
-      AttributeError: '_NestedLoopCheckVisitor' object has no attribute '_inst'
-      AttributeError: '_FragmentLoopCheckVisitor' object has no attribute '_inst'
-
-    Those failures are in the Python-side derived-object wrapper, not in the
-    DSpark program. Replace the whole pre-lower semantic-check phase with a
-    no-op so the harness can continue to the actual kernel
-    compilation/execution path.
-    """
-    import tilelang
-    import tilelang.analysis.fragment_loop_checker as flc
-    import tilelang.analysis.nested_loop_checker as nlc
-    import tilelang.engine.lower as tl_lower
-    import tilelang.engine.phase as tl_phase
-    from tvm.tir.transform import prim_func_pass
-
-    def _noop_pre_lower_semantic_check(mod):
-        return None
-
-    def _identity_pass():
-        def _pass_fn(func, mod, ctx):
-            return func
-        return prim_func_pass(_pass_fn, opt_level=0)
-
-    tl_phase.PreLowerSemanticCheck = _noop_pre_lower_semantic_check
-    tilelang.engine.phase.PreLowerSemanticCheck = _noop_pre_lower_semantic_check
-    tl_lower.PreLowerSemanticCheck = _noop_pre_lower_semantic_check
-    nlc.NestedLoopChecker = _identity_pass
-    tilelang.analysis.NestedLoopChecker = _identity_pass
-    flc.FragmentLoopChecker = _identity_pass
-    tilelang.analysis.FragmentLoopChecker = _identity_pass
-
-
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--smoke", action="store_true")
@@ -139,7 +87,6 @@ def main():
     torch.manual_seed(args.seed)
     sys.path.insert(0, os.path.join(REF_DIR, "inference"))
     from model import Transformer
-    patch_tilelang_semantic_checks()
 
     print("=== build drafter-only Transformer (n_layers=0) ===", flush=True)
     margs = build_args()
@@ -151,15 +98,8 @@ def main():
     print(f"  mtp stages  : {len(model.mtp)}  target layers: {len(model.layers)}")
 
     print("=== load converted ckpt (model0-mp1.safetensors from convert.py), strict=False ===", flush=True)
-    try:
-        from safetensors.torch import load_model
-        from safetensors import safe_open
-    except ModuleNotFoundError as exc:
-        raise SystemExit(
-            "Missing Python dependency 'safetensors'. Install issue468/ref/"
-            "inference/requirements.txt into the active environment before "
-            "running dspark_ref_harness.py."
-        ) from exc
+    from safetensors.torch import load_model
+    from safetensors import safe_open
     ckpt = os.path.expanduser("~/ds4/ref-ckpt/model0-mp1.safetensors")
     sd = model.state_dict()
     with safe_open(ckpt, framework="pt", device="cpu") as f:
@@ -179,66 +119,25 @@ def main():
     n_target_layers = len(margs.dspark_target_layer_ids)
     if args.validate:
         d = np.load(args.validate)
-        if "main_hidden_prefill" in d and "input_ids_prefill" in d:
-            main_hidden_prefill = torch.tensor(
-                d["main_hidden_prefill"], dtype=torch.bfloat16, device="cuda"
-            )
-            input_ids_prefill = torch.tensor(
-                d["input_ids_prefill"], dtype=torch.long, device="cuda"
-            )
-            main_hidden_decode = torch.tensor(
-                d["main_hidden_decode"], dtype=torch.bfloat16, device="cuda"
-            )
-            input_ids_decode = torch.tensor(
-                d["input_ids_decode"], dtype=torch.long, device="cuda"
-            )
-            print(
-                f"=== validate mode: loaded {args.validate}: "
-                f"prefill main_hidden {tuple(main_hidden_prefill.shape)}, "
-                f"prefill input_ids {tuple(input_ids_prefill.shape)}, "
-                f"decode main_hidden {tuple(main_hidden_decode.shape)}, "
-                f"decode input_ids {tuple(input_ids_decode.shape)}"
-            )
-        else:
-            main_hidden_prefill = torch.tensor(
-                d["main_hidden"], dtype=torch.bfloat16, device="cuda"
-            )
-            input_ids_prefill = torch.tensor(
-                d["input_ids"], dtype=torch.long, device="cuda"
-            )
-            main_hidden_decode = main_hidden_prefill
-            input_ids_decode = input_ids_prefill
-            print(
-                f"=== validate mode (legacy single-step): loaded {args.validate}: "
-                f"main_hidden {tuple(main_hidden_prefill.shape)}, "
-                f"input_ids {tuple(input_ids_prefill.shape)}"
-            )
+        main_hidden = torch.tensor(d["main_hidden"], dtype=torch.bfloat16, device="cuda")  # [1,1,n_tgt*dim]
+        input_ids = torch.tensor(d["input_ids"], dtype=torch.long, device="cuda")           # [1]
+        print(f"=== validate mode: loaded {args.validate}: main_hidden {tuple(main_hidden.shape)}, input_ids {tuple(input_ids.shape)}")
     else:
         # synthetic: correct shapes, random values. Cache is untrained so outputs
         # are garbage, but kernel execution success is the de-risk signal.
         # Shapes per forward_spec: input_ids [batch], main_hidden [batch,1,n_tgt*dim].
-        main_hidden_prefill = (
-            torch.randn(1, 1, n_target_layers * dim, dtype=torch.bfloat16, device="cuda") * 0.1
-        )
-        main_hidden_decode = (
-            torch.randn(1, 1, n_target_layers * dim, dtype=torch.bfloat16, device="cuda") * 0.1
-        )
-        input_ids_prefill = torch.tensor([100], dtype=torch.long, device="cuda")
-        input_ids_decode = torch.tensor([101], dtype=torch.long, device="cuda")
-        print(
-            "=== smoke mode: synthetic prefill "
-            f"{tuple(main_hidden_prefill.shape)}, decode {tuple(main_hidden_decode.shape)}, "
-            f"input_ids {input_ids_prefill.shape}/{input_ids_decode.shape}"
-        )
+        main_hidden = torch.randn(1, 1, n_target_layers * dim, dtype=torch.bfloat16, device="cuda") * 0.1
+        input_ids = torch.tensor([100], dtype=torch.long, device="cuda")  # [batch=1]
+        print(f"=== smoke mode: synthetic main_hidden {tuple(main_hidden.shape)}, input_ids {input_ids.shape}")
 
     # forward_spec needs a prefill (start_pos=0, caches the anchor KV) then a
     # decode (start_pos>0, attends + drafts via the Markov head).
     try:
         print("=== forward_spec prefill (start_pos=0) ===", flush=True)
-        r0 = model.forward_spec(input_ids_prefill, main_hidden_prefill, start_pos=0)
+        r0 = model.forward_spec(input_ids, main_hidden, start_pos=0)
         print(f"  prefill returned: {r0} (expected None — caches drafter KV)")
         print("=== forward_spec decode (start_pos=1) -> draft ===", flush=True)
-        out = model.forward_spec(input_ids_decode, main_hidden_decode, start_pos=1)
+        out = model.forward_spec(input_ids, main_hidden, start_pos=1)
         output_ids, logits, confidence = out
         print(f"  draft output_ids shape: {tuple(output_ids.shape)}")
         print(f"  logits shape: {tuple(logits.shape)}")
@@ -250,9 +149,7 @@ def main():
             np.savez(outp,
                      ref_output_ids=output_ids[0].cpu().to(torch.int32).numpy(),
                      ref_logits=logits[0].cpu().to(torch.float32).numpy(),
-                     ref_confidence=confidence[0].cpu().to(torch.float32).numpy(),
-                     prefill_input_ids=input_ids_prefill.cpu().to(torch.int32).numpy(),
-                     decode_input_ids=input_ids_decode.cpu().to(torch.int32).numpy())
+                     ref_confidence=confidence[0].cpu().to(torch.float32).numpy())
             print(f"  wrote reference output -> {outp}")
         print("=== HARNESS OK — tilelang kernels ran on this GPU ===")
     except Exception:

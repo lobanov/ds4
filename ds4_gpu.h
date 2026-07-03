@@ -231,6 +231,21 @@ int ds4_gpu_matmul_q8_0_tensor(
         const ds4_gpu_tensor *x,
         uint64_t                n_tok);
 
+/* Drafter-only F32-input Q8_0 batch matmul (issue468/57). Same contract as
+ * ds4_gpu_matmul_q8_0_tensor but dequantizes Q8_0 weights to F32 tiles and uses
+ * F32-input MMA — bit-exact vs the F32 reference, fixes the mtp.2 q_b F16-input
+ * divergence. DRAFTER-ONLY: the target model must keep calling
+ * ds4_gpu_matmul_q8_0_tensor (half tiles). n_tok must be >1 (batch path only). */
+int ds4_gpu_matmul_q8_0_f32_input_tensor(
+        ds4_gpu_tensor       *out,
+        const void             *model_map,
+        uint64_t                model_size,
+        uint64_t                weight_offset,
+        uint64_t                in_dim,
+        uint64_t                out_dim,
+        const ds4_gpu_tensor *x,
+        uint64_t                n_tok);
+
 /* Optional fused GPU operations.
  *
  * These are acceleration hooks, not required backend primitives.  A backend

@@ -33,54 +33,28 @@ DEFAULT_BASELINE_DSPARK = (ROOT / ".." / "ds4" / "gguf" / "dspark.gguf").resolve
 DEFAULT_HF_DSPARK = (ROOT / ".." / "ds4" / "hf-dspark").resolve()
 DEFAULT_MEASURE = ISSUE468 / "baseline" / "dspark_capture" / "measure_metal_b2.py"
 DEFAULT_MEASURE_PYTHON = ISSUE468 / ".venv" / "bin" / "python"
-DEFAULT_RECOVERABLE_GAP = ISSUE468 / "build_recoverable_gap_overlay.py"
-DEFAULT_QUANTIZER = ROOT / "gguf-tools" / "deepseek4-quantize"
-
-
-def default_measure_python() -> str:
-    if DEFAULT_MEASURE_PYTHON.exists():
-        return str(DEFAULT_MEASURE_PYTHON)
-    return sys.executable
 
 
 def parse_args() -> argparse.Namespace:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--ds4-bin", default="./ds4")
-    ap.add_argument("--backend", default="metal")
     ap.add_argument("--sweep-root", required=True)
     ap.add_argument("--model", default=str(DEFAULT_MODEL))
     ap.add_argument("--baseline-dspark", default=str(DEFAULT_BASELINE_DSPARK))
     ap.add_argument("--hf-dspark", default=str(DEFAULT_HF_DSPARK))
     ap.add_argument("--template-dspark", default=str(DEFAULT_BASELINE_DSPARK))
-    ap.add_argument("--quantizer-bin", default=str(DEFAULT_QUANTIZER))
-    ap.add_argument("--imatrix-in",
-                    help="use an existing imatrix.dat and skip collection")
-    ap.add_argument("--candidate-gguf",
-                    help="use an existing candidate GGUF and skip quantization")
-    ap.add_argument("--skip-reprobe", action="store_true",
-                    help="stop after imatrix collection / quantization")
     ap.add_argument("--measure-script", default=str(DEFAULT_MEASURE))
-    ap.add_argument("--measure-python", default=default_measure_python())
+    ap.add_argument("--measure-python", default=str(DEFAULT_MEASURE_PYTHON))
     ap.add_argument("--draft-pos-weights", default="1,0.75,0.5,0.33,0.2")
     ap.add_argument("--collector-max-tokens", type=int, default=0)
     ap.add_argument("--ctx-size", type=int, default=4096)
     ap.add_argument("--power", type=int, default=100)
     ap.add_argument("--steps", type=int, default=19)
     ap.add_argument("--trials", type=int, default=128)
-    ap.add_argument("--anchor-weight-source", choices=["none", "baseline-hardness", "recoverable-gap"], default="none")
+    ap.add_argument("--anchor-weight-source", choices=["none", "baseline-hardness"], default="none")
     ap.add_argument("--anchor-weight-b2-label", default="baseline-weighted4ctx_19t_default_256tr")
-    ap.add_argument("--oracle-b2-label",
-                    help="bundle-local oracle label for recoverable-gap weighting")
-    ap.add_argument("--oracle-details-json",
-                    help="top-level oracle-envelope details JSON for recoverable-gap weighting")
     ap.add_argument("--anchor-weight-floor", type=float, default=0.5)
     ap.add_argument("--anchor-weight-ceil", type=float, default=2.0)
     ap.add_argument("--anchor-weight-alpha", type=float, default=1.5)
-    ap.add_argument("--anchor-weight-min-gap", type=float, default=0.05)
-    ap.add_argument("--anchor-weight-baseline-max", type=float, default=4.999)
-    ap.add_argument("--anchor-weight-mode", choices=["soft", "binary", "boosted"], default="soft")
-    ap.add_argument("--anchor-weight-recoverable-boost", type=float, default=8.0)
-    ap.add_argument("--anchor-weight-nonrecoverable-weight", type=float, default=0.05)
     ap.add_argument("--run-label", default="weighted-root")
     return ap.parse_args()
 
@@ -98,27 +72,6 @@ def run(cmd: list[str], *, env: dict[str, str] | None = None,
             stderr.close()
     if proc.returncode != 0:
         raise RuntimeError(f"command failed ({proc.returncode}): {' '.join(cmd)}")
-
-
-def clear_stale_ds4_lock(lock_path: Path = Path("/tmp/ds4.lock")) -> None:
-    """Remove a dead ds4 singleton lock without touching live ds4 processes."""
-    if not lock_path.exists():
-        return
-    try:
-        text = lock_path.read_text(encoding="utf-8").strip()
-        pid = int(text)
-    except (OSError, ValueError):
-        return
-    try:
-        os.kill(pid, 0)
-    except ProcessLookupError:
-        lock_path.unlink(missing_ok=True)
-    except PermissionError:
-        # Treat inaccessible live processes as active and leave the lock alone.
-        return
-    else:
-        # Live process; do not interfere.
-        return
 
 
 def plain_ms_for_context(target_json: Path) -> float:
@@ -224,45 +177,8 @@ def build_weighted_overlay(sweep_root: Path, dirs: list[Path], *, run_label: str
     return overlay_root, manifest
 
 
-def build_recoverable_gap_overlay(sweep_root: Path, *, run_label: str,
-                                  baseline_label: str, oracle_b2_label: str | None,
-                                  oracle_details_json: str | None,
-                                  mode: str, recoverable_boost: float, nonrecoverable_weight: float,
-                                  floor: float, ceil: float, alpha: float,
-                                  min_gap: float, baseline_max: float,
-                                  steps_cap: int) -> tuple[Path, dict]:
-    cmd = [
-        sys.executable,
-        str(DEFAULT_RECOVERABLE_GAP),
-        "--sweep-root", str(sweep_root),
-        "--baseline-label", baseline_label,
-        "--out-label", run_label,
-        "--mode", mode,
-        "--recoverable-boost", str(recoverable_boost),
-        "--nonrecoverable-weight", str(nonrecoverable_weight),
-        "--floor", str(floor),
-        "--ceil", str(ceil),
-        "--alpha", str(alpha),
-        "--min-gap", str(min_gap),
-        "--baseline-max", str(baseline_max),
-    ]
-    if steps_cap > 0:
-        cmd.extend(["--steps-cap", str(steps_cap)])
-    if oracle_b2_label:
-        cmd.extend(["--oracle-label", oracle_b2_label])
-    elif oracle_details_json:
-        cmd.extend(["--oracle-details-json", str(Path(oracle_details_json).resolve())])
-    else:
-        raise RuntimeError("recoverable-gap requires --oracle-b2-label or --oracle-details-json")
-    run(cmd)
-    overlay_root = sweep_root / f".{run_label}.overlay"
-    manifest_path = sweep_root / f"{run_label}.anchor_weights.json"
-    return overlay_root, json.loads(manifest_path.read_text())
-
-
-def reprobe_bundle(bundle: Path, *, ds4_bin: str, backend: str, model: str, dspark: str, steps: int,
-                   power: int, trials: int, measure_python: str, measure_script: str,
-                   label: str) -> dict:
+def reprobe_bundle(bundle: Path, *, model: str, dspark: str, steps: int, power: int,
+                   trials: int, measure_python: str, measure_script: str, label: str) -> dict:
     target = json.loads((bundle / "target_topk.json").read_text())
     pos0 = int(target["prompt_tokens"])
     ctx_size = pos0 + 96
@@ -279,11 +195,10 @@ def reprobe_bundle(bundle: Path, *, ds4_bin: str, backend: str, model: str, dspa
     })
     stdout_path = bundle / f"{label}.probe.stdout"
     stderr_path = bundle / f"{label}.probe.stderr"
-    clear_stale_ds4_lock()
     run(
         [
-            ds4_bin,
-            "--backend", backend,
+            "./ds4",
+            "--metal",
             "-m", model,
             "--dspark", dspark,
             "--prompt-file", str(bundle / "prompt_rendered.txt"),
@@ -328,94 +243,54 @@ def main() -> int:
     candidate_out = sweep_root / f"{args.run_label}.gguf"
     collect_root = sweep_root
     overlay_root: Path | None = None
-    imatrix_path = Path(args.imatrix_in).resolve() if args.imatrix_in else imatrix_out
-    candidate_path = Path(args.candidate_gguf).resolve() if args.candidate_gguf else candidate_out
 
     if args.anchor_weight_source != "none":
-        if args.anchor_weight_source == "baseline-hardness":
-            overlay_root, manifest = build_weighted_overlay(
-                sweep_root,
-                dirs,
-                run_label=args.run_label,
-                source=args.anchor_weight_source,
-                b2_label=args.anchor_weight_b2_label,
-                floor=args.anchor_weight_floor,
-                ceil=args.anchor_weight_ceil,
-                alpha=args.anchor_weight_alpha,
-                steps_cap=args.collector_max_tokens,
-            )
-        else:
-            overlay_root, manifest = build_recoverable_gap_overlay(
-                sweep_root,
-                run_label=args.run_label,
-                baseline_label=args.anchor_weight_b2_label,
-                oracle_b2_label=args.oracle_b2_label,
-                oracle_details_json=args.oracle_details_json,
-                mode=args.anchor_weight_mode,
-                recoverable_boost=args.anchor_weight_recoverable_boost,
-                nonrecoverable_weight=args.anchor_weight_nonrecoverable_weight,
-                floor=args.anchor_weight_floor,
-                ceil=args.anchor_weight_ceil,
-                alpha=args.anchor_weight_alpha,
-                min_gap=args.anchor_weight_min_gap,
-                baseline_max=args.anchor_weight_baseline_max,
-                steps_cap=args.collector_max_tokens,
-            )
+        overlay_root, manifest = build_weighted_overlay(
+            sweep_root,
+            dirs,
+            run_label=args.run_label,
+            source=args.anchor_weight_source,
+            b2_label=args.anchor_weight_b2_label,
+            floor=args.anchor_weight_floor,
+            ceil=args.anchor_weight_ceil,
+            alpha=args.anchor_weight_alpha,
+            steps_cap=args.collector_max_tokens,
+        )
         collect_root = overlay_root
         manifest_path = sweep_root / f"{args.run_label}.anchor_weights.json"
         manifest_path.write_text(json.dumps(manifest, indent=2) + "\n")
 
     try:
-        if args.imatrix_in:
-            if not imatrix_path.exists():
-                raise RuntimeError(f"--imatrix-in not found: {imatrix_path}")
-        else:
-            collect_cmd = [
-                args.ds4_bin,
-                "--backend", args.backend,
-                "-m", str(Path(args.model).resolve()),
-                "--dspark", str(Path(args.baseline_dspark).resolve()),
-                "--imatrix-dataset", str(collect_root),
-                "--imatrix-out", str(imatrix_path),
-                "--imatrix-draft-pos-weights", args.draft_pos_weights,
-                "--ctx", str(args.ctx_size),
-            ]
-            if args.collector_max_tokens > 0:
-                collect_cmd.extend(["--imatrix-max-tokens", str(args.collector_max_tokens)])
-            run(collect_cmd)
+        collect_cmd = [
+            "./ds4",
+            "--metal",
+            "-m", str(Path(args.model).resolve()),
+            "--dspark", str(Path(args.baseline_dspark).resolve()),
+            "--imatrix-dataset", str(collect_root),
+            "--imatrix-out", str(imatrix_out),
+            "--imatrix-draft-pos-weights", args.draft_pos_weights,
+            "--ctx", str(args.ctx_size),
+        ]
+        if args.collector_max_tokens > 0:
+            collect_cmd.extend(["--imatrix-max-tokens", str(args.collector_max_tokens)])
+        run(collect_cmd)
 
-        if args.candidate_gguf:
-            if not candidate_path.exists():
-                raise RuntimeError(f"--candidate-gguf not found: {candidate_path}")
-        else:
-            run([
-                str(Path(args.quantizer_bin).resolve()),
-                "--hf", str(Path(args.hf_dspark).resolve()),
-                "--template", str(Path(args.template_dspark).resolve()),
-                "--out", str(candidate_path),
-                "--overwrite",
-                "--imatrix", str(imatrix_path),
-            ])
-
-        if args.skip_reprobe:
-            print(json.dumps({
-                "run_label": args.run_label,
-                "collect_root": str(collect_root),
-                "imatrix_path": str(imatrix_path),
-                "candidate_path": str(candidate_path),
-                "reprobe_skipped": True,
-            }))
-            return 0
+        run([
+            "gguf-tools/deepseek4-quantize",
+            "--hf", str(Path(args.hf_dspark).resolve()),
+            "--template", str(Path(args.template_dspark).resolve()),
+            "--out", str(candidate_out),
+            "--overwrite",
+            "--imatrix", str(imatrix_out),
+        ])
 
         rows = []
         baseline_path = str(Path(args.baseline_dspark).resolve())
-        candidate_path_str = str(candidate_path.resolve())
+        candidate_path = str(candidate_out.resolve())
         for bundle in dirs:
             ctx = int(bundle.name.split("_")[1])
             base = reprobe_bundle(
                 bundle,
-                ds4_bin=args.ds4_bin,
-                backend=args.backend,
                 model=str(Path(args.model).resolve()),
                 dspark=baseline_path,
                 steps=args.steps,
@@ -427,10 +302,8 @@ def main() -> int:
             )
             cand = reprobe_bundle(
                 bundle,
-                ds4_bin=args.ds4_bin,
-                backend=args.backend,
                 model=str(Path(args.model).resolve()),
-                dspark=candidate_path_str,
+                dspark=candidate_path,
                 steps=args.steps,
                 power=args.power,
                 trials=args.trials,

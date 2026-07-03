@@ -56,7 +56,6 @@ GGUF_SCALAR_SIZES = {
 GGML_QUANT_SIZES = {
     0: (1, 4, "F32"),
     1: (1, 2, "F16"),
-    30: (1, 2, "BF16"),
     8: (32, 34, "Q8_0"),
     10: (256, 84, "Q2_K"),
     12: (256, 144, "Q4_K"),
@@ -64,7 +63,7 @@ GGML_QUANT_SIZES = {
     26: (1, 4, "I32"),
 }
 
-EXPERT_TENSOR_RE = re.compile(r"^(?:blk|mtp)\.(\d+)\.ffn_(gate|up|down)_exps\.weight$")
+EXPERT_TENSOR_RE = re.compile(r"^blk\.(\d+)\.ffn_(gate|up|down)_exps\.weight$")
 
 
 @dataclass(frozen=True)
@@ -95,9 +94,6 @@ class SplicePlan:
     source: str
     tensor: TensorInfo
     new_rel_offset: int
-    donor_tensor: TensorInfo | None = None
-    donor_block_ids: tuple[int, ...] = ()
-    donor_expert_ids: tuple[int, ...] = ()
 
 
 def read_u32(data: bytes, offset: int) -> int:
@@ -248,195 +244,16 @@ def parse_layer_set(spec: str) -> set[int]:
     return layers
 
 
-def parse_selection_specs(spec: str) -> dict[int, set[str] | None]:
-    allowed_parts = {"gate", "up", "down"}
-    selections: dict[int, set[str] | None] = {}
-    for part in spec.split(","):
-        part = part.strip()
-        if not part:
-            continue
-        if ":" in part:
-            layer_s, tensor_part = part.split(":", 1)
-            layer = int(layer_s)
-            if tensor_part not in allowed_parts:
-                raise ValueError(
-                    f"unsupported tensor part {tensor_part!r}; expected one of {sorted(allowed_parts)}"
-                )
-            chosen = selections.setdefault(layer, set())
-            if chosen is None:
-                continue
-            chosen.add(tensor_part)
-        else:
-            layer = int(part)
-            selections[layer] = None
-    if not selections:
-        raise ValueError("no routed-expert selections provided")
-    return selections
-
-
-def should_take_donor(name: str, selections: dict[int, set[str] | None]) -> bool:
+def should_take_donor(name: str, q4_layers: set[int]) -> bool:
     match = EXPERT_TENSOR_RE.match(name)
-    if match is None:
-        return False
-    layer = int(match.group(1))
-    tensor_part = match.group(2)
-    chosen = selections.get(layer)
-    if chosen is None:
-        return layer in selections
-    return tensor_part in chosen
-
-
-def parse_block_delta_specs(specs: list[str] | None) -> dict[str, int]:
-    parsed: dict[str, int] = {}
-    if not specs:
-        return parsed
-    for spec in specs:
-        if ":" not in spec:
-            raise ValueError(f"bad --block-delta-top spec {spec!r}; expected <tensor_name>:<count>")
-        name, count_s = spec.rsplit(":", 1)
-        name = name.strip()
-        count = int(count_s)
-        if not name or count <= 0:
-            raise ValueError(f"bad --block-delta-top spec {spec!r}")
-        parsed[name] = count
-    return parsed
-
-
-def parse_expert_specs(specs: list[str] | None) -> dict[str, tuple[int, ...]]:
-    parsed: dict[str, tuple[int, ...]] = {}
-    if not specs:
-        return parsed
-    for spec in specs:
-        if ":" not in spec:
-            raise ValueError(f"bad --expert-select spec {spec!r}; expected <tensor_name>:id,id,...")
-        name, ids_s = spec.split(":", 1)
-        ids = tuple(sorted({int(part) for part in ids_s.split(",") if part.strip()}))
-        if not name.strip() or not ids:
-            raise ValueError(f"bad --expert-select spec {spec!r}")
-        parsed[name.strip()] = ids
-    return parsed
-
-
-def parse_expert_block_specs(specs: list[str] | None) -> dict[str, tuple[tuple[int, int], ...]]:
-    parsed: dict[str, tuple[tuple[int, int], ...]] = {}
-    if not specs:
-        return parsed
-    for spec in specs:
-        if ":" not in spec:
-            raise ValueError(
-                f"bad --expert-block-select spec {spec!r}; expected <tensor_name>:expert:block,expert:block,..."
-            )
-        name, pairs_s = spec.split(":", 1)
-        pairs: set[tuple[int, int]] = set()
-        for part in pairs_s.split(","):
-            part = part.strip()
-            if not part:
-                continue
-            if ":" not in part:
-                raise ValueError(
-                    f"bad --expert-block-select pair {part!r}; expected expert:block"
-                )
-            expert_s, block_s = part.split(":", 1)
-            pairs.add((int(expert_s), int(block_s)))
-        if not name.strip() or not pairs:
-            raise ValueError(f"bad --expert-block-select spec {spec!r}")
-        parsed[name.strip()] = tuple(sorted(pairs))
-    return parsed
-
-
-def parse_tensor_select(spec: str | None) -> set[str]:
-    if not spec:
-        return set()
-    out = {part.strip() for part in spec.split(",") if part.strip()}
-    if not out:
-        raise ValueError("empty --tensor-select")
-    return out
+    return match is not None and int(match.group(1)) in q4_layers
 
 
 def qtype_name(ggml_type: int) -> str:
     return GGML_QUANT_SIZES.get(ggml_type, (0, 0, f"type_{ggml_type}"))[2]
 
 
-def top_delta_block_ids(base: GGUFInfo, donor: GGUFInfo, tensor_name: str, top_n: int) -> tuple[int, ...]:
-    base_tensor = base.tensor_by_name.get(tensor_name)
-    donor_tensor = donor.tensor_by_name.get(tensor_name)
-    if base_tensor is None or donor_tensor is None:
-        raise ValueError(f"missing tensor for block delta selection: {tensor_name}")
-    if base_tensor.ggml_type != donor_tensor.ggml_type:
-        raise ValueError(f"type mismatch for {tensor_name}")
-    q = GGML_QUANT_SIZES.get(base_tensor.ggml_type)
-    if q is None:
-        raise ValueError(f"unsupported block-delta type for {tensor_name}: {base_tensor.ggml_type}")
-    _block_elems, block_bytes, qname = q
-    if qname != "Q4_K":
-        raise ValueError(f"--block-delta-top currently supports Q4_K only, got {qname} for {tensor_name}")
-    n_blocks = base_tensor.n_bytes // block_bytes
-    scores: list[tuple[int, int]] = []
-    with base.path.open("rb") as base_file, donor.path.open("rb") as donor_file:
-        base_file.seek(base_tensor.data_offset)
-        donor_file.seek(donor_tensor.data_offset)
-        for block_id in range(n_blocks):
-            b = read_exact(base_file, block_bytes)
-            d = read_exact(donor_file, block_bytes)
-            diff_l1 = sum(abs(x - y) for x, y in zip(b, d))
-            scores.append((diff_l1, block_id))
-    scores.sort(reverse=True)
-    return tuple(sorted(block_id for _score, block_id in scores[:top_n]))
-
-
-def expert_slice_bytes(tensor: TensorInfo) -> tuple[int, int]:
-    if len(tensor.dims) != 3:
-        raise ValueError(f"tensor {tensor.name} is not a 3D expert tensor")
-    in_dim, out_dim, n_exp = tensor.dims
-    elems_per_exp = in_dim * out_dim
-    q = GGML_QUANT_SIZES.get(tensor.ggml_type)
-    if q is None:
-        raise ValueError(f"unsupported expert tensor type for {tensor.name}: {tensor.ggml_type}")
-    block_elems, block_bytes, _name = q
-    if elems_per_exp % block_elems != 0:
-        raise ValueError(f"expert slice for {tensor.name} is not block-aligned")
-    return n_exp, (elems_per_exp // block_elems) * block_bytes
-
-
-def expert_col_block_ids(tensor: TensorInfo, expert_block_pairs: tuple[tuple[int, int], ...]) -> tuple[int, ...]:
-    if len(tensor.dims) != 3:
-        raise ValueError(f"tensor {tensor.name} is not a 3D expert tensor")
-    in_dim, out_dim, n_exp = tensor.dims
-    q = GGML_QUANT_SIZES.get(tensor.ggml_type)
-    if q is None:
-        raise ValueError(f"unsupported expert tensor type for {tensor.name}: {tensor.ggml_type}")
-    block_elems, _block_bytes, qname = q
-    if qname != "Q4_K":
-        raise ValueError(
-            f"--expert-block-select currently supports Q4_K only, got {qname} for {tensor.name}"
-        )
-    if in_dim % block_elems != 0:
-        raise ValueError(f"tensor {tensor.name} in_dim={in_dim} is not aligned to block_elems={block_elems}")
-    blocks_per_row = in_dim // block_elems
-    blocks_per_expert = out_dim * blocks_per_row
-    out: set[int] = set()
-    for expert, block_idx in expert_block_pairs:
-        if expert < 0 or expert >= n_exp:
-            raise ValueError(f"expert index out of range for {tensor.name}: {expert}")
-        if block_idx < 0 or block_idx >= blocks_per_row:
-            raise ValueError(
-                f"column-block index out of range for {tensor.name}: {block_idx} (blocks_per_row={blocks_per_row})"
-            )
-        base_block = expert * blocks_per_expert
-        for row in range(out_dim):
-            out.add(base_block + row * blocks_per_row + block_idx)
-    return tuple(sorted(out))
-
-
-def build_plan(
-    base: GGUFInfo,
-    donor: GGUFInfo,
-    selections: dict[int, set[str] | None],
-    block_delta_specs: dict[str, int],
-    expert_specs: dict[str, tuple[int, ...]],
-    expert_block_specs: dict[str, tuple[tuple[int, int], ...]],
-    tensor_select: set[str],
-) -> list[SplicePlan]:
+def build_plan(base: GGUFInfo, donor: GGUFInfo, q4_layers: set[int]) -> list[SplicePlan]:
     if base.version != donor.version:
         raise ValueError(f"GGUF version mismatch: base={base.version} donor={donor.version}")
     if base.tensor_count != donor.tensor_count:
@@ -452,38 +269,13 @@ def build_plan(
             raise ValueError(f"donor is missing tensor {base_tensor.name}")
         if base_tensor.dims != donor_tensor.dims:
             raise ValueError(f"shape mismatch for {base_tensor.name}: {base_tensor.dims} vs {donor_tensor.dims}")
-        use_donor = should_take_donor(base_tensor.name, selections)
-        donor_block_ids: tuple[int, ...] = ()
-        donor_expert_ids: tuple[int, ...] = ()
-        source = "base"
-        source_tensor = base_tensor
-        donor_tensor_ref: TensorInfo | None = None
-        if base_tensor.name in tensor_select:
-            source = "donor"
-            source_tensor = donor_tensor
-        elif use_donor:
-            source = "donor"
-            source_tensor = donor_tensor
-        elif base_tensor.name in expert_specs:
-            donor_expert_ids = expert_specs[base_tensor.name]
-            source = "mixed_experts"
-            donor_tensor_ref = donor_tensor
-        elif base_tensor.name in expert_block_specs:
-            donor_block_ids = expert_col_block_ids(base_tensor, expert_block_specs[base_tensor.name])
-            source = "mixed_blocks"
-            donor_tensor_ref = donor_tensor
-        elif base_tensor.name in block_delta_specs:
-            donor_block_ids = top_delta_block_ids(base, donor, base_tensor.name, block_delta_specs[base_tensor.name])
-            source = "mixed_blocks"
-            donor_tensor_ref = donor_tensor
+        use_donor = should_take_donor(base_tensor.name, q4_layers)
+        source_tensor = donor_tensor if use_donor else base_tensor
         plan.append(SplicePlan(
             name=base_tensor.name,
-            source=source,
+            source="donor" if use_donor else "base",
             tensor=source_tensor,
             new_rel_offset=next_rel,
-            donor_tensor=donor_tensor_ref,
-            donor_block_ids=donor_block_ids,
-            donor_expert_ids=donor_expert_ids,
         ))
         next_rel += pad_to(source_tensor.n_bytes, base.alignment)
     return plan
@@ -542,57 +334,9 @@ def write_mixed(base: GGUFInfo, donor: GGUFInfo, plan: list[SplicePlan], out_pat
         write_padding(out, out.tell(), base.alignment)
 
         for item in plan:
-            if item.source == "mixed_experts":
-                assert item.donor_tensor is not None
-                n_exp, bytes_per_exp = expert_slice_bytes(item.tensor)
-                if any(expert < 0 or expert >= n_exp for expert in item.donor_expert_ids):
-                    raise ValueError(f"expert selection out of range for {item.name}")
-                next_expert = 0
-                base_file.seek(item.tensor.data_offset)
-                donor_file.seek(item.donor_tensor.data_offset)
-                for donor_expert in item.donor_expert_ids:
-                    if donor_expert < next_expert:
-                        continue
-                    base_skip = (donor_expert - next_expert) * bytes_per_exp
-                    if base_skip:
-                        copy_exact(base_file, out, base_skip)
-                        donor_file.seek(base_skip, os.SEEK_CUR)
-                    donor_chunk = read_exact(donor_file, bytes_per_exp)
-                    out.write(donor_chunk)
-                    base_file.seek(bytes_per_exp, os.SEEK_CUR)
-                    next_expert = donor_expert + 1
-                remaining = item.tensor.n_bytes - next_expert * bytes_per_exp
-                if remaining:
-                    copy_exact(base_file, out, remaining)
-                    donor_file.seek(remaining, os.SEEK_CUR)
-            elif item.source == "mixed_blocks":
-                assert item.donor_tensor is not None
-                q = GGML_QUANT_SIZES[item.tensor.ggml_type]
-                block_bytes = q[1]
-                base_file.seek(item.tensor.data_offset)
-                donor_file.seek(item.donor_tensor.data_offset)
-                if item.tensor.n_bytes % block_bytes != 0:
-                    raise ValueError(f"tensor {item.name} size is not block-aligned")
-                next_block = 0
-                for donor_block in item.donor_block_ids:
-                    if donor_block < next_block:
-                        continue
-                    base_skip = (donor_block - next_block) * block_bytes
-                    if base_skip:
-                        copy_exact(base_file, out, base_skip)
-                        donor_file.seek(base_skip, os.SEEK_CUR)
-                    donor_chunk = read_exact(donor_file, block_bytes)
-                    out.write(donor_chunk)
-                    base_file.seek(block_bytes, os.SEEK_CUR)
-                    next_block = donor_block + 1
-                remaining = item.tensor.n_bytes - next_block * block_bytes
-                if remaining:
-                    copy_exact(base_file, out, remaining)
-                    donor_file.seek(remaining, os.SEEK_CUR)
-            else:
-                src = donor_file if item.source == "donor" else base_file
-                src.seek(item.tensor.data_offset)
-                copy_exact(src, out, item.tensor.n_bytes)
+            src = donor_file if item.source == "donor" else base_file
+            src.seek(item.tensor.data_offset)
+            copy_exact(src, out, item.tensor.n_bytes)
             write_padding(out, item.tensor.n_bytes, base.alignment)
             copied += item.tensor.n_bytes
             pct = int(copied * 100 / total_payload) if total_payload else 100
@@ -608,8 +352,6 @@ def write_mixed(base: GGUFInfo, donor: GGUFInfo, plan: list[SplicePlan], out_pat
 
 def summarize(base: GGUFInfo, donor: GGUFInfo, plan: list[SplicePlan]) -> None:
     selected = [item for item in plan if item.source == "donor"]
-    block_selected = [item for item in plan if item.source == "mixed_blocks"]
-    expert_selected = [item for item in plan if item.source == "mixed_experts"]
     base_bytes = sum(t.n_bytes for t in base.tensors)
     out_bytes = sum(item.tensor.n_bytes for item in plan)
     delta = out_bytes - base_bytes
@@ -621,12 +363,6 @@ def summarize(base: GGUFInfo, donor: GGUFInfo, plan: list[SplicePlan]) -> None:
     for item in selected:
         by_type[qtype_name(item.tensor.ggml_type)] = by_type.get(qtype_name(item.tensor.ggml_type), 0) + 1
     print("selected donor types:", ", ".join(f"{name}:{count}" for name, count in sorted(by_type.items())) or "none")
-    if expert_selected:
-        for item in expert_selected:
-            print(f"selected donor experts: {item.name}:{len(item.donor_expert_ids)}")
-    if block_selected:
-        for item in block_selected:
-            print(f"selected donor blocks: {item.name}:{len(item.donor_block_ids)}")
     print(f"base tensor payload: {base_bytes:,} bytes ({base_bytes / (1024 ** 3):.2f} GiB)")
     print(f"mixed tensor payload: {out_bytes:,} bytes ({out_bytes / (1024 ** 3):.2f} GiB)")
     print(f"payload delta: {delta:,} bytes ({delta / (1024 ** 3):.2f} GiB)")
@@ -637,64 +373,17 @@ def main() -> int:
     parser.add_argument("--base", required=True, type=Path, help="base GGUF used for metadata and default tensors")
     parser.add_argument("--donor", required=True, type=Path, help="donor GGUF used for selected routed expert layers")
     parser.add_argument("--out", required=True, type=Path, help="output mixed GGUF")
-    parser.add_argument("--q4-layers", help="comma-separated layer IDs/ranges to take from donor, e.g. 37-42")
-    parser.add_argument(
-        "--q4-select",
-        help="comma-separated routed selections to take from donor, e.g. 2:down,2:gate or 37",
-    )
-    parser.add_argument(
-        "--block-delta-top",
-        action="append",
-        help="copy only the top-N donor-vs-base Q4_K payload blocks for one tensor, format <tensor_name>:<count>",
-    )
-    parser.add_argument(
-        "--expert-select",
-        action="append",
-        help="copy only selected expert slices from one routed tensor, format <tensor_name>:id,id,...",
-    )
-    parser.add_argument(
-        "--expert-block-select",
-        action="append",
-        help="copy all rows for selected expert/column-block pairs in one Q4_K expert tensor, format <tensor_name>:expert:block,expert:block,...",
-    )
-    parser.add_argument(
-        "--tensor-select",
-        help="comma-separated exact tensor names to copy from donor",
-    )
+    parser.add_argument("--q4-layers", required=True, help="comma-separated layer IDs/ranges to take from donor, e.g. 37-42")
     parser.add_argument("--dry-run", action="store_true", help="print the plan without writing the output")
     parser.add_argument("--force", action="store_true", help="overwrite --out if it already exists")
     args = parser.parse_args()
 
-    if not any([args.q4_layers, args.q4_select, args.block_delta_top, args.expert_select, args.expert_block_select, args.tensor_select]):
-        parser.error("pass at least one selection mode")
-    if args.q4_layers and args.q4_select:
-        parser.error("--q4-layers and --q4-select are mutually exclusive")
-    if args.q4_select:
-        selections = parse_selection_specs(args.q4_select)
-        print("q4 select:", args.q4_select)
-    elif args.q4_layers:
-        q4_layers = parse_layer_set(args.q4_layers)
-        print("q4 layers:", ",".join(str(x) for x in sorted(q4_layers)))
-        selections = {layer: None for layer in q4_layers}
-    else:
-        selections = {}
-    block_delta_specs = parse_block_delta_specs(args.block_delta_top)
-    for name, count in sorted(block_delta_specs.items()):
-        print(f"block delta top: {name}:{count}")
-    expert_specs = parse_expert_specs(args.expert_select)
-    for name, ids in sorted(expert_specs.items()):
-        print(f"expert select: {name}:{','.join(str(x) for x in ids)}")
-    expert_block_specs = parse_expert_block_specs(args.expert_block_select)
-    for name, pairs in sorted(expert_block_specs.items()):
-        spec = ",".join(f"{expert}:{block}" for expert, block in pairs)
-        print(f"expert block select: {name}:{spec}")
-    tensor_select = parse_tensor_select(args.tensor_select)
-    if tensor_select:
-        print("tensor select:", ",".join(sorted(tensor_select)))
+    q4_layers = parse_layer_set(args.q4_layers)
+    print("q4 layers:", ",".join(str(x) for x in sorted(q4_layers)))
 
     base = parse_gguf(args.base)
     donor = parse_gguf(args.donor)
-    plan = build_plan(base, donor, selections, block_delta_specs, expert_specs, expert_block_specs, tensor_select)
+    plan = build_plan(base, donor, q4_layers)
     summarize(base, donor, plan)
 
     if args.dry_run:

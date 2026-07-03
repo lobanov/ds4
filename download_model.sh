@@ -9,6 +9,7 @@ PRO_Q2_IMATRIX_FILE="DeepSeek-V4-Pro-IQ2XXS-w2Q2K-AProjQ8-SExpQ8-OutQ8-Instruct-
 PRO_Q4_LAYERS00_30_FILE="DeepSeek-V4-Pro-Q4K-Layers00-30.gguf"
 PRO_Q4_LAYERS31_OUTPUT_FILE="DeepSeek-V4-Pro-Q4K-Layers-31-output.gguf"
 MTP_FILE="DeepSeek-V4-Flash-MTP-Q4K-Q8_0-F32.gguf"
+DSPARK_HF_REPO="deepseek-ai/DeepSeek-V4-Flash-DSpark"
 
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 OUT_DIR=${DS4_GGUF_DIR:-"$ROOT/gguf"}
@@ -69,6 +70,12 @@ Targets:
        It is useful with q2-imatrix, q2-q4-imatrix, and q4-imatrix, but must be
        enabled explicitly with --mtp when running ds4 or ds4-server.
 
+  dspark
+       DSpark speculative drafter source safetensors (shards 46-48) from
+       deepseek-ai/DeepSeek-V4-Flash-DSpark, about 10.9 GB on disk. Unlike the
+       other targets this fetches Hugging Face safetensors, not a ready GGUF;
+       build the drafter GGUF afterwards with: make dspark-gguf
+
 Options:
   --token TOKEN  Hugging Face token. Otherwise HF_TOKEN or the local HF token
                  cache is used if present.
@@ -102,6 +109,43 @@ shift
 MODEL_FILES=
 LINK_MODEL=1
 
+# Fetch the DSpark drafter safetensors (shards 46-48 + index) from a different
+# HF repo into gguf/dspark-hf/, for `make dspark-gguf` to consume.
+download_dspark() {
+    hf_dir="$OUT_DIR/dspark-hf"
+    mkdir -p "$hf_dir"
+    HF_CMD=""
+    if command -v hf >/dev/null 2>&1; then HF_CMD=hf; fi
+    if [ -z "$HF_CMD" ]; then
+        echo "The dspark target needs the Hugging Face CLI to fetch drafter shards." >&2
+        echo "Install it with:" >&2
+        echo "  python3 -m pip install -U huggingface_hub hf_xet" >&2
+        exit 1
+    fi
+    echo "Downloading DSpark drafter safetensors (shards 46-48, ~10.9 GB)"
+    echo "from https://huggingface.co/$DSPARK_HF_REPO"
+    echo "into $hf_dir"
+    echo "If the download stops, run the same command again to resume it."
+    files="model-00046-of-00048.safetensors model-00047-of-00048.safetensors model-00048-of-00048.safetensors model.safetensors.index.json"
+    if [ -n "$TOKEN" ]; then
+        "$HF_CMD" download "$DSPARK_HF_REPO" $files --repo-type model --local-dir "$hf_dir" --token "$TOKEN"
+    else
+        "$HF_CMD" download "$DSPARK_HF_REPO" $files --repo-type model --local-dir "$hf_dir"
+    fi
+    for f in $files; do
+        if [ ! -s "$hf_dir/$f" ]; then
+            echo "Download finished but expected file is missing: $hf_dir/$f" >&2
+            exit 1
+        fi
+    done
+    echo
+    echo "DSpark drafter shards downloaded to: $hf_dir"
+    echo "Build the drafter GGUF with:"
+    echo "  make dspark-gguf DSPARK_HF_DIR=$hf_dir"
+    echo "Then run inference with:"
+    echo "  ./ds4 -m <target.gguf> --dspark gguf/dspark.gguf -c CTX -n N --temp 0.0 -p PROMPT"
+}
+
 case "$MODEL" in
     q2-imatrix) MODEL_FILE=$Q2_IMATRIX_FILE ;;
     q2-q4-imatrix) MODEL_FILE=$Q2_Q4_IMATRIX_FILE ;;
@@ -114,6 +158,10 @@ case "$MODEL" in
         LINK_MODEL=0
         ;;
     mtp) MODEL_FILE=$MTP_FILE; LINK_MODEL=0 ;;
+    dspark)
+        download_dspark
+        exit 0
+        ;;
     -h|--help|help)
         usage
         exit 0
