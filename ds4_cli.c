@@ -498,6 +498,9 @@ static int run_sampled_generation(ds4_engine *engine, const cli_config *cfg, con
             cli_dist_busy_set(cfg, true);
             ntok = ds4_session_eval_dspark_b2(session, token,
                                                dspark_pending,
+                                               cfg->gen.temperature,
+                                               cfg->gen.top_p,
+                                               cfg->gen.min_p,
                                                max_tokens - generated,
                                                ds4_token_eos(engine),
                                                toks, (int)(sizeof(toks)/sizeof(toks[0])),
@@ -1679,6 +1682,10 @@ static cli_config parse_options(int argc, char **argv) {
     char dist_err[256];
     if (ds4_dist_prepare_engine_options(c.dist, &c.engine, dist_err, sizeof(dist_err)) != 0) {
         fprintf(stderr, "ds4: %s\n", dist_err);
+        exit(2);
+    }
+    if (c.engine.dspark_path && c.gen.temperature <= 0.0f) {
+        fprintf(stderr, "ds4: --dspark requires --temp > 0 (current DSpark exactness is defined only for stochastic decoding)\n");
         exit(2);
     }
 

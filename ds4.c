@@ -23821,6 +23821,79 @@ static int sample_full_vocab(
     return id;
 }
 
+static bool sample_distribution_top_p_min_p_full_vocab(
+        const float *logits,
+        uint32_t     n_vocab,
+        float        temperature,
+        float        top_p,
+        float        min_p,
+        float       *out_probs) {
+    if (!logits || !out_probs || temperature <= 0.0f) return false;
+    memset(out_probs, 0, (size_t)n_vocab * sizeof(out_probs[0]));
+
+    float max_logit = DS4_NEG_INF;
+    uint32_t finite = 0;
+    for (uint32_t i = 0; i < n_vocab; i++) {
+        const float v = logits[i];
+        if (!isfinite(v)) continue;
+        finite++;
+        if (v > max_logit) max_logit = v;
+    }
+    if (finite == 0) return false;
+    if (top_p <= 0.0f || top_p > 1.0f) top_p = 1.0f;
+    if (min_p < 0.0f) min_p = 0.0f;
+
+    if (top_p >= 1.0f) {
+        const float min_rel = min_p > 0.0f ? min_p : 0.0f;
+        double sum = 0.0;
+        for (uint32_t i = 0; i < n_vocab; i++) {
+            const float v = logits[i];
+            if (!isfinite(v)) continue;
+            const float p = expf((v - max_logit) / temperature);
+            if (p < min_rel) continue;
+            out_probs[i] = p;
+            sum += p;
+        }
+        if (sum <= 0.0 || !isfinite(sum)) return false;
+        for (uint32_t i = 0; i < n_vocab; i++) out_probs[i] = (float)(out_probs[i] / sum);
+        return true;
+    }
+
+    sample_candidate *cand = xmalloc((size_t)finite * sizeof(cand[0]));
+    uint32_t n = 0;
+    double sum = 0.0;
+    for (uint32_t i = 0; i < n_vocab; i++) {
+        const float v = logits[i];
+        if (!isfinite(v)) continue;
+        const float p = expf((v - max_logit) / temperature);
+        cand[n++] = (sample_candidate){.id = (int)i, .logit = v, .prob = p};
+        sum += p;
+    }
+    if (sum <= 0.0 || !isfinite(sum)) {
+        free(cand);
+        return false;
+    }
+
+    qsort(cand, n, sizeof(cand[0]), sample_candidate_cmp_desc);
+    const double min_prob = ((double)cand[0].prob / sum) * (min_p > 0.0f ? min_p : 0.0f);
+    double filtered_sum = 0.0;
+    uint32_t filtered = 0;
+    for (uint32_t i = 0; i < n; i++) {
+        const double p = (double)cand[i].prob / sum;
+        if (i > 0 && p < min_prob) break;
+        filtered_sum += cand[i].prob;
+        filtered++;
+        if (filtered_sum / sum >= top_p) break;
+    }
+    if (filtered == 0 || filtered_sum <= 0.0 || !isfinite(filtered_sum)) {
+        free(cand);
+        return false;
+    }
+    for (uint32_t i = 0; i < filtered; i++) out_probs[cand[i].id] = (float)(cand[i].prob / filtered_sum);
+    free(cand);
+    return true;
+}
+
 static int sample_top_p_min_p(
         const float *logits,
         uint32_t     n_vocab,
@@ -30011,11 +30084,18 @@ uint64_t g_dspark_b2_seed = 0;
 void ds4_dspark_b2_seed(uint64_t seed) { g_dspark_b2_seed = seed; }
 int ds4_session_eval_dspark_b2(ds4_session *s, int first_token,
                                bool first_token_already_emitted,
+                               float temperature,
+                               float top_p,
+                               float min_p,
                                int max_tokens, int eos_token,
                                int *accepted, int accepted_cap,
                                char *err, size_t errlen) {
-    if (getenv("DS4_DSPARK_B2_DEBUG")) fprintf(stderr, "ds4: b2 ENTER first_token=%d max=%d cap=%d\n", first_token, max_tokens, accepted_cap);
+    if (getenv("DS4_DSPARK_B2_DEBUG")) fprintf(stderr, "ds4: b2 ENTER first_token=%d max=%d cap=%d temp=%.3f top_p=%.3f min_p=%.3f\n", first_token, max_tokens, accepted_cap, temperature, top_p, min_p);
     if (!s || max_tokens <= 0 || accepted_cap <= 0) return 0;
+    if (temperature <= 0.0f) {
+        snprintf(err, errlen, "dspark b2: requires temperature > 0");
+        return -1;
+    }
     ds4_engine *e = s->engine;
 #ifndef DS4_NO_GPU
     const bool _timing = getenv("DS4_DSPARK_B2_DEBUG") != NULL;
@@ -30244,15 +30324,13 @@ int ds4_session_eval_dspark_b2(ds4_session *s, int first_token,
             free(base_logits); free(q_dist); free(markov_bias);
             snprintf(err, errlen, "dspark b2: GPU markov matvec failed"); return n_accept;
         }
-        /* q_row[v] = base[i,v] + markov_bias[v]; argmax (sequential dep on prev). */
+        /* q_row[v] = base[i,v] + markov_bias[v]; keep logits, sample later with the requested temperature. */
         float *q_row = q_dist + (uint64_t)i * vocab;
-        int best = -1; float best_l = -1e30f;
         for (uint64_t v = 0; v < vocab; v++) {
-            float acc = base_logits[i * vocab + v] + markov_bias[v];
-            q_row[v] = acc;
-            if (acc > best_l) { best_l = acc; best = (int)v; }
+            q_row[v] = base_logits[i * vocab + v] + markov_bias[v];
         }
-        drafts[i] = best; prev = best;
+        drafts[i] = sample_argmax(q_row, (uint32_t)vocab);
+        prev = drafts[i];
     }
     free(markov_bias);
     /* NOTE: base_logits kept alive for the target-pos0 Markov recompute below. */
@@ -30263,28 +30341,15 @@ int ds4_session_eval_dspark_b2(ds4_session *s, int first_token,
      * a token from the target distribution instead of the drafter's OOD argmax.
      * The drafter's q_dist[0] is still used for the accept probability. */
     if (getenv("DS4_DSPARK_TARGET_POS0")) {
-        float pmax = -1e30f;
-        for (uint64_t v = 0; v < vocab; v++)
-            if (s->logits[v] > pmax) pmax = s->logits[v];
-        double psum = 0;
-        for (uint64_t v = 0; v < vocab; v++)
-            psum += exp((double)(s->logits[v] - pmax));
         static uint64_t b2_rng_state_pos0 = 0;
         static bool b2_rng_pos0_seeded = false;
         if (!b2_rng_pos0_seeded) {
             b2_rng_state_pos0 = g_dspark_b2_seed ? g_dspark_b2_seed : 0x9e3779b97f4a7c15ULL;
             b2_rng_pos0_seeded = true;
         }
-        double u = (b2_rng_state_pos0 ^= b2_rng_state_pos0 << 13, b2_rng_state_pos0 ^= b2_rng_state_pos0 >> 7,
-                    b2_rng_state_pos0 ^= b2_rng_state_pos0 << 17, (double)(b2_rng_state_pos0 >> 11) / (double)(1ULL << 53));
-        double target_cum = u * psum;
-        double cdf = 0;
-        for (uint64_t v = 0; v < vocab; v++) {
-            cdf += exp((double)(s->logits[v] - pmax));
-            if (cdf >= target_cum) { drafts[0] = (int)v; break; }
-        }
+        drafts[0] = sample_top_p_min_p(s->logits, (uint32_t)vocab, temperature, 0, top_p, min_p, &b2_rng_state_pos0);
         if (getenv("DS4_DSPARK_B2_DEBUG"))
-            fprintf(stderr, "ds4: b2: pos 0 OVERRIDE target-sampled draft=%d\n", drafts[0]);
+            fprintf(stderr, "ds4: b2: pos 0 OVERRIDE target-sampled draft=%d temp=%.3f\n", drafts[0], temperature);
 
         /* Recompute drafts[1..4] Markov chain with prev = drafts[0] (the target
          * token, not the drafter's original argmax). base_logits is still alive.
@@ -30307,15 +30372,24 @@ int ds4_session_eval_dspark_b2(ds4_session *s, int first_token,
                 snprintf(err, errlen, "dspark b2: target-pos0 markov recompute failed"); return n_accept;
             }
             float *q_row = q_dist + (uint64_t)i * vocab;
-            int best = -1; float best_l = -1e30f;
             for (uint64_t v = 0; v < vocab; v++) {
-                float acc = base_logits[i * vocab + v] + mb_recompute[v];
-                q_row[v] = acc;
-                if (acc > best_l) { best_l = acc; best = (int)v; }
+                q_row[v] = base_logits[i * vocab + v] + mb_recompute[v];
             }
-            drafts[i] = best; prev_r = best;
+            drafts[i] = sample_top_p_min_p(q_row, (uint32_t)vocab, temperature, 0, top_p, min_p, &b2_rng_state_pos0);
+            prev_r = drafts[i];
         }
         free(mb_recompute);
+    } else {
+        static uint64_t b2_rng_state_q = 0;
+        static bool b2_rng_q_seeded = false;
+        if (!b2_rng_q_seeded) {
+            b2_rng_state_q = g_dspark_b2_seed ? g_dspark_b2_seed : 0x9e3779b97f4a7c15ULL;
+            b2_rng_q_seeded = true;
+        }
+        for (uint32_t i = 0; i < (uint32_t)block; i++) {
+            float *q_row = q_dist + (uint64_t)i * vocab;
+            drafts[i] = sample_top_p_min_p(q_row, (uint32_t)vocab, temperature, 0, top_p, min_p, &b2_rng_state_q);
+        }
     }
     free(base_logits);
 
@@ -30371,7 +30445,9 @@ int ds4_session_eval_dspark_b2(ds4_session *s, int first_token,
     #define B2_RAND() (b2_rng_state ^= b2_rng_state << 13, b2_rng_state ^= b2_rng_state >> 7, \
                        b2_rng_state ^= b2_rng_state << 17, (double)(b2_rng_state >> 11) / (double)(1ULL << 53))
 
-    /* Helper: compute softmax max + sum for a logits row, then p(x)/q(x). */
+    float *p_probs = xmalloc((size_t)vocab * sizeof(float));
+    float *q_probs = xmalloc((size_t)vocab * sizeof(float));
+
     int b2_start_pos = 0;
     /* Target-pos0: commit pos 0 unconditionally (it IS the target distribution).
      * Skip B2 accept at pos 0, start the accept loop at pos 1. */
@@ -30385,42 +30461,46 @@ int ds4_session_eval_dspark_b2(ds4_session *s, int first_token,
         float *q_row = q_dist + (uint64_t)i * vocab;
         /* Target p: position 0 uses s->logits, positions 1..4 use row_logits[i-1]. */
         float *p_row = (i == 0) ? s->logits : (row_logits + (uint64_t)(i - 1) * vocab);
-        /* Compute q(draft) and p(draft) via stable softmax. */
-        float qmax = -1e30f, pmax = -1e30f;
-        for (uint64_t v = 0; v < vocab; v++) {
-            if (q_row[v] > qmax) qmax = q_row[v];
-            if (p_row[v] > pmax) pmax = p_row[v];
+        if (!sample_distribution_top_p_min_p_full_vocab(q_row, (uint32_t)vocab, temperature, top_p, min_p, q_probs) ||
+            !sample_distribution_top_p_min_p_full_vocab(p_row, (uint32_t)vocab, temperature, top_p, min_p, p_probs)) {
+            free(p_probs); free(q_probs); free(row_tops); free(q_dist); free(row_logits);
+            snprintf(err, errlen, "dspark b2: temperature distribution build failed");
+            return -1;
         }
-        double qsum = 0, psum = 0;
-        for (uint64_t v = 0; v < vocab; v++) {
-            qsum += exp(q_row[v] - qmax);
-            psum += exp(p_row[v] - pmax);
-        }
-        double qd = exp(q_row[draft_tok] - qmax) / qsum;
-        double pd = exp(p_row[draft_tok] - pmax) / psum;
+        double qd = q_probs[draft_tok];
+        double pd = p_probs[draft_tok];
         double accept_prob = (qd > 1e-30) ? (pd / qd) : 0.0;
         if (accept_prob > 1.0) accept_prob = 1.0;
         double u = B2_RAND();
         if (getenv("DS4_DSPARK_B2_DEBUG"))
-            fprintf(stderr, "ds4: b2: pos %d draft=%d q=%.5f p=%.5f accept_p=%.4f u=%.4f %s\n",
+            fprintf(stderr, "ds4: b2: pos %d draft=%d qT=%.5f pT=%.5f accept_p=%.4f u=%.4f %s\n",
                     i, draft_tok, qd, pd, accept_prob, u, u < accept_prob ? "ACCEPT" : "reject");
         if (u < accept_prob) {
             accepted[n_accept++] = draft_tok;
             n_draft_accept++;
         } else {
-            /* Reject: correction = argmax(p - q) (the token where target > drafter). */
-            int correction = -1; double best_diff = -1e30;
+            /* Reject: correction sampled from the temperature-matched positive residual max(0, p_T - q_T). */
+            double residual_sum = 0.0;
             for (uint64_t v = 0; v < vocab; v++) {
-                double pv = exp(p_row[v] - pmax) / psum;
-                double qv = exp(q_row[v] - qmax) / qsum;
-                double diff = pv - qv;
-                if (diff > best_diff) { best_diff = diff; correction = (int)v; }
+                double diff = (double)p_probs[v] - (double)q_probs[v];
+                if (diff > 0.0) residual_sum += diff;
             }
+            int correction = -1;
+            if (residual_sum > 0.0 && isfinite(residual_sum)) {
+                double r = B2_RAND() * residual_sum;
+                for (uint64_t v = 0; v < vocab; v++) {
+                    double diff = (double)p_probs[v] - (double)q_probs[v];
+                    if (diff <= 0.0) continue;
+                    r -= diff;
+                    if (r <= 0.0) { correction = (int)v; break; }
+                }
+            }
+            if (correction < 0) correction = sample_top_p_min_p(p_row, (uint32_t)vocab, temperature, 0, top_p, min_p, &b2_rng_state);
             accepted[n_accept++] = correction;
             break;
         }
     }
-    free(row_tops); free(q_dist);
+    free(p_probs); free(q_probs); free(row_tops); free(q_dist);
     /* NOTE: row_logits is freed after Step 5 — the full-accept branch needs
      * row_logits[block-1] to set s->logits for the next cycle. */
 

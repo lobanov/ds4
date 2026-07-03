@@ -275,6 +275,9 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
  * the DSpark drafter (3 MTP layers + Markov head) and B2 acceptance. */
 int ds4_session_eval_dspark_b2(ds4_session *s, int first_token,
                                bool first_token_already_emitted,
+                               float temperature,
+                               float top_p,
+                               float min_p,
                                int max_tokens, int eos_token,
                                int *accepted, int accepted_cap,
                                char *err, size_t errlen);

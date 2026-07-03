@@ -1696,6 +1696,10 @@ static eval_config parse_options(int argc, char **argv) {
                 c.soft_limit_reply_budget, c.hard_limit_reply_budget);
         exit(2);
     }
+    if (c.dspark_path && c.temperature <= 0.0f) {
+        fprintf(stderr, "ds4-eval: --dspark requires --temp > 0 (current DSpark exactness is defined only for stochastic decoding)\n");
+        exit(2);
+    }
     return c;
 }
 
@@ -3901,6 +3905,9 @@ static eval_run_result run_one_case(ds4_engine *engine, ds4_session *session,
                 if (ds4_engine_has_dspark(engine) && getenv("DS4_DSPARK_DISABLE") == NULL) {
                     ntok = ds4_session_eval_dspark_b2(session, first,
                                     dspark_pending,
+                                    cfg->temperature,
+                                    cfg->top_p,
+                                    cfg->min_p,
                                     remaining_budget, eos, spec_tok,
                                     (int)(sizeof(spec_tok) / sizeof(spec_tok[0])),
                                     err, sizeof(err));
