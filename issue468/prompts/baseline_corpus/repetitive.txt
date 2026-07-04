@@ -1,0 +1,10 @@
+Continue the sequence for a long stretch using the exact same compact pattern and no explanation.
+
+Pattern:
+red blue green | red blue green | red blue green |
+
+Rules:
+- keep repeating the same three-color cycle
+- preserve the separator style ` | `
+- do not summarize or comment
+- just continue the pattern immediately

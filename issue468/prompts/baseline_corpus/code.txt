@@ -1,0 +1,12 @@
+Write a clean Python 3 implementation of a function `top_k_frequent(nums, k)`.
+
+Requirements:
+- input: list of integers `nums`, integer `k`
+- return the `k` most frequent integers
+- if frequencies tie, return smaller integers first
+- include a short doctest-style example
+- include a small `if __name__ == "__main__":` demo
+- no external dependencies
+- prefer readable code over golfing
+
+Output code only.

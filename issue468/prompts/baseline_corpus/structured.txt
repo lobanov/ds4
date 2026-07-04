@@ -1,0 +1,18 @@
+You are given product records in messy prose. Output a strict JSON array only.
+
+Input records:
+1) Item: "Northwind thermal mug", sku NW-118, category kitchen, price 19.95 USD, in stock yes, color graphite.
+2) Item: "Juniper field notebook", sku JN-204, category stationery, price 7.50 USD, in stock no, color moss.
+3) Item: "Atlas cable organizer", sku AT-331, category office, price 12.00 USD, in stock yes, color sand.
+
+Required JSON schema per item:
+{
+  "name": string,
+  "sku": string,
+  "category": string,
+  "price_usd": number,
+  "in_stock": boolean,
+  "color": string
+}
+
+Return valid minified JSON only.
