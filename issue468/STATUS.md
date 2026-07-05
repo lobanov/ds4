@@ -42,6 +42,8 @@ Create a trustworthy active dossier that makes it easy to:
   - F16 ceiling drafter: `issue468/artifacts/dspark_ceiling/dspark_f16.gguf` (gitignored, reproducible)
   - acceptance results: `issue468/artifacts/exactness_small_acceptance/f16_ceiling/` and `q4k_baseline/`
   - diagnostics: `issue468/archive/diagnostics/`
+- MTP bulk draft verifier bandwidth-binding audit (code audit, not a measurement):
+  - summary: `issue468/summaries/mtp_verifier_bandwidth_binding.md`
 
 ## Current conclusions
 
@@ -57,6 +59,14 @@ Create a trustworthy active dossier that makes it easy to:
   quantization.
 - This supersedes the sibling `ds4-dspark` dossier notes 22 and 51 (buggy oracle;
   did not measure the HF-source ceiling).
+- **The MTP bulk draft verifier is memory-bandwidth-bound, not compute-bound,**
+  across its entire operating range (suffix M=2-4, <=16). Its cost is a bandwidth
+  floor ~= one decode, ~flat in K, so speculative gain is governed by accepted
+  tokens per cycle, not by cheaper verification. This confirms the GOAL's stated
+  main risk as structurally real; cheap verification would require larger K,
+  server-side multi-request batching, or a resident hot-weight set. See
+  `summaries/mtp_verifier_bandwidth_binding.md` (empirical confirmation via
+  `DS4_MTP_TIMING=1` is not yet run).
 
 ## Next recommended steps
 
