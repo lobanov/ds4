@@ -1,0 +1,14 @@
+Incident snippets:
+- Juniper Yard: power fluctuation, manual review in progress
+- Morrow Annex: seal failure, isolate affected cartons
+- Atlas Dock: carrier delay, reroute coastal lane
+- North Basin: label mismatch, second count requested
+
+Task:
+Produce one minified JSON object only.
+Schema:
+{"sites": [{"site": string, "issue": string, "action": string}], "open_questions": [string]}
+Constraints:
+- valid minified JSON only
+- no markdown
+- concise values

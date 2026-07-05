@@ -1,0 +1,12 @@
+{
+  "prompt_name": "code_topk",
+  "prompt_file": "issue468/prompts/exactness_small_corpus/code_topk.txt",
+  "temperature": 1.0,
+  "seed": 2,
+  "ctx": 4096,
+  "generated_tokens": 14,
+  "block": 5,
+  "measure_steps": 8,
+  "prompt_tokens": 67,
+  "reference_mode": "sampled-stream"
+}

@@ -744,16 +744,31 @@ static int run_logprob_dump(ds4_engine *engine, const cli_config *cfg, const ds4
         return 1;
     }
 
-    fprintf(fp, "{\n  \"source\":\"ds4\",\n  \"prompt_tokens\":%d,\n  \"ctx\":%d,\n  \"top_k\":%d,\n  \"steps\":[\n",
-            prompt->len, cfg->gen.ctx_size, k);
+    fprintf(fp, "{\n  \"source\":\"ds4\",\n  \"prompt_tokens\":%d,\n  \"ctx\":%d,\n  \"top_k\":%d,\n  \"temperature\":%.9g,\n  \"top_p\":%.9g,\n  \"min_p\":%.9g,\n  \"seed\":%llu,\n  \"steps\":[\n",
+            prompt->len,
+            cfg->gen.ctx_size,
+            k,
+            cfg->gen.temperature,
+            cfg->gen.top_p,
+            cfg->gen.min_p,
+            (unsigned long long)cfg->gen.seed);
     int generated = 0;
     int max_tokens = cfg->gen.n_predict;
     int room = ds4_session_ctx(session) - ds4_session_pos(session);
     if (room <= 1) max_tokens = 0;
     else if (max_tokens > room - 1) max_tokens = room - 1;
+    uint64_t rng = cfg->gen.seed ? cfg->gen.seed :
+        ((uint64_t)time(NULL) ^ ((uint64_t)getpid() << 32) ^ (uint64_t)clock());
     for (; generated < max_tokens; generated++) {
         int n = ds4_session_top_logprobs(session, scores, k);
-        int token = ds4_session_argmax(session);
+        int token = cfg->gen.temperature > 0.0f ?
+            ds4_session_sample(session,
+                               cfg->gen.temperature,
+                               0,
+                               cfg->gen.top_p,
+                               cfg->gen.min_p,
+                               &rng) :
+            ds4_session_argmax(session);
         if (generated) fputs(",\n", fp);
         fprintf(fp, "    {\"step\":%d,\"selected\":", generated);
         json_write_token(fp, engine, token);

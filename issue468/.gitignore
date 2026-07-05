@@ -1,0 +1,4 @@
+artifacts/exactness_small_bundles/*/captures/*.bin
+artifacts/exactness_small_bundles/*/oracle/*.npy
+artifacts/exactness_small_bundles/*/target.dump.*.stdout
+artifacts/exactness_small_bundles/*/target.dump.*.stderr

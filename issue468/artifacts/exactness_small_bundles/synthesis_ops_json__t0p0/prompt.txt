@@ -1,0 +1,15 @@
+Operations notes:
+facility=North Basin status=open issue=label mismatch units_held=18
+facility=Atlas Dock status=contained issue=carrier delay units_held=9
+facility=Lumen Hub status=open issue=sensor drift units_held=14
+facility=Cedar Spur status=open issue=packing backlog units_held=11
+
+Task:
+Return one minified JSON object only.
+Schema:
+{"overview": string, "facility_status": [{"site": string, "status": string, "issue": string}], "recommended_actions": [string]}
+Constraints:
+- valid minified JSON only
+- no markdown
+- keep `overview` concise
+- include all listed facilities

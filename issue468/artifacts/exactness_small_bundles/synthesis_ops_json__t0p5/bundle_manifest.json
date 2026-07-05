@@ -1,0 +1,12 @@
+{
+  "prompt_name": "synthesis_ops_json",
+  "prompt_file": "issue468/prompts/exactness_small_corpus/synthesis_ops_json.txt",
+  "temperature": 0.5,
+  "seed": 2,
+  "ctx": 4096,
+  "generated_tokens": 14,
+  "block": 5,
+  "measure_steps": 8,
+  "prompt_tokens": 165,
+  "reference_mode": "sampled-stream"
+}

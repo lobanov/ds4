@@ -1,0 +1,10 @@
+Repository note:
+Implement `sort_pairs(pairs)`.
+
+Rules:
+- input: list of `(name, count)` tuples
+- output: a new list sorted by descending count, then ascending name
+- keep the implementation standalone
+- avoid custom classes
+- include a short docstring and two tiny tests in the file
+- output code only

@@ -1,0 +1,192 @@
+{
+  "label": "synthesis_timeline_json@temp=1.0",
+  "bundle_dir": "/Users/lobanov/Projects/ds4-dspark-research/issue468/artifacts/exactness_small_bundles/synthesis_timeline_json__t1p0",
+  "prompt_name": "synthesis_timeline_json",
+  "temperature": 1.0,
+  "seed": 2,
+  "prompt_tokens": 148,
+  "measure_steps": 8,
+  "total_positions": 40,
+  "total_match": 13,
+  "match_pct": 32.5,
+  "average_prefix": 1.375,
+  "prefix_hist": {
+    "0": 3,
+    "1": 2,
+    "2": 1,
+    "3": 1,
+    "4": 1,
+    "5": 0
+  },
+  "rows": [
+    {
+      "step": 1,
+      "position": 149,
+      "anchor": 1309,
+      "draft": [
+        304,
+        3551,
+        260,
+        26639,
+        2873
+      ],
+      "target": [
+        304,
+        5238,
+        260,
+        1550,
+        2399
+      ],
+      "match": 2,
+      "prefix": 1
+    },
+    {
+      "step": 2,
+      "position": 150,
+      "anchor": 304,
+      "draft": [
+        3551,
+        260,
+        26639,
+        5554,
+        294
+      ],
+      "target": [
+        5238,
+        260,
+        1550,
+        2399,
+        26639
+      ],
+      "match": 1,
+      "prefix": 0
+    },
+    {
+      "step": 3,
+      "position": 151,
+      "anchor": 5238,
+      "draft": [
+        295,
+        270,
+        26639,
+        418,
+        260
+      ],
+      "target": [
+        260,
+        1550,
+        2399,
+        26639,
+        2873
+      ],
+      "match": 0,
+      "prefix": 0
+    },
+    {
+      "step": 4,
+      "position": 152,
+      "anchor": 260,
+      "draft": [
+        4031,
+        26639,
+        2873,
+        418,
+        260
+      ],
+      "target": [
+        1550,
+        2399,
+        26639,
+        2873,
+        418
+      ],
+      "match": 0,
+      "prefix": 0
+    },
+    {
+      "step": 5,
+      "position": 153,
+      "anchor": 1550,
+      "draft": [
+        2399,
+        26639,
+        2873,
+        418,
+        270
+      ],
+      "target": [
+        2399,
+        26639,
+        2873,
+        418,
+        260
+      ],
+      "match": 4,
+      "prefix": 4
+    },
+    {
+      "step": 6,
+      "position": 154,
+      "anchor": 2399,
+      "draft": [
+        26639,
+        2873,
+        418,
+        270,
+        41273
+      ],
+      "target": [
+        26639,
+        2873,
+        418,
+        260,
+        40077
+      ],
+      "match": 3,
+      "prefix": 3
+    },
+    {
+      "step": 7,
+      "position": 155,
+      "anchor": 26639,
+      "draft": [
+        2873,
+        418,
+        582,
+        6145,
+        305
+      ],
+      "target": [
+        2873,
+        418,
+        260,
+        40077,
+        5554
+      ],
+      "match": 2,
+      "prefix": 2
+    },
+    {
+      "step": 8,
+      "position": 156,
+      "anchor": 2873,
+      "draft": [
+        418,
+        582,
+        43658,
+        7988,
+        4
+      ],
+      "target": [
+        418,
+        260,
+        40077,
+        5554,
+        305
+      ],
+      "match": 1,
+      "prefix": 1
+    }
+  ],
+  "reference_mode": "sampled-stream"
+}

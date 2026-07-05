@@ -1,0 +1,14 @@
+Archive:
+2026-04-03T05:10Z North Basin label mismatch found on lane 2
+2026-04-03T07:40Z Atlas Dock held westbound pallet group for recount
+2026-04-03T09:15Z Lumen Hub flagged sensor drift on scanner rack
+2026-04-03T11:05Z Cedar Spur backlog reduced after relabel pass
+
+Task:
+Return one minified JSON object only.
+Schema:
+{"timeline": [{"stamp": string, "event": string}], "summary": string}
+Constraints:
+- valid minified JSON only
+- preserve timestamp order
+- no extra keys

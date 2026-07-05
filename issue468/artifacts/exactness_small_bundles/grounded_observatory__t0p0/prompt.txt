@@ -1,0 +1,14 @@
+Source notes:
+- Mara returned to the east dome before dawn.
+- Hard wind scraped the copper catwalk.
+- The signal lamp stayed dark through the sleet.
+- The frost on the lens housing had thickened overnight.
+- She carried a canvas tool roll and a frosted logbook.
+
+Task:
+Write the next 2 short paragraphs of the expedition log.
+Constraints:
+- third-person past tense
+- no dialogue
+- keep the observatory setting grounded in the notes
+- end with a small physical action

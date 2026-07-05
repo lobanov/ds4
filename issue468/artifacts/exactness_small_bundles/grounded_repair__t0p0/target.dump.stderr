@@ -1,0 +1,22 @@
+ds4: Metal device Apple M5 Max, 128.00 GiB RAM
+ds4: Metal 4 tensor API enabled for Tensor kernels
+ds4: drift-patch flags hc_stable=on norm_unify=on kv_raw_f32=off rope_exp2_log2=off math_safe=off tensor_matmul=on
+ds4: Metal model views created in 1.659 ms, residency requested in 4163.571 ms, warmup 3.251 ms (mapped 82697.67 MiB from offset 5.09 MiB)
+ds4: Metal mapped mmaped model as 2 overlapping shared buffers
+ds4: metal backend initialized for graph diagnostics
+ds4: context buffers 410.29 MiB (ctx=4096, backend=metal, prefill_chunk=4096, raw_kv_rows=4096, compressed_kv_rows=1026)
+ds4: dumped hc_ffn_post layer 40 pos 0 to /Users/lobanov/Projects/ds4-dspark-research/issue468/artifacts/exactness_small_bundles/grounded_repair__t0p0/captures/dump_hc_ffn_post-40_pos0.bin
+ds4: dumped hc_ffn_post layer 40 pos 90 to /Users/lobanov/Projects/ds4-dspark-research/issue468/artifacts/exactness_small_bundles/grounded_repair__t0p0/captures/dump_hc_ffn_post-40_pos90.bin
+ds4: dumped hc_ffn_post layer 40 pos 91 to /Users/lobanov/Projects/ds4-dspark-research/issue468/artifacts/exactness_small_bundles/grounded_repair__t0p0/captures/dump_hc_ffn_post-40_pos91.bin
+ds4: dumped hc_ffn_post layer 40 pos 92 to /Users/lobanov/Projects/ds4-dspark-research/issue468/artifacts/exactness_small_bundles/grounded_repair__t0p0/captures/dump_hc_ffn_post-40_pos92.bin
+ds4: dumped hc_ffn_post layer 40 pos 93 to /Users/lobanov/Projects/ds4-dspark-research/issue468/artifacts/exactness_small_bundles/grounded_repair__t0p0/captures/dump_hc_ffn_post-40_pos93.bin
+ds4: dumped hc_ffn_post layer 40 pos 94 to /Users/lobanov/Projects/ds4-dspark-research/issue468/artifacts/exactness_small_bundles/grounded_repair__t0p0/captures/dump_hc_ffn_post-40_pos94.bin
+ds4: dumped hc_ffn_post layer 40 pos 95 to /Users/lobanov/Projects/ds4-dspark-research/issue468/artifacts/exactness_small_bundles/grounded_repair__t0p0/captures/dump_hc_ffn_post-40_pos95.bin
+ds4: dumped hc_ffn_post layer 40 pos 96 to /Users/lobanov/Projects/ds4-dspark-research/issue468/artifacts/exactness_small_bundles/grounded_repair__t0p0/captures/dump_hc_ffn_post-40_pos96.bin
+ds4: dumped hc_ffn_post layer 40 pos 97 to /Users/lobanov/Projects/ds4-dspark-research/issue468/artifacts/exactness_small_bundles/grounded_repair__t0p0/captures/dump_hc_ffn_post-40_pos97.bin
+ds4: dumped hc_ffn_post layer 40 pos 98 to /Users/lobanov/Projects/ds4-dspark-research/issue468/artifacts/exactness_small_bundles/grounded_repair__t0p0/captures/dump_hc_ffn_post-40_pos98.bin
+ds4: dumped hc_ffn_post layer 40 pos 99 to /Users/lobanov/Projects/ds4-dspark-research/issue468/artifacts/exactness_small_bundles/grounded_repair__t0p0/captures/dump_hc_ffn_post-40_pos99.bin
+ds4: dumped hc_ffn_post layer 40 pos 100 to /Users/lobanov/Projects/ds4-dspark-research/issue468/artifacts/exactness_small_bundles/grounded_repair__t0p0/captures/dump_hc_ffn_post-40_pos100.bin
+ds4: dumped hc_ffn_post layer 40 pos 101 to /Users/lobanov/Projects/ds4-dspark-research/issue468/artifacts/exactness_small_bundles/grounded_repair__t0p0/captures/dump_hc_ffn_post-40_pos101.bin
+ds4: dumped hc_ffn_post layer 40 pos 102 to /Users/lobanov/Projects/ds4-dspark-research/issue468/artifacts/exactness_small_bundles/grounded_repair__t0p0/captures/dump_hc_ffn_post-40_pos102.bin
+ds4: dumped hc_ffn_post layer 40 pos 103 to /Users/lobanov/Projects/ds4-dspark-research/issue468/artifacts/exactness_small_bundles/grounded_repair__t0p0/captures/dump_hc_ffn_post-40_pos103.bin

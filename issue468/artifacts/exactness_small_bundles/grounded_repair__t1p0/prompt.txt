@@ -1,0 +1,12 @@
+Source notes:
+- Wind pressed snow against the snow gate.
+- Mara checked the dome gearing by hand.
+- The maintenance ledger mentioned intermittent drag at the meridian stair.
+- The oak transit case had been left shut beside the wall.
+
+Task:
+Write a short continuation of the repair log in 2 paragraphs.
+Constraints:
+- third-person past tense
+- concrete physical details only
+- no dialogue

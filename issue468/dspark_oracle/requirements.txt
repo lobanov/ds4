@@ -1,0 +1,7 @@
+# Minimal retained-oracle environment for local smoke validation.
+# Recreate with:
+#   python3 -m venv .venv
+#   . .venv/bin/activate
+#   python -m pip install -r requirements.txt
+
+numpy

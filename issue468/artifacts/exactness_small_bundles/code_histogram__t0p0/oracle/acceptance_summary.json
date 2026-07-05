@@ -1,0 +1,192 @@
+{
+  "label": "code_histogram@temp=0.0",
+  "bundle_dir": "/Users/lobanov/Projects/ds4-dspark-research/issue468/artifacts/exactness_small_bundles/code_histogram__t0p0",
+  "prompt_name": "code_histogram",
+  "temperature": 0.0,
+  "seed": 2,
+  "prompt_tokens": 70,
+  "measure_steps": 8,
+  "total_positions": 40,
+  "total_match": 32,
+  "match_pct": 80.0,
+  "average_prefix": 3.125,
+  "prefix_hist": {
+    "0": 2,
+    "1": 1,
+    "2": 0,
+    "3": 0,
+    "4": 1,
+    "5": 4
+  },
+  "rows": [
+    {
+      "step": 1,
+      "position": 71,
+      "anchor": 1309,
+      "draft": [
+        304,
+        1258,
+        260,
+        2019,
+        3608
+      ],
+      "target": [
+        304,
+        4678,
+        260,
+        2019,
+        3608
+      ],
+      "match": 4,
+      "prefix": 1
+    },
+    {
+      "step": 2,
+      "position": 72,
+      "anchor": 304,
+      "draft": [
+        1258,
+        260,
+        2019,
+        3608,
+        29295
+      ],
+      "target": [
+        4678,
+        260,
+        2019,
+        3608,
+        29295
+      ],
+      "match": 4,
+      "prefix": 0
+    },
+    {
+      "step": 3,
+      "position": 73,
+      "anchor": 4678,
+      "draft": [
+        9181,
+        4966,
+        65,
+        13930,
+        14614
+      ],
+      "target": [
+        260,
+        2019,
+        3608,
+        29295,
+        65
+      ],
+      "match": 0,
+      "prefix": 0
+    },
+    {
+      "step": 4,
+      "position": 74,
+      "anchor": 260,
+      "draft": [
+        2019,
+        3608,
+        29295,
+        65,
+        13930
+      ],
+      "target": [
+        2019,
+        3608,
+        29295,
+        65,
+        13930
+      ],
+      "match": 5,
+      "prefix": 5
+    },
+    {
+      "step": 5,
+      "position": 75,
+      "anchor": 2019,
+      "draft": [
+        3608,
+        29295,
+        65,
+        13930,
+        14614
+      ],
+      "target": [
+        3608,
+        29295,
+        65,
+        13930,
+        14614
+      ],
+      "match": 5,
+      "prefix": 5
+    },
+    {
+      "step": 6,
+      "position": 76,
+      "anchor": 3608,
+      "draft": [
+        29295,
+        65,
+        13930,
+        14614,
+        44366
+      ],
+      "target": [
+        29295,
+        65,
+        13930,
+        14614,
+        88287
+      ],
+      "match": 4,
+      "prefix": 4
+    },
+    {
+      "step": 7,
+      "position": 77,
+      "anchor": 29295,
+      "draft": [
+        65,
+        13930,
+        14614,
+        88287,
+        90812
+      ],
+      "target": [
+        65,
+        13930,
+        14614,
+        88287,
+        90812
+      ],
+      "match": 5,
+      "prefix": 5
+    },
+    {
+      "step": 8,
+      "position": 78,
+      "anchor": 65,
+      "draft": [
+        13930,
+        14614,
+        88287,
+        90812,
+        396
+      ],
+      "target": [
+        13930,
+        14614,
+        88287,
+        90812,
+        396
+      ],
+      "match": 5,
+      "prefix": 5
+    }
+  ],
+  "reference_mode": "greedy"
+}

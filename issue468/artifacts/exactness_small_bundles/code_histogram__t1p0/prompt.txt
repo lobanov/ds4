@@ -1,0 +1,9 @@
+Repository task:
+Add `build_histogram(values)` that returns a list of `(value, count)` pairs.
+
+Style constraints:
+- prefer readability over cleverness
+- return plain dict/list data only
+- stable deterministic ordering by value
+- include two compact tests
+- output Python code only
