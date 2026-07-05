@@ -35,6 +35,28 @@ Create a trustworthy active dossier that makes it easy to:
   - summary: `issue468/summaries/plain_baseline_matrix.md`
   - artifacts: `issue468/artifacts/plain_baseline_matrix/summary.csv`
   - artifacts: `issue468/artifacts/plain_baseline_matrix/summary.json`
+- DSpark drafter quantization ceiling (Q4_K vs F16 vs F32) — measured and closed:
+  - summary: `issue468/summaries/dspark_quantization_ceiling.md`
+  - converter (research-scoped copy): `issue468/dspark_converter/`
+  - bulk acceptance harness: `issue468/run_ceiling_bulk.py`
+  - F16 ceiling drafter: `issue468/artifacts/dspark_ceiling/dspark_f16.gguf` (gitignored, reproducible)
+  - acceptance results: `issue468/artifacts/exactness_small_acceptance/f16_ceiling/` and `q4k_baseline/`
+  - diagnostics: `issue468/archive/diagnostics/`
+
+## Current conclusions
+
+- **Q4_K is not the draft-quality bottleneck.** Removing routed-expert quantization
+  (F16/F32 drafter from the vendored MXFP4 source) yields no material acceptance
+  gain: 3.5% of draft tokens flip vs Q4_K, but net accepted-prefix change is
+  +0.38% overall (within noise; sign inconsistent across temperatures).
+- The vendored drafter ships as MXFP4 (4-bit); F16 already captures its full
+  dequant (F16≡F32 at the weight level), so no available precision beats Q4_K.
+- This falsifies the "Q4_K drafter quality causes the verifier-dominated cycle"
+  hypothesis. The cycle overhead originates elsewhere (verification / KV-replay /
+  scheduling), not draft precision. Research should redirect away from drafter
+  quantization.
+- This supersedes the sibling `ds4-dspark` dossier notes 22 and 51 (buggy oracle;
+  did not measure the HF-source ceiling).
 
 ## Next recommended steps
 

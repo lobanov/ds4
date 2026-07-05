@@ -4,6 +4,18 @@
 For temp=0 this is greedy-prefix agreement against the deterministic target
 stream. For temp>0 it is sampled-stream prefix agreement against the retained
 selected target continuation from the same seeded run.
+
+This module exposes three pieces so a bulk runner can amortize the expensive
+one-time loads (target embed/lm_head, drafter dense tensors, RoPE) across many
+bundles and many drafter GGUFs without re-spawning a process per bundle:
+
+  - build_model_ctx(model_path)   : load target embed_w + lm_head + RoPE once
+  - build_drafter_ctx(dspark_path): load drafter dense tensors + layers + stores
+  - measure_bundle(bundle_dir, mctx, dctx) : run one bundle, return summary dict
+
+The CLI main() builds both contexts from args and calls measure_bundle, so the
+single-bundle path is behaviour-identical to the bulk path (single source of
+truth for the measurement numerics).
 """
 from __future__ import annotations
 
@@ -81,23 +93,50 @@ def dspark_attn(x_draft: np.ndarray, win_kv: np.ndarray, n_real: int,
     return (o_lor.reshape(bs, block, N_GROUPS * O_LORA) @ w["output_b"].T).astype(np.float32)
 
 
-def main() -> int:
-    args = parse_args()
-    bundle_dir = Path(args.bundle_dir)
+def build_model_ctx(model_path: str) -> dict:
+    """Load target-model-derived tensors that are independent of the drafter GGUF.
+    Load once, reuse across every drafter and every bundle."""
+    _, ti, tdo = index_gguf(model_path)
+    embed_w = read_tensor(model_path, ti, tdo, "token_embd.weight").astype(np.float32)
+    lm_head = read_tensor(model_path, ti, tdo, "output.weight").astype(np.float32)
+    cos, sin = precompute_rope(64, 4096)
+    return {"embed_w": embed_w, "lm_head": lm_head, "cos": cos, "sin": sin}
+
+
+def build_drafter_ctx(dspark_path: str) -> dict:
+    """Load drafter-specific dense tensors + per-layer weight dicts + expert stores.
+    Load once per drafter GGUF, reuse across every bundle."""
+    _, T, infos, doff, _ = load_gguf_dense_only(dspark_path)
+    return {
+        "T": T,
+        "infos": infos,
+        "doff": doff,
+        "main_proj": T["mtp.0.main_proj.weight"][0],
+        "main_norm_w": T["mtp.0.main_norm.weight"][0],
+        "layers": [layer_weights(T, s) for s in range(3)],
+        "stores": [ExpertStore(dspark_path, infos, doff, s) for s in range(3)],
+    }
+
+
+def measure_bundle(bundle_dir: Path, mctx: dict, dctx: dict, *, candidate: str | None = None) -> dict:
+    """Run the drafter forward over one retained bundle and return the acceptance
+    summary dict. Fresh per-bundle KV window; does NOT clear expert caches (the
+    caller decides memory policy)."""
+    bundle_dir = Path(bundle_dir)
+    T = dctx["T"]
+    layers = dctx["layers"]
+    stores = dctx["stores"]
+    main_proj = dctx["main_proj"]
+    main_norm_w = dctx["main_norm_w"]
+    embed_w = mctx["embed_w"]
+    lm_head = mctx["lm_head"]
+    cos, sin = mctx["cos"], mctx["sin"]
+
     manifest = json.loads((bundle_dir / "bundle_manifest.json").read_text())
     target_tokens = json.loads((bundle_dir / "target_selected_tokens.json").read_text())
     pos0 = int(manifest["prompt_tokens"])
     label = f"{manifest['prompt_name']}@temp={manifest['temperature']}"
 
-    _, T, infos, doff, _ = load_gguf_dense_only(args.dspark)
-    _, ti, tdo = index_gguf(args.model)
-    embed_w = read_tensor(args.model, ti, tdo, "token_embd.weight").astype(np.float32)
-    lm_head = read_tensor(args.model, ti, tdo, "output.weight").astype(np.float32)
-    cos, sin = precompute_rope(64, 4096)
-    main_proj = T["mtp.0.main_proj.weight"][0]
-    main_norm_w = T["mtp.0.main_norm.weight"][0]
-    layers = [layer_weights(T, s) for s in range(3)]
-    stores = [ExpertStore(args.dspark, infos, doff, s) for s in range(3)]
     win_kv = [np.zeros((WIN, HEAD_DIM), dtype=np.float32) for _ in range(3)]
 
     mh0 = load_mh(bundle_dir, pos0)
@@ -183,6 +222,7 @@ def main() -> int:
     avg_prefix = float(sum(row["prefix"] for row in rows) / n_rows) if n_rows else 0.0
     summary = {
         "label": label,
+        "candidate": candidate,
         "bundle_dir": str(bundle_dir),
         "prompt_name": manifest["prompt_name"],
         "temperature": manifest["temperature"],
@@ -197,6 +237,14 @@ def main() -> int:
         "rows": rows,
         "reference_mode": "greedy" if float(manifest["temperature"]) == 0.0 else "sampled-stream",
     }
+    return summary
+
+
+def main() -> int:
+    args = parse_args()
+    mctx = build_model_ctx(args.model)
+    dctx = build_drafter_ctx(args.dspark)
+    summary = measure_bundle(Path(args.bundle_dir), mctx, dctx)
     if args.json_out:
         Path(args.json_out).write_text(json.dumps(summary, indent=2) + "\n")
     else:

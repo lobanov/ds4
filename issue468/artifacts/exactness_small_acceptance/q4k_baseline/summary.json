@@ -1,0 +1,20 @@
+{
+  "label": "q4k_baseline",
+  "dspark": "/Users/lobanov/Projects/ds4/gguf/dspark.gguf",
+  "n_bundles": 30,
+  "mean_avg_prefix": 2.1708333333333334,
+  "by_temperature": {
+    "0.0": {
+      "mean": 2.3375,
+      "n": 10
+    },
+    "0.5": {
+      "mean": 2.0875,
+      "n": 10
+    },
+    "1.0": {
+      "mean": 2.0875,
+      "n": 10
+    }
+  }
+}

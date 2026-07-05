@@ -1,0 +1,193 @@
+{
+  "label": "synthesis_incident_json@temp=0.5",
+  "candidate": "q4k_baseline",
+  "bundle_dir": "/Users/lobanov/Projects/ds4-dspark-research/issue468/artifacts/exactness_small_bundles/synthesis_incident_json__t0p5",
+  "prompt_name": "synthesis_incident_json",
+  "temperature": 0.5,
+  "seed": 2,
+  "prompt_tokens": 121,
+  "measure_steps": 8,
+  "total_positions": 40,
+  "total_match": 24,
+  "match_pct": 60.0,
+  "average_prefix": 2.875,
+  "prefix_hist": {
+    "0": 0,
+    "1": 2,
+    "2": 2,
+    "3": 1,
+    "4": 1,
+    "5": 2
+  },
+  "rows": [
+    {
+      "step": 1,
+      "position": 122,
+      "anchor": 1309,
+      "draft": [
+        304,
+        7009,
+        260,
+        26639,
+        2873
+      ],
+      "target": [
+        304,
+        7009,
+        260,
+        1550,
+        2399
+      ],
+      "match": 3,
+      "prefix": 3
+    },
+    {
+      "step": 2,
+      "position": 123,
+      "anchor": 304,
+      "draft": [
+        7009,
+        260,
+        26639,
+        2873,
+        418
+      ],
+      "target": [
+        7009,
+        260,
+        1550,
+        2399,
+        26639
+      ],
+      "match": 2,
+      "prefix": 2
+    },
+    {
+      "step": 3,
+      "position": 124,
+      "anchor": 7009,
+      "draft": [
+        260,
+        26639,
+        418,
+        270,
+        26639
+      ],
+      "target": [
+        260,
+        1550,
+        2399,
+        26639,
+        2873
+      ],
+      "match": 1,
+      "prefix": 1
+    },
+    {
+      "step": 4,
+      "position": 125,
+      "anchor": 260,
+      "draft": [
+        1550,
+        2399,
+        26639,
+        2873,
+        418
+      ],
+      "target": [
+        1550,
+        2399,
+        26639,
+        2873,
+        418
+      ],
+      "match": 5,
+      "prefix": 5
+    },
+    {
+      "step": 5,
+      "position": 126,
+      "anchor": 1550,
+      "draft": [
+        2399,
+        26639,
+        2873,
+        418,
+        270
+      ],
+      "target": [
+        2399,
+        26639,
+        2873,
+        418,
+        270
+      ],
+      "match": 5,
+      "prefix": 5
+    },
+    {
+      "step": 6,
+      "position": 127,
+      "anchor": 2399,
+      "draft": [
+        26639,
+        2873,
+        538,
+        270,
+        2689
+      ],
+      "target": [
+        26639,
+        2873,
+        418,
+        270,
+        2910
+      ],
+      "match": 3,
+      "prefix": 2
+    },
+    {
+      "step": 7,
+      "position": 128,
+      "anchor": 26639,
+      "draft": [
+        2873,
+        418,
+        270,
+        2910,
+        14471
+      ],
+      "target": [
+        2873,
+        418,
+        270,
+        2910,
+        37913
+      ],
+      "match": 4,
+      "prefix": 4
+    },
+    {
+      "step": 8,
+      "position": 129,
+      "anchor": 2873,
+      "draft": [
+        418,
+        411,
+        5554,
+        305,
+        31324
+      ],
+      "target": [
+        418,
+        270,
+        2910,
+        37913,
+        16
+      ],
+      "match": 1,
+      "prefix": 1
+    }
+  ],
+  "reference_mode": "sampled-stream"
+}

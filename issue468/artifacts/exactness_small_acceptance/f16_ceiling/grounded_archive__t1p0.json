@@ -1,0 +1,193 @@
+{
+  "label": "grounded_archive@temp=1.0",
+  "candidate": "f16_ceiling",
+  "bundle_dir": "/Users/lobanov/Projects/ds4-dspark-research/issue468/artifacts/exactness_small_bundles/grounded_archive__t1p0",
+  "prompt_name": "grounded_archive",
+  "temperature": 1.0,
+  "seed": 2,
+  "prompt_tokens": 102,
+  "measure_steps": 8,
+  "total_positions": 40,
+  "total_match": 22,
+  "match_pct": 55.0,
+  "average_prefix": 2.75,
+  "prefix_hist": {
+    "0": 1,
+    "1": 1,
+    "2": 2,
+    "3": 1,
+    "4": 1,
+    "5": 2
+  },
+  "rows": [
+    {
+      "step": 1,
+      "position": 103,
+      "anchor": 1309,
+      "draft": [
+        304,
+        5448,
+        270,
+        11219,
+        295
+      ],
+      "target": [
+        304,
+        5448,
+        270,
+        11219,
+        295
+      ],
+      "match": 5,
+      "prefix": 5
+    },
+    {
+      "step": 2,
+      "position": 104,
+      "anchor": 304,
+      "draft": [
+        5448,
+        270,
+        11219,
+        295,
+        1234
+      ],
+      "target": [
+        5448,
+        270,
+        11219,
+        295,
+        1234
+      ],
+      "match": 5,
+      "prefix": 5
+    },
+    {
+      "step": 3,
+      "position": 105,
+      "anchor": 5448,
+      "draft": [
+        270,
+        11219,
+        295,
+        1234,
+        42830
+      ],
+      "target": [
+        270,
+        11219,
+        295,
+        1234,
+        3107
+      ],
+      "match": 4,
+      "prefix": 4
+    },
+    {
+      "step": 4,
+      "position": 106,
+      "anchor": 270,
+      "draft": [
+        11219,
+        295,
+        1234,
+        42830,
+        14
+      ],
+      "target": [
+        11219,
+        295,
+        1234,
+        3107,
+        42830
+      ],
+      "match": 3,
+      "prefix": 3
+    },
+    {
+      "step": 5,
+      "position": 107,
+      "anchor": 11219,
+      "draft": [
+        295,
+        1234,
+        42830,
+        14,
+        40688
+      ],
+      "target": [
+        295,
+        1234,
+        3107,
+        42830,
+        14
+      ],
+      "match": 2,
+      "prefix": 2
+    },
+    {
+      "step": 6,
+      "position": 108,
+      "anchor": 295,
+      "draft": [
+        1234,
+        42830,
+        14,
+        40688,
+        14
+      ],
+      "target": [
+        1234,
+        3107,
+        42830,
+        14,
+        1812
+      ],
+      "match": 1,
+      "prefix": 1
+    },
+    {
+      "step": 7,
+      "position": 109,
+      "anchor": 1234,
+      "draft": [
+        42830,
+        14,
+        40688,
+        295,
+        270
+      ],
+      "target": [
+        3107,
+        42830,
+        14,
+        1812,
+        40688
+      ],
+      "match": 0,
+      "prefix": 0
+    },
+    {
+      "step": 8,
+      "position": 110,
+      "anchor": 3107,
+      "draft": [
+        42830,
+        14,
+        40688,
+        295,
+        270
+      ],
+      "target": [
+        42830,
+        14,
+        1812,
+        40688,
+        35984
+      ],
+      "match": 2,
+      "prefix": 2
+    }
+  ],
+  "reference_mode": "sampled-stream"
+}

@@ -246,6 +246,37 @@ def dequant_q4_k_expert(path, infos, data_off, name, expert_idx):
     return _gguf_ne_to_torch(arr, [in_dim, out_dim]).copy()  # HF [out,in]
 
 
+def read_dense_expert(path, infos, data_off, name, expert_idx):
+    """Read ONE expert's slice from a packed dense (F32/F16/BF16) expert tensor
+    [in,out,n_exp] and return F32 [out,in] in the SAME convention as
+    dequant_q4_k_expert (x @ stored, no transpose). Lazy + low-RAM: reads only
+    this expert's contiguous byte slice. Mirrors dequant_q4_k_expert's layout
+    (per-expert slices contiguous, no inter-expert padding). Used for unquantized
+    ceiling GGUFs where the routed experts are F32/F16/BF16 instead of Q4_K."""
+    dims, tt, off = infos[name]
+    in_dim, out_dim, n_exp = dims
+    elems_per_exp = in_dim * out_dim
+    if tt == 0:      # F32
+        bpe = 4
+        with open(path, "rb") as f:
+            f.seek(data_off + off + expert_idx * elems_per_exp * bpe)
+            arr = np.frombuffer(f.read(elems_per_exp * bpe), dtype=np.float32).copy()
+    elif tt == 1:    # F16
+        bpe = 2
+        with open(path, "rb") as f:
+            f.seek(data_off + off + expert_idx * elems_per_exp * bpe)
+            arr = _f16_to_f32(np.frombuffer(f.read(elems_per_exp * bpe), dtype=np.uint16).copy())
+    elif tt == 30:   # BF16
+        bpe = 2
+        with open(path, "rb") as f:
+            f.seek(data_off + off + expert_idx * elems_per_exp * bpe)
+            arr = _bf16_to_f32(np.frombuffer(f.read(elems_per_exp * bpe), dtype=np.uint16).copy())
+    else:
+        raise ValueError(f"read_dense_expert unsupported type {tt} for {name}; "
+                         f"use dequant_q4_k_expert for Q4_K")
+    return _gguf_ne_to_torch(arr, [in_dim, out_dim]).copy()
+
+
 def load_gguf_dense_only(path, skip_pred=None):
     """Like load_gguf but skips tensors matching skip_pred(name) (returns their
     names skipped). Used to load all dense DSpark tensors while leaving the 9

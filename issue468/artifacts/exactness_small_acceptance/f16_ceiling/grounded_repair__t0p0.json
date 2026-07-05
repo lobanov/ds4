@@ -1,0 +1,193 @@
+{
+  "label": "grounded_repair@temp=0.0",
+  "candidate": "f16_ceiling",
+  "bundle_dir": "/Users/lobanov/Projects/ds4-dspark-research/issue468/artifacts/exactness_small_bundles/grounded_repair__t0p0",
+  "prompt_name": "grounded_repair",
+  "temperature": 0.0,
+  "seed": 2,
+  "prompt_tokens": 90,
+  "measure_steps": 8,
+  "total_positions": 40,
+  "total_match": 21,
+  "match_pct": 52.5,
+  "average_prefix": 2.375,
+  "prefix_hist": {
+    "0": 2,
+    "1": 1,
+    "2": 1,
+    "3": 1,
+    "4": 2,
+    "5": 1
+  },
+  "rows": [
+    {
+      "step": 1,
+      "position": 91,
+      "anchor": 1309,
+      "draft": [
+        304,
+        5085,
+        260,
+        47514,
+        295
+      ],
+      "target": [
+        304,
+        5085,
+        260,
+        47514,
+        294
+      ],
+      "match": 4,
+      "prefix": 4
+    },
+    {
+      "step": 2,
+      "position": 92,
+      "anchor": 304,
+      "draft": [
+        5085,
+        260,
+        3107,
+        42830,
+        295
+      ],
+      "target": [
+        5085,
+        260,
+        47514,
+        294,
+        260
+      ],
+      "match": 2,
+      "prefix": 2
+    },
+    {
+      "step": 3,
+      "position": 93,
+      "anchor": 5085,
+      "draft": [
+        260,
+        3107,
+        42830,
+        2951,
+        377
+      ],
+      "target": [
+        260,
+        47514,
+        294,
+        260,
+        15292
+      ],
+      "match": 1,
+      "prefix": 1
+    },
+    {
+      "step": 4,
+      "position": 94,
+      "anchor": 260,
+      "draft": [
+        3107,
+        47514,
+        294,
+        270,
+        1234
+      ],
+      "target": [
+        47514,
+        294,
+        260,
+        15292,
+        2912
+      ],
+      "match": 0,
+      "prefix": 0
+    },
+    {
+      "step": 5,
+      "position": 95,
+      "anchor": 47514,
+      "draft": [
+        295,
+        270,
+        15292,
+        2912,
+        14
+      ],
+      "target": [
+        294,
+        260,
+        15292,
+        2912,
+        295
+      ],
+      "match": 2,
+      "prefix": 0
+    },
+    {
+      "step": 6,
+      "position": 96,
+      "anchor": 294,
+      "draft": [
+        260,
+        15292,
+        2912,
+        295,
+        223
+      ],
+      "target": [
+        260,
+        15292,
+        2912,
+        295,
+        1234
+      ],
+      "match": 4,
+      "prefix": 4
+    },
+    {
+      "step": 7,
+      "position": 97,
+      "anchor": 260,
+      "draft": [
+        15292,
+        2912,
+        295,
+        223,
+        20
+      ],
+      "target": [
+        15292,
+        2912,
+        295,
+        1234,
+        42830
+      ],
+      "match": 3,
+      "prefix": 3
+    },
+    {
+      "step": 8,
+      "position": 98,
+      "anchor": 15292,
+      "draft": [
+        2912,
+        295,
+        1234,
+        42830,
+        14
+      ],
+      "target": [
+        2912,
+        295,
+        1234,
+        42830,
+        14
+      ],
+      "match": 5,
+      "prefix": 5
+    }
+  ],
+  "reference_mode": "greedy"
+}

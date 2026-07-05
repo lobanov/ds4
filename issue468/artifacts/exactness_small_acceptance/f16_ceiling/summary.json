@@ -1,0 +1,20 @@
+{
+  "label": "f16_ceiling",
+  "dspark": "issue468/artifacts/dspark_ceiling/dspark_f16.gguf",
+  "n_bundles": 30,
+  "mean_avg_prefix": 2.1791666666666667,
+  "by_temperature": {
+    "0.0": {
+      "mean": 2.35,
+      "n": 10
+    },
+    "0.5": {
+      "mean": 2.1125,
+      "n": 10
+    },
+    "1.0": {
+      "mean": 2.075,
+      "n": 10
+    }
+  }
+}

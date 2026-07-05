@@ -11,7 +11,7 @@ Optional prefetch(n_workers) dequants likely-needed experts in parallel to use
 spare CPU. Default is on-demand only.
 """
 import numpy as np
-from gguf_loader import dequant_q4_k_expert
+from gguf_loader import dequant_q4_k_expert, read_dense_expert
 
 
 class ExpertStore:
@@ -26,13 +26,21 @@ class ExpertStore:
 
     def _read(self, part, e):
         nm = f"mtp.{self.stage}.ffn_{part}_exps.weight"
-        return dequant_q4_k_expert(self.path, self.infos, self.data_off, nm, e)
+        tt = self.infos[nm][1]
+        if tt == 12:  # Q4_K
+            return dequant_q4_k_expert(self.path, self.infos, self.data_off, nm, e)
+        # dense expert (F32/F16/BF16) — used by unquantized ceiling GGUFs
+        return read_dense_expert(self.path, self.infos, self.data_off, nm, e)
 
     def expert(self, e):
         """Return (gate_wg [inter,dim], up_wu [inter,dim], down_wd [dim,inter])."""
         if e not in self._cache:
             self._cache[e] = (self._read("gate", e), self._read("up", e), self._read("down", e))
         return self._cache[e]
+
+    def clear(self):
+        """Drop cached dequanted experts to bound RAM between bundles in bulk mode."""
+        self._cache.clear()
 
     def prefetch(self, expert_ids, n_workers=4):
         """Dequant a set of experts in parallel using a process pool (uses spare CPU).
@@ -53,5 +61,8 @@ def _prefetch_one(args):
     path, infos, data_off, stage, e = args
     def rd(part):
         nm = f"mtp.{stage}.ffn_{part}_exps.weight"
-        return dequant_q4_k_expert(path, infos, data_off, nm, e)
+        tt = infos[nm][1]
+        if tt == 12:  # Q4_K
+            return dequant_q4_k_expert(path, infos, data_off, nm, e)
+        return read_dense_expert(path, infos, data_off, nm, e)
     return (rd("gate"), rd("up"), rd("down"))
