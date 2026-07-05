@@ -1,0 +1,62 @@
+{
+  "code_sort_pairs": {
+    "file": "prompts/exactness_small_corpus/code_sort_pairs.txt",
+    "tokens": 144,
+    "chars": 303,
+    "words": 49
+  },
+  "code_topk": {
+    "file": "prompts/exactness_small_corpus/code_topk.txt",
+    "tokens": 116,
+    "chars": 247,
+    "words": 37
+  },
+  "code_histogram": {
+    "file": "prompts/exactness_small_corpus/code_histogram.txt",
+    "tokens": 122,
+    "chars": 281,
+    "words": 41
+  },
+  "grounded_observatory": {
+    "file": "prompts/exactness_small_corpus/grounded_observatory.txt",
+    "tokens": 209,
+    "chars": 467,
+    "words": 83
+  },
+  "grounded_archive": {
+    "file": "prompts/exactness_small_corpus/grounded_archive.txt",
+    "tokens": 188,
+    "chars": 423,
+    "words": 76
+  },
+  "grounded_repair": {
+    "file": "prompts/exactness_small_corpus/grounded_repair.txt",
+    "tokens": 163,
+    "chars": 388,
+    "words": 66
+  },
+  "synthesis_ops_json": {
+    "file": "prompts/exactness_small_corpus/synthesis_ops_json.txt",
+    "tokens": 316,
+    "chars": 581,
+    "words": 63
+  },
+  "synthesis_timeline_json": {
+    "file": "prompts/exactness_small_corpus/synthesis_timeline_json.txt",
+    "tokens": 303,
+    "chars": 474,
+    "words": 65
+  },
+  "synthesis_incident_json": {
+    "file": "prompts/exactness_small_corpus/synthesis_incident_json.txt",
+    "tokens": 224,
+    "chars": 457,
+    "words": 64
+  },
+  "mixed_exactness_smoke": {
+    "file": "prompts/exactness_small_corpus/mixed_exactness_smoke.txt",
+    "tokens": 171,
+    "chars": 394,
+    "words": 62
+  }
+}

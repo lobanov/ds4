@@ -1,0 +1,17 @@
+The user wants me to write the next section of the expedition log, continuing the pattern from the dossier. I need to follow the constraints: 6 paragraphs, third-person past tense, no dialogue in the first paragraph, consistent with the dossier details, no summarizing, ~450-650 tokens, preserve the observatory/mountain weather setting, end with a small concrete sign of forward motion.
+
+Looking at the dossier, each entry follows a pattern: "On the climb back from [location], Mara noted that [weather condition] had crusted the railings in a pale seam. She set [object] beside the maintenance ledger, checked the dome gearing by hand, and marked a faint vibration in the housing above bracket [number]. The mountain lights below vanished and returned in brief intervals, while the shutters answered the gusts with a dull iron shudder."
+
+There are also supplements about older charts, the observatory smell, and graphite traces. And weather logs with gusts from north-northeast, dome skin ringing, and drifted ice at thresholds.
+
+The pattern cycles through locations: east dome, lens room, wind gallery, copper catwalk, snow gate, meridian stair. And brackets cycle 1-9. The last entry (069) was from wind gallery, bracket 7. So the next should be from copper catwalk, bracket 8? But let me check the pattern: entries 001-069, they cycle through locations and brackets. Entry 069 is wind gallery, bracket 7. So next logical is copper catwalk, bracket 8. But I need to write a new section, not just repeat the pattern. The user says "write the next expedition-log section now" - so I should continue the sequence.
+
+I'll write Entry 070, from copper catwalk, with glassy rime, set coil of wire, bracket 8. Then include a supplement and weather log as per the pattern. But the user says 6 paragraphs, no dialogue in first paragraph. So I need to structure it: first paragraph the entry pattern, then paragraphs 2-6 can include supplement, weather log, and narrative expansion.
+
+I need to avoid dialogue in the first paragraph. The entry pattern has no dialogue, so that's fine. Then I can expand with description, Mara's actions, the observatory atmosphere, and end with forward motion.
+
+Let me plan:
+
+Paragraph 1: Entry 070 - On the climb back from the copper catwalk, Mara noted that the glassy rime had crusted the railings in a pale seam. She set the coil of wire beside the maintenance ledger, checked the dome gearing by hand, and marked a faint vibration in the housing above bracket 8. The mountain lights below vanished and returned in brief intervals, while the shutters answered the gusts with a dull iron shudder.
+
+Paragraph 2: Supplement - The older charts still named the ridge stations in ink faded to tea-brown, and the observatory smelled of oil, cold stone, and wool that never quite dried. She kept finding traces of graphite on the latch plates, as if someone had checked them in a hurry and meant to come back before first

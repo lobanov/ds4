@@ -1,0 +1,12 @@
+We need to synthesize the archive into the required JSON. The archive has 35 records, but we need to produce 6 facility_status, 8 sku_impacts, 8 timeline, 6 recommended_actions, 4 unresolved_questions. The overview should be 90-140 words.
+
+First, identify the facilities: Juniper Yard, Atlas Dock, Cedar Spur, Lumen Hub, Morrow Annex, North Basin. That's 6 facilities. For each, we need status, dominant_issue, next_step. From the records, each facility has multiple issues. We need to pick a dominant issue per facility. Let's summarize:
+
+- Juniper Yard: seal failure (records 001, 007, 013, 019, 025, 031). Status: open (most records open). Dominant issue: seal failure. Next step: manual review (from immediate_action).
+- Atlas Dock: label mismatch (002, 008, 014, 020, 026, 032). Status: open/contained mix. Most recent? Record 032 is contained, but many open. Let's say status: open (since many open). Dominant issue: label mismatch. Next step: manual review.
+- Cedar Spur: carrier delay (003, 009, 015, 021, 027, 033). Status: open. Dominant issue: carrier delay. Next step: reroute and relabel.
+- Lumen Hub: sensor drift (004, 010, 016, 022, 028, 034). Status: open/contained mix. Record 028 contained, 034 open. Let's say status: open. Dominant issue: sensor drift. Next step: manual review.
+- Morrow Annex: packing backlog (005, 011, 017, 023, 029, 035). Status: open. Dominant issue: packing backlog. Next step: manual review.
+- North Basin: power fluctuation (006, 012, 018, 024, 030, 034? Actually 034 is Lumen Hub, so 006,012,018,024,030). Status: open/contained mix. Record 024 contained, 030 open. Let's say status: open. Dominant issue: power fluctuation. Next step: reroute and relabel.
+
+Now sku_impacts: need 8 SKUs. We have many SKUs: JN-101, AT-102, CD-103, LM-104, MR-105, NW-106, JN-107, AT-108, CD-109, LM-110, MR-111, NW-112, JN-113, AT-114, CD-115, LM-116, MR-117, NW-118, JN-119, AT-120, CD-121, LM-122, MR-123, NW-124, JN-125, AT-126, CD-127, LM-128, MR-129, NW-130, JN-131, AT-132, CD-133

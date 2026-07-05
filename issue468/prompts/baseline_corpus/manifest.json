@@ -1,0 +1,80 @@
+{
+  "code": {
+    "4k": {
+      "file": "issue468/prompts/baseline_corpus/code_4k.txt",
+      "target_tokens": 4096,
+      "actual_tokens": 3942,
+      "sections_kept": 11,
+      "actual_words": 813,
+      "chars": 6925
+    },
+    "8k": {
+      "file": "issue468/prompts/baseline_corpus/code_8k.txt",
+      "target_tokens": 8192,
+      "actual_tokens": 8248,
+      "sections_kept": 25,
+      "actual_words": 1645,
+      "chars": 14286
+    },
+    "16k": {
+      "file": "issue468/prompts/baseline_corpus/code_16k.txt",
+      "target_tokens": 16384,
+      "actual_tokens": 16180,
+      "sections_kept": 51,
+      "actual_words": 3185,
+      "chars": 27962
+    }
+  },
+  "synthesis": {
+    "4k": {
+      "file": "issue468/prompts/baseline_corpus/synthesis_4k.txt",
+      "target_tokens": 4096,
+      "actual_tokens": 4098,
+      "sections_kept": 27,
+      "actual_words": 674,
+      "chars": 6382
+    },
+    "8k": {
+      "file": "issue468/prompts/baseline_corpus/synthesis_8k.txt",
+      "target_tokens": 8192,
+      "actual_tokens": 8253,
+      "sections_kept": 59,
+      "actual_words": 1291,
+      "chars": 12586
+    },
+    "16k": {
+      "file": "issue468/prompts/baseline_corpus/synthesis_16k.txt",
+      "target_tokens": 16384,
+      "actual_tokens": 16331,
+      "sections_kept": 121,
+      "actual_words": 2491,
+      "chars": 24643
+    }
+  },
+  "grounded": {
+    "4k": {
+      "file": "issue468/prompts/baseline_corpus/grounded_4k.txt",
+      "target_tokens": 4096,
+      "actual_tokens": 4157,
+      "sections_kept": 25,
+      "actual_words": 1679,
+      "chars": 9689
+    },
+    "8k": {
+      "file": "issue468/prompts/baseline_corpus/grounded_8k.txt",
+      "target_tokens": 8192,
+      "actual_tokens": 8182,
+      "sections_kept": 51,
+      "actual_words": 3311,
+      "chars": 19048
+    },
+    "16k": {
+      "file": "issue468/prompts/baseline_corpus/grounded_16k.txt",
+      "target_tokens": 16384,
+      "actual_tokens": 16340,
+      "sections_kept": 104,
+      "actual_words": 6618,
+      "chars": 38015
+    }
+  }
+}

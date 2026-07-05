@@ -1,0 +1,15 @@
+We need to parse the archive into the required JSON. The archive contains records, service memos, supervisor notes. We need to extract facility status, sku impacts, timeline, etc. Let's identify the facilities: Juniper Yard, Atlas Dock, Cedar Spur, Lumen Hub, Morrow Annex, North Basin. That's 6 facilities. For each, we need status, dominant issue, next step. Also 8 sku impacts from the records (there are many SKUs). Timeline: 8 events from stamps. Recommended actions: 6 strings. Unresolved questions: 4 strings.
+
+First, summarize overview: 90-140 words.
+
+Let's list all records with stamps and issues.
+
+Facilities and their statuses from the records:
+
+- Juniper Yard: records 001 (JN-101 seal failure open), 007 (JN-107 seal failure open), 013 (JN-113 seal failure open). So status open, dominant issue seal failure. Next step? Manual review per immediate_action. But also need to consider service memos? Juniper has no service memo. So dominant issue seal failure, next step manual review.
+
+- Atlas Dock: records 002 (AT-102 label mismatch open), 008 (AT-108 label mismatch contained), 014 (AT-114 label mismatch open). Service memos for AT-102, AT-108, AT-114 all request another count before release. So status? Mixed but overall open? Let's pick status open, dominant issue label mismatch, next step request another count before release (from service memo action). But careful: record 008 is contained. But overall we can say open because most are open. We'll use "open" for facility status. Dominant issue label mismatch. Next step: "request another count before release".
+
+- Cedar Spur: records 003 (CD-103 carrier delay open), 009 (CD-109 carrier delay open), 015 (CD-115 carrier delay open). Supervisor note for CD-115: separate flagged cartons before release. So status open, dominant issue carrier delay, next step "reroute and relabel" from record 003 and 009? But supervisor note says separate flagged cartons. Let's pick "reroute and relabel" as next step from immediate_action, but also supervisor note. We'll combine: "reroute and relabel; separate flagged cartons before release" but keep concise. Let's use "reroute and relabel" as the immediate action. But supervisor note adds. We'll choose "reroute and relabel" as next step.
+
+- Lumen Hub: records 004 (LM-104 sensor drift contained), 010 (LM-110 sensor drift open), 016 (LM-116 sensor drift contained). Service memos for LM-104, LM-110, LM-116: request another count before release. Supervisor note for LM-110: separate flagged cartons before release. So status? Mixed, but we can say "open" because LM-110 is open. Dominant issue sensor drift. Next step: "manual review" from

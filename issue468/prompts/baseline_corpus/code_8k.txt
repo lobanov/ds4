@@ -1,0 +1,436 @@
+Repository snapshot follows. Use it as the only source of style, naming, and local conventions.
+
+Goal:
+Write the missing implementation for the final target module.
+
+Output contract:
+- output Python code only
+- write a complete implementation, not notes
+- include a short module docstring
+- include 3 compact tests in the same file
+- include a tiny __main__ demo
+- target roughly 90-130 lines of code
+- prefer readability over cleverness
+- stay consistent with the utility patterns shown in the repository snapshot
+
+Repository snapshot:
+
+### file: analytics/render_pairs_001.py
+"""Helper utilities for batch reporting task 1."""
+from __future__ import annotations
+
+def stable_key_1(record):
+    parts = [record.get("group", ""), record.get("region", ""), record.get("sku", "")]
+    return "::".join(str(p).strip().lower() for p in parts)
+
+def choose_rank_1(count, score, penalty):
+    base = (count * 7) + (score * 3) - penalty
+    return max(base, 0)
+
+def summarize_window_1(rows):
+    total = 0
+    distinct = set()
+    for row in rows:
+        total += int(row.get("count", 0))
+        distinct.add(row.get("sku", ""))
+    return {"total": total, "distinct": len(distinct)}
+
+# style note: helpers return plain dict/list data, avoid custom classes.
+# style note: callers sort with key=(-count, name) when deterministic order matters.
+
+
+### file: tests/test_render_pairs_001.py
+from analytics.render_pairs_001 import stable_key_1, choose_rank_1
+
+def test_stable_key_1():
+    row = {"group": "ops", "region": "west", "sku": "NW-101"}
+    assert stable_key_1(row) == "ops::west::nw-101"
+
+def test_choose_rank_1():
+    assert choose_rank_1(4, 3, 2) == 35
+
+
+### file: analytics/histograms_002.py
+"""Helper utilities for batch reporting task 2."""
+from __future__ import annotations
+
+def stable_key_2(record):
+    parts = [record.get("group", ""), record.get("region", ""), record.get("sku", "")]
+    return "::".join(str(p).strip().lower() for p in parts)
+
+def choose_rank_2(count, score, penalty):
+    base = (count * 7) + (score * 3) - penalty
+    return max(base, 0)
+
+def summarize_window_2(rows):
+    total = 0
+    distinct = set()
+    for row in rows:
+        total += int(row.get("count", 0))
+        distinct.add(row.get("sku", ""))
+    return {"total": total, "distinct": len(distinct)}
+
+# style note: helpers return plain dict/list data, avoid custom classes.
+# style note: callers sort with key=(-count, name) when deterministic order matters.
+
+
+### file: tests/test_histograms_002.py
+from analytics.histograms_002 import stable_key_2, choose_rank_2
+
+def test_stable_key_2():
+    row = {"group": "ops", "region": "west", "sku": "NW-102"}
+    assert stable_key_2(row) == "ops::west::nw-102"
+
+def test_choose_rank_2():
+    assert choose_rank_2(4, 3, 2) == 35
+
+
+### file: analytics/window_stats_003.py
+"""Helper utilities for batch reporting task 3."""
+from __future__ import annotations
+
+def stable_key_3(record):
+    parts = [record.get("group", ""), record.get("region", ""), record.get("sku", "")]
+    return "::".join(str(p).strip().lower() for p in parts)
+
+def choose_rank_3(count, score, penalty):
+    base = (count * 7) + (score * 3) - penalty
+    return max(base, 0)
+
+def summarize_window_3(rows):
+    total = 0
+    distinct = set()
+    for row in rows:
+        total += int(row.get("count", 0))
+        distinct.add(row.get("sku", ""))
+    return {"total": total, "distinct": len(distinct)}
+
+# style note: helpers return plain dict/list data, avoid custom classes.
+# style note: callers sort with key=(-count, name) when deterministic order matters.
+
+
+### file: tests/test_window_stats_003.py
+from analytics.window_stats_003 import stable_key_3, choose_rank_3
+
+def test_stable_key_3():
+    row = {"group": "ops", "region": "west", "sku": "NW-103"}
+    assert stable_key_3(row) == "ops::west::nw-103"
+
+def test_choose_rank_3():
+    assert choose_rank_3(4, 3, 2) == 35
+
+
+### file: docs/notes_003.md
+- reporting batch 3 normalized duplicate SKU rows before ranking
+- small helper functions favored over inheritance-heavy abstractions
+- if frequencies tie, deterministic order uses ascending integer or lexical order
+- repository code generally avoids external dependencies and keeps demos tiny
+
+
+### file: analytics/scan_rules_004.py
+"""Helper utilities for batch reporting task 4."""
+from __future__ import annotations
+
+def stable_key_4(record):
+    parts = [record.get("group", ""), record.get("region", ""), record.get("sku", "")]
+    return "::".join(str(p).strip().lower() for p in parts)
+
+def choose_rank_4(count, score, penalty):
+    base = (count * 7) + (score * 3) - penalty
+    return max(base, 0)
+
+def summarize_window_4(rows):
+    total = 0
+    distinct = set()
+    for row in rows:
+        total += int(row.get("count", 0))
+        distinct.add(row.get("sku", ""))
+    return {"total": total, "distinct": len(distinct)}
+
+# style note: helpers return plain dict/list data, avoid custom classes.
+# style note: callers sort with key=(-count, name) when deterministic order matters.
+
+
+### file: tests/test_scan_rules_004.py
+from analytics.scan_rules_004 import stable_key_4, choose_rank_4
+
+def test_stable_key_4():
+    row = {"group": "ops", "region": "west", "sku": "NW-104"}
+    assert stable_key_4(row) == "ops::west::nw-104"
+
+def test_choose_rank_4():
+    assert choose_rank_4(4, 3, 2) == 35
+
+
+### file: analytics/normalize_tags_005.py
+"""Helper utilities for batch reporting task 5."""
+from __future__ import annotations
+
+def stable_key_5(record):
+    parts = [record.get("group", ""), record.get("region", ""), record.get("sku", "")]
+    return "::".join(str(p).strip().lower() for p in parts)
+
+def choose_rank_5(count, score, penalty):
+    base = (count * 7) + (score * 3) - penalty
+    return max(base, 0)
+
+def summarize_window_5(rows):
+    total = 0
+    distinct = set()
+    for row in rows:
+        total += int(row.get("count", 0))
+        distinct.add(row.get("sku", ""))
+    return {"total": total, "distinct": len(distinct)}
+
+# style note: helpers return plain dict/list data, avoid custom classes.
+# style note: callers sort with key=(-count, name) when deterministic order matters.
+
+
+### file: tests/test_normalize_tags_005.py
+from analytics.normalize_tags_005 import stable_key_5, choose_rank_5
+
+def test_stable_key_5():
+    row = {"group": "ops", "region": "west", "sku": "NW-105"}
+    assert stable_key_5(row) == "ops::west::nw-105"
+
+def test_choose_rank_5():
+    assert choose_rank_5(4, 3, 2) == 35
+
+
+### file: analytics/priority_queue_006.py
+"""Helper utilities for batch reporting task 6."""
+from __future__ import annotations
+
+def stable_key_6(record):
+    parts = [record.get("group", ""), record.get("region", ""), record.get("sku", "")]
+    return "::".join(str(p).strip().lower() for p in parts)
+
+def choose_rank_6(count, score, penalty):
+    base = (count * 7) + (score * 3) - penalty
+    return max(base, 0)
+
+def summarize_window_6(rows):
+    total = 0
+    distinct = set()
+    for row in rows:
+        total += int(row.get("count", 0))
+        distinct.add(row.get("sku", ""))
+    return {"total": total, "distinct": len(distinct)}
+
+# style note: helpers return plain dict/list data, avoid custom classes.
+# style note: callers sort with key=(-count, name) when deterministic order matters.
+
+
+### file: tests/test_priority_queue_006.py
+from analytics.priority_queue_006 import stable_key_6, choose_rank_6
+
+def test_stable_key_6():
+    row = {"group": "ops", "region": "west", "sku": "NW-106"}
+    assert stable_key_6(row) == "ops::west::nw-106"
+
+def test_choose_rank_6():
+    assert choose_rank_6(4, 3, 2) == 35
+
+
+### file: docs/notes_006.md
+- reporting batch 6 normalized duplicate SKU rows before ranking
+- small helper functions favored over inheritance-heavy abstractions
+- if frequencies tie, deterministic order uses ascending integer or lexical order
+- repository code generally avoids external dependencies and keeps demos tiny
+
+
+### file: analytics/text_slices_007.py
+"""Helper utilities for batch reporting task 7."""
+from __future__ import annotations
+
+def stable_key_7(record):
+    parts = [record.get("group", ""), record.get("region", ""), record.get("sku", "")]
+    return "::".join(str(p).strip().lower() for p in parts)
+
+def choose_rank_7(count, score, penalty):
+    base = (count * 7) + (score * 3) - penalty
+    return max(base, 0)
+
+def summarize_window_7(rows):
+    total = 0
+    distinct = set()
+    for row in rows:
+        total += int(row.get("count", 0))
+        distinct.add(row.get("sku", ""))
+    return {"total": total, "distinct": len(distinct)}
+
+# style note: helpers return plain dict/list data, avoid custom classes.
+# style note: callers sort with key=(-count, name) when deterministic order matters.
+
+
+### file: tests/test_text_slices_007.py
+from analytics.text_slices_007 import stable_key_7, choose_rank_7
+
+def test_stable_key_7():
+    row = {"group": "ops", "region": "west", "sku": "NW-107"}
+    assert stable_key_7(row) == "ops::west::nw-107"
+
+def test_choose_rank_7():
+    assert choose_rank_7(4, 3, 2) == 35
+
+
+### file: analytics/dedupe_index_008.py
+"""Helper utilities for batch reporting task 8."""
+from __future__ import annotations
+
+def stable_key_8(record):
+    parts = [record.get("group", ""), record.get("region", ""), record.get("sku", "")]
+    return "::".join(str(p).strip().lower() for p in parts)
+
+def choose_rank_8(count, score, penalty):
+    base = (count * 7) + (score * 3) - penalty
+    return max(base, 0)
+
+def summarize_window_8(rows):
+    total = 0
+    distinct = set()
+    for row in rows:
+        total += int(row.get("count", 0))
+        distinct.add(row.get("sku", ""))
+    return {"total": total, "distinct": len(distinct)}
+
+# style note: helpers return plain dict/list data, avoid custom classes.
+# style note: callers sort with key=(-count, name) when deterministic order matters.
+
+
+### file: tests/test_dedupe_index_008.py
+from analytics.dedupe_index_008 import stable_key_8, choose_rank_8
+
+def test_stable_key_8():
+    row = {"group": "ops", "region": "west", "sku": "NW-108"}
+    assert stable_key_8(row) == "ops::west::nw-108"
+
+def test_choose_rank_8():
+    assert choose_rank_8(4, 3, 2) == 35
+
+
+### file: analytics/audit_rows_009.py
+"""Helper utilities for batch reporting task 9."""
+from __future__ import annotations
+
+def stable_key_9(record):
+    parts = [record.get("group", ""), record.get("region", ""), record.get("sku", "")]
+    return "::".join(str(p).strip().lower() for p in parts)
+
+def choose_rank_9(count, score, penalty):
+    base = (count * 7) + (score * 3) - penalty
+    return max(base, 0)
+
+def summarize_window_9(rows):
+    total = 0
+    distinct = set()
+    for row in rows:
+        total += int(row.get("count", 0))
+        distinct.add(row.get("sku", ""))
+    return {"total": total, "distinct": len(distinct)}
+
+# style note: helpers return plain dict/list data, avoid custom classes.
+# style note: callers sort with key=(-count, name) when deterministic order matters.
+
+
+### file: tests/test_audit_rows_009.py
+from analytics.audit_rows_009 import stable_key_9, choose_rank_9
+
+def test_stable_key_9():
+    row = {"group": "ops", "region": "west", "sku": "NW-109"}
+    assert stable_key_9(row) == "ops::west::nw-109"
+
+def test_choose_rank_9():
+    assert choose_rank_9(4, 3, 2) == 35
+
+
+### file: docs/notes_009.md
+- reporting batch 9 normalized duplicate SKU rows before ranking
+- small helper functions favored over inheritance-heavy abstractions
+- if frequencies tie, deterministic order uses ascending integer or lexical order
+- repository code generally avoids external dependencies and keeps demos tiny
+
+
+### file: analytics/cache_keys_010.py
+"""Helper utilities for batch reporting task 10."""
+from __future__ import annotations
+
+def stable_key_10(record):
+    parts = [record.get("group", ""), record.get("region", ""), record.get("sku", "")]
+    return "::".join(str(p).strip().lower() for p in parts)
+
+def choose_rank_10(count, score, penalty):
+    base = (count * 7) + (score * 3) - penalty
+    return max(base, 0)
+
+def summarize_window_10(rows):
+    total = 0
+    distinct = set()
+    for row in rows:
+        total += int(row.get("count", 0))
+        distinct.add(row.get("sku", ""))
+    return {"total": total, "distinct": len(distinct)}
+
+# style note: helpers return plain dict/list data, avoid custom classes.
+# style note: callers sort with key=(-count, name) when deterministic order matters.
+
+
+### file: tests/test_cache_keys_010.py
+from analytics.cache_keys_010 import stable_key_10, choose_rank_10
+
+def test_stable_key_10():
+    row = {"group": "ops", "region": "west", "sku": "NW-110"}
+    assert stable_key_10(row) == "ops::west::nw-110"
+
+def test_choose_rank_10():
+    assert choose_rank_10(4, 3, 2) == 35
+
+
+### file: analytics/render_pairs_011.py
+"""Helper utilities for batch reporting task 11."""
+from __future__ import annotations
+
+def stable_key_11(record):
+    parts = [record.get("group", ""), record.get("region", ""), record.get("sku", "")]
+    return "::".join(str(p).strip().lower() for p in parts)
+
+def choose_rank_11(count, score, penalty):
+    base = (count * 7) + (score * 3) - penalty
+    return max(base, 0)
+
+def summarize_window_11(rows):
+    total = 0
+    distinct = set()
+    for row in rows:
+        total += int(row.get("count", 0))
+        distinct.add(row.get("sku", ""))
+    return {"total": total, "distinct": len(distinct)}
+
+# style note: helpers return plain dict/list data, avoid custom classes.
+# style note: callers sort with key=(-count, name) when deterministic order matters.
+
+
+### file: tests/test_render_pairs_011.py
+from analytics.render_pairs_011 import stable_key_11, choose_rank_11
+
+def test_stable_key_11():
+    row = {"group": "ops", "region": "west", "sku": "NW-111"}
+    assert stable_key_11(row) == "ops::west::nw-111"
+
+def test_choose_rank_11():
+    assert choose_rank_11(4, 3, 2) == 35
+
+### file: analytics/top_k_frequent.py
+"""Implement the missing public helper for ranked frequency extraction."""
+from __future__ import annotations
+
+def top_k_frequent(nums, k):
+    # TODO: implement using the same repository style.
+    raise NotImplementedError
+
+Task:
+Complete `top_k_frequent(nums, k)` as a clean standalone module that matches the repository style above.
+Remember:
+- output code only
+- include docstring, 3 compact tests, and a tiny demo
+- no external dependencies

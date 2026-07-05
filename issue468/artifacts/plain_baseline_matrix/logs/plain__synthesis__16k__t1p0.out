@@ -1,0 +1,17 @@
+We need to synthesize the archive into the required JSON. The archive contains records from various facilities, each with stamps, SKUs, issues, status, etc. Also service memos, supervisor notes. We need to extract an overview, facility_status (6 objects), sku_impacts (8), timeline (8), recommended_actions (6), unresolved_questions (4).
+
+First, identify the facilities: Juniper Yard, Atlas Dock, Cedar Spur, Lumen Hub, Morrow Annex, North Basin. That's 6 facilities. For each, we need status, dominant_issue, next_step. From the archive, each facility appears multiple times with various issues. We can summarize overall status per facility based on the most recent or most common issues. For example, Juniper Yard has seal failure repeatedly, status open, immediate_action manual review. Atlas Dock label mismatch, many open/contained. Cedar Spur carrier delay, open, reroute and relabel. Lumen Hub sensor drift, mixed open/contained, manual review. Morrow Annex packing backlog, open, manual review. North Basin power fluctuation, open/contained, reroute and relabel. So we can pick representative statuses.
+
+For sku_impacts, we need 8 SKUs. The archive has many SKUs: JN-101, AT-102, CD-103, LM-104, MR-105, NW-106, JN-107, AT-108, etc. We can pick a variety with different severities. Severity might be inferred from status (open vs contained) and units_held. We'll assign severity: open -> "high", contained -> "medium". Also issue and action. We'll pick 8 distinct SKUs.
+
+Timeline: need 8 stamps and events. We can pick stamps from the archive, e.g., first record, then some later ones, and include events like "seal failure at Juniper Yard" etc. Use stamps as given.
+
+Recommended actions: based on common actions: manual review, reroute and relabel, request another count, separate flagged cartons. We can list 6.
+
+Unresolved questions: from the data, we might ask about root causes, recovery plans, etc. E.g., why late trucks persist? What causes sensor drift? How to reduce packing backlog? What about power fluctuation mitigation? We'll list 4.
+
+Now construct JSON. Ensure minified, no markdown. Keep within 450-650 tokens. Let's write.
+
+Overview: Summarize the overall situation: Multiple facilities experiencing recurring issues (seal failures, label mismatches, carrier delays, sensor drift, packing backlog, power fluctuations) across west and coastal routes. Many SKUs are held open, some contained. Immediate actions involve manual review, reroute and relabel, and count requests. Supervisor notes indicate repeat issue watches and separate flagged cartons. Need for coordinated resolution.
+
+Facility_status: for each site, provide status, dominant_issue, next_step. We'll use "open" or "contained" based on typical. For Juniper Yard: status "open",

@@ -1,0 +1,17 @@
+We need to parse the archive and extract the required fields. The archive contains records, service memos, supervisor notes. We need to synthesize an overview, facility_status (6), sku_impacts (8), timeline (8), recommended_actions (6), unresolved_questions (4).
+
+First, identify facilities: Juniper Yard, Atlas Dock, Cedar Spur, Lumen Hub, Morrow Annex, North Basin. That's 6 facilities. For each, we need status, dominant_issue, next_step. From the records, we see multiple issues per facility. We need to pick the most dominant issue for each facility based on frequency. Let's tally:
+
+Juniper Yard: seal failure (records 001, 007, 013, 019, 025, 031) - all open, manual review. Dominant issue: seal failure. Status: open (most records open). Next step: manual review (from immediate_action). But we need to synthesize a concise next_step.
+
+Atlas Dock: label mismatch (002, 008, 014, 020, 026, 032) - some contained, some open. Dominant issue: label mismatch. Status: open (most records open? Actually 008 and 020 and 032 are contained, but others open. But overall trend: open). Next step: manual review (most actions are manual review). But note service memos often request another count. So we can say manual review and recount.
+
+Cedar Spur: carrier delay (003, 009, 015, 021, 027, 033) - all open, reroute and relabel. Dominant issue: carrier delay. Next step: reroute and relabel.
+
+Lumen Hub: sensor drift (004, 010, 016, 022, 028, 034) - some contained, some open. Dominant issue: sensor drift. Next step: manual review (most actions manual review, but service memos request recount). 
+
+Morrow Annex: packing backlog (005, 011, 017, 023, 029, 035) - all open, manual review. Next step: manual review, separate flagged cartons.
+
+North Basin: power fluctuation (006, 012, 018, 024, 030, 032? Actually 032 is Atlas Dock, so North Basin: 006, 012, 018, 024, 030) - some contained, some open. Dominant issue: power fluctuation. Next step: reroute and relabel (most actions reroute and relabel). 
+
+Now sku_impacts: we need 8 skus. The archive has many skus, but we can pick 8 representative. They are all unique skus: JN-101, AT-102, CD-103, LM-104, MR-105, NW-106, JN-107, AT-108, etc. We need 8. Let's pick the first 8: JN-101, AT-102, CD-103, LM-104, MR-105, NW

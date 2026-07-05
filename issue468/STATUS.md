@@ -38,7 +38,6 @@ Create a trustworthy active dossier that makes it easy to:
    - false leads / exhausted directions
    - current open questions
 3. Move bulky or superseded material to archive references rather than keeping it active.
-4. Add DSpark-side comparison summaries against the retained plain baseline when needed.
 
 ## Canonicality rule
 

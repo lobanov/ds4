@@ -1,0 +1,19 @@
+We need to synthesize the archive into the required JSON. The archive has many records, but we need to pick specific items for each part. The output must have 6 facility_status, 8 sku_impacts, 8 timeline, 6 recommended_actions, 4 unresolved_questions. The overview should be 90-140 words.
+
+First, identify the facilities: Juniper Yard, Atlas Dock, Cedar Spur, Lumen Hub, Morrow Annex, North Basin. That's 6 facilities. For each, we need status, dominant_issue, next_step. From the records, each facility has multiple issues. We can summarize the dominant issue per facility based on frequency. For example, Juniper Yard has seal failure repeatedly; Atlas Dock label mismatch; Cedar Spur carrier delay; Lumen Hub sensor drift; Morrow Annex packing backlog; North Basin power fluctuation. Status: some records are "open", some "contained". We can pick a representative status. For next_step, we can use the immediate_action from a recent record or combine.
+
+For sku_impacts: we need 8 SKUs. The archive has many SKUs: JN-101, AT-102, CD-103, LM-104, MR-105, NW-106, JN-107, AT-108, etc. We can pick 8 distinct SKUs with their severity (based on status: open or contained), issue, and action. Use the immediate_action from the record.
+
+Timeline: 8 events. We can pick stamps from the archive, e.g., first record, then some later ones. Use the stamp and event (e.g., "inspection batch X found Y at facility").
+
+Recommended_actions: 6 strings. Based on common actions: manual review, reroute and relabel, request another count, separate flagged cartons, etc. We can combine.
+
+Unresolved_questions: 4 strings. Based on recurring issues: why seal failures persist, why label mismatches, carrier delays, etc.
+
+We need to be concise and specific. Let's construct.
+
+Overview: Summarize the archive: multiple facilities experiencing recurring issues (seal failure, label mismatch, carrier delay, sensor drift, packing backlog, power fluctuation) with units held, requiring manual review, reroute, and counts. Some contained, many open. Need to resolve root causes.
+
+Now build JSON.
+
+Facility_status: 6 objects. For each facility, pick a dominant issue from the records. For status, we can say "open" for most, but some have contained records. Let's use the most recent status? For Juniper Yard, many open, one contained? Actually all Juniper Yard records are open except? Check: Record 001 open, 007 open, 013 open, 019 open, 025 open, 031 open, 037 open, 043 open, 049 open, 055 open, 061 open, 067 open. So all open. Atlas Dock: some contained (008, 020, 032, 044, 056, 068) and some open. So we

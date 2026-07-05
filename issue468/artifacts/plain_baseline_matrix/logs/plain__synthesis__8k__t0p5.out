@@ -1,0 +1,17 @@
+We need to synthesize the archive into the required JSON. The archive has many records, but we need to pick specific numbers: 6 facility_status, 8 sku_impacts, 8 timeline, 6 recommended_actions, 4 unresolved_questions. The overview should be 90-140 words.
+
+First, identify facilities: Juniper Yard, Atlas Dock, Cedar Spur, Lumen Hub, Morrow Annex, North Basin. That's 6. So each facility gets one status object. We need to summarize status, dominant_issue, next_step based on records for that facility.
+
+From archive: each facility has multiple records with issues. For Juniper Yard: issues seal failure (records 001,007,013,019,025,031). Status open for most, some contained? Actually all open except maybe none contained. So status open, dominant issue seal failure, next step manual review (from immediate_action). But we need to pick a representative. Similarly for others.
+
+Let's list each facility's dominant issue from records:
+- Juniper Yard: seal failure (multiple)
+- Atlas Dock: label mismatch (multiple)
+- Cedar Spur: carrier delay (multiple)
+- Lumen Hub: sensor drift (multiple)
+- Morrow Annex: packing backlog (multiple)
+- North Basin: power fluctuation (multiple)
+
+Status: most records are "open", some "contained" for some facilities. But we can generalize: each facility has open status for the dominant issue. For next_step, typical immediate_action is manual review or reroute and relabel. For Juniper Yard: manual review. Atlas Dock: manual review. Cedar Spur: reroute and relabel. Lumen Hub: manual review. Morrow Annex: manual review. North Basin: reroute and relabel. But we should be specific.
+
+Now sku_impacts: need 8 SKUs. There are many SKUs: JN-101, AT-102, CD-103, LM-104, MR-105, NW-106, JN-107, AT-108, CD-109, LM-110, MR-111, NW-112, JN-113, AT-114, CD-115, LM-116, MR-117, NW-118, JN-119, AT-120, CD-121, LM-122, MR-123, NW-124, JN-125, AT-126, CD-127, LM-128, MR-129, NW-130, JN-131, AT-132, CD-133, LM-134, MR-135. That's 35 SKUs. We need 8. Pick representative ones from each facility? Or from different issues. Let's pick one from each facility plus two extra? But we have 6 facilities, need 8, so pick two from some facilities. Or pick based on severity? Archive doesn't explicitly state severity, but we can infer from units_held and status. Severity could be "high" for open with many units, "moderate" for contained. But we need to assign severity. Let's use

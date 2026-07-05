@@ -1,0 +1,405 @@
+Source dossier for a grounded long-form continuation follows.
+Use the material below as the only authority for setting, objects, weather, and recent events.
+
+Task:
+Write the next section of the expedition log.
+
+Constraints:
+- 6 paragraphs
+- third-person past tense
+- no dialogue in the first paragraph
+- stay consistent with the dossier details
+- do not summarize the dossier
+- target about 450-650 tokens
+- preserve the observatory / mountain weather setting
+- end with a small concrete sign of forward motion
+
+Source dossier:
+
+Entry 001
+On the climb back from the east dome, Mara noted that the dry snow had crusted the railings in a pale seam.
+She set the canvas tool roll beside the maintenance ledger, checked the dome gearing by hand,
+and marked a faint vibration in the housing above bracket 2.
+The mountain lights below vanished and returned in brief intervals,
+while the shutters answered the gusts with a dull iron shudder.
+
+
+Entry 002
+On the climb back from the lens room, Mara noted that the salt-cold fog had crusted the railings in a pale seam.
+She set the frosted logbook beside the maintenance ledger, checked the dome gearing by hand,
+and marked a faint vibration in the housing above bracket 3.
+The mountain lights below vanished and returned in brief intervals,
+while the shutters answered the gusts with a dull iron shudder.
+
+
+Entry 003
+On the climb back from the wind gallery, Mara noted that the needle rain had crusted the railings in a pale seam.
+She set the signal lamp beside the maintenance ledger, checked the dome gearing by hand,
+and marked a faint vibration in the housing above bracket 4.
+The mountain lights below vanished and returned in brief intervals,
+while the shutters answered the gusts with a dull iron shudder.
+
+
+Supplement 003
+The older charts still named the ridge stations in ink faded to tea-brown,
+and the observatory smelled of oil, cold stone, and wool that never quite dried.
+She kept finding traces of graphite on the latch plates,
+as if someone had checked them in a hurry and meant to come back before first light.
+
+
+Entry 004
+On the climb back from the copper catwalk, Mara noted that the glassy rime had crusted the railings in a pale seam.
+She set the coil of wire beside the maintenance ledger, checked the dome gearing by hand,
+and marked a faint vibration in the housing above bracket 5.
+The mountain lights below vanished and returned in brief intervals,
+while the shutters answered the gusts with a dull iron shudder.
+
+
+Entry 005
+On the climb back from the snow gate, Mara noted that the hard wind had crusted the railings in a pale seam.
+She set the oak transit case beside the maintenance ledger, checked the dome gearing by hand,
+and marked a faint vibration in the housing above bracket 6.
+The mountain lights below vanished and returned in brief intervals,
+while the shutters answered the gusts with a dull iron shudder.
+
+
+Weather log 005
+gusts crossed from the north-northeast,
+the dome skin rang softly near the seam,
+and drifted ice gathered at the threshold below the east dome.
+
+
+Entry 006
+On the climb back from the meridian stair, Mara noted that the granular sleet had crusted the railings in a pale seam.
+She set the brass eyepiece beside the maintenance ledger, checked the dome gearing by hand,
+and marked a faint vibration in the housing above bracket 7.
+The mountain lights below vanished and returned in brief intervals,
+while the shutters answered the gusts with a dull iron shudder.
+
+
+Supplement 006
+The older charts still named the ridge stations in ink faded to tea-brown,
+and the observatory smelled of oil, cold stone, and wool that never quite dried.
+She kept finding traces of graphite on the latch plates,
+as if someone had checked them in a hurry and meant to come back before first light.
+
+
+Entry 007
+On the climb back from the east dome, Mara noted that the dry snow had crusted the railings in a pale seam.
+She set the canvas tool roll beside the maintenance ledger, checked the dome gearing by hand,
+and marked a faint vibration in the housing above bracket 8.
+The mountain lights below vanished and returned in brief intervals,
+while the shutters answered the gusts with a dull iron shudder.
+
+
+Entry 008
+On the climb back from the lens room, Mara noted that the salt-cold fog had crusted the railings in a pale seam.
+She set the frosted logbook beside the maintenance ledger, checked the dome gearing by hand,
+and marked a faint vibration in the housing above bracket 9.
+The mountain lights below vanished and returned in brief intervals,
+while the shutters answered the gusts with a dull iron shudder.
+
+
+Entry 009
+On the climb back from the wind gallery, Mara noted that the needle rain had crusted the railings in a pale seam.
+She set the signal lamp beside the maintenance ledger, checked the dome gearing by hand,
+and marked a faint vibration in the housing above bracket 1.
+The mountain lights below vanished and returned in brief intervals,
+while the shutters answered the gusts with a dull iron shudder.
+
+
+Supplement 009
+The older charts still named the ridge stations in ink faded to tea-brown,
+and the observatory smelled of oil, cold stone, and wool that never quite dried.
+She kept finding traces of graphite on the latch plates,
+as if someone had checked them in a hurry and meant to come back before first light.
+
+
+Entry 010
+On the climb back from the copper catwalk, Mara noted that the glassy rime had crusted the railings in a pale seam.
+She set the coil of wire beside the maintenance ledger, checked the dome gearing by hand,
+and marked a faint vibration in the housing above bracket 2.
+The mountain lights below vanished and returned in brief intervals,
+while the shutters answered the gusts with a dull iron shudder.
+
+
+Weather log 010
+gusts crossed from the north-northeast,
+the dome skin rang softly near the seam,
+and drifted ice gathered at the threshold below the meridian stair.
+
+
+Entry 011
+On the climb back from the snow gate, Mara noted that the hard wind had crusted the railings in a pale seam.
+She set the oak transit case beside the maintenance ledger, checked the dome gearing by hand,
+and marked a faint vibration in the housing above bracket 3.
+The mountain lights below vanished and returned in brief intervals,
+while the shutters answered the gusts with a dull iron shudder.
+
+
+Entry 012
+On the climb back from the meridian stair, Mara noted that the granular sleet had crusted the railings in a pale seam.
+She set the brass eyepiece beside the maintenance ledger, checked the dome gearing by hand,
+and marked a faint vibration in the housing above bracket 4.
+The mountain lights below vanished and returned in brief intervals,
+while the shutters answered the gusts with a dull iron shudder.
+
+
+Supplement 012
+The older charts still named the ridge stations in ink faded to tea-brown,
+and the observatory smelled of oil, cold stone, and wool that never quite dried.
+She kept finding traces of graphite on the latch plates,
+as if someone had checked them in a hurry and meant to come back before first light.
+
+
+Entry 013
+On the climb back from the east dome, Mara noted that the dry snow had crusted the railings in a pale seam.
+She set the canvas tool roll beside the maintenance ledger, checked the dome gearing by hand,
+and marked a faint vibration in the housing above bracket 5.
+The mountain lights below vanished and returned in brief intervals,
+while the shutters answered the gusts with a dull iron shudder.
+
+
+Entry 014
+On the climb back from the lens room, Mara noted that the salt-cold fog had crusted the railings in a pale seam.
+She set the frosted logbook beside the maintenance ledger, checked the dome gearing by hand,
+and marked a faint vibration in the housing above bracket 6.
+The mountain lights below vanished and returned in brief intervals,
+while the shutters answered the gusts with a dull iron shudder.
+
+
+Entry 015
+On the climb back from the wind gallery, Mara noted that the needle rain had crusted the railings in a pale seam.
+She set the signal lamp beside the maintenance ledger, checked the dome gearing by hand,
+and marked a faint vibration in the housing above bracket 7.
+The mountain lights below vanished and returned in brief intervals,
+while the shutters answered the gusts with a dull iron shudder.
+
+
+Supplement 015
+The older charts still named the ridge stations in ink faded to tea-brown,
+and the observatory smelled of oil, cold stone, and wool that never quite dried.
+She kept finding traces of graphite on the latch plates,
+as if someone had checked them in a hurry and meant to come back before first light.
+
+
+Weather log 015
+gusts crossed from the north-northeast,
+the dome skin rang softly near the seam,
+and drifted ice gathered at the threshold below the snow gate.
+
+
+Entry 016
+On the climb back from the copper catwalk, Mara noted that the glassy rime had crusted the railings in a pale seam.
+She set the coil of wire beside the maintenance ledger, checked the dome gearing by hand,
+and marked a faint vibration in the housing above bracket 8.
+The mountain lights below vanished and returned in brief intervals,
+while the shutters answered the gusts with a dull iron shudder.
+
+
+Entry 017
+On the climb back from the snow gate, Mara noted that the hard wind had crusted the railings in a pale seam.
+She set the oak transit case beside the maintenance ledger, checked the dome gearing by hand,
+and marked a faint vibration in the housing above bracket 9.
+The mountain lights below vanished and returned in brief intervals,
+while the shutters answered the gusts with a dull iron shudder.
+
+
+Entry 018
+On the climb back from the meridian stair, Mara noted that the granular sleet had crusted the railings in a pale seam.
+She set the brass eyepiece beside the maintenance ledger, checked the dome gearing by hand,
+and marked a faint vibration in the housing above bracket 1.
+The mountain lights below vanished and returned in brief intervals,
+while the shutters answered the gusts with a dull iron shudder.
+
+
+Supplement 018
+The older charts still named the ridge stations in ink faded to tea-brown,
+and the observatory smelled of oil, cold stone, and wool that never quite dried.
+She kept finding traces of graphite on the latch plates,
+as if someone had checked them in a hurry and meant to come back before first light.
+
+
+Entry 019
+On the climb back from the east dome, Mara noted that the dry snow had crusted the railings in a pale seam.
+She set the canvas tool roll beside the maintenance ledger, checked the dome gearing by hand,
+and marked a faint vibration in the housing above bracket 2.
+The mountain lights below vanished and returned in brief intervals,
+while the shutters answered the gusts with a dull iron shudder.
+
+
+Entry 020
+On the climb back from the lens room, Mara noted that the salt-cold fog had crusted the railings in a pale seam.
+She set the frosted logbook beside the maintenance ledger, checked the dome gearing by hand,
+and marked a faint vibration in the housing above bracket 3.
+The mountain lights below vanished and returned in brief intervals,
+while the shutters answered the gusts with a dull iron shudder.
+
+
+Weather log 020
+gusts crossed from the north-northeast,
+the dome skin rang softly near the seam,
+and drifted ice gathered at the threshold below the copper catwalk.
+
+
+Entry 021
+On the climb back from the wind gallery, Mara noted that the needle rain had crusted the railings in a pale seam.
+She set the signal lamp beside the maintenance ledger, checked the dome gearing by hand,
+and marked a faint vibration in the housing above bracket 4.
+The mountain lights below vanished and returned in brief intervals,
+while the shutters answered the gusts with a dull iron shudder.
+
+
+Supplement 021
+The older charts still named the ridge stations in ink faded to tea-brown,
+and the observatory smelled of oil, cold stone, and wool that never quite dried.
+She kept finding traces of graphite on the latch plates,
+as if someone had checked them in a hurry and meant to come back before first light.
+
+
+Entry 022
+On the climb back from the copper catwalk, Mara noted that the glassy rime had crusted the railings in a pale seam.
+She set the coil of wire beside the maintenance ledger, checked the dome gearing by hand,
+and marked a faint vibration in the housing above bracket 5.
+The mountain lights below vanished and returned in brief intervals,
+while the shutters answered the gusts with a dull iron shudder.
+
+
+Entry 023
+On the climb back from the snow gate, Mara noted that the hard wind had crusted the railings in a pale seam.
+She set the oak transit case beside the maintenance ledger, checked the dome gearing by hand,
+and marked a faint vibration in the housing above bracket 6.
+The mountain lights below vanished and returned in brief intervals,
+while the shutters answered the gusts with a dull iron shudder.
+
+
+Entry 024
+On the climb back from the meridian stair, Mara noted that the granular sleet had crusted the railings in a pale seam.
+She set the brass eyepiece beside the maintenance ledger, checked the dome gearing by hand,
+and marked a faint vibration in the housing above bracket 7.
+The mountain lights below vanished and returned in brief intervals,
+while the shutters answered the gusts with a dull iron shudder.
+
+
+Supplement 024
+The older charts still named the ridge stations in ink faded to tea-brown,
+and the observatory smelled of oil, cold stone, and wool that never quite dried.
+She kept finding traces of graphite on the latch plates,
+as if someone had checked them in a hurry and meant to come back before first light.
+
+
+Entry 025
+On the climb back from the east dome, Mara noted that the dry snow had crusted the railings in a pale seam.
+She set the canvas tool roll beside the maintenance ledger, checked the dome gearing by hand,
+and marked a faint vibration in the housing above bracket 8.
+The mountain lights below vanished and returned in brief intervals,
+while the shutters answered the gusts with a dull iron shudder.
+
+
+Weather log 025
+gusts crossed from the north-northeast,
+the dome skin rang softly near the seam,
+and drifted ice gathered at the threshold below the wind gallery.
+
+
+Entry 026
+On the climb back from the lens room, Mara noted that the salt-cold fog had crusted the railings in a pale seam.
+She set the frosted logbook beside the maintenance ledger, checked the dome gearing by hand,
+and marked a faint vibration in the housing above bracket 9.
+The mountain lights below vanished and returned in brief intervals,
+while the shutters answered the gusts with a dull iron shudder.
+
+
+Entry 027
+On the climb back from the wind gallery, Mara noted that the needle rain had crusted the railings in a pale seam.
+She set the signal lamp beside the maintenance ledger, checked the dome gearing by hand,
+and marked a faint vibration in the housing above bracket 1.
+The mountain lights below vanished and returned in brief intervals,
+while the shutters answered the gusts with a dull iron shudder.
+
+
+Supplement 027
+The older charts still named the ridge stations in ink faded to tea-brown,
+and the observatory smelled of oil, cold stone, and wool that never quite dried.
+She kept finding traces of graphite on the latch plates,
+as if someone had checked them in a hurry and meant to come back before first light.
+
+
+Entry 028
+On the climb back from the copper catwalk, Mara noted that the glassy rime had crusted the railings in a pale seam.
+She set the coil of wire beside the maintenance ledger, checked the dome gearing by hand,
+and marked a faint vibration in the housing above bracket 2.
+The mountain lights below vanished and returned in brief intervals,
+while the shutters answered the gusts with a dull iron shudder.
+
+
+Entry 029
+On the climb back from the snow gate, Mara noted that the hard wind had crusted the railings in a pale seam.
+She set the oak transit case beside the maintenance ledger, checked the dome gearing by hand,
+and marked a faint vibration in the housing above bracket 3.
+The mountain lights below vanished and returned in brief intervals,
+while the shutters answered the gusts with a dull iron shudder.
+
+
+Entry 030
+On the climb back from the meridian stair, Mara noted that the granular sleet had crusted the railings in a pale seam.
+She set the brass eyepiece beside the maintenance ledger, checked the dome gearing by hand,
+and marked a faint vibration in the housing above bracket 4.
+The mountain lights below vanished and returned in brief intervals,
+while the shutters answered the gusts with a dull iron shudder.
+
+
+Supplement 030
+The older charts still named the ridge stations in ink faded to tea-brown,
+and the observatory smelled of oil, cold stone, and wool that never quite dried.
+She kept finding traces of graphite on the latch plates,
+as if someone had checked them in a hurry and meant to come back before first light.
+
+
+Weather log 030
+gusts crossed from the north-northeast,
+the dome skin rang softly near the seam,
+and drifted ice gathered at the threshold below the lens room.
+
+
+Entry 031
+On the climb back from the east dome, Mara noted that the dry snow had crusted the railings in a pale seam.
+She set the canvas tool roll beside the maintenance ledger, checked the dome gearing by hand,
+and marked a faint vibration in the housing above bracket 5.
+The mountain lights below vanished and returned in brief intervals,
+while the shutters answered the gusts with a dull iron shudder.
+
+
+Entry 032
+On the climb back from the lens room, Mara noted that the salt-cold fog had crusted the railings in a pale seam.
+She set the frosted logbook beside the maintenance ledger, checked the dome gearing by hand,
+and marked a faint vibration in the housing above bracket 6.
+The mountain lights below vanished and returned in brief intervals,
+while the shutters answered the gusts with a dull iron shudder.
+
+
+Entry 033
+On the climb back from the wind gallery, Mara noted that the needle rain had crusted the railings in a pale seam.
+She set the signal lamp beside the maintenance ledger, checked the dome gearing by hand,
+and marked a faint vibration in the housing above bracket 7.
+The mountain lights below vanished and returned in brief intervals,
+while the shutters answered the gusts with a dull iron shudder.
+
+
+Supplement 033
+The older charts still named the ridge stations in ink faded to tea-brown,
+and the observatory smelled of oil, cold stone, and wool that never quite dried.
+She kept finding traces of graphite on the latch plates,
+as if someone had checked them in a hurry and meant to come back before first light.
+
+
+Entry 034
+On the climb back from the copper catwalk, Mara noted that the glassy rime had crusted the railings in a pale seam.
+She set the coil of wire beside the maintenance ledger, checked the dome gearing by hand,
+and marked a faint vibration in the housing above bracket 8.
+The mountain lights below vanished and returned in brief intervals,
+while the shutters answered the gusts with a dull iron shudder.
+
+Final instruction:
+Write the next expedition-log section now. Keep it grounded in the dossier,
+descriptive, and forward-moving.

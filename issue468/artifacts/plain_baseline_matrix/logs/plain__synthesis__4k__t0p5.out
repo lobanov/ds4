@@ -1,0 +1,18 @@
+We need to synthesize the archive into the required JSON. The archive contains records, service memos, supervisor notes. We have multiple facilities: Juniper Yard, Atlas Dock, Cedar Spur, Lumen Hub, Morrow Annex, North Basin. Each appears multiple times. We need 6 facility_status objects, 8 sku_impacts, 8 timeline, 6 recommended_actions, 4 unresolved_questions. The overview should be 90-140 words.
+
+Let's extract key info.
+
+Facilities: 
+- Juniper Yard: records 001, 007, 013. Issues: seal failure. Status: open for 001, 007, 013. Dominant issue: seal failure. Next step: manual review (from immediate_action). But we need to summarize across records. For facility_status, we need one per site? The archive has 6 distinct facilities: Juniper Yard, Atlas Dock, Cedar Spur, Lumen Hub, Morrow Annex, North Basin. So exactly 6. For each, we need status, dominant_issue, next_step. We can aggregate from the records.
+
+For Juniper Yard: multiple seal failures, status open, dominant issue seal failure, next step manual review (from records). But also note that some records have "manual review" as immediate_action. So next_step: manual review.
+
+Atlas Dock: records 002, 008, 014. Issues: label mismatch. Status: open for 002 and 014, contained for 008. So overall status? We can say "open" as dominant? But we need to pick one. Probably "open" because two open one contained. Dominant issue: label mismatch. Next step: manual review (from immediate_action). Also service memos request another count.
+
+Cedar Spur: records 003, 009, 015. Issues: carrier delay. Status: open for all. Dominant issue: carrier delay. Next step: reroute and relabel (from immediate_action).
+
+Lumen Hub: records 004, 010, 016. Issues: sensor drift. Status: contained for 004 and 016, open for 010. So overall? Could be "contained" as two contained one open. Dominant issue: sensor drift. Next step: manual review (from immediate_action). Also service memos.
+
+Morrow Annex: records 005, 011. Issues: packing backlog. Status: open for both. Dominant issue: packing backlog. Next step: manual review (from immediate_action). Also supervisor note separate flagged cartons.
+
+North Basin: records 006, 012. Issues: power fluctuation. Status: open for 006, contained for 012. So overall? Could be "open" as one open one contained? Or "contained"? Let's see: 006 open, 012 contained. So mixed. But we can pick "open" as dominant? Actually both have same issue. We'll say "open" for consistency? But 012 is contained. We'll need to decide. Perhaps "open" because more recent? But we can just pick one. Let

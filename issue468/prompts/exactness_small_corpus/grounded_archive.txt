@@ -1,0 +1,13 @@
+Source notes:
+- The lower stairwell smelled of cold iron and wet rope.
+- A brass eyepiece had been wrapped in cloth near the ledger desk.
+- The mountain lights appeared only in brief gaps in the fog.
+- A faint vibration had been marked above bracket 4.
+
+Task:
+Continue the scene in 2 short paragraphs.
+Constraints:
+- grounded descriptive prose
+- no new characters
+- no dialogue
+- keep all details consistent with the notes

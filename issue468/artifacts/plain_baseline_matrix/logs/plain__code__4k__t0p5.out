@@ -1,0 +1,54 @@
+We need to implement the missing `top_k_frequent` function in `analytics/top_k_frequent.py`. The repository snapshot shows a pattern: each helper module has `stable_key_X`, `choose_rank_X`, `summarize_window_X`. However, the new module is `top_k_frequent.py` and it's not part of the numbered series. It should follow the same style: plain functions, no classes, returning plain dict/list data. The function `top_k_frequent(nums, k)` should return the k most frequent elements. The repository style uses simple Python, no imports beyond `from __future__ import annotations`. We'll implement a frequency count using a dictionary, then sort by frequency (descending) and then by value (ascending) for ties? The notes mention "if frequencies tie, deterministic order uses ascending integer or lexical order". So we should sort by (-count, value) for integers. The function should return a list of the top k elements (values). Also include docstring, 3 compact tests, and a tiny demo. The file should be about 90-130 lines. We'll include the docstring, the function, tests, and demo. We'll also include the `from __future__ import annotations` line as in the other modules. We'll keep the tests inside the same file (as per output contract: "include 3 compact tests in the same file"). The demo should be a small `if __name__ == "__main__":` block.
+
+We'll write:
+
+```python
+"""Return the k most frequent elements from a list of integers."""
+from __future__ import annotations
+
+def top_k_frequent(nums, k):
+    # implementation
+    ...
+
+# tests
+def test_top_k_frequent_basic():
+    ...
+
+def test_top_k_frequent_ties():
+    ...
+
+def test_top_k_frequent_small():
+    ...
+
+if __name__ == "__main__":
+    # demo
+    ...
+```
+
+We need to match the style: no external dependencies, plain functions. The function should handle edge cases (k <= 0, empty list). We'll use a dict to count frequencies, then sort items by (-freq, value) and take first k. Return list of values.
+
+Let's write the code.
+```python
+"""Return the k most frequent elements from a list of integers."""
+from __future__ import annotations
+
+def top_k_frequent(nums: list[int], k: int) -> list[int]:
+    """
+    Return the k most frequent elements from nums.
+
+    When frequencies tie, smaller values come first.
+    """
+    if k <= 0 or not nums:
+        return []
+
+    # count frequencies
+    freq: dict[int, int] = {}
+    for x in nums:
+        freq[x] = freq.get(x, 0) + 1
+
+    # sort by (-frequency, value) for deterministic ties
+    sorted_items = sorted(freq.items(), key=lambda item: (-item[1], item[0]))
+
+    # take top k
+    result: list[int] = []
+    for val, _ in sorted

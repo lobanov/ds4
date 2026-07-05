@@ -1,0 +1,310 @@
+You are given a long operations archive compiled from shipping notes, service incidents,
+facility updates, and SKU-level exception records. Use only the archive below.
+
+Task:
+Return a single minified JSON object only.
+
+Required schema:
+{
+  "overview": string,
+  "facility_status": [{"site": string, "status": string, "dominant_issue": string, "next_step": string}],
+  "sku_impacts": [{"sku": string, "severity": string, "issue": string, "action": string}],
+  "timeline": [{"stamp": string, "event": string}],
+  "recommended_actions": [string],
+  "unresolved_questions": [string]
+}
+
+Output constraints:
+- valid minified JSON only
+- no markdown
+- no explanatory text outside JSON
+- `overview` should be 90-140 words
+- include 6 facility_status objects
+- include 8 sku_impacts objects
+- include 8 timeline objects
+- include 6 recommended_actions strings
+- include 4 unresolved_questions strings
+- keep values concise but specific
+- total output should land around 450-650 tokens
+
+Operations archive:
+
+Record 001
+facility=Juniper Yard
+stamp=2026-04-02T03:07Z
+sku=JN-101
+status=open
+issue=seal failure
+units_held=13
+route=west
+note=inspection batch 1 found seal failure affecting pallet lane 2
+immediate_action=manual review
+
+
+Record 002
+facility=Atlas Dock
+stamp=2026-04-03T06:14Z
+sku=AT-102
+status=open
+issue=label mismatch
+units_held=14
+route=coastal
+note=inspection batch 2 found label mismatch affecting pallet lane 3
+immediate_action=manual review
+
+
+Service memo 002
+site=Atlas Dock
+sku=AT-102
+queue_cause=late truck
+recovery_confidence=high
+action=request another count before release
+
+
+Record 003
+facility=Cedar Spur
+stamp=2026-04-04T09:21Z
+sku=CD-103
+status=open
+issue=carrier delay
+units_held=15
+route=west
+note=inspection batch 3 found carrier delay affecting pallet lane 4
+immediate_action=reroute and relabel
+
+
+Record 004
+facility=Lumen Hub
+stamp=2026-04-05T12:28Z
+sku=LM-104
+status=contained
+issue=sensor drift
+units_held=16
+route=coastal
+note=inspection batch 4 found sensor drift affecting pallet lane 5
+immediate_action=manual review
+
+
+Service memo 004
+site=Lumen Hub
+sku=LM-104
+queue_cause=late truck
+recovery_confidence=high
+action=request another count before release
+
+
+Record 005
+facility=Morrow Annex
+stamp=2026-04-06T15:35Z
+sku=MR-105
+status=open
+issue=packing backlog
+units_held=17
+route=west
+note=inspection batch 5 found packing backlog affecting pallet lane 6
+immediate_action=manual review
+
+
+Supervisor note 005
+sku=MR-105
+repeat_issue_watch=packing backlog
+route_code=W2
+instruction=separate flagged cartons before release
+
+
+Record 006
+facility=North Basin
+stamp=2026-04-07T18:42Z
+sku=NW-106
+status=open
+issue=power fluctuation
+units_held=18
+route=coastal
+note=inspection batch 6 found power fluctuation affecting pallet lane 7
+immediate_action=reroute and relabel
+
+
+Service memo 006
+site=North Basin
+sku=NW-106
+queue_cause=late truck
+recovery_confidence=moderate
+action=request another count before release
+
+
+Record 007
+facility=Juniper Yard
+stamp=2026-04-08T21:49Z
+sku=JN-107
+status=open
+issue=seal failure
+units_held=19
+route=west
+note=inspection batch 7 found seal failure affecting pallet lane 8
+immediate_action=manual review
+
+
+Record 008
+facility=Atlas Dock
+stamp=2026-04-09T00:56Z
+sku=AT-108
+status=contained
+issue=label mismatch
+units_held=20
+route=coastal
+note=inspection batch 8 found label mismatch affecting pallet lane 9
+immediate_action=manual review
+
+
+Service memo 008
+site=Atlas Dock
+sku=AT-108
+queue_cause=late truck
+recovery_confidence=high
+action=request another count before release
+
+
+Record 009
+facility=Cedar Spur
+stamp=2026-04-10T03:03Z
+sku=CD-109
+status=open
+issue=carrier delay
+units_held=21
+route=west
+note=inspection batch 9 found carrier delay affecting pallet lane 10
+immediate_action=reroute and relabel
+
+
+Record 010
+facility=Lumen Hub
+stamp=2026-04-11T06:10Z
+sku=LM-110
+status=open
+issue=sensor drift
+units_held=22
+route=coastal
+note=inspection batch 10 found sensor drift affecting pallet lane 11
+immediate_action=manual review
+
+
+Service memo 010
+site=Lumen Hub
+sku=LM-110
+queue_cause=scanner reset
+recovery_confidence=high
+action=request another count before release
+
+
+Supervisor note 010
+sku=LM-110
+repeat_issue_watch=sensor drift
+route_code=C4
+instruction=separate flagged cartons before release
+
+
+Record 011
+facility=Morrow Annex
+stamp=2026-04-12T09:17Z
+sku=MR-111
+status=open
+issue=packing backlog
+units_held=23
+route=west
+note=inspection batch 11 found packing backlog affecting pallet lane 1
+immediate_action=manual review
+
+
+Record 012
+facility=North Basin
+stamp=2026-04-13T12:24Z
+sku=NW-112
+status=contained
+issue=power fluctuation
+units_held=24
+route=coastal
+note=inspection batch 12 found power fluctuation affecting pallet lane 2
+immediate_action=reroute and relabel
+
+
+Service memo 012
+site=North Basin
+sku=NW-112
+queue_cause=late truck
+recovery_confidence=moderate
+action=request another count before release
+
+
+Record 013
+facility=Juniper Yard
+stamp=2026-04-14T15:31Z
+sku=JN-113
+status=open
+issue=seal failure
+units_held=25
+route=west
+note=inspection batch 13 found seal failure affecting pallet lane 3
+immediate_action=manual review
+
+
+Record 014
+facility=Atlas Dock
+stamp=2026-04-15T18:38Z
+sku=AT-114
+status=open
+issue=label mismatch
+units_held=26
+route=coastal
+note=inspection batch 14 found label mismatch affecting pallet lane 4
+immediate_action=manual review
+
+
+Service memo 014
+site=Atlas Dock
+sku=AT-114
+queue_cause=late truck
+recovery_confidence=high
+action=request another count before release
+
+
+Record 015
+facility=Cedar Spur
+stamp=2026-04-16T21:45Z
+sku=CD-115
+status=open
+issue=carrier delay
+units_held=27
+route=west
+note=inspection batch 15 found carrier delay affecting pallet lane 5
+immediate_action=reroute and relabel
+
+
+Supervisor note 015
+sku=CD-115
+repeat_issue_watch=carrier delay
+route_code=W2
+instruction=separate flagged cartons before release
+
+
+Record 016
+facility=Lumen Hub
+stamp=2026-04-17T00:52Z
+sku=LM-116
+status=contained
+issue=sensor drift
+units_held=28
+route=coastal
+note=inspection batch 16 found sensor drift affecting pallet lane 6
+immediate_action=manual review
+
+
+Service memo 016
+site=Lumen Hub
+sku=LM-116
+queue_cause=late truck
+recovery_confidence=high
+action=request another count before release
+
+Final instruction:
+Synthesize the archive into the required JSON object. Use only information supported by the archive
+and keep the output concise, machine-readable, and complete.

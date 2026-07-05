@@ -1,0 +1,38 @@
+We need to implement the missing `top_k_frequent` function in `analytics/top_k_frequent.py`. The repository snapshot shows many similar helper modules (e.g., render_pairs_001, histograms_002, etc.) that all follow the same pattern: they define `stable_key_N`, `choose_rank_N`, and `summarize_window_N`. However, the target module is `top_k_frequent.py` and the function is `top_k_frequent(nums, k)`. This is a different utility: it should return the k most frequent elements from a list of integers, using a frequency count and then sorting by frequency (descending) and by value (ascending) for ties. The repository style notes mention "if frequencies tie, deterministic order uses ascending integer or lexical order". So we need to implement a typical top-k frequent elements solution.
+
+We must follow the same style: plain dict/list data, no custom classes, small helper functions. The module docstring should describe the utility. We'll include 3 compact tests and a tiny __main__ demo. The code should be roughly 90-130 lines. We'll implement using a dictionary for counts, then sort by (-count, num) and take first k. Or use a heap for efficiency, but the repository seems to favor simplicity over cleverness. So we can just use sorting.
+
+We'll also include a helper function `stable_key`? Not needed, but we can keep the pattern of having a small helper if needed. Actually, the existing modules have `stable_key_N`, `choose_rank_N`, `summarize_window_N`. For top_k_frequent, we might define `_count_frequencies` or something, but the main function is `top_k_frequent`. We'll keep it simple.
+
+We need to output only Python code, no notes. Include docstring, 3 tests, and a tiny demo. The tests should be in the same file, not separate. The demo should be in `if __name__ == "__main__":`.
+
+Let's write the implementation.
+```python
+"""Helper utility for top-k frequent elements extraction.
+
+Follows repository conventions: plain dict/list data, no custom classes,
+deterministic tie-breaking (ascending integer order).
+"""
+
+from __future__ import annotations
+
+def top_k_frequent(nums: list[int], k: int) -> list[int]:
+    """Return the k most frequent elements from nums.
+
+    Frequencies are counted; ties are broken by ascending value.
+    The result list is ordered by decreasing frequency, then by value.
+    """
+    # Count frequencies
+    freq: dict[int, int] = {}
+    for num in nums:
+        freq[num] = freq.get(num, 0) + 1
+
+    # Sort by (-frequency, value) for deterministic order
+    sorted_items = sorted(freq.items(), key=lambda x: (-x[1], x[0]))
+
+    # Take first k elements
+    return [num for num, _ in sorted_items[:k]]
+
+
+# --- compact tests -----------------------------------------------------------
+def test_top_k_f

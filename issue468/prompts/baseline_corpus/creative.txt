@@ -1,8 +1,0 @@
-Write a vivid short scene about an astronomer repairing an old observatory during a windstorm.
-
-Constraints:
-- third-person past tense
-- strong sensory detail
-- no dialogue for the first two paragraphs
-- subtle hopeful ending
-- do not explain the themes

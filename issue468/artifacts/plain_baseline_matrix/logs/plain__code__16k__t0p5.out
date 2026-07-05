@@ -1,0 +1,36 @@
+We need to implement the missing `top_k_frequent` function in `analytics/top_k_frequent.py`. The repository snapshot shows many similar modules (like `render_pairs_001.py`, `histograms_002.py`, etc.) that all have `stable_key`, `choose_rank`, and `summarize_window` functions. But the target module is `top_k_frequent.py` which is not in the list of existing modules. The task says "Write the missing implementation for the final target module." The repository snapshot includes a file `analytics/top_k_frequent.py` with a stub that raises NotImplementedError. We need to implement it.
+
+The style notes: helpers return plain dict/list data, avoid custom classes. The existing modules have functions that are simple and consistent. The `top_k_frequent` function should take a list `nums` and an integer `k`, and return the k most frequent elements. It should be a standalone module with docstring, 3 compact tests, and a tiny `__main__` demo. The target roughly 90-130 lines of code.
+
+We should follow the same pattern: use `from __future__ import annotations`, define the function, and include tests and demo. The function should be implemented using a frequency count (e.g., using a dict) and then sorting or using a heap. The repository style favors readability over cleverness, so we can use a simple approach: count frequencies, sort by frequency descending, then take top k. If ties, we need deterministic order? The notes mention "if frequencies tie, deterministic order uses ascending integer or lexical order". So we should sort by (-freq, num) to get descending frequency, then ascending num for ties.
+
+We'll produce a complete module with:
+
+- docstring
+- `from __future__ import annotations`
+- `def top_k_frequent(nums, k):` implementation
+- three test functions (like `test_top_k_frequent_basic`, `test_top_k_frequent_ties`, `test_top_k_frequent_single`)
+- a `if __name__ == "__main__":` demo
+
+The tests should be compact, using assert statements. The demo can show a simple example.
+
+We'll also include a helper function? The existing modules have `stable_key`, `choose_rank`, `summarize_window`. But `top_k_frequent` is different. We don't need those helpers. But we can still follow the same pattern: just define the function and tests.
+
+Make sure to use `from __future__ import annotations` for consistency.
+
+Let's write the code.
+```python
+"""Helper utilities for ranked frequency extraction (top k frequent)."""
+from __future__ import annotations
+
+def top_k_frequent(nums: list[int], k: int) -> list[int]:
+    """
+    Return the k most frequent elements in nums.
+
+    If frequencies tie, elements are sorted in ascending order
+    (lexical for integers) to ensure deterministic output.
+    """
+    # Count frequencies
+    freq: dict[int, int] = {}
+    for num in nums:
+       

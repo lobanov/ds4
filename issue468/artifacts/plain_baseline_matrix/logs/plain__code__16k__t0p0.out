@@ -1,0 +1,42 @@
+We need to implement `top_k_frequent(nums, k)` as a standalone module. The repository snapshot shows many helper modules with similar patterns: they define `stable_key_N`, `choose_rank_N`, `summarize_window_N`. But the target module is `top_k_frequent.py` which is not yet implemented. The task says "Write the missing implementation for the final target module." So we need to implement `top_k_frequent(nums, k)` in a file `analytics/top_k_frequent.py` following the same style.
+
+Looking at the repository, the helper modules are simple utility functions that return plain dict/list data, avoid custom classes. They use `from __future__ import annotations`. The tests are compact. The `__main__` demo is not shown in the snapshot but we should include a tiny demo.
+
+The function `top_k_frequent(nums, k)` should return the k most frequent elements. The style note says "callers sort with key=(-count, name) when deterministic order matters." So we should handle ties deterministically (e.g., by value). The repository also mentions "if frequencies tie, deterministic order uses ascending integer or lexical order". So we should sort by frequency descending, then by value ascending.
+
+We need to implement a clean solution. Use a dictionary to count frequencies, then sort by (-count, num) and take first k. Or use `heapq.nlargest` with key. But the repository avoids external dependencies, so we can use built-in `sorted` with a key.
+
+We'll write a module docstring, implement the function, include 3 compact tests, and a tiny `__main__` demo. The tests should be similar to the existing test files: import the function, test with simple cases.
+
+We'll follow the pattern: `from __future__ import annotations`, function docstring, no classes.
+
+Let's produce the code.
+```python
+"""Helper utilities for batch reporting task: top k frequent elements."""
+from __future__ import annotations
+
+def top_k_frequent(nums: list[int], k: int) -> list[int]:
+    """Return the k most frequent elements in nums.
+
+    Frequencies are counted; ties are broken by ascending integer value.
+    The result list is ordered by decreasing frequency (and ascending value
+    for ties).  This matches the repository convention of deterministic
+    ordering when frequencies tie.
+    """
+    # Count frequencies
+    freq: dict[int, int] = {}
+    for x in nums:
+        freq[x] = freq.get(x, 0) + 1
+
+    # Sort by (-frequency, value) to get deterministic order
+    sorted_items = sorted(freq.items(), key=lambda item: (-item[1], item[0]))
+
+    # Return the first k elements (only the values)
+    return [val for val, _ in sorted_items[:k]]
+
+
+# --- compact tests ----------------------------------------------------
+def test_top_k_frequent_basic():
+    nums = [1, 1, 1, 2, 2, 3]
+    k = 2
+    result =

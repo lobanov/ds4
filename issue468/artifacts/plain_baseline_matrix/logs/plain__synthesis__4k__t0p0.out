@@ -1,0 +1,12 @@
+We need to synthesize the archive into the required JSON. The archive has records, service memos, supervisor notes. We need to extract facility status, sku impacts, timeline, recommended actions, unresolved questions. The overview should be 90-140 words. We have 6 facilities: Juniper Yard, Atlas Dock, Cedar Spur, Lumen Hub, Morrow Annex, North Basin. Each appears multiple times. We need 6 facility_status objects, one per site? The archive mentions these six sites repeatedly. We can take the latest status for each site. For each facility, we need status, dominant_issue, next_step. Let's summarize:
+
+- Juniper Yard: records 001, 007, 013. Issues: seal failure. Status open. Next step manual review. Dominant issue seal failure.
+- Atlas Dock: records 002, 008, 014. Issues: label mismatch. Status open (002 open, 008 contained, 014 open). The latest is 014 open. But we can pick the most recent? Actually 014 is open, 008 contained. So dominant issue label mismatch, status open. Next step manual review.
+- Cedar Spur: records 003, 009, 015. Issues: carrier delay. Status open. Next step reroute and relabel.
+- Lumen Hub: records 004, 010, 016. Issues: sensor drift. Status: 004 contained, 010 open, 016 contained. Latest 016 contained. So status contained, dominant issue sensor drift, next step manual review.
+- Morrow Annex: records 005, 011. Issues: packing backlog. Status open. Next step manual review.
+- North Basin: records 006, 012. Issues: power fluctuation. Status: 006 open, 012 contained. Latest 012 contained. So status contained, dominant issue power fluctuation, next step reroute and relabel.
+
+We need 6 facility_status objects. So we can list each site with its status, dominant issue, next step. Use the most recent record for each site.
+
+Now sku_impacts: we need 8 objects. The archive has many SKUs: JN-101, AT-102, CD-103, LM-104, MR-105, NW-106, JN-107, AT-108, CD-109, LM-110, MR-111, NW-112, JN-113, AT-114, CD-115, LM-116. That's 16 SKUs. We need 8. We can pick the first 8 or the most recent? The instruction says "include 8 sku_impacts objects". We can select a representative set. Let's pick the ones with more notes or severity. But we need severity, issue, action. Severity can be inferred from status: open or contained. Let's assign severity: open -> high, contained -> moderate. For each SKU, we have issue and immediate_action. We'll pick 8 SKUs from the list, maybe the ones with supervisor notes or service memos. Let's choose

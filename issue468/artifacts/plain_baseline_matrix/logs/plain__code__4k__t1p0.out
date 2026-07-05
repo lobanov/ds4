@@ -1,0 +1,28 @@
+We need to implement the missing `top_k_frequent` function in `analytics/top_k_frequent.py`. The repository snapshot shows a pattern: each helper module has three functions: `stable_key_N`, `choose_rank_N`, `summarize_window_N`. But this module is different: it's `top_k_frequent`, which is a standalone utility for ranked frequency extraction. The snapshot shows only a stub. The task says "Complete `top_k_frequent(nums, k)` as a clean standalone module that matches the repository style above."
+
+We must follow the style: use `from __future__ import annotations`, plain dict/list data, avoid custom classes, and include docstring, 3 compact tests, and a tiny demo. The function should take a list of numbers `nums` and an integer `k`, and return the top k frequent elements (likely in descending order of frequency, with ties handled deterministically). The repository notes mention "if frequencies tie, deterministic order uses ascending integer or lexical order". Since nums are integers, tie-breaking by ascending integer value.
+
+We need to implement a typical top-k frequencies algorithm. Could use `collections.Counter` and then sort or use `heapq`. But to stay simple and avoid external deps, `Counter` is in stdlib. We can use `Counter` and then sort by (-count, num) and take first k.
+
+But note the style: "callers sort with key=(-count, name) when deterministic order matters". So we should sort by (-frequency, value) and take first k. Return list of numbers.
+
+Also include a docstring, three compact test functions, and a tiny `__main__` demo. The tests should be in the same file, but the repository snapshot shows separate test files. However the task says "include 3 compact tests in the same file". So we'll embed tests within the module file. Also include a `__main__` demo.
+
+We'll follow the pattern of the other modules: they have `from __future__ import annotations`, and functions with docstrings. We'll write a module docstring. Then `def top_k_frequent(nums, k):` with implementation. Then three test functions (e.g., `test_top_k_frequent_basic`, `test_top_k_frequent_ties`, `test_top_k_frequent_empty`). Then a `if __name__ == "__main__":` demo that prints something.
+
+The function should handle edge cases: if k <= 0 or nums empty, return empty list.
+
+Let's produce code.
+```python
+"""Return the k most frequent numbers from a list, with deterministic tie-breaking."""
+from __future__ import annotations
+
+from collections import Counter
+
+def top_k_frequent(nums: list[int], k: int) -> list[int]:
+    """
+    Return the top k most frequent numbers from nums.
+
+    Frequencies are counted via collections.Counter.  When two numbers
+    have the same frequency, the smaller number is kept first (ascending
+    integer order).  If k is larger than the number of distinct elements,

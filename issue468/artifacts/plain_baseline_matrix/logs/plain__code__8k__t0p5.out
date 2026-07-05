@@ -1,0 +1,35 @@
+We need to implement the missing `top_k_frequent` function in `analytics/top_k_frequent.py`. The repository snapshot shows many similar modules with helper functions like `stable_key_X`, `choose_rank_X`, `summarize_window_X`. However, the target module is `top_k_frequent.py` and it's not part of the numbered series. The task says "Write the missing implementation for the final target module." The provided snapshot includes `analytics/top_k_frequent.py` with a stub. We need to implement `top_k_frequent(nums, k)` that returns the k most frequent elements. The style from the repository: small helper functions, plain dict/list data, no custom classes, no external dependencies, deterministic order when ties. The function should likely follow the pattern: use a dictionary to count frequencies, then sort by (-count, value) to get deterministic order. Then return the top k. The tests should be compact. Also include a tiny __main__ demo.
+
+We must output only Python code, with docstring, 3 tests, and a demo. The file should be roughly 90-130 lines. We'll implement `top_k_frequent` as a standalone function, not a class. We'll also include helper functions if needed, but the main is the target. The repository style shows that each module has its own `stable_key_X`, `choose_rank_X`, `summarize_window_X` but those are specific to batch reporting tasks. For `top_k_frequent`, we don't need those. However, we should keep the same pattern: use `from __future__ import annotations`, docstring, and then the function. We'll also include a small test block and a demo.
+
+Let's write the implementation.
+```python
+"""Helper utilities for top-k frequency extraction."""
+from __future__ import annotations
+
+def top_k_frequent(nums: list[int], k: int) -> list[int]:
+    """Return the k most frequent elements from nums.
+
+    Frequencies are counted with a plain dict.  When two elements have
+    the same frequency, the smaller value comes first (deterministic
+    order).  The result list is sorted by decreasing frequency and then
+    by value.
+    """
+    freq: dict[int, int] = {}
+    for x in nums:
+        freq[x] = freq.get(x, 0) + 1
+
+    # Build list of (value, count) pairs and sort by (-count, value)
+    pairs = [(val, cnt) for val, cnt in freq.items()]
+    pairs.sort(key=lambda p: (-p[1], p[0]))
+
+    # Return the first k values
+    return [val for val, _ in pairs[:k]]
+
+
+# --- compact tests ------------------------------------------------------
+def test_top_k_frequent_basic():
+    result = top_k_frequent([1, 1, 1, 2, 2, 3], 2)
+    assert result == [1, 2], f"expected [1, 2], got {result}"
+
+def
