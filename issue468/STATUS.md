@@ -44,6 +44,11 @@ Create a trustworthy active dossier that makes it easy to:
   - diagnostics: `issue468/archive/diagnostics/`
 - MTP bulk draft verifier bandwidth-binding audit (code audit, not a measurement):
   - summary: `issue468/summaries/mtp_verifier_bandwidth_binding.md`
+- DFlash oracle + accepted-prefix comparison vs DSpark (resolved):
+  - summary: `issue468/summaries/dflash_oracle_investigation.md`
+  - weights: `issue468/dflash_drafter/` (gitignored); forward + harness: `issue468/dflash_oracle/`
+  - captures: `issue468/artifacts/dflash_capture/` (30 cells, gitignored); results: `issue468/artifacts/dflash_acceptance/`
+  - capture driver: `issue468/run_dflash_capture.py`
 
 ## Current conclusions
 
@@ -60,13 +65,17 @@ Create a trustworthy active dossier that makes it easy to:
 - This supersedes the sibling `ds4-dspark` dossier notes 22 and 51 (buggy oracle;
   did not measure the HF-source ceiling).
 - **The MTP bulk draft verifier is memory-bandwidth-bound, not compute-bound,**
-  across its entire operating range (suffix M=2-4, <=16). Its cost is a bandwidth
-  floor ~= one decode, ~flat in K, so speculative gain is governed by accepted
-  tokens per cycle, not by cheaper verification. This confirms the GOAL's stated
-  main risk as structurally real; cheap verification would require larger K,
-  server-side multi-request batching, or a resident hot-weight set. See
-  `summaries/mtp_verifier_bandwidth_binding.md` (empirical confirmation via
-  `DS4_MTP_TIMING=1` is not yet run).
+- **DFlash drafter comparison: DSpark is more attractive on this corpus.**
+  DFlash oracle built and validated vs the MLX reference (<=0.08% rel); the only
+  bug was a self-inflicted `d2t` token-mapping error (`d2t` is an offset, not an
+  absolute map; correct decode `target_id = draft_idx + d2t[draft_idx]`), caught
+  by an adversarial codex review after a brief mis-diagnosis as a representation
+  blocker. On the same IQ2XXS target and offline per-step protocol, DFlash avg
+  accepted prefix is 0.876 (7-token block) vs DSpark q4k's 2.171 (5-token block)
+  — DSpark ~2.5x better. DFlash's parallel noise-block drafting rarely extends
+  the prefix past position 1. DFlash pos1 acc 0.68 ≈ its val 0.74; positions 2-7
+  underperform val (likely IQ2XXS effect on later positions / corpus). See
+  `summaries/dflash_oracle_investigation.md`.
 
 ## Next recommended steps
 

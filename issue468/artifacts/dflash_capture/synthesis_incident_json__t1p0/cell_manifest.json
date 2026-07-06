@@ -1,0 +1,16 @@
+{
+  "prompt_name": "synthesis_incident_json",
+  "temperature": 1.0,
+  "seed": 2,
+  "ctx": 4096,
+  "tokens": 14,
+  "layers": [
+    3,
+    13,
+    23,
+    32,
+    42
+  ],
+  "n_positions": 135,
+  "n_prompt_positions_est": 135
+}
