@@ -44,6 +44,15 @@ Create a trustworthy active dossier that makes it easy to:
   - diagnostics: `issue468/archive/diagnostics/`
 - MTP bulk draft verifier bandwidth-binding audit (code audit, not a measurement):
   - summary: `issue468/summaries/mtp_verifier_bandwidth_binding.md`
+- MTP verifier benchmark (empirical confirmation of the audit, K-sweep):
+  - summary: `issue468/summaries/mtp_verifier_bench_results.md`
+  - harness: `issue468/run_mtp_verifier_bench.py` (code_4k, K in {2,4,8,16}) and
+    `issue468/run_mtp_verifier_bench_long.py` (8k prompts, K=2..6)
+  - artifacts: `issue468/artifacts/mtp_verifier_bench/` and `mtp_verifier_bench_long/`
+- Speculative-decode speedup model (numpy projection, answers the gate questions):
+  - summary: `issue468/summaries/spec_speedup_model.md`
+  - model: `issue468/model_spec_speedup.py`
+  - artifacts: `issue468/artifacts/spec_speedup_model/{summary.json,model_inputs.json}`
 - DFlash oracle + accepted-prefix comparison vs DSpark (resolved):
   - summary: `issue468/summaries/dflash_oracle_investigation.md`
   - weights: `issue468/dflash_drafter/` (gitignored); forward + harness: `issue468/dflash_oracle/`
@@ -65,6 +74,36 @@ Create a trustworthy active dossier that makes it easy to:
 - This supersedes the sibling `ds4-dspark` dossier notes 22 and 51 (buggy oracle;
   did not measure the HF-source ceiling).
 - **The MTP bulk draft verifier is memory-bandwidth-bound, not compute-bound,**
+  across its entire operating range, now confirmed empirically: verify(K=2)
+  median 27.3 ms ~= one decode (26.0 ms), and the MTP path is net-negative at
+  every tested K (−5% at K=2, −70% at K=16). Total verify grows super-linearly
+  with K beyond ~8 (MoE expert-union growth); acceptance peaks at K=4 then
+  declines. Draft cost is negligible (2-6 ms for K=2-4). The path to a local
+  speedup is not drafter precision (exhausted) and not larger K (super-linear
+  verify + declining acceptance); it requires higher draft acceptance or
+  server-side multi-request batching that amortizes the verify bandwidth floor.
+  See `summaries/mtp_verifier_bench_results.md` (confirmed on three 8k prompts,
+  K=2..6: net-negative at every cell; best case grounded_8k K=2 at −0.3%).
+- **Speculative speedup is acceptance-limited; the current drafter is ~2 pp from
+  beating baseline at K=4 with an optimized verifier.** Corrected cycle model
+  (`summaries/spec_speedup_model.md`): the verify forward produces the next anchor,
+  so a fresh decode is needed only on full-block acceptance (cost =
+  draft+verify+decode·S(K)). With the current drafter K=4 is at **break-even
+  (−0.9%)**, and beating baseline needs only ~79% per-position acceptance (current
+  ~77%); the +20% gate needs ~89-94% (K=5/K=4). The shipped `--mtp` implementation
+  pays a redundant anchor decode every cycle (~−18 pp at K=4) — a verifier that
+  reuses the verify-produced anchor is a real lever. A 4-node draft tree still
+  cannot help (ceiling +2.2%, dominated by a linear chain; hedging is doubly
+  penalized). Levers: verifier-anchor reuse + a materially better drafter (training,
+  not quantization) or server-side batching. **The headline is conditional on the
+  anchor-reuse assumption** (the explicit modeling premise); an adversarial
+  codex/gpt-5.5-xhigh review (retained in `summaries/spec_speedup_model.md` §
+  Adversarial review, and `artifacts/spec_speedup_model/codex_review.md`) flags
+  that assumption as the load-bearing unverified risk — the shipped verifier does
+  NOT reuse the anchor (−18.9% at K=4) — plus ~15–19 ms residual per-cycle overhead
+  set to zero in the model and prompt-level noise (sd ≈0.43 on E[a|4]). The
+  under-assumption findings stand; treat them as the optimistic edge of a band
+  whose pessimistic edge is the shipped-verifier reality.
 - **DFlash drafter comparison: DSpark is more attractive on this corpus.**
   DFlash oracle built and validated vs the MLX reference (<=0.08% rel); the only
   bug was a self-inflicted `d2t` token-mapping error (`d2t` is an offset, not an

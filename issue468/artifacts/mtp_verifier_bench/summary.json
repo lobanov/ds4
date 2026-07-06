@@ -1,0 +1,146 @@
+[
+  {
+    "label": "baseline",
+    "args": [],
+    "env": {},
+    "returncode": 0,
+    "wall_s": 8.41,
+    "ctx": 8192,
+    "n": 96,
+    "temp": "0.0",
+    "seed": "1",
+    "prompt": "/Users/lobanov/Projects/ds4-dspark-research/issue468/prompts/baseline_corpus/code_4k.txt",
+    "prefill_tps": 363.7,
+    "gen_tps": 38.49,
+    "n_cycles": 0,
+    "spec_miss_first": 0
+  },
+  {
+    "label": "mtp_k2",
+    "args": [
+      "--mtp",
+      "/Users/lobanov/Projects/ds4/gguf/DeepSeek-V4-Flash-MTP-Q4K-Q8_0-F32.gguf",
+      "--mtp-draft",
+      "2"
+    ],
+    "env": {
+      "DS4_MTP_TIMING": "1",
+      "DS4_MTP_SPEC_LOG": "1"
+    },
+    "returncode": 0,
+    "wall_s": 9.52,
+    "ctx": 8192,
+    "n": 96,
+    "temp": "0.0",
+    "seed": "1",
+    "prompt": "/Users/lobanov/Projects/ds4-dspark-research/issue468/prompts/baseline_corpus/code_4k.txt",
+    "prefill_tps": 357.38,
+    "gen_tps": 36.47,
+    "n_cycles": 34,
+    "mean_draft_ms": 2.03,
+    "median_draft_ms": 2.095,
+    "mean_verify_ms": 32.585,
+    "median_verify_ms": 27.32,
+    "mean_total_ms": 34.718,
+    "median_total_ms": 29.502,
+    "mean_drafted": 1.97,
+    "mean_committed": 1.35,
+    "spec_miss_first": 16
+  },
+  {
+    "label": "mtp_k4",
+    "args": [
+      "--mtp",
+      "/Users/lobanov/Projects/ds4/gguf/DeepSeek-V4-Flash-MTP-Q4K-Q8_0-F32.gguf",
+      "--mtp-draft",
+      "4"
+    ],
+    "env": {
+      "DS4_MTP_TIMING": "1",
+      "DS4_MTP_SPEC_LOG": "1"
+    },
+    "returncode": 0,
+    "wall_s": 10.09,
+    "ctx": 8192,
+    "n": 96,
+    "temp": "0.0",
+    "seed": "1",
+    "prompt": "/Users/lobanov/Projects/ds4-dspark-research/issue468/prompts/baseline_corpus/code_4k.txt",
+    "prefill_tps": 362.27,
+    "gen_tps": 27.22,
+    "n_cycles": 25,
+    "mean_draft_ms": 5.896,
+    "median_draft_ms": 6.085,
+    "mean_verify_ms": 57.571,
+    "median_verify_ms": 57.891,
+    "mean_total_ms": 98.38,
+    "median_total_ms": 105.904,
+    "mean_drafted": 3.88,
+    "mean_committed": 2.4,
+    "spec_miss_first": 11
+  },
+  {
+    "label": "mtp_k8",
+    "args": [
+      "--mtp",
+      "/Users/lobanov/Projects/ds4/gguf/DeepSeek-V4-Flash-MTP-Q4K-Q8_0-F32.gguf",
+      "--mtp-draft",
+      "8"
+    ],
+    "env": {
+      "DS4_MTP_TIMING": "1",
+      "DS4_MTP_SPEC_LOG": "1"
+    },
+    "returncode": 0,
+    "wall_s": 11.57,
+    "ctx": 8192,
+    "n": 96,
+    "temp": "0.0",
+    "seed": "1",
+    "prompt": "/Users/lobanov/Projects/ds4-dspark-research/issue468/prompts/baseline_corpus/code_4k.txt",
+    "prefill_tps": 363.26,
+    "gen_tps": 19.27,
+    "n_cycles": 28,
+    "mean_draft_ms": 13.28,
+    "median_draft_ms": 14.055,
+    "mean_verify_ms": 83.189,
+    "median_verify_ms": 85.97,
+    "mean_total_ms": 138.192,
+    "median_total_ms": 142.264,
+    "mean_drafted": 7.57,
+    "mean_committed": 2.07,
+    "spec_miss_first": 10
+  },
+  {
+    "label": "mtp_k16",
+    "args": [
+      "--mtp",
+      "/Users/lobanov/Projects/ds4/gguf/DeepSeek-V4-Flash-MTP-Q4K-Q8_0-F32.gguf",
+      "--mtp-draft",
+      "16"
+    ],
+    "env": {
+      "DS4_MTP_TIMING": "1",
+      "DS4_MTP_SPEC_LOG": "1"
+    },
+    "returncode": 0,
+    "wall_s": 15.43,
+    "ctx": 8192,
+    "n": 96,
+    "temp": "0.0",
+    "seed": "1",
+    "prompt": "/Users/lobanov/Projects/ds4-dspark-research/issue468/prompts/baseline_corpus/code_4k.txt",
+    "prefill_tps": 362.18,
+    "gen_tps": 11.27,
+    "n_cycles": 28,
+    "mean_draft_ms": 27.202,
+    "median_draft_ms": 30.075,
+    "mean_verify_ms": 195.129,
+    "median_verify_ms": 212.985,
+    "mean_total_ms": 264.318,
+    "median_total_ms": 285.104,
+    "mean_drafted": 14.5,
+    "mean_committed": 2.07,
+    "spec_miss_first": 10
+  }
+]

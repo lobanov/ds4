@@ -1,0 +1,117 @@
+{
+  "partA_linear": [
+    {
+      "K": 1,
+      "verify_ms": 26.0,
+      "P_full_accept": 0.812,
+      "cycle_ms": 57.1,
+      "E_accept": 0.812,
+      "speedup": 0.825,
+      "vs_baseline_pct": -17.5
+    },
+    {
+      "K": 2,
+      "verify_ms": 43.6,
+      "P_full_accept": 0.65,
+      "cycle_ms": 70.5,
+      "E_accept": 1.462,
+      "speedup": 0.908,
+      "vs_baseline_pct": -9.2
+    },
+    {
+      "K": 3,
+      "verify_ms": 59.7,
+      "P_full_accept": 0.425,
+      "cycle_ms": 80.8,
+      "E_accept": 1.888,
+      "speedup": 0.93,
+      "vs_baseline_pct": -7.0
+    },
+    {
+      "K": 4,
+      "verify_ms": 65.8,
+      "P_full_accept": 0.288,
+      "cycle_ms": 83.3,
+      "E_accept": 2.175,
+      "speedup": 0.991,
+      "vs_baseline_pct": -0.9
+    },
+    {
+      "K": 5,
+      "verify_ms": 74.5,
+      "P_full_accept": 0.163,
+      "cycle_ms": 88.7,
+      "E_accept": 2.338,
+      "speedup": 0.978,
+      "vs_baseline_pct": -2.2
+    }
+  ],
+  "partB_required_acceptance": [
+    {
+      "K": 2,
+      "E_req_beat": 1.712,
+      "E_req_20": 2.254,
+      "p_req_beat": -1.0,
+      "p_req_20": -1.0,
+      "cur_E": 1.462,
+      "cur_p": 0.809
+    },
+    {
+      "K": 3,
+      "E_req_beat": 2.106,
+      "E_req_20": 2.727,
+      "p_req_beat": 0.89,
+      "p_req_20": -1.0,
+      "cur_E": 1.888,
+      "cur_p": 0.786
+    },
+    {
+      "K": 4,
+      "E_req_beat": 2.203,
+      "E_req_20": 2.843,
+      "p_req_beat": 0.792,
+      "p_req_20": 0.94,
+      "cur_E": 2.175,
+      "cur_p": 0.771
+    },
+    {
+      "K": 5,
+      "E_req_beat": 2.412,
+      "E_req_20": 3.095,
+      "p_req_beat": 0.783,
+      "p_req_20": 0.89,
+      "cur_E": 2.338,
+      "cur_p": 0.757
+    }
+  ],
+  "partC_trees": [
+    {
+      "N": 3,
+      "verify_ms": 59.7,
+      "cycle_ms": 95.7,
+      "ceiling_linear_pct": 8.7,
+      "ceiling_tree_pct": -18.5
+    },
+    {
+      "N": 4,
+      "verify_ms": 65.8,
+      "cycle_ms": 101.8,
+      "ceiling_linear_pct": 27.7,
+      "ceiling_tree_pct": 2.2
+    },
+    {
+      "N": 5,
+      "verify_ms": 74.5,
+      "cycle_ms": 110.5,
+      "ceiling_linear_pct": 41.2,
+      "ceiling_tree_pct": 17.6
+    },
+    {
+      "N": 6,
+      "verify_ms": 79.6,
+      "cycle_ms": 115.6,
+      "ceiling_linear_pct": 57.4,
+      "ceiling_tree_pct": 34.9
+    }
+  ]
+}

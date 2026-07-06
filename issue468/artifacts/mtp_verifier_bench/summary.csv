@@ -1,0 +1,6 @@
+label,returncode,wall_s,prefill_tps,gen_tps,n_cycles,mean_drafted,mean_committed,mean_draft_ms,mean_verify_ms,median_verify_ms,mean_total_ms,spec_miss_first
+baseline,0,8.41,363.7,38.49,0,None,None,None,None,None,None,0
+mtp_k2,0,9.52,357.38,36.47,34,1.97,1.35,2.03,32.585,27.32,34.718,16
+mtp_k4,0,10.09,362.27,27.22,25,3.88,2.4,5.896,57.571,57.891,98.38,11
+mtp_k8,0,11.57,363.26,19.27,28,7.57,2.07,13.28,83.189,85.97,138.192,10
+mtp_k16,0,15.43,362.18,11.27,28,14.5,2.07,27.202,195.129,212.985,264.318,10
