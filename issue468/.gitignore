@@ -1,7 +1,7 @@
 artifacts/**/*.stdout
 artifacts/**/*.stderr
-artifacts/exactness_small_bundles/*/captures/*.bin
-artifacts/exactness_small_bundles/*/oracle/*.npy
+artifacts/**/captures/*.bin
+artifacts/**/oracle/*.npy
 artifacts/dspark_ceiling/*.gguf
 dflash_drafter/model.safetensors
 dflash_drafter/*.safetensors

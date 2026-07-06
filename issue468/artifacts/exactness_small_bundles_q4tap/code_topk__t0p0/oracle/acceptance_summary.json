@@ -1,0 +1,193 @@
+{
+  "label": "code_topk@temp=0.0",
+  "candidate": null,
+  "bundle_dir": "/Users/lobanov/Projects/ds4-dspark-research/issue468/artifacts/exactness_small_bundles_q4tap/code_topk__t0p0",
+  "prompt_name": "code_topk",
+  "temperature": 0.0,
+  "seed": 2,
+  "prompt_tokens": 67,
+  "measure_steps": 8,
+  "total_positions": 40,
+  "total_match": 22,
+  "match_pct": 55.0,
+  "average_prefix": 2.75,
+  "prefix_hist": {
+    "0": 2,
+    "1": 2,
+    "2": 0,
+    "3": 0,
+    "4": 0,
+    "5": 4
+  },
+  "rows": [
+    {
+      "step": 1,
+      "position": 68,
+      "anchor": 1309,
+      "draft": [
+        304,
+        5085,
+        260,
+        2019,
+        3608
+      ],
+      "target": [
+        304,
+        4678,
+        2656,
+        24224,
+        5598
+      ],
+      "match": 1,
+      "prefix": 1
+    },
+    {
+      "step": 2,
+      "position": 69,
+      "anchor": 304,
+      "draft": [
+        4678,
+        3608,
+        16126,
+        24224,
+        89
+      ],
+      "target": [
+        4678,
+        2656,
+        24224,
+        5598,
+        57764
+      ],
+      "match": 1,
+      "prefix": 1
+    },
+    {
+      "step": 3,
+      "position": 70,
+      "anchor": 4678,
+      "draft": [
+        679,
+        5598,
+        57764,
+        5598,
+        57764
+      ],
+      "target": [
+        2656,
+        24224,
+        5598,
+        57764,
+        27460
+      ],
+      "match": 0,
+      "prefix": 0
+    },
+    {
+      "step": 4,
+      "position": 71,
+      "anchor": 2656,
+      "draft": [
+        473,
+        17215,
+        7316,
+        16,
+        455
+      ],
+      "target": [
+        24224,
+        5598,
+        57764,
+        27460,
+        14
+      ],
+      "match": 0,
+      "prefix": 0
+    },
+    {
+      "step": 5,
+      "position": 72,
+      "anchor": 24224,
+      "draft": [
+        5598,
+        57764,
+        27460,
+        14,
+        473
+      ],
+      "target": [
+        5598,
+        57764,
+        27460,
+        14,
+        473
+      ],
+      "match": 5,
+      "prefix": 5
+    },
+    {
+      "step": 6,
+      "position": 73,
+      "anchor": 5598,
+      "draft": [
+        57764,
+        27460,
+        14,
+        473,
+        11
+      ],
+      "target": [
+        57764,
+        27460,
+        14,
+        473,
+        11
+      ],
+      "match": 5,
+      "prefix": 5
+    },
+    {
+      "step": 7,
+      "position": 74,
+      "anchor": 57764,
+      "draft": [
+        27460,
+        14,
+        473,
+        11,
+        396
+      ],
+      "target": [
+        27460,
+        14,
+        473,
+        11,
+        396
+      ],
+      "match": 5,
+      "prefix": 5
+    },
+    {
+      "step": 8,
+      "position": 75,
+      "anchor": 27460,
+      "draft": [
+        14,
+        473,
+        11,
+        396,
+        10340
+      ],
+      "target": [
+        14,
+        473,
+        11,
+        396,
+        10340
+      ],
+      "match": 5,
+      "prefix": 5
+    }
+  ],
+  "reference_mode": "greedy"
+}

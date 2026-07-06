@@ -1,0 +1,13 @@
+Small mixed prompt for exactness smoke testing.
+
+Part A:
+Write a tiny Python helper `pair_counts(items)` that returns sorted `(item, count)` pairs.
+
+Part B:
+After the code block, add 2 sentences describing a technician crossing a frozen observatory catwalk in hard wind.
+
+Constraints:
+- keep the code simple
+- deterministic ordering for ties
+- prose must be grounded and concrete
+- no dialogue

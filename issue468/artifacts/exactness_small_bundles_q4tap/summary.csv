@@ -1,0 +1,11 @@
+prompt,temperature,reference_mode,prompt_tokens,average_prefix,match_pct,measure_steps,bundle_dir
+code_sort_pairs,0.0,greedy,81,2.625,57.5,8,issue468/artifacts/exactness_small_bundles_q4tap/code_sort_pairs__t0p0
+code_topk,0.0,greedy,67,2.75,55.0,8,issue468/artifacts/exactness_small_bundles_q4tap/code_topk__t0p0
+code_histogram,0.0,greedy,70,4.25,90.0,8,issue468/artifacts/exactness_small_bundles_q4tap/code_histogram__t0p0
+grounded_observatory,0.0,greedy,113,1.125,35.0,8,issue468/artifacts/exactness_small_bundles_q4tap/grounded_observatory__t0p0
+grounded_archive,0.0,greedy,102,2.875,57.5,8,issue468/artifacts/exactness_small_bundles_q4tap/grounded_archive__t0p0
+grounded_repair,0.0,greedy,90,3.125,72.5,8,issue468/artifacts/exactness_small_bundles_q4tap/grounded_repair__t0p0
+synthesis_ops_json,0.0,greedy,165,1.75,42.5,8,issue468/artifacts/exactness_small_bundles_q4tap/synthesis_ops_json__t0p0
+synthesis_timeline_json,0.0,greedy,148,1.625,37.5,8,issue468/artifacts/exactness_small_bundles_q4tap/synthesis_timeline_json__t0p0
+synthesis_incident_json,0.0,greedy,121,2.875,60.0,8,issue468/artifacts/exactness_small_bundles_q4tap/synthesis_incident_json__t0p0
+mixed_exactness_smoke,0.0,greedy,94,1.375,32.5,8,issue468/artifacts/exactness_small_bundles_q4tap/mixed_exactness_smoke__t0p0

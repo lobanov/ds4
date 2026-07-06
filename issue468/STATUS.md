@@ -58,6 +58,11 @@ Create a trustworthy active dossier that makes it easy to:
   - weights: `issue468/dflash_drafter/` (gitignored); forward + harness: `issue468/dflash_oracle/`
   - captures: `issue468/artifacts/dflash_capture/` (30 cells, gitignored); results: `issue468/artifacts/dflash_acceptance/`
   - capture driver: `issue468/run_dflash_capture.py`
+- Quantization-mismatch investigation (Stage 0 + Stage 1, both codex-reviewed; **complete → recommendation: NARROW**):
+  - recommendation: `issue468/summaries/quant_mismatch_recommendation.md`
+  - Stage 0 summary: `issue468/summaries/quant_mismatch_diagnostic.md`; harness `issue468/run_stage0_quant_mismatch.py`; artifacts `issue468/artifacts/quant_mismatch_diagnostic/` (incl. `drafter_top64_scores.npz` for rank re-derivation, `codex_review.md`)
+  - Stage 1 summary: `issue468/summaries/stage1_tap_precision.md`; capture `issue468/run_exactness_small_bundles.py` (Q4-tap variant); compare `issue468/run_stage1_q4tap_compare.py`; artifacts `issue468/artifacts/exactness_small_bundles_q4tap/` (incl. `comparison_vs_baseline/` + `codex_review.md`)
+  - headline: drafter p=1 misses are **shallow / right neighborhood** (median target-rank 1.0; top-2 coverage 0.8125→0.9125) — recoverable shape, but causal link to quant unproven. Raising tap-layer (layers 37–42) precision to Q4 did **not** materially help p=1 (underpowered; CI straddles 0) — the original FP-vs-Q2 mismatch framing is partially falsified. Recommendation: bounded Stage 2 fine-tune PoC (not a full pipeline), targeting the secondary gate.
 
 ## Current conclusions
 
@@ -115,6 +120,20 @@ Create a trustworthy active dossier that makes it easy to:
   the prefix past position 1. DFlash pos1 acc 0.68 ≈ its val 0.74; positions 2-7
   underperform val (likely IQ2XXS effect on later positions / corpus). See
   `summaries/dflash_oracle_investigation.md`.
+- **Quantization-mismatch hypothesis: partially falsified; drafter fine-tune kept
+  in play as a bounded PoC (NARROW).** Stage 0 (codex-reviewed): DSpark drafter
+  p=1 misses vs IQ2XXS are **shallow** (median target-rank 1.0; 100% within
+  top-10; top-2 coverage 0.8125→0.9125) — recoverable shape, but the *quant-flip*
+  attribution is unproven (only ~27% are Q2 near-ties; median Q2 gap 2.15 nat).
+  Stage 1 (codex-reviewed): raising layers 37–42 routed experts to Q4_K did **not**
+  materially improve p=1 acceptance (0.8125→0.7875; E[a|5block] +0.10, bootstrap
+  CI [−0.16,+0.41] — underpowered) — so this expert-only Q4-tap variant does not
+  materially help; tap-localized quant mismatch is **not demonstrated** as the
+  mechanism (lower-layer Q2 vs calibration remains unresolved). Net: precision is not
+  a usable lever; a bounded drafter fine-tune on the served target's distribution
+  is the last plausible lever, realistically targeting the secondary gate
+  (beat baseline / match --mtp), not the +20% primary gate. See
+  `summaries/quant_mismatch_recommendation.md`.
 
 ## Next recommended steps
 

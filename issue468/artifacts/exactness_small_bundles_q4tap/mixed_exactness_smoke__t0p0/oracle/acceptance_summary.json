@@ -1,0 +1,193 @@
+{
+  "label": "mixed_exactness_smoke@temp=0.0",
+  "candidate": null,
+  "bundle_dir": "/Users/lobanov/Projects/ds4-dspark-research/issue468/artifacts/exactness_small_bundles_q4tap/mixed_exactness_smoke__t0p0",
+  "prompt_name": "mixed_exactness_smoke",
+  "temperature": 0.0,
+  "seed": 2,
+  "prompt_tokens": 94,
+  "measure_steps": 8,
+  "total_positions": 40,
+  "total_match": 13,
+  "match_pct": 32.5,
+  "average_prefix": 1.375,
+  "prefix_hist": {
+    "0": 4,
+    "1": 1,
+    "2": 1,
+    "3": 1,
+    "4": 0,
+    "5": 1
+  },
+  "rows": [
+    {
+      "step": 1,
+      "position": 95,
+      "anchor": 1309,
+      "draft": [
+        304,
+        7009,
+        260,
+        2395,
+        15255
+      ],
+      "target": [
+        304,
+        5085,
+        260,
+        15255,
+        43398
+      ],
+      "match": 2,
+      "prefix": 1
+    },
+    {
+      "step": 2,
+      "position": 96,
+      "anchor": 304,
+      "draft": [
+        7009,
+        260,
+        2395,
+        15255,
+        11314
+      ],
+      "target": [
+        5085,
+        260,
+        15255,
+        43398,
+        2019
+      ],
+      "match": 1,
+      "prefix": 0
+    },
+    {
+      "step": 3,
+      "position": 97,
+      "anchor": 5085,
+      "draft": [
+        20823,
+        3682,
+        19491,
+        396,
+        10340
+      ],
+      "target": [
+        260,
+        15255,
+        43398,
+        2019,
+        9069
+      ],
+      "match": 0,
+      "prefix": 0
+    },
+    {
+      "step": 4,
+      "position": 98,
+      "anchor": 260,
+      "draft": [
+        17168,
+        15255,
+        43398,
+        2019,
+        6026
+      ],
+      "target": [
+        15255,
+        43398,
+        2019,
+        9069,
+        102511
+      ],
+      "match": 0,
+      "prefix": 0
+    },
+    {
+      "step": 5,
+      "position": 99,
+      "anchor": 15255,
+      "draft": [
+        2019,
+        9069,
+        102511,
+        18561,
+        14
+      ],
+      "target": [
+        43398,
+        2019,
+        9069,
+        102511,
+        117097
+      ],
+      "match": 0,
+      "prefix": 0
+    },
+    {
+      "step": 6,
+      "position": 100,
+      "anchor": 43398,
+      "draft": [
+        2019,
+        9069,
+        102511,
+        396,
+        5851
+      ],
+      "target": [
+        2019,
+        9069,
+        102511,
+        117097,
+        11
+      ],
+      "match": 3,
+      "prefix": 3
+    },
+    {
+      "step": 7,
+      "position": 101,
+      "anchor": 2019,
+      "draft": [
+        9069,
+        102511,
+        396,
+        5851,
+        14
+      ],
+      "target": [
+        9069,
+        102511,
+        117097,
+        11,
+        396
+      ],
+      "match": 2,
+      "prefix": 2
+    },
+    {
+      "step": 8,
+      "position": 102,
+      "anchor": 9069,
+      "draft": [
+        102511,
+        117097,
+        11,
+        396,
+        10340
+      ],
+      "target": [
+        102511,
+        117097,
+        11,
+        396,
+        10340
+      ],
+      "match": 5,
+      "prefix": 5
+    }
+  ],
+  "reference_mode": "greedy"
+}

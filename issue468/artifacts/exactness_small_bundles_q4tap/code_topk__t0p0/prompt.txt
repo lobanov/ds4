@@ -1,0 +1,9 @@
+Task:
+Write a clean implementation of `top_k_frequent(nums, k)`.
+
+Requirements:
+- use plain Python only
+- deterministic tie-breaking by ascending integer value
+- include a short module docstring
+- include a tiny `__main__` demo
+- output code only
