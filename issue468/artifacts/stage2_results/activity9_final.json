@@ -34,5 +34,10 @@
   "best_rank": 32,
   "best_p1": 0.7978831375960562,
   "best_delta_pp": -1.4644048136871146,
-  "interpretation": "head-LoRA with the specified Lce+Ltv loss gives -1.46/-1.75/-3.08 pp (rank 32/64/128, 2 seeds each, stable std ~0.0017) \u2014 all negative, overfitting at higher rank. Non-expert head LoRA does NOT improve acceptance. Body LoRA (Activity 8) skipped per contract (7>6ceiling) + Activity 4 (input-invariant). Expert tuning out of scope. Consistent with Stage 0/1."
+  "interpretation": "head-LoRA with the specified Lce+Ltv loss gives -1.46/-1.75/-3.08 pp (rank 32/64/128, 2 seeds each, stable std ~0.0017) \u2014 all negative, overfitting at higher rank. Non-expert head LoRA does NOT improve acceptance. Body LoRA (Activity 8) skipped per contract (7>6ceiling) + Activity 4 (input-invariant). Expert tuning out of scope. Consistent with Stage 0/1.",
+  "mcnemar_pre_only": 441,
+  "mcnemar_post_only": 348,
+  "mcnemar_p": 0.0010429816675328054,
+  "pre_p1": 0.8125271857329274,
+  "post_p1": 0.7990430622009569
 }
