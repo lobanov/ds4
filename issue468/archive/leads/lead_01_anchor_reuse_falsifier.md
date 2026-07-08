@@ -1,7 +1,8 @@
 # Lead 01 — Offline anchor-reuse falsifier
 
-Date: 2026-07-07. Status: pending. Priority: **first** — cheapest decisive experiment;
-gates leads 02 and 05.
+Date: 2026-07-07. Status: **resolved & archived 2026-07-07** (moved from `issue468/pending/`).
+Result: see `issue468/summaries/anchor_reuse_falsifier.md`. Priority was **first** —
+cheapest decisive experiment; gates leads 02 and 05.
 
 ## Rationale
 

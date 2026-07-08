@@ -51,6 +51,16 @@ def parse_args() -> argparse.Namespace:
     ap.add_argument("--model", default=str(DEFAULT_MODEL))
     ap.add_argument("--dspark", default=str(DEFAULT_DSPARK))
     ap.add_argument("--json-out")
+    # Anchor-reuse falsifier (issue468 Lead 01): at each step draft from the
+    # one-position-stale target hidden (main_hidden[pos-1]) instead of the true
+    # main_hidden[pos], keeping the anchor token unchanged. Tests whether the
+    # drafter's acceptance survives drafting from the last-accepted-position
+    # hidden with the correction token entering only as embedding.
+    ap.add_argument("--reuse-mode", choices=["none", "lag", "backfill"],
+                    default="none",
+                    help="anchor-reuse mode: none (baseline) / lag (stale, consistent) / backfill (stale current, true prior)")
+    ap.add_argument("--reuse", choices=["lag"], default=None,
+                    help="deprecated shorthand for --reuse-mode=lag")
     return ap.parse_args()
 
 
@@ -118,10 +128,40 @@ def build_drafter_ctx(dspark_path: str) -> dict:
     }
 
 
-def measure_bundle(bundle_dir: Path, mctx: dict, dctx: dict, *, candidate: str | None = None) -> dict:
+def measure_bundle(bundle_dir: Path, mctx: dict, dctx: dict, *, candidate: str | None = None,
+                    reuse_mode: str = "none") -> dict:
     """Run the drafter forward over one retained bundle and return the acceptance
     summary dict. Fresh per-bundle KV window; does NOT clear expert caches (the
-    caller decides memory policy)."""
+    caller decides memory policy).
+
+    Anchor-reuse modes (issue468 Lead 01 falsifier):
+    -----------------------------------------------
+    main_hidden[pos] is the POST-token hidden at position pos (captured from
+    dump_hc_ffn_post; target_tokens[k] sits at position pos0+k, pos0=prompt_tokens).
+    main_hidden enters the draft ONLY via the per-step KV-window entry
+    win_kv[s][step] = mkv(main_x); the residual stream is seeded from embeddings.
+    So the reuse substitution is entirely about which hidden sources main_x.
+
+      reuse_mode="none"   : main_x from main_hidden[pos] (true post-token hidden at
+                            the anchor's own position). BASELINE.
+      reuse_mode="lag"    : main_x from main_hidden[pos-1] (the last-accepted-
+                            position hidden; correction token enters as embedding).
+                            Applied every step, so win_kv is a consistent one-
+                            position lag of baseline. Init mh0 at pos0 (the first
+                            GENERATED token's post-token hidden = the first anchor)
+                            is unchanged; the first cycle's anchor is a real,
+                            processed token, so there is no reuse at step 1 yet.
+      reuse_mode="backfill": current step drafts with main_x from main_hidden[pos-1]
+                            (stale), but AFTER drafting the slot is backfilled with
+                            main_x from main_hidden[pos] (true) so subsequent steps
+                            see a true prior context. Models a folded verifier that
+                            commits accepted positions with true hiddens and only
+                            the just-rejected cycle's anchor slot is stale. This is
+                            the codex-GATE1-requested sensitivity to the KV-window
+                            modeling choice.
+
+    Both reuse modes feed the same correction token (target_tokens[step]) as the
+    anchor; only the hidden sourcing differs."""
     bundle_dir = Path(bundle_dir)
     T = dctx["T"]
     layers = dctx["layers"]
@@ -158,10 +198,20 @@ def measure_bundle(bundle_dir: Path, mctx: dict, dctx: dict, *, candidate: str |
     for step in range(1, max_step + 1):
         pos = pos0 + step
         anchor = int(target_tokens[step])
-        mh = load_mh(bundle_dir, pos)
+        # reuse modes: which hidden sources main_x for the current draft.
+        #   none      -> main_hidden[pos]      (baseline, true anchor hidden)
+        #   lag       -> main_hidden[pos-1]    (stale; kept in win_kv -> consistent lag)
+        #   backfill  -> main_hidden[pos-1] for the draft, main_hidden[pos] backfilled after
+        reuse = reuse_mode in ("lag", "backfill")
+        mh = load_mh(bundle_dir, pos - 1 if reuse else pos)
         if mh is None:
             break
         main_x = rmsnorm(mh.reshape(1, 1, 3 * DIM) @ main_proj.T, main_norm_w)
+        if reuse_mode == "backfill":
+            mh_true = load_mh(bundle_dir, pos)
+            if mh_true is None:
+                break
+            main_x_true = rmsnorm(mh_true.reshape(1, 1, 3 * DIM) @ main_proj.T, main_norm_w)
         for s in range(3):
             mkv = rmsnorm(main_x @ layers[s]["kv"].T, layers[s]["kv_a_norm"])
             mkv[..., -ROPE_DIM:] = apply_rotary(mkv[..., -ROPE_DIM:], cos[step], sin[step])
@@ -182,6 +232,13 @@ def measure_bundle(bundle_dir: Path, mctx: dict, dctx: dict, *, candidate: str |
             yd = rmsnorm(yd, layers[s]["ffn_norm"])
             fo = moe(yd, np.array([0]), layers[s], stores[s])
             x = hc_post(fo, res, post, comb)
+        # backfill: overwrite the current slot with the TRUE hidden so future
+        # steps see a true prior context (only the just-drafted cycle was stale).
+        if reuse_mode == "backfill":
+            for s in range(3):
+                mkv_t = rmsnorm(main_x_true @ layers[s]["kv"].T, layers[s]["kv_a_norm"])
+                mkv_t[..., -ROPE_DIM:] = apply_rotary(mkv_t[..., -ROPE_DIM:], cos[step], sin[step])
+                win_kv[s][step % WIN] = mkv_t[0, 0]
         out, _ = forward_head(
             x,
             anchor,
@@ -223,6 +280,7 @@ def measure_bundle(bundle_dir: Path, mctx: dict, dctx: dict, *, candidate: str |
     summary = {
         "label": label,
         "candidate": candidate,
+        "reuse_mode": reuse_mode,
         "bundle_dir": str(bundle_dir),
         "prompt_name": manifest["prompt_name"],
         "temperature": manifest["temperature"],
@@ -244,7 +302,8 @@ def main() -> int:
     args = parse_args()
     mctx = build_model_ctx(args.model)
     dctx = build_drafter_ctx(args.dspark)
-    summary = measure_bundle(Path(args.bundle_dir), mctx, dctx)
+    summary = measure_bundle(Path(args.bundle_dir), mctx, dctx,
+                             reuse_mode=(args.reuse if args.reuse else args.reuse_mode))
     if args.json_out:
         Path(args.json_out).write_text(json.dumps(summary, indent=2) + "\n")
     else:

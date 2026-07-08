@@ -53,6 +53,11 @@ Create a trustworthy active dossier that makes it easy to:
   - summary: `issue468/summaries/spec_speedup_model.md`
   - model: `issue468/model_spec_speedup.py`
   - artifacts: `issue468/artifacts/spec_speedup_model/{summary.json,model_inputs.json}`
+- Anchor-reuse falsifier (Lead 01; offline realizability test of the model's anchor-reuse assumption):
+  - summary: `issue468/summaries/anchor_reuse_falsifier.md`
+  - harness: `issue468/run_anchor_reuse_falsifier.py` (reuse modes added to `dspark_oracle/measure_acceptance_bundle.py`)
+  - artifacts: `issue468/artifacts/anchor_reuse_falsifier/` (falsifier_result.json, per_prompt/units csv, codex setup+verdict reviews)
+  - lead (resolved, archived): `issue468/archive/leads/lead_01_anchor_reuse_falsifier.md`
 - DFlash oracle + accepted-prefix comparison vs DSpark (resolved):
   - summary: `issue468/summaries/dflash_oracle_investigation.md`
   - weights: `issue468/dflash_drafter/` (gitignored); forward + harness: `issue468/dflash_oracle/`
@@ -95,6 +100,24 @@ Create a trustworthy active dossier that makes it easy to:
   server-side multi-request batching that amortizes the verify bandwidth floor.
   See `summaries/mtp_verifier_bench_results.md` (confirmed on three 8k prompts,
   K=2..6: net-negative at every cell; best case grounded_8k K=2 at −0.3%).
+- **Anchor-reuse falsifier (Lead 01): no large acceptance collapse observed, but
+  non-inferiority NOT established.** Offline test (`summaries/anchor_reuse_falsifier.md`)
+  of whether the drafter's acceptance survives drafting from the last-accepted-position
+  (stale) target hidden + correction token as embedding — the realizability test for
+  the model's anchor-reuse assumption. Swapped `main_hidden[pos]→main_hidden[pos−1]` in
+  the retained greedy-spine harness; two KV-window models (lag, backfill) × 3 temps = 6
+  cells, 80 paired units each, paired bootstrap CI + exact McNemar. **Verdict: 5/6 cells
+  SURVIVE, 1 MARGINAL (t0p0/backfill −0.075); no cell shows a significant collapse;
+  all CIs straddle 0.** But (a) the corpus is ~10× too underpowered to confirm the
+  fragile −0.9% edge (clustered 80% MDE ~0.2–0.4 vs ~0.03 E[a|4] budget), and (b) reuse
+  reshapes the block: it helps early positions (1–2) and hurts late positions (4–5), so
+  flat net E[a|5block] is not 'free'. Two codex gates (setup + verdict) passed, findings
+  independently verified. **Implication:** anchor reuse is NOT invalidated on
+  acceptance grounds; Lead 05 (verifier engineering) can proceed on the acceptance axis
+  but must still prove verify-produced-hidden equivalence under IQ2XXS, residual cycle
+  overhead, and a powered K=4 non-inferiority bound. The −0.9% edge stays the optimistic
+  edge of the band, now with the acceptance-axis risk downgraded from 'unverified /
+  load-bearing' to 'no large collapse seen, non-inferiority not yet established.'
 - **Speculative speedup is acceptance-limited; the current drafter is ~2 pp from
   beating baseline at K=4 with an optimized verifier.** Corrected cycle model
   (`summaries/spec_speedup_model.md`): the verify forward produces the next anchor,
@@ -112,8 +135,8 @@ Create a trustworthy active dossier that makes it easy to:
   Adversarial review, and `artifacts/spec_speedup_model/codex_review.md`) flags
   that assumption as the load-bearing unverified risk — the shipped verifier does
   NOT reuse the anchor (−18.9% at K=4) — plus ~15–19 ms residual per-cycle overhead
-  set to zero in the model and prompt-level noise (sd ≈0.43 on E[a|4]). The
-  under-assumption findings stand; treat them as the optimistic edge of a band
+  set to zero in the model and prompt-level noise (sd ≈0.43 on E[a|4]).
+  The under-assumption findings stand; treat them as the optimistic edge of a band
   whose pessimistic edge is the shipped-verifier reality.
 - **DFlash drafter comparison: DSpark is more attractive on this corpus.**
   DFlash oracle built and validated vs the MLX reference (<=0.08% rel); the only

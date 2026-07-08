@@ -1,0 +1,4802 @@
+{
+  "fidelity_gate_passed_all_temps": true,
+  "temps": {
+    "t0p0": {
+      "fidelity_gate_passed": true,
+      "reuse_modes": {
+        "lag": {
+          "aggregate": {
+            "n_paired_units": 80,
+            "base_E_a_5block": 2.3375,
+            "reuse_E_a_5block": 2.3625,
+            "d_E_a_5block": 0.025,
+            "bootstrap_ci95_per_step": [
+              -0.325,
+              0.375
+            ],
+            "bootstrap_p_two_sided_per_step": 0.871,
+            "ci_excludes_zero_per_step": false,
+            "per_prompt_clustered_ci95": [
+              -0.15,
+              0.2
+            ],
+            "n_prompts_clustered": 10,
+            "base_p1_match_rate": 0.8125,
+            "reuse_p1_match_rate": 0.9,
+            "d_p1_match_rate": 0.0875,
+            "mcnemar_discordant_b_basepos_reuseneg": 1,
+            "mcnemar_discordant_c_baseneg_reusepos": 8,
+            "mcnemar_chi2_cc": 4.0,
+            "mcnemar_exact_p_two_sided": 0.039062,
+            "verdict": "SURVIVES",
+            "verdict_rule": "SURVIVES if d(E[a|5block])>=0; COLLAPSES if d<0 and per-step bootstrap CI95 excludes 0; else MARGINAL",
+            "n_prompts": 10,
+            "fidelity_gate_passed": true,
+            "per_prompt_positives": 4,
+            "per_prompt_negatives": 3,
+            "per_prompt_flat": 3
+          },
+          "per_prompt": [
+            {
+              "prompt": "code_histogram",
+              "n_steps": 8,
+              "base_avg_prefix": 3.125,
+              "reuse_avg_prefix": 3.25,
+              "d_avg_prefix": 0.125,
+              "base_p1_match": 0.75,
+              "reuse_p1_match": 0.875,
+              "d_p1_match": 0.125,
+              "base_match_pct": 80.0,
+              "reuse_match_pct": 77.5
+            },
+            {
+              "prompt": "code_sort_pairs",
+              "n_steps": 8,
+              "base_avg_prefix": 2.625,
+              "reuse_avg_prefix": 2.5,
+              "d_avg_prefix": -0.125,
+              "base_p1_match": 0.75,
+              "reuse_p1_match": 0.875,
+              "d_p1_match": 0.125,
+              "base_match_pct": 57.5,
+              "reuse_match_pct": 52.5
+            },
+            {
+              "prompt": "code_topk",
+              "n_steps": 8,
+              "base_avg_prefix": 2.625,
+              "reuse_avg_prefix": 2.625,
+              "d_avg_prefix": 0.0,
+              "base_p1_match": 0.75,
+              "reuse_p1_match": 0.875,
+              "d_p1_match": 0.125,
+              "base_match_pct": 52.5,
+              "reuse_match_pct": 52.5
+            },
+            {
+              "prompt": "grounded_archive",
+              "n_steps": 8,
+              "base_avg_prefix": 2.875,
+              "reuse_avg_prefix": 3.125,
+              "d_avg_prefix": 0.25,
+              "base_p1_match": 0.875,
+              "reuse_p1_match": 1.0,
+              "d_p1_match": 0.125,
+              "base_match_pct": 57.5,
+              "reuse_match_pct": 62.5
+            },
+            {
+              "prompt": "grounded_observatory",
+              "n_steps": 8,
+              "base_avg_prefix": 1.375,
+              "reuse_avg_prefix": 2.0,
+              "d_avg_prefix": 0.625,
+              "base_p1_match": 0.75,
+              "reuse_p1_match": 0.875,
+              "d_p1_match": 0.125,
+              "base_match_pct": 35.0,
+              "reuse_match_pct": 40.0
+            },
+            {
+              "prompt": "grounded_repair",
+              "n_steps": 8,
+              "base_avg_prefix": 2.375,
+              "reuse_avg_prefix": 2.125,
+              "d_avg_prefix": -0.25,
+              "base_p1_match": 0.75,
+              "reuse_p1_match": 0.875,
+              "d_p1_match": 0.125,
+              "base_match_pct": 52.5,
+              "reuse_match_pct": 45.0
+            },
+            {
+              "prompt": "mixed_exactness_smoke",
+              "n_steps": 8,
+              "base_avg_prefix": 1.75,
+              "reuse_avg_prefix": 1.875,
+              "d_avg_prefix": 0.125,
+              "base_p1_match": 0.875,
+              "reuse_p1_match": 1.0,
+              "d_p1_match": 0.125,
+              "base_match_pct": 35.0,
+              "reuse_match_pct": 45.0
+            },
+            {
+              "prompt": "synthesis_incident_json",
+              "n_steps": 8,
+              "base_avg_prefix": 2.75,
+              "reuse_avg_prefix": 2.25,
+              "d_avg_prefix": -0.5,
+              "base_p1_match": 1.0,
+              "reuse_p1_match": 1.0,
+              "d_p1_match": 0.0,
+              "base_match_pct": 57.5,
+              "reuse_match_pct": 52.5
+            },
+            {
+              "prompt": "synthesis_ops_json",
+              "n_steps": 8,
+              "base_avg_prefix": 1.75,
+              "reuse_avg_prefix": 1.75,
+              "d_avg_prefix": 0.0,
+              "base_p1_match": 0.75,
+              "reuse_p1_match": 0.75,
+              "d_p1_match": 0.0,
+              "base_match_pct": 40.0,
+              "reuse_match_pct": 37.5
+            },
+            {
+              "prompt": "synthesis_timeline_json",
+              "n_steps": 8,
+              "base_avg_prefix": 2.125,
+              "reuse_avg_prefix": 2.125,
+              "d_avg_prefix": 0.0,
+              "base_p1_match": 0.875,
+              "reuse_p1_match": 0.875,
+              "d_p1_match": 0.0,
+              "base_match_pct": 42.5,
+              "reuse_match_pct": 47.5
+            }
+          ],
+          "units": [
+            {
+              "prompt": "code_histogram",
+              "step": 1,
+              "base_prefix": 1,
+              "reuse_prefix": 1,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "code_histogram",
+              "step": 2,
+              "base_prefix": 0,
+              "reuse_prefix": 0,
+              "base_p1": 0,
+              "reuse_p1": 0
+            },
+            {
+              "prompt": "code_histogram",
+              "step": 3,
+              "base_prefix": 0,
+              "reuse_prefix": 5,
+              "base_p1": 0,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "code_histogram",
+              "step": 4,
+              "base_prefix": 5,
+              "reuse_prefix": 1,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "code_histogram",
+              "step": 5,
+              "base_prefix": 5,
+              "reuse_prefix": 5,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "code_histogram",
+              "step": 6,
+              "base_prefix": 4,
+              "reuse_prefix": 4,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "code_histogram",
+              "step": 7,
+              "base_prefix": 5,
+              "reuse_prefix": 5,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "code_histogram",
+              "step": 8,
+              "base_prefix": 5,
+              "reuse_prefix": 5,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "code_sort_pairs",
+              "step": 1,
+              "base_prefix": 2,
+              "reuse_prefix": 2,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "code_sort_pairs",
+              "step": 2,
+              "base_prefix": 4,
+              "reuse_prefix": 1,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "code_sort_pairs",
+              "step": 3,
+              "base_prefix": 0,
+              "reuse_prefix": 0,
+              "base_p1": 0,
+              "reuse_p1": 0
+            },
+            {
+              "prompt": "code_sort_pairs",
+              "step": 4,
+              "base_prefix": 0,
+              "reuse_prefix": 2,
+              "base_p1": 0,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "code_sort_pairs",
+              "step": 5,
+              "base_prefix": 5,
+              "reuse_prefix": 5,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "code_sort_pairs",
+              "step": 6,
+              "base_prefix": 4,
+              "reuse_prefix": 4,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "code_sort_pairs",
+              "step": 7,
+              "base_prefix": 4,
+              "reuse_prefix": 3,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "code_sort_pairs",
+              "step": 8,
+              "base_prefix": 2,
+              "reuse_prefix": 3,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "code_topk",
+              "step": 1,
+              "base_prefix": 1,
+              "reuse_prefix": 2,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "code_topk",
+              "step": 2,
+              "base_prefix": 1,
+              "reuse_prefix": 1,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "code_topk",
+              "step": 3,
+              "base_prefix": 0,
+              "reuse_prefix": 0,
+              "base_p1": 0,
+              "reuse_p1": 0
+            },
+            {
+              "prompt": "code_topk",
+              "step": 4,
+              "base_prefix": 0,
+              "reuse_prefix": 3,
+              "base_p1": 0,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "code_topk",
+              "step": 5,
+              "base_prefix": 4,
+              "reuse_prefix": 2,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "code_topk",
+              "step": 6,
+              "base_prefix": 5,
+              "reuse_prefix": 3,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "code_topk",
+              "step": 7,
+              "base_prefix": 5,
+              "reuse_prefix": 5,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "code_topk",
+              "step": 8,
+              "base_prefix": 5,
+              "reuse_prefix": 5,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_archive",
+              "step": 1,
+              "base_prefix": 5,
+              "reuse_prefix": 1,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_archive",
+              "step": 2,
+              "base_prefix": 5,
+              "reuse_prefix": 4,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_archive",
+              "step": 3,
+              "base_prefix": 4,
+              "reuse_prefix": 4,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_archive",
+              "step": 4,
+              "base_prefix": 3,
+              "reuse_prefix": 3,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_archive",
+              "step": 5,
+              "base_prefix": 2,
+              "reuse_prefix": 2,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_archive",
+              "step": 6,
+              "base_prefix": 1,
+              "reuse_prefix": 4,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_archive",
+              "step": 7,
+              "base_prefix": 0,
+              "reuse_prefix": 4,
+              "base_p1": 0,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_archive",
+              "step": 8,
+              "base_prefix": 3,
+              "reuse_prefix": 3,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_observatory",
+              "step": 1,
+              "base_prefix": 2,
+              "reuse_prefix": 2,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_observatory",
+              "step": 2,
+              "base_prefix": 1,
+              "reuse_prefix": 3,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_observatory",
+              "step": 3,
+              "base_prefix": 0,
+              "reuse_prefix": 2,
+              "base_p1": 0,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_observatory",
+              "step": 4,
+              "base_prefix": 1,
+              "reuse_prefix": 1,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_observatory",
+              "step": 5,
+              "base_prefix": 2,
+              "reuse_prefix": 0,
+              "base_p1": 1,
+              "reuse_p1": 0
+            },
+            {
+              "prompt": "grounded_observatory",
+              "step": 6,
+              "base_prefix": 2,
+              "reuse_prefix": 1,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_observatory",
+              "step": 7,
+              "base_prefix": 0,
+              "reuse_prefix": 4,
+              "base_p1": 0,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_observatory",
+              "step": 8,
+              "base_prefix": 3,
+              "reuse_prefix": 3,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_repair",
+              "step": 1,
+              "base_prefix": 4,
+              "reuse_prefix": 3,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_repair",
+              "step": 2,
+              "base_prefix": 2,
+              "reuse_prefix": 3,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_repair",
+              "step": 3,
+              "base_prefix": 1,
+              "reuse_prefix": 1,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_repair",
+              "step": 4,
+              "base_prefix": 0,
+              "reuse_prefix": 0,
+              "base_p1": 0,
+              "reuse_p1": 0
+            },
+            {
+              "prompt": "grounded_repair",
+              "step": 5,
+              "base_prefix": 0,
+              "reuse_prefix": 1,
+              "base_p1": 0,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_repair",
+              "step": 6,
+              "base_prefix": 4,
+              "reuse_prefix": 4,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_repair",
+              "step": 7,
+              "base_prefix": 3,
+              "reuse_prefix": 3,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_repair",
+              "step": 8,
+              "base_prefix": 5,
+              "reuse_prefix": 2,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "mixed_exactness_smoke",
+              "step": 1,
+              "base_prefix": 3,
+              "reuse_prefix": 1,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "mixed_exactness_smoke",
+              "step": 2,
+              "base_prefix": 2,
+              "reuse_prefix": 2,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "mixed_exactness_smoke",
+              "step": 3,
+              "base_prefix": 1,
+              "reuse_prefix": 1,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "mixed_exactness_smoke",
+              "step": 4,
+              "base_prefix": 2,
+              "reuse_prefix": 5,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "mixed_exactness_smoke",
+              "step": 5,
+              "base_prefix": 2,
+              "reuse_prefix": 3,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "mixed_exactness_smoke",
+              "step": 6,
+              "base_prefix": 2,
+              "reuse_prefix": 1,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "mixed_exactness_smoke",
+              "step": 7,
+              "base_prefix": 2,
+              "reuse_prefix": 1,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "mixed_exactness_smoke",
+              "step": 8,
+              "base_prefix": 0,
+              "reuse_prefix": 1,
+              "base_p1": 0,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_incident_json",
+              "step": 1,
+              "base_prefix": 3,
+              "reuse_prefix": 1,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_incident_json",
+              "step": 2,
+              "base_prefix": 2,
+              "reuse_prefix": 2,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_incident_json",
+              "step": 3,
+              "base_prefix": 1,
+              "reuse_prefix": 1,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_incident_json",
+              "step": 4,
+              "base_prefix": 5,
+              "reuse_prefix": 5,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_incident_json",
+              "step": 5,
+              "base_prefix": 5,
+              "reuse_prefix": 2,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_incident_json",
+              "step": 6,
+              "base_prefix": 2,
+              "reuse_prefix": 2,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_incident_json",
+              "step": 7,
+              "base_prefix": 3,
+              "reuse_prefix": 3,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_incident_json",
+              "step": 8,
+              "base_prefix": 1,
+              "reuse_prefix": 2,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_ops_json",
+              "step": 1,
+              "base_prefix": 1,
+              "reuse_prefix": 1,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_ops_json",
+              "step": 2,
+              "base_prefix": 0,
+              "reuse_prefix": 0,
+              "base_p1": 0,
+              "reuse_p1": 0
+            },
+            {
+              "prompt": "synthesis_ops_json",
+              "step": 3,
+              "base_prefix": 1,
+              "reuse_prefix": 1,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_ops_json",
+              "step": 4,
+              "base_prefix": 0,
+              "reuse_prefix": 0,
+              "base_p1": 0,
+              "reuse_p1": 0
+            },
+            {
+              "prompt": "synthesis_ops_json",
+              "step": 5,
+              "base_prefix": 4,
+              "reuse_prefix": 4,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_ops_json",
+              "step": 6,
+              "base_prefix": 3,
+              "reuse_prefix": 3,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_ops_json",
+              "step": 7,
+              "base_prefix": 2,
+              "reuse_prefix": 2,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_ops_json",
+              "step": 8,
+              "base_prefix": 3,
+              "reuse_prefix": 3,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_timeline_json",
+              "step": 1,
+              "base_prefix": 3,
+              "reuse_prefix": 3,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_timeline_json",
+              "step": 2,
+              "base_prefix": 2,
+              "reuse_prefix": 2,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_timeline_json",
+              "step": 3,
+              "base_prefix": 1,
+              "reuse_prefix": 4,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_timeline_json",
+              "step": 4,
+              "base_prefix": 0,
+              "reuse_prefix": 0,
+              "base_p1": 0,
+              "reuse_p1": 0
+            },
+            {
+              "prompt": "synthesis_timeline_json",
+              "step": 5,
+              "base_prefix": 4,
+              "reuse_prefix": 2,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_timeline_json",
+              "step": 6,
+              "base_prefix": 3,
+              "reuse_prefix": 3,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_timeline_json",
+              "step": 7,
+              "base_prefix": 2,
+              "reuse_prefix": 2,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_timeline_json",
+              "step": 8,
+              "base_prefix": 2,
+              "reuse_prefix": 1,
+              "base_p1": 1,
+              "reuse_p1": 1
+            }
+          ]
+        },
+        "backfill": {
+          "aggregate": {
+            "n_paired_units": 80,
+            "base_E_a_5block": 2.3375,
+            "reuse_E_a_5block": 2.2625,
+            "d_E_a_5block": -0.075,
+            "bootstrap_ci95_per_step": [
+              -0.4,
+              0.25
+            ],
+            "bootstrap_p_two_sided_per_step": 0.683,
+            "ci_excludes_zero_per_step": false,
+            "per_prompt_clustered_ci95": [
+              -0.2125,
+              0.1
+            ],
+            "n_prompts_clustered": 10,
+            "base_p1_match_rate": 0.8125,
+            "reuse_p1_match_rate": 0.8875,
+            "d_p1_match_rate": 0.075,
+            "mcnemar_discordant_b_basepos_reuseneg": 2,
+            "mcnemar_discordant_c_baseneg_reusepos": 8,
+            "mcnemar_chi2_cc": 2.5,
+            "mcnemar_exact_p_two_sided": 0.109375,
+            "verdict": "MARGINAL",
+            "verdict_rule": "SURVIVES if d(E[a|5block])>=0; COLLAPSES if d<0 and per-step bootstrap CI95 excludes 0; else MARGINAL",
+            "n_prompts": 10,
+            "fidelity_gate_passed": true,
+            "per_prompt_positives": 1,
+            "per_prompt_negatives": 6,
+            "per_prompt_flat": 3
+          },
+          "per_prompt": [
+            {
+              "prompt": "code_histogram",
+              "n_steps": 8,
+              "base_avg_prefix": 3.125,
+              "reuse_avg_prefix": 2.875,
+              "d_avg_prefix": -0.25,
+              "base_p1_match": 0.75,
+              "reuse_p1_match": 0.875,
+              "d_p1_match": 0.125,
+              "base_match_pct": 80.0,
+              "reuse_match_pct": 70.0
+            },
+            {
+              "prompt": "code_sort_pairs",
+              "n_steps": 8,
+              "base_avg_prefix": 2.625,
+              "reuse_avg_prefix": 2.5,
+              "d_avg_prefix": -0.125,
+              "base_p1_match": 0.75,
+              "reuse_p1_match": 0.875,
+              "d_p1_match": 0.125,
+              "base_match_pct": 57.5,
+              "reuse_match_pct": 57.5
+            },
+            {
+              "prompt": "code_topk",
+              "n_steps": 8,
+              "base_avg_prefix": 2.625,
+              "reuse_avg_prefix": 2.375,
+              "d_avg_prefix": -0.25,
+              "base_p1_match": 0.75,
+              "reuse_p1_match": 0.75,
+              "d_p1_match": 0.0,
+              "base_match_pct": 52.5,
+              "reuse_match_pct": 47.5
+            },
+            {
+              "prompt": "grounded_archive",
+              "n_steps": 8,
+              "base_avg_prefix": 2.875,
+              "reuse_avg_prefix": 2.875,
+              "d_avg_prefix": 0.0,
+              "base_p1_match": 0.875,
+              "reuse_p1_match": 1.0,
+              "d_p1_match": 0.125,
+              "base_match_pct": 57.5,
+              "reuse_match_pct": 60.0
+            },
+            {
+              "prompt": "grounded_observatory",
+              "n_steps": 8,
+              "base_avg_prefix": 1.375,
+              "reuse_avg_prefix": 2.0,
+              "d_avg_prefix": 0.625,
+              "base_p1_match": 0.75,
+              "reuse_p1_match": 0.875,
+              "d_p1_match": 0.125,
+              "base_match_pct": 35.0,
+              "reuse_match_pct": 40.0
+            },
+            {
+              "prompt": "grounded_repair",
+              "n_steps": 8,
+              "base_avg_prefix": 2.375,
+              "reuse_avg_prefix": 2.0,
+              "d_avg_prefix": -0.375,
+              "base_p1_match": 0.75,
+              "reuse_p1_match": 0.875,
+              "d_p1_match": 0.125,
+              "base_match_pct": 52.5,
+              "reuse_match_pct": 42.5
+            },
+            {
+              "prompt": "mixed_exactness_smoke",
+              "n_steps": 8,
+              "base_avg_prefix": 1.75,
+              "reuse_avg_prefix": 1.75,
+              "d_avg_prefix": 0.0,
+              "base_p1_match": 0.875,
+              "reuse_p1_match": 1.0,
+              "d_p1_match": 0.125,
+              "base_match_pct": 35.0,
+              "reuse_match_pct": 42.5
+            },
+            {
+              "prompt": "synthesis_incident_json",
+              "n_steps": 8,
+              "base_avg_prefix": 2.75,
+              "reuse_avg_prefix": 2.5,
+              "d_avg_prefix": -0.25,
+              "base_p1_match": 1.0,
+              "reuse_p1_match": 1.0,
+              "d_p1_match": 0.0,
+              "base_match_pct": 57.5,
+              "reuse_match_pct": 55.0
+            },
+            {
+              "prompt": "synthesis_ops_json",
+              "n_steps": 8,
+              "base_avg_prefix": 1.75,
+              "reuse_avg_prefix": 1.75,
+              "d_avg_prefix": 0.0,
+              "base_p1_match": 0.75,
+              "reuse_p1_match": 0.75,
+              "d_p1_match": 0.0,
+              "base_match_pct": 40.0,
+              "reuse_match_pct": 37.5
+            },
+            {
+              "prompt": "synthesis_timeline_json",
+              "n_steps": 8,
+              "base_avg_prefix": 2.125,
+              "reuse_avg_prefix": 2.0,
+              "d_avg_prefix": -0.125,
+              "base_p1_match": 0.875,
+              "reuse_p1_match": 0.875,
+              "d_p1_match": 0.0,
+              "base_match_pct": 42.5,
+              "reuse_match_pct": 45.0
+            }
+          ],
+          "units": [
+            {
+              "prompt": "code_histogram",
+              "step": 1,
+              "base_prefix": 1,
+              "reuse_prefix": 1,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "code_histogram",
+              "step": 2,
+              "base_prefix": 0,
+              "reuse_prefix": 0,
+              "base_p1": 0,
+              "reuse_p1": 0
+            },
+            {
+              "prompt": "code_histogram",
+              "step": 3,
+              "base_prefix": 0,
+              "reuse_prefix": 2,
+              "base_p1": 0,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "code_histogram",
+              "step": 4,
+              "base_prefix": 5,
+              "reuse_prefix": 1,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "code_histogram",
+              "step": 5,
+              "base_prefix": 5,
+              "reuse_prefix": 5,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "code_histogram",
+              "step": 6,
+              "base_prefix": 4,
+              "reuse_prefix": 4,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "code_histogram",
+              "step": 7,
+              "base_prefix": 5,
+              "reuse_prefix": 5,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "code_histogram",
+              "step": 8,
+              "base_prefix": 5,
+              "reuse_prefix": 5,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "code_sort_pairs",
+              "step": 1,
+              "base_prefix": 2,
+              "reuse_prefix": 2,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "code_sort_pairs",
+              "step": 2,
+              "base_prefix": 4,
+              "reuse_prefix": 1,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "code_sort_pairs",
+              "step": 3,
+              "base_prefix": 0,
+              "reuse_prefix": 0,
+              "base_p1": 0,
+              "reuse_p1": 0
+            },
+            {
+              "prompt": "code_sort_pairs",
+              "step": 4,
+              "base_prefix": 0,
+              "reuse_prefix": 2,
+              "base_p1": 0,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "code_sort_pairs",
+              "step": 5,
+              "base_prefix": 5,
+              "reuse_prefix": 5,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "code_sort_pairs",
+              "step": 6,
+              "base_prefix": 4,
+              "reuse_prefix": 4,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "code_sort_pairs",
+              "step": 7,
+              "base_prefix": 4,
+              "reuse_prefix": 3,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "code_sort_pairs",
+              "step": 8,
+              "base_prefix": 2,
+              "reuse_prefix": 3,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "code_topk",
+              "step": 1,
+              "base_prefix": 1,
+              "reuse_prefix": 2,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "code_topk",
+              "step": 2,
+              "base_prefix": 1,
+              "reuse_prefix": 0,
+              "base_p1": 1,
+              "reuse_p1": 0
+            },
+            {
+              "prompt": "code_topk",
+              "step": 3,
+              "base_prefix": 0,
+              "reuse_prefix": 0,
+              "base_p1": 0,
+              "reuse_p1": 0
+            },
+            {
+              "prompt": "code_topk",
+              "step": 4,
+              "base_prefix": 0,
+              "reuse_prefix": 3,
+              "base_p1": 0,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "code_topk",
+              "step": 5,
+              "base_prefix": 4,
+              "reuse_prefix": 2,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "code_topk",
+              "step": 6,
+              "base_prefix": 5,
+              "reuse_prefix": 3,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "code_topk",
+              "step": 7,
+              "base_prefix": 5,
+              "reuse_prefix": 4,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "code_topk",
+              "step": 8,
+              "base_prefix": 5,
+              "reuse_prefix": 5,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_archive",
+              "step": 1,
+              "base_prefix": 5,
+              "reuse_prefix": 1,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_archive",
+              "step": 2,
+              "base_prefix": 5,
+              "reuse_prefix": 4,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_archive",
+              "step": 3,
+              "base_prefix": 4,
+              "reuse_prefix": 2,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_archive",
+              "step": 4,
+              "base_prefix": 3,
+              "reuse_prefix": 3,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_archive",
+              "step": 5,
+              "base_prefix": 2,
+              "reuse_prefix": 2,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_archive",
+              "step": 6,
+              "base_prefix": 1,
+              "reuse_prefix": 4,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_archive",
+              "step": 7,
+              "base_prefix": 0,
+              "reuse_prefix": 4,
+              "base_p1": 0,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_archive",
+              "step": 8,
+              "base_prefix": 3,
+              "reuse_prefix": 3,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_observatory",
+              "step": 1,
+              "base_prefix": 2,
+              "reuse_prefix": 2,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_observatory",
+              "step": 2,
+              "base_prefix": 1,
+              "reuse_prefix": 3,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_observatory",
+              "step": 3,
+              "base_prefix": 0,
+              "reuse_prefix": 2,
+              "base_p1": 0,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_observatory",
+              "step": 4,
+              "base_prefix": 1,
+              "reuse_prefix": 1,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_observatory",
+              "step": 5,
+              "base_prefix": 2,
+              "reuse_prefix": 0,
+              "base_p1": 1,
+              "reuse_p1": 0
+            },
+            {
+              "prompt": "grounded_observatory",
+              "step": 6,
+              "base_prefix": 2,
+              "reuse_prefix": 1,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_observatory",
+              "step": 7,
+              "base_prefix": 0,
+              "reuse_prefix": 4,
+              "base_p1": 0,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_observatory",
+              "step": 8,
+              "base_prefix": 3,
+              "reuse_prefix": 3,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_repair",
+              "step": 1,
+              "base_prefix": 4,
+              "reuse_prefix": 3,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_repair",
+              "step": 2,
+              "base_prefix": 2,
+              "reuse_prefix": 2,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_repair",
+              "step": 3,
+              "base_prefix": 1,
+              "reuse_prefix": 1,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_repair",
+              "step": 4,
+              "base_prefix": 0,
+              "reuse_prefix": 0,
+              "base_p1": 0,
+              "reuse_p1": 0
+            },
+            {
+              "prompt": "grounded_repair",
+              "step": 5,
+              "base_prefix": 0,
+              "reuse_prefix": 1,
+              "base_p1": 0,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_repair",
+              "step": 6,
+              "base_prefix": 4,
+              "reuse_prefix": 4,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_repair",
+              "step": 7,
+              "base_prefix": 3,
+              "reuse_prefix": 3,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_repair",
+              "step": 8,
+              "base_prefix": 5,
+              "reuse_prefix": 2,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "mixed_exactness_smoke",
+              "step": 1,
+              "base_prefix": 3,
+              "reuse_prefix": 1,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "mixed_exactness_smoke",
+              "step": 2,
+              "base_prefix": 2,
+              "reuse_prefix": 2,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "mixed_exactness_smoke",
+              "step": 3,
+              "base_prefix": 1,
+              "reuse_prefix": 1,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "mixed_exactness_smoke",
+              "step": 4,
+              "base_prefix": 2,
+              "reuse_prefix": 3,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "mixed_exactness_smoke",
+              "step": 5,
+              "base_prefix": 2,
+              "reuse_prefix": 3,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "mixed_exactness_smoke",
+              "step": 6,
+              "base_prefix": 2,
+              "reuse_prefix": 2,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "mixed_exactness_smoke",
+              "step": 7,
+              "base_prefix": 2,
+              "reuse_prefix": 1,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "mixed_exactness_smoke",
+              "step": 8,
+              "base_prefix": 0,
+              "reuse_prefix": 1,
+              "base_p1": 0,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_incident_json",
+              "step": 1,
+              "base_prefix": 3,
+              "reuse_prefix": 1,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_incident_json",
+              "step": 2,
+              "base_prefix": 2,
+              "reuse_prefix": 2,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_incident_json",
+              "step": 3,
+              "base_prefix": 1,
+              "reuse_prefix": 3,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_incident_json",
+              "step": 4,
+              "base_prefix": 5,
+              "reuse_prefix": 5,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_incident_json",
+              "step": 5,
+              "base_prefix": 5,
+              "reuse_prefix": 2,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_incident_json",
+              "step": 6,
+              "base_prefix": 2,
+              "reuse_prefix": 2,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_incident_json",
+              "step": 7,
+              "base_prefix": 3,
+              "reuse_prefix": 3,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_incident_json",
+              "step": 8,
+              "base_prefix": 1,
+              "reuse_prefix": 2,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_ops_json",
+              "step": 1,
+              "base_prefix": 1,
+              "reuse_prefix": 1,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_ops_json",
+              "step": 2,
+              "base_prefix": 0,
+              "reuse_prefix": 0,
+              "base_p1": 0,
+              "reuse_p1": 0
+            },
+            {
+              "prompt": "synthesis_ops_json",
+              "step": 3,
+              "base_prefix": 1,
+              "reuse_prefix": 1,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_ops_json",
+              "step": 4,
+              "base_prefix": 0,
+              "reuse_prefix": 0,
+              "base_p1": 0,
+              "reuse_p1": 0
+            },
+            {
+              "prompt": "synthesis_ops_json",
+              "step": 5,
+              "base_prefix": 4,
+              "reuse_prefix": 4,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_ops_json",
+              "step": 6,
+              "base_prefix": 3,
+              "reuse_prefix": 3,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_ops_json",
+              "step": 7,
+              "base_prefix": 2,
+              "reuse_prefix": 2,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_ops_json",
+              "step": 8,
+              "base_prefix": 3,
+              "reuse_prefix": 3,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_timeline_json",
+              "step": 1,
+              "base_prefix": 3,
+              "reuse_prefix": 3,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_timeline_json",
+              "step": 2,
+              "base_prefix": 2,
+              "reuse_prefix": 2,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_timeline_json",
+              "step": 3,
+              "base_prefix": 1,
+              "reuse_prefix": 3,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_timeline_json",
+              "step": 4,
+              "base_prefix": 0,
+              "reuse_prefix": 0,
+              "base_p1": 0,
+              "reuse_p1": 0
+            },
+            {
+              "prompt": "synthesis_timeline_json",
+              "step": 5,
+              "base_prefix": 4,
+              "reuse_prefix": 2,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_timeline_json",
+              "step": 6,
+              "base_prefix": 3,
+              "reuse_prefix": 3,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_timeline_json",
+              "step": 7,
+              "base_prefix": 2,
+              "reuse_prefix": 2,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_timeline_json",
+              "step": 8,
+              "base_prefix": 2,
+              "reuse_prefix": 1,
+              "base_p1": 1,
+              "reuse_p1": 1
+            }
+          ]
+        }
+      }
+    },
+    "t0p5": {
+      "fidelity_gate_passed": true,
+      "reuse_modes": {
+        "lag": {
+          "aggregate": {
+            "n_paired_units": 80,
+            "base_E_a_5block": 2.0875,
+            "reuse_E_a_5block": 2.225,
+            "d_E_a_5block": 0.1375,
+            "bootstrap_ci95_per_step": [
+              -0.2,
+              0.4875
+            ],
+            "bootstrap_p_two_sided_per_step": 0.4098,
+            "ci_excludes_zero_per_step": false,
+            "per_prompt_clustered_ci95": [
+              -0.05,
+              0.3
+            ],
+            "n_prompts_clustered": 10,
+            "base_p1_match_rate": 0.75,
+            "reuse_p1_match_rate": 0.8625,
+            "d_p1_match_rate": 0.1125,
+            "mcnemar_discordant_b_basepos_reuseneg": 1,
+            "mcnemar_discordant_c_baseneg_reusepos": 10,
+            "mcnemar_chi2_cc": 5.8182,
+            "mcnemar_exact_p_two_sided": 0.011719,
+            "verdict": "SURVIVES",
+            "verdict_rule": "SURVIVES if d(E[a|5block])>=0; COLLAPSES if d<0 and per-step bootstrap CI95 excludes 0; else MARGINAL",
+            "n_prompts": 10,
+            "fidelity_gate_passed": true,
+            "per_prompt_positives": 7,
+            "per_prompt_negatives": 1,
+            "per_prompt_flat": 2
+          },
+          "per_prompt": [
+            {
+              "prompt": "code_histogram",
+              "n_steps": 8,
+              "base_avg_prefix": 3.125,
+              "reuse_avg_prefix": 3.25,
+              "d_avg_prefix": 0.125,
+              "base_p1_match": 0.75,
+              "reuse_p1_match": 0.875,
+              "d_p1_match": 0.125,
+              "base_match_pct": 80.0,
+              "reuse_match_pct": 77.5
+            },
+            {
+              "prompt": "code_sort_pairs",
+              "n_steps": 8,
+              "base_avg_prefix": 0.875,
+              "reuse_avg_prefix": 1.25,
+              "d_avg_prefix": 0.375,
+              "base_p1_match": 0.375,
+              "reuse_p1_match": 0.625,
+              "d_p1_match": 0.25,
+              "base_match_pct": 30.0,
+              "reuse_match_pct": 25.0
+            },
+            {
+              "prompt": "code_topk",
+              "n_steps": 8,
+              "base_avg_prefix": 2.625,
+              "reuse_avg_prefix": 2.625,
+              "d_avg_prefix": 0.0,
+              "base_p1_match": 0.75,
+              "reuse_p1_match": 0.875,
+              "d_p1_match": 0.125,
+              "base_match_pct": 52.5,
+              "reuse_match_pct": 52.5
+            },
+            {
+              "prompt": "grounded_archive",
+              "n_steps": 8,
+              "base_avg_prefix": 2.75,
+              "reuse_avg_prefix": 2.875,
+              "d_avg_prefix": 0.125,
+              "base_p1_match": 0.875,
+              "reuse_p1_match": 1.0,
+              "d_p1_match": 0.125,
+              "base_match_pct": 55.0,
+              "reuse_match_pct": 57.5
+            },
+            {
+              "prompt": "grounded_observatory",
+              "n_steps": 8,
+              "base_avg_prefix": 1.375,
+              "reuse_avg_prefix": 2.0,
+              "d_avg_prefix": 0.625,
+              "base_p1_match": 0.75,
+              "reuse_p1_match": 0.875,
+              "d_p1_match": 0.125,
+              "base_match_pct": 35.0,
+              "reuse_match_pct": 40.0
+            },
+            {
+              "prompt": "grounded_repair",
+              "n_steps": 8,
+              "base_avg_prefix": 2.375,
+              "reuse_avg_prefix": 2.75,
+              "d_avg_prefix": 0.375,
+              "base_p1_match": 0.75,
+              "reuse_p1_match": 0.875,
+              "d_p1_match": 0.125,
+              "base_match_pct": 52.5,
+              "reuse_match_pct": 57.5
+            },
+            {
+              "prompt": "mixed_exactness_smoke",
+              "n_steps": 8,
+              "base_avg_prefix": 1.75,
+              "reuse_avg_prefix": 1.875,
+              "d_avg_prefix": 0.125,
+              "base_p1_match": 0.875,
+              "reuse_p1_match": 1.0,
+              "d_p1_match": 0.125,
+              "base_match_pct": 35.0,
+              "reuse_match_pct": 45.0
+            },
+            {
+              "prompt": "synthesis_incident_json",
+              "n_steps": 8,
+              "base_avg_prefix": 2.875,
+              "reuse_avg_prefix": 2.375,
+              "d_avg_prefix": -0.5,
+              "base_p1_match": 1.0,
+              "reuse_p1_match": 1.0,
+              "d_p1_match": 0.0,
+              "base_match_pct": 60.0,
+              "reuse_match_pct": 57.5
+            },
+            {
+              "prompt": "synthesis_ops_json",
+              "n_steps": 8,
+              "base_avg_prefix": 1.75,
+              "reuse_avg_prefix": 1.75,
+              "d_avg_prefix": 0.0,
+              "base_p1_match": 0.75,
+              "reuse_p1_match": 0.75,
+              "d_p1_match": 0.0,
+              "base_match_pct": 40.0,
+              "reuse_match_pct": 37.5
+            },
+            {
+              "prompt": "synthesis_timeline_json",
+              "n_steps": 8,
+              "base_avg_prefix": 1.375,
+              "reuse_avg_prefix": 1.5,
+              "d_avg_prefix": 0.125,
+              "base_p1_match": 0.625,
+              "reuse_p1_match": 0.75,
+              "d_p1_match": 0.125,
+              "base_match_pct": 32.5,
+              "reuse_match_pct": 35.0
+            }
+          ],
+          "units": [
+            {
+              "prompt": "code_histogram",
+              "step": 1,
+              "base_prefix": 1,
+              "reuse_prefix": 1,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "code_histogram",
+              "step": 2,
+              "base_prefix": 0,
+              "reuse_prefix": 0,
+              "base_p1": 0,
+              "reuse_p1": 0
+            },
+            {
+              "prompt": "code_histogram",
+              "step": 3,
+              "base_prefix": 0,
+              "reuse_prefix": 5,
+              "base_p1": 0,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "code_histogram",
+              "step": 4,
+              "base_prefix": 5,
+              "reuse_prefix": 1,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "code_histogram",
+              "step": 5,
+              "base_prefix": 5,
+              "reuse_prefix": 5,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "code_histogram",
+              "step": 6,
+              "base_prefix": 4,
+              "reuse_prefix": 4,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "code_histogram",
+              "step": 7,
+              "base_prefix": 5,
+              "reuse_prefix": 5,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "code_histogram",
+              "step": 8,
+              "base_prefix": 5,
+              "reuse_prefix": 5,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "code_sort_pairs",
+              "step": 1,
+              "base_prefix": 2,
+              "reuse_prefix": 2,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "code_sort_pairs",
+              "step": 2,
+              "base_prefix": 4,
+              "reuse_prefix": 1,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "code_sort_pairs",
+              "step": 3,
+              "base_prefix": 0,
+              "reuse_prefix": 0,
+              "base_p1": 0,
+              "reuse_p1": 0
+            },
+            {
+              "prompt": "code_sort_pairs",
+              "step": 4,
+              "base_prefix": 0,
+              "reuse_prefix": 2,
+              "base_p1": 0,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "code_sort_pairs",
+              "step": 5,
+              "base_prefix": 1,
+              "reuse_prefix": 1,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "code_sort_pairs",
+              "step": 6,
+              "base_prefix": 0,
+              "reuse_prefix": 0,
+              "base_p1": 0,
+              "reuse_p1": 0
+            },
+            {
+              "prompt": "code_sort_pairs",
+              "step": 7,
+              "base_prefix": 0,
+              "reuse_prefix": 0,
+              "base_p1": 0,
+              "reuse_p1": 0
+            },
+            {
+              "prompt": "code_sort_pairs",
+              "step": 8,
+              "base_prefix": 0,
+              "reuse_prefix": 4,
+              "base_p1": 0,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "code_topk",
+              "step": 1,
+              "base_prefix": 1,
+              "reuse_prefix": 2,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "code_topk",
+              "step": 2,
+              "base_prefix": 1,
+              "reuse_prefix": 1,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "code_topk",
+              "step": 3,
+              "base_prefix": 0,
+              "reuse_prefix": 0,
+              "base_p1": 0,
+              "reuse_p1": 0
+            },
+            {
+              "prompt": "code_topk",
+              "step": 4,
+              "base_prefix": 0,
+              "reuse_prefix": 3,
+              "base_p1": 0,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "code_topk",
+              "step": 5,
+              "base_prefix": 4,
+              "reuse_prefix": 2,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "code_topk",
+              "step": 6,
+              "base_prefix": 5,
+              "reuse_prefix": 3,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "code_topk",
+              "step": 7,
+              "base_prefix": 5,
+              "reuse_prefix": 5,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "code_topk",
+              "step": 8,
+              "base_prefix": 5,
+              "reuse_prefix": 5,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_archive",
+              "step": 1,
+              "base_prefix": 5,
+              "reuse_prefix": 1,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_archive",
+              "step": 2,
+              "base_prefix": 5,
+              "reuse_prefix": 4,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_archive",
+              "step": 3,
+              "base_prefix": 4,
+              "reuse_prefix": 4,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_archive",
+              "step": 4,
+              "base_prefix": 3,
+              "reuse_prefix": 3,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_archive",
+              "step": 5,
+              "base_prefix": 2,
+              "reuse_prefix": 2,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_archive",
+              "step": 6,
+              "base_prefix": 1,
+              "reuse_prefix": 4,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_archive",
+              "step": 7,
+              "base_prefix": 0,
+              "reuse_prefix": 3,
+              "base_p1": 0,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_archive",
+              "step": 8,
+              "base_prefix": 2,
+              "reuse_prefix": 2,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_observatory",
+              "step": 1,
+              "base_prefix": 2,
+              "reuse_prefix": 2,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_observatory",
+              "step": 2,
+              "base_prefix": 1,
+              "reuse_prefix": 3,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_observatory",
+              "step": 3,
+              "base_prefix": 0,
+              "reuse_prefix": 2,
+              "base_p1": 0,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_observatory",
+              "step": 4,
+              "base_prefix": 1,
+              "reuse_prefix": 1,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_observatory",
+              "step": 5,
+              "base_prefix": 2,
+              "reuse_prefix": 0,
+              "base_p1": 1,
+              "reuse_p1": 0
+            },
+            {
+              "prompt": "grounded_observatory",
+              "step": 6,
+              "base_prefix": 2,
+              "reuse_prefix": 1,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_observatory",
+              "step": 7,
+              "base_prefix": 0,
+              "reuse_prefix": 4,
+              "base_p1": 0,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_observatory",
+              "step": 8,
+              "base_prefix": 3,
+              "reuse_prefix": 3,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_repair",
+              "step": 1,
+              "base_prefix": 4,
+              "reuse_prefix": 3,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_repair",
+              "step": 2,
+              "base_prefix": 2,
+              "reuse_prefix": 3,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_repair",
+              "step": 3,
+              "base_prefix": 1,
+              "reuse_prefix": 1,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_repair",
+              "step": 4,
+              "base_prefix": 0,
+              "reuse_prefix": 0,
+              "base_p1": 0,
+              "reuse_p1": 0
+            },
+            {
+              "prompt": "grounded_repair",
+              "step": 5,
+              "base_prefix": 0,
+              "reuse_prefix": 1,
+              "base_p1": 0,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_repair",
+              "step": 6,
+              "base_prefix": 5,
+              "reuse_prefix": 5,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_repair",
+              "step": 7,
+              "base_prefix": 5,
+              "reuse_prefix": 5,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_repair",
+              "step": 8,
+              "base_prefix": 2,
+              "reuse_prefix": 4,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "mixed_exactness_smoke",
+              "step": 1,
+              "base_prefix": 3,
+              "reuse_prefix": 1,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "mixed_exactness_smoke",
+              "step": 2,
+              "base_prefix": 2,
+              "reuse_prefix": 2,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "mixed_exactness_smoke",
+              "step": 3,
+              "base_prefix": 1,
+              "reuse_prefix": 1,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "mixed_exactness_smoke",
+              "step": 4,
+              "base_prefix": 2,
+              "reuse_prefix": 5,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "mixed_exactness_smoke",
+              "step": 5,
+              "base_prefix": 2,
+              "reuse_prefix": 3,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "mixed_exactness_smoke",
+              "step": 6,
+              "base_prefix": 2,
+              "reuse_prefix": 1,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "mixed_exactness_smoke",
+              "step": 7,
+              "base_prefix": 2,
+              "reuse_prefix": 1,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "mixed_exactness_smoke",
+              "step": 8,
+              "base_prefix": 0,
+              "reuse_prefix": 1,
+              "base_p1": 0,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_incident_json",
+              "step": 1,
+              "base_prefix": 3,
+              "reuse_prefix": 1,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_incident_json",
+              "step": 2,
+              "base_prefix": 2,
+              "reuse_prefix": 2,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_incident_json",
+              "step": 3,
+              "base_prefix": 1,
+              "reuse_prefix": 1,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_incident_json",
+              "step": 4,
+              "base_prefix": 5,
+              "reuse_prefix": 5,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_incident_json",
+              "step": 5,
+              "base_prefix": 5,
+              "reuse_prefix": 2,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_incident_json",
+              "step": 6,
+              "base_prefix": 2,
+              "reuse_prefix": 2,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_incident_json",
+              "step": 7,
+              "base_prefix": 4,
+              "reuse_prefix": 3,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_incident_json",
+              "step": 8,
+              "base_prefix": 1,
+              "reuse_prefix": 3,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_ops_json",
+              "step": 1,
+              "base_prefix": 1,
+              "reuse_prefix": 1,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_ops_json",
+              "step": 2,
+              "base_prefix": 0,
+              "reuse_prefix": 0,
+              "base_p1": 0,
+              "reuse_p1": 0
+            },
+            {
+              "prompt": "synthesis_ops_json",
+              "step": 3,
+              "base_prefix": 1,
+              "reuse_prefix": 1,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_ops_json",
+              "step": 4,
+              "base_prefix": 0,
+              "reuse_prefix": 0,
+              "base_p1": 0,
+              "reuse_p1": 0
+            },
+            {
+              "prompt": "synthesis_ops_json",
+              "step": 5,
+              "base_prefix": 4,
+              "reuse_prefix": 4,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_ops_json",
+              "step": 6,
+              "base_prefix": 3,
+              "reuse_prefix": 3,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_ops_json",
+              "step": 7,
+              "base_prefix": 2,
+              "reuse_prefix": 2,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_ops_json",
+              "step": 8,
+              "base_prefix": 3,
+              "reuse_prefix": 3,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_timeline_json",
+              "step": 1,
+              "base_prefix": 1,
+              "reuse_prefix": 1,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_timeline_json",
+              "step": 2,
+              "base_prefix": 0,
+              "reuse_prefix": 0,
+              "base_p1": 0,
+              "reuse_p1": 0
+            },
+            {
+              "prompt": "synthesis_timeline_json",
+              "step": 3,
+              "base_prefix": 0,
+              "reuse_prefix": 1,
+              "base_p1": 0,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_timeline_json",
+              "step": 4,
+              "base_prefix": 0,
+              "reuse_prefix": 0,
+              "base_p1": 0,
+              "reuse_p1": 0
+            },
+            {
+              "prompt": "synthesis_timeline_json",
+              "step": 5,
+              "base_prefix": 4,
+              "reuse_prefix": 4,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_timeline_json",
+              "step": 6,
+              "base_prefix": 3,
+              "reuse_prefix": 3,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_timeline_json",
+              "step": 7,
+              "base_prefix": 2,
+              "reuse_prefix": 2,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_timeline_json",
+              "step": 8,
+              "base_prefix": 1,
+              "reuse_prefix": 1,
+              "base_p1": 1,
+              "reuse_p1": 1
+            }
+          ]
+        },
+        "backfill": {
+          "aggregate": {
+            "n_paired_units": 80,
+            "base_E_a_5block": 2.0875,
+            "reuse_E_a_5block": 2.2,
+            "d_E_a_5block": 0.1125,
+            "bootstrap_ci95_per_step": [
+              -0.225,
+              0.45
+            ],
+            "bootstrap_p_two_sided_per_step": 0.4928,
+            "ci_excludes_zero_per_step": false,
+            "per_prompt_clustered_ci95": [
+              -0.0875,
+              0.3375
+            ],
+            "n_prompts_clustered": 10,
+            "base_p1_match_rate": 0.75,
+            "reuse_p1_match_rate": 0.8625,
+            "d_p1_match_rate": 0.1125,
+            "mcnemar_discordant_b_basepos_reuseneg": 2,
+            "mcnemar_discordant_c_baseneg_reusepos": 11,
+            "mcnemar_chi2_cc": 4.9231,
+            "mcnemar_exact_p_two_sided": 0.022461,
+            "verdict": "SURVIVES",
+            "verdict_rule": "SURVIVES if d(E[a|5block])>=0; COLLAPSES if d<0 and per-step bootstrap CI95 excludes 0; else MARGINAL",
+            "n_prompts": 10,
+            "fidelity_gate_passed": true,
+            "per_prompt_positives": 4,
+            "per_prompt_negatives": 3,
+            "per_prompt_flat": 3
+          },
+          "per_prompt": [
+            {
+              "prompt": "code_histogram",
+              "n_steps": 8,
+              "base_avg_prefix": 3.125,
+              "reuse_avg_prefix": 2.875,
+              "d_avg_prefix": -0.25,
+              "base_p1_match": 0.75,
+              "reuse_p1_match": 0.875,
+              "d_p1_match": 0.125,
+              "base_match_pct": 80.0,
+              "reuse_match_pct": 70.0
+            },
+            {
+              "prompt": "code_sort_pairs",
+              "n_steps": 8,
+              "base_avg_prefix": 0.875,
+              "reuse_avg_prefix": 1.75,
+              "d_avg_prefix": 0.875,
+              "base_p1_match": 0.375,
+              "reuse_p1_match": 0.75,
+              "d_p1_match": 0.375,
+              "base_match_pct": 30.0,
+              "reuse_match_pct": 45.0
+            },
+            {
+              "prompt": "code_topk",
+              "n_steps": 8,
+              "base_avg_prefix": 2.625,
+              "reuse_avg_prefix": 2.375,
+              "d_avg_prefix": -0.25,
+              "base_p1_match": 0.75,
+              "reuse_p1_match": 0.75,
+              "d_p1_match": 0.0,
+              "base_match_pct": 52.5,
+              "reuse_match_pct": 47.5
+            },
+            {
+              "prompt": "grounded_archive",
+              "n_steps": 8,
+              "base_avg_prefix": 2.75,
+              "reuse_avg_prefix": 2.75,
+              "d_avg_prefix": 0.0,
+              "base_p1_match": 0.875,
+              "reuse_p1_match": 1.0,
+              "d_p1_match": 0.125,
+              "base_match_pct": 55.0,
+              "reuse_match_pct": 57.5
+            },
+            {
+              "prompt": "grounded_observatory",
+              "n_steps": 8,
+              "base_avg_prefix": 1.375,
+              "reuse_avg_prefix": 2.0,
+              "d_avg_prefix": 0.625,
+              "base_p1_match": 0.75,
+              "reuse_p1_match": 0.875,
+              "d_p1_match": 0.125,
+              "base_match_pct": 35.0,
+              "reuse_match_pct": 40.0
+            },
+            {
+              "prompt": "grounded_repair",
+              "n_steps": 8,
+              "base_avg_prefix": 2.375,
+              "reuse_avg_prefix": 2.625,
+              "d_avg_prefix": 0.25,
+              "base_p1_match": 0.75,
+              "reuse_p1_match": 0.875,
+              "d_p1_match": 0.125,
+              "base_match_pct": 52.5,
+              "reuse_match_pct": 55.0
+            },
+            {
+              "prompt": "mixed_exactness_smoke",
+              "n_steps": 8,
+              "base_avg_prefix": 1.75,
+              "reuse_avg_prefix": 1.75,
+              "d_avg_prefix": 0.0,
+              "base_p1_match": 0.875,
+              "reuse_p1_match": 1.0,
+              "d_p1_match": 0.125,
+              "base_match_pct": 35.0,
+              "reuse_match_pct": 42.5
+            },
+            {
+              "prompt": "synthesis_incident_json",
+              "n_steps": 8,
+              "base_avg_prefix": 2.875,
+              "reuse_avg_prefix": 2.625,
+              "d_avg_prefix": -0.25,
+              "base_p1_match": 1.0,
+              "reuse_p1_match": 1.0,
+              "d_p1_match": 0.0,
+              "base_match_pct": 60.0,
+              "reuse_match_pct": 60.0
+            },
+            {
+              "prompt": "synthesis_ops_json",
+              "n_steps": 8,
+              "base_avg_prefix": 1.75,
+              "reuse_avg_prefix": 1.75,
+              "d_avg_prefix": 0.0,
+              "base_p1_match": 0.75,
+              "reuse_p1_match": 0.75,
+              "d_p1_match": 0.0,
+              "base_match_pct": 40.0,
+              "reuse_match_pct": 37.5
+            },
+            {
+              "prompt": "synthesis_timeline_json",
+              "n_steps": 8,
+              "base_avg_prefix": 1.375,
+              "reuse_avg_prefix": 1.5,
+              "d_avg_prefix": 0.125,
+              "base_p1_match": 0.625,
+              "reuse_p1_match": 0.75,
+              "d_p1_match": 0.125,
+              "base_match_pct": 32.5,
+              "reuse_match_pct": 35.0
+            }
+          ],
+          "units": [
+            {
+              "prompt": "code_histogram",
+              "step": 1,
+              "base_prefix": 1,
+              "reuse_prefix": 1,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "code_histogram",
+              "step": 2,
+              "base_prefix": 0,
+              "reuse_prefix": 0,
+              "base_p1": 0,
+              "reuse_p1": 0
+            },
+            {
+              "prompt": "code_histogram",
+              "step": 3,
+              "base_prefix": 0,
+              "reuse_prefix": 2,
+              "base_p1": 0,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "code_histogram",
+              "step": 4,
+              "base_prefix": 5,
+              "reuse_prefix": 1,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "code_histogram",
+              "step": 5,
+              "base_prefix": 5,
+              "reuse_prefix": 5,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "code_histogram",
+              "step": 6,
+              "base_prefix": 4,
+              "reuse_prefix": 4,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "code_histogram",
+              "step": 7,
+              "base_prefix": 5,
+              "reuse_prefix": 5,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "code_histogram",
+              "step": 8,
+              "base_prefix": 5,
+              "reuse_prefix": 5,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "code_sort_pairs",
+              "step": 1,
+              "base_prefix": 2,
+              "reuse_prefix": 2,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "code_sort_pairs",
+              "step": 2,
+              "base_prefix": 4,
+              "reuse_prefix": 1,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "code_sort_pairs",
+              "step": 3,
+              "base_prefix": 0,
+              "reuse_prefix": 0,
+              "base_p1": 0,
+              "reuse_p1": 0
+            },
+            {
+              "prompt": "code_sort_pairs",
+              "step": 4,
+              "base_prefix": 0,
+              "reuse_prefix": 2,
+              "base_p1": 0,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "code_sort_pairs",
+              "step": 5,
+              "base_prefix": 1,
+              "reuse_prefix": 1,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "code_sort_pairs",
+              "step": 6,
+              "base_prefix": 0,
+              "reuse_prefix": 0,
+              "base_p1": 0,
+              "reuse_p1": 0
+            },
+            {
+              "prompt": "code_sort_pairs",
+              "step": 7,
+              "base_prefix": 0,
+              "reuse_prefix": 4,
+              "base_p1": 0,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "code_sort_pairs",
+              "step": 8,
+              "base_prefix": 0,
+              "reuse_prefix": 4,
+              "base_p1": 0,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "code_topk",
+              "step": 1,
+              "base_prefix": 1,
+              "reuse_prefix": 2,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "code_topk",
+              "step": 2,
+              "base_prefix": 1,
+              "reuse_prefix": 0,
+              "base_p1": 1,
+              "reuse_p1": 0
+            },
+            {
+              "prompt": "code_topk",
+              "step": 3,
+              "base_prefix": 0,
+              "reuse_prefix": 0,
+              "base_p1": 0,
+              "reuse_p1": 0
+            },
+            {
+              "prompt": "code_topk",
+              "step": 4,
+              "base_prefix": 0,
+              "reuse_prefix": 3,
+              "base_p1": 0,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "code_topk",
+              "step": 5,
+              "base_prefix": 4,
+              "reuse_prefix": 2,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "code_topk",
+              "step": 6,
+              "base_prefix": 5,
+              "reuse_prefix": 3,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "code_topk",
+              "step": 7,
+              "base_prefix": 5,
+              "reuse_prefix": 4,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "code_topk",
+              "step": 8,
+              "base_prefix": 5,
+              "reuse_prefix": 5,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_archive",
+              "step": 1,
+              "base_prefix": 5,
+              "reuse_prefix": 1,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_archive",
+              "step": 2,
+              "base_prefix": 5,
+              "reuse_prefix": 4,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_archive",
+              "step": 3,
+              "base_prefix": 4,
+              "reuse_prefix": 2,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_archive",
+              "step": 4,
+              "base_prefix": 3,
+              "reuse_prefix": 3,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_archive",
+              "step": 5,
+              "base_prefix": 2,
+              "reuse_prefix": 2,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_archive",
+              "step": 6,
+              "base_prefix": 1,
+              "reuse_prefix": 5,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_archive",
+              "step": 7,
+              "base_prefix": 0,
+              "reuse_prefix": 3,
+              "base_p1": 0,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_archive",
+              "step": 8,
+              "base_prefix": 2,
+              "reuse_prefix": 2,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_observatory",
+              "step": 1,
+              "base_prefix": 2,
+              "reuse_prefix": 2,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_observatory",
+              "step": 2,
+              "base_prefix": 1,
+              "reuse_prefix": 3,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_observatory",
+              "step": 3,
+              "base_prefix": 0,
+              "reuse_prefix": 2,
+              "base_p1": 0,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_observatory",
+              "step": 4,
+              "base_prefix": 1,
+              "reuse_prefix": 1,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_observatory",
+              "step": 5,
+              "base_prefix": 2,
+              "reuse_prefix": 0,
+              "base_p1": 1,
+              "reuse_p1": 0
+            },
+            {
+              "prompt": "grounded_observatory",
+              "step": 6,
+              "base_prefix": 2,
+              "reuse_prefix": 1,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_observatory",
+              "step": 7,
+              "base_prefix": 0,
+              "reuse_prefix": 4,
+              "base_p1": 0,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_observatory",
+              "step": 8,
+              "base_prefix": 3,
+              "reuse_prefix": 3,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_repair",
+              "step": 1,
+              "base_prefix": 4,
+              "reuse_prefix": 3,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_repair",
+              "step": 2,
+              "base_prefix": 2,
+              "reuse_prefix": 2,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_repair",
+              "step": 3,
+              "base_prefix": 1,
+              "reuse_prefix": 1,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_repair",
+              "step": 4,
+              "base_prefix": 0,
+              "reuse_prefix": 0,
+              "base_p1": 0,
+              "reuse_p1": 0
+            },
+            {
+              "prompt": "grounded_repair",
+              "step": 5,
+              "base_prefix": 0,
+              "reuse_prefix": 1,
+              "base_p1": 0,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_repair",
+              "step": 6,
+              "base_prefix": 5,
+              "reuse_prefix": 5,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_repair",
+              "step": 7,
+              "base_prefix": 5,
+              "reuse_prefix": 5,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_repair",
+              "step": 8,
+              "base_prefix": 2,
+              "reuse_prefix": 4,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "mixed_exactness_smoke",
+              "step": 1,
+              "base_prefix": 3,
+              "reuse_prefix": 1,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "mixed_exactness_smoke",
+              "step": 2,
+              "base_prefix": 2,
+              "reuse_prefix": 2,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "mixed_exactness_smoke",
+              "step": 3,
+              "base_prefix": 1,
+              "reuse_prefix": 1,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "mixed_exactness_smoke",
+              "step": 4,
+              "base_prefix": 2,
+              "reuse_prefix": 3,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "mixed_exactness_smoke",
+              "step": 5,
+              "base_prefix": 2,
+              "reuse_prefix": 3,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "mixed_exactness_smoke",
+              "step": 6,
+              "base_prefix": 2,
+              "reuse_prefix": 2,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "mixed_exactness_smoke",
+              "step": 7,
+              "base_prefix": 2,
+              "reuse_prefix": 1,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "mixed_exactness_smoke",
+              "step": 8,
+              "base_prefix": 0,
+              "reuse_prefix": 1,
+              "base_p1": 0,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_incident_json",
+              "step": 1,
+              "base_prefix": 3,
+              "reuse_prefix": 1,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_incident_json",
+              "step": 2,
+              "base_prefix": 2,
+              "reuse_prefix": 2,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_incident_json",
+              "step": 3,
+              "base_prefix": 1,
+              "reuse_prefix": 3,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_incident_json",
+              "step": 4,
+              "base_prefix": 5,
+              "reuse_prefix": 5,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_incident_json",
+              "step": 5,
+              "base_prefix": 5,
+              "reuse_prefix": 2,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_incident_json",
+              "step": 6,
+              "base_prefix": 2,
+              "reuse_prefix": 2,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_incident_json",
+              "step": 7,
+              "base_prefix": 4,
+              "reuse_prefix": 3,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_incident_json",
+              "step": 8,
+              "base_prefix": 1,
+              "reuse_prefix": 3,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_ops_json",
+              "step": 1,
+              "base_prefix": 1,
+              "reuse_prefix": 1,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_ops_json",
+              "step": 2,
+              "base_prefix": 0,
+              "reuse_prefix": 0,
+              "base_p1": 0,
+              "reuse_p1": 0
+            },
+            {
+              "prompt": "synthesis_ops_json",
+              "step": 3,
+              "base_prefix": 1,
+              "reuse_prefix": 1,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_ops_json",
+              "step": 4,
+              "base_prefix": 0,
+              "reuse_prefix": 0,
+              "base_p1": 0,
+              "reuse_p1": 0
+            },
+            {
+              "prompt": "synthesis_ops_json",
+              "step": 5,
+              "base_prefix": 4,
+              "reuse_prefix": 4,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_ops_json",
+              "step": 6,
+              "base_prefix": 3,
+              "reuse_prefix": 3,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_ops_json",
+              "step": 7,
+              "base_prefix": 2,
+              "reuse_prefix": 2,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_ops_json",
+              "step": 8,
+              "base_prefix": 3,
+              "reuse_prefix": 3,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_timeline_json",
+              "step": 1,
+              "base_prefix": 1,
+              "reuse_prefix": 1,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_timeline_json",
+              "step": 2,
+              "base_prefix": 0,
+              "reuse_prefix": 0,
+              "base_p1": 0,
+              "reuse_p1": 0
+            },
+            {
+              "prompt": "synthesis_timeline_json",
+              "step": 3,
+              "base_prefix": 0,
+              "reuse_prefix": 1,
+              "base_p1": 0,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_timeline_json",
+              "step": 4,
+              "base_prefix": 0,
+              "reuse_prefix": 0,
+              "base_p1": 0,
+              "reuse_p1": 0
+            },
+            {
+              "prompt": "synthesis_timeline_json",
+              "step": 5,
+              "base_prefix": 4,
+              "reuse_prefix": 4,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_timeline_json",
+              "step": 6,
+              "base_prefix": 3,
+              "reuse_prefix": 3,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_timeline_json",
+              "step": 7,
+              "base_prefix": 2,
+              "reuse_prefix": 2,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_timeline_json",
+              "step": 8,
+              "base_prefix": 1,
+              "reuse_prefix": 1,
+              "base_p1": 1,
+              "reuse_p1": 1
+            }
+          ]
+        }
+      }
+    },
+    "t1p0": {
+      "fidelity_gate_passed": true,
+      "reuse_modes": {
+        "lag": {
+          "aggregate": {
+            "n_paired_units": 80,
+            "base_E_a_5block": 2.0875,
+            "reuse_E_a_5block": 2.2,
+            "d_E_a_5block": 0.1125,
+            "bootstrap_ci95_per_step": [
+              -0.2375,
+              0.4625
+            ],
+            "bootstrap_p_two_sided_per_step": 0.5014,
+            "ci_excludes_zero_per_step": false,
+            "per_prompt_clustered_ci95": [
+              -0.125,
+              0.325
+            ],
+            "n_prompts_clustered": 10,
+            "base_p1_match_rate": 0.775,
+            "reuse_p1_match_rate": 0.8375,
+            "d_p1_match_rate": 0.0625,
+            "mcnemar_discordant_b_basepos_reuseneg": 3,
+            "mcnemar_discordant_c_baseneg_reusepos": 8,
+            "mcnemar_chi2_cc": 1.4545,
+            "mcnemar_exact_p_two_sided": 0.226562,
+            "verdict": "SURVIVES",
+            "verdict_rule": "SURVIVES if d(E[a|5block])>=0; COLLAPSES if d<0 and per-step bootstrap CI95 excludes 0; else MARGINAL",
+            "n_prompts": 10,
+            "fidelity_gate_passed": true,
+            "per_prompt_positives": 7,
+            "per_prompt_negatives": 3,
+            "per_prompt_flat": 0
+          },
+          "per_prompt": [
+            {
+              "prompt": "code_histogram",
+              "n_steps": 8,
+              "base_avg_prefix": 3.125,
+              "reuse_avg_prefix": 3.25,
+              "d_avg_prefix": 0.125,
+              "base_p1_match": 0.75,
+              "reuse_p1_match": 0.875,
+              "d_p1_match": 0.125,
+              "base_match_pct": 80.0,
+              "reuse_match_pct": 77.5
+            },
+            {
+              "prompt": "code_sort_pairs",
+              "n_steps": 8,
+              "base_avg_prefix": 1.5,
+              "reuse_avg_prefix": 1.875,
+              "d_avg_prefix": 0.375,
+              "base_p1_match": 0.75,
+              "reuse_p1_match": 0.75,
+              "d_p1_match": 0.0,
+              "base_match_pct": 30.0,
+              "reuse_match_pct": 42.5
+            },
+            {
+              "prompt": "code_topk",
+              "n_steps": 8,
+              "base_avg_prefix": 1.625,
+              "reuse_avg_prefix": 2.125,
+              "d_avg_prefix": 0.5,
+              "base_p1_match": 0.625,
+              "reuse_p1_match": 0.75,
+              "d_p1_match": 0.125,
+              "base_match_pct": 37.5,
+              "reuse_match_pct": 42.5
+            },
+            {
+              "prompt": "grounded_archive",
+              "n_steps": 8,
+              "base_avg_prefix": 2.75,
+              "reuse_avg_prefix": 2.875,
+              "d_avg_prefix": 0.125,
+              "base_p1_match": 0.875,
+              "reuse_p1_match": 1.0,
+              "d_p1_match": 0.125,
+              "base_match_pct": 55.0,
+              "reuse_match_pct": 57.5
+            },
+            {
+              "prompt": "grounded_observatory",
+              "n_steps": 8,
+              "base_avg_prefix": 1.375,
+              "reuse_avg_prefix": 2.0,
+              "d_avg_prefix": 0.625,
+              "base_p1_match": 0.75,
+              "reuse_p1_match": 0.875,
+              "d_p1_match": 0.125,
+              "base_match_pct": 35.0,
+              "reuse_match_pct": 40.0
+            },
+            {
+              "prompt": "grounded_repair",
+              "n_steps": 8,
+              "base_avg_prefix": 2.375,
+              "reuse_avg_prefix": 2.75,
+              "d_avg_prefix": 0.375,
+              "base_p1_match": 0.75,
+              "reuse_p1_match": 0.875,
+              "d_p1_match": 0.125,
+              "base_match_pct": 52.5,
+              "reuse_match_pct": 57.5
+            },
+            {
+              "prompt": "mixed_exactness_smoke",
+              "n_steps": 8,
+              "base_avg_prefix": 1.5,
+              "reuse_avg_prefix": 1.375,
+              "d_avg_prefix": -0.125,
+              "base_p1_match": 0.875,
+              "reuse_p1_match": 0.875,
+              "d_p1_match": 0.0,
+              "base_match_pct": 30.0,
+              "reuse_match_pct": 32.5
+            },
+            {
+              "prompt": "synthesis_incident_json",
+              "n_steps": 8,
+              "base_avg_prefix": 2.25,
+              "reuse_avg_prefix": 1.875,
+              "d_avg_prefix": -0.375,
+              "base_p1_match": 0.875,
+              "reuse_p1_match": 0.875,
+              "d_p1_match": 0.0,
+              "base_match_pct": 55.0,
+              "reuse_match_pct": 47.5
+            },
+            {
+              "prompt": "synthesis_ops_json",
+              "n_steps": 8,
+              "base_avg_prefix": 3.0,
+              "reuse_avg_prefix": 2.375,
+              "d_avg_prefix": -0.625,
+              "base_p1_match": 0.875,
+              "reuse_p1_match": 0.75,
+              "d_p1_match": -0.125,
+              "base_match_pct": 62.5,
+              "reuse_match_pct": 47.5
+            },
+            {
+              "prompt": "synthesis_timeline_json",
+              "n_steps": 8,
+              "base_avg_prefix": 1.375,
+              "reuse_avg_prefix": 1.5,
+              "d_avg_prefix": 0.125,
+              "base_p1_match": 0.625,
+              "reuse_p1_match": 0.75,
+              "d_p1_match": 0.125,
+              "base_match_pct": 32.5,
+              "reuse_match_pct": 35.0
+            }
+          ],
+          "units": [
+            {
+              "prompt": "code_histogram",
+              "step": 1,
+              "base_prefix": 1,
+              "reuse_prefix": 1,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "code_histogram",
+              "step": 2,
+              "base_prefix": 0,
+              "reuse_prefix": 0,
+              "base_p1": 0,
+              "reuse_p1": 0
+            },
+            {
+              "prompt": "code_histogram",
+              "step": 3,
+              "base_prefix": 0,
+              "reuse_prefix": 5,
+              "base_p1": 0,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "code_histogram",
+              "step": 4,
+              "base_prefix": 5,
+              "reuse_prefix": 1,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "code_histogram",
+              "step": 5,
+              "base_prefix": 5,
+              "reuse_prefix": 5,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "code_histogram",
+              "step": 6,
+              "base_prefix": 4,
+              "reuse_prefix": 4,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "code_histogram",
+              "step": 7,
+              "base_prefix": 5,
+              "reuse_prefix": 5,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "code_histogram",
+              "step": 8,
+              "base_prefix": 5,
+              "reuse_prefix": 5,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "code_sort_pairs",
+              "step": 1,
+              "base_prefix": 2,
+              "reuse_prefix": 2,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "code_sort_pairs",
+              "step": 2,
+              "base_prefix": 1,
+              "reuse_prefix": 1,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "code_sort_pairs",
+              "step": 3,
+              "base_prefix": 0,
+              "reuse_prefix": 0,
+              "base_p1": 0,
+              "reuse_p1": 0
+            },
+            {
+              "prompt": "code_sort_pairs",
+              "step": 4,
+              "base_prefix": 1,
+              "reuse_prefix": 1,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "code_sort_pairs",
+              "step": 5,
+              "base_prefix": 0,
+              "reuse_prefix": 0,
+              "base_p1": 0,
+              "reuse_p1": 0
+            },
+            {
+              "prompt": "code_sort_pairs",
+              "step": 6,
+              "base_prefix": 2,
+              "reuse_prefix": 5,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "code_sort_pairs",
+              "step": 7,
+              "base_prefix": 1,
+              "reuse_prefix": 1,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "code_sort_pairs",
+              "step": 8,
+              "base_prefix": 5,
+              "reuse_prefix": 5,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "code_topk",
+              "step": 1,
+              "base_prefix": 1,
+              "reuse_prefix": 2,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "code_topk",
+              "step": 2,
+              "base_prefix": 1,
+              "reuse_prefix": 3,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "code_topk",
+              "step": 3,
+              "base_prefix": 0,
+              "reuse_prefix": 0,
+              "base_p1": 0,
+              "reuse_p1": 0
+            },
+            {
+              "prompt": "code_topk",
+              "step": 4,
+              "base_prefix": 1,
+              "reuse_prefix": 1,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "code_topk",
+              "step": 5,
+              "base_prefix": 0,
+              "reuse_prefix": 0,
+              "base_p1": 0,
+              "reuse_p1": 0
+            },
+            {
+              "prompt": "code_topk",
+              "step": 6,
+              "base_prefix": 0,
+              "reuse_prefix": 2,
+              "base_p1": 0,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "code_topk",
+              "step": 7,
+              "base_prefix": 5,
+              "reuse_prefix": 5,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "code_topk",
+              "step": 8,
+              "base_prefix": 5,
+              "reuse_prefix": 4,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_archive",
+              "step": 1,
+              "base_prefix": 5,
+              "reuse_prefix": 1,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_archive",
+              "step": 2,
+              "base_prefix": 5,
+              "reuse_prefix": 4,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_archive",
+              "step": 3,
+              "base_prefix": 4,
+              "reuse_prefix": 4,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_archive",
+              "step": 4,
+              "base_prefix": 3,
+              "reuse_prefix": 3,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_archive",
+              "step": 5,
+              "base_prefix": 2,
+              "reuse_prefix": 2,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_archive",
+              "step": 6,
+              "base_prefix": 1,
+              "reuse_prefix": 4,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_archive",
+              "step": 7,
+              "base_prefix": 0,
+              "reuse_prefix": 3,
+              "base_p1": 0,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_archive",
+              "step": 8,
+              "base_prefix": 2,
+              "reuse_prefix": 2,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_observatory",
+              "step": 1,
+              "base_prefix": 2,
+              "reuse_prefix": 2,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_observatory",
+              "step": 2,
+              "base_prefix": 1,
+              "reuse_prefix": 3,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_observatory",
+              "step": 3,
+              "base_prefix": 0,
+              "reuse_prefix": 2,
+              "base_p1": 0,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_observatory",
+              "step": 4,
+              "base_prefix": 1,
+              "reuse_prefix": 1,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_observatory",
+              "step": 5,
+              "base_prefix": 2,
+              "reuse_prefix": 0,
+              "base_p1": 1,
+              "reuse_p1": 0
+            },
+            {
+              "prompt": "grounded_observatory",
+              "step": 6,
+              "base_prefix": 2,
+              "reuse_prefix": 1,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_observatory",
+              "step": 7,
+              "base_prefix": 0,
+              "reuse_prefix": 4,
+              "base_p1": 0,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_observatory",
+              "step": 8,
+              "base_prefix": 3,
+              "reuse_prefix": 3,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_repair",
+              "step": 1,
+              "base_prefix": 4,
+              "reuse_prefix": 3,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_repair",
+              "step": 2,
+              "base_prefix": 2,
+              "reuse_prefix": 3,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_repair",
+              "step": 3,
+              "base_prefix": 1,
+              "reuse_prefix": 1,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_repair",
+              "step": 4,
+              "base_prefix": 0,
+              "reuse_prefix": 0,
+              "base_p1": 0,
+              "reuse_p1": 0
+            },
+            {
+              "prompt": "grounded_repair",
+              "step": 5,
+              "base_prefix": 0,
+              "reuse_prefix": 1,
+              "base_p1": 0,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_repair",
+              "step": 6,
+              "base_prefix": 5,
+              "reuse_prefix": 5,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_repair",
+              "step": 7,
+              "base_prefix": 5,
+              "reuse_prefix": 5,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_repair",
+              "step": 8,
+              "base_prefix": 2,
+              "reuse_prefix": 4,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "mixed_exactness_smoke",
+              "step": 1,
+              "base_prefix": 3,
+              "reuse_prefix": 1,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "mixed_exactness_smoke",
+              "step": 2,
+              "base_prefix": 2,
+              "reuse_prefix": 2,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "mixed_exactness_smoke",
+              "step": 3,
+              "base_prefix": 1,
+              "reuse_prefix": 1,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "mixed_exactness_smoke",
+              "step": 4,
+              "base_prefix": 2,
+              "reuse_prefix": 3,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "mixed_exactness_smoke",
+              "step": 5,
+              "base_prefix": 2,
+              "reuse_prefix": 2,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "mixed_exactness_smoke",
+              "step": 6,
+              "base_prefix": 1,
+              "reuse_prefix": 1,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "mixed_exactness_smoke",
+              "step": 7,
+              "base_prefix": 0,
+              "reuse_prefix": 0,
+              "base_p1": 0,
+              "reuse_p1": 0
+            },
+            {
+              "prompt": "mixed_exactness_smoke",
+              "step": 8,
+              "base_prefix": 1,
+              "reuse_prefix": 1,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_incident_json",
+              "step": 1,
+              "base_prefix": 3,
+              "reuse_prefix": 1,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_incident_json",
+              "step": 2,
+              "base_prefix": 2,
+              "reuse_prefix": 2,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_incident_json",
+              "step": 3,
+              "base_prefix": 1,
+              "reuse_prefix": 1,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_incident_json",
+              "step": 4,
+              "base_prefix": 4,
+              "reuse_prefix": 4,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_incident_json",
+              "step": 5,
+              "base_prefix": 3,
+              "reuse_prefix": 2,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_incident_json",
+              "step": 6,
+              "base_prefix": 4,
+              "reuse_prefix": 4,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_incident_json",
+              "step": 7,
+              "base_prefix": 1,
+              "reuse_prefix": 1,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_incident_json",
+              "step": 8,
+              "base_prefix": 0,
+              "reuse_prefix": 0,
+              "base_p1": 0,
+              "reuse_p1": 0
+            },
+            {
+              "prompt": "synthesis_ops_json",
+              "step": 1,
+              "base_prefix": 1,
+              "reuse_prefix": 1,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_ops_json",
+              "step": 2,
+              "base_prefix": 1,
+              "reuse_prefix": 0,
+              "base_p1": 1,
+              "reuse_p1": 0
+            },
+            {
+              "prompt": "synthesis_ops_json",
+              "step": 3,
+              "base_prefix": 5,
+              "reuse_prefix": 0,
+              "base_p1": 1,
+              "reuse_p1": 0
+            },
+            {
+              "prompt": "synthesis_ops_json",
+              "step": 4,
+              "base_prefix": 4,
+              "reuse_prefix": 4,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_ops_json",
+              "step": 5,
+              "base_prefix": 5,
+              "reuse_prefix": 4,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_ops_json",
+              "step": 6,
+              "base_prefix": 3,
+              "reuse_prefix": 5,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_ops_json",
+              "step": 7,
+              "base_prefix": 0,
+              "reuse_prefix": 4,
+              "base_p1": 0,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_ops_json",
+              "step": 8,
+              "base_prefix": 5,
+              "reuse_prefix": 1,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_timeline_json",
+              "step": 1,
+              "base_prefix": 1,
+              "reuse_prefix": 1,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_timeline_json",
+              "step": 2,
+              "base_prefix": 0,
+              "reuse_prefix": 0,
+              "base_p1": 0,
+              "reuse_p1": 0
+            },
+            {
+              "prompt": "synthesis_timeline_json",
+              "step": 3,
+              "base_prefix": 0,
+              "reuse_prefix": 1,
+              "base_p1": 0,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_timeline_json",
+              "step": 4,
+              "base_prefix": 0,
+              "reuse_prefix": 0,
+              "base_p1": 0,
+              "reuse_p1": 0
+            },
+            {
+              "prompt": "synthesis_timeline_json",
+              "step": 5,
+              "base_prefix": 4,
+              "reuse_prefix": 4,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_timeline_json",
+              "step": 6,
+              "base_prefix": 3,
+              "reuse_prefix": 3,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_timeline_json",
+              "step": 7,
+              "base_prefix": 2,
+              "reuse_prefix": 2,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_timeline_json",
+              "step": 8,
+              "base_prefix": 1,
+              "reuse_prefix": 1,
+              "base_p1": 1,
+              "reuse_p1": 1
+            }
+          ]
+        },
+        "backfill": {
+          "aggregate": {
+            "n_paired_units": 80,
+            "base_E_a_5block": 2.0875,
+            "reuse_E_a_5block": 2.2,
+            "d_E_a_5block": 0.1125,
+            "bootstrap_ci95_per_step": [
+              -0.2,
+              0.425
+            ],
+            "bootstrap_p_two_sided_per_step": 0.458,
+            "ci_excludes_zero_per_step": false,
+            "per_prompt_clustered_ci95": [
+              -0.0375,
+              0.275
+            ],
+            "n_prompts_clustered": 10,
+            "base_p1_match_rate": 0.775,
+            "reuse_p1_match_rate": 0.85,
+            "d_p1_match_rate": 0.075,
+            "mcnemar_discordant_b_basepos_reuseneg": 3,
+            "mcnemar_discordant_c_baseneg_reusepos": 9,
+            "mcnemar_chi2_cc": 2.0833,
+            "mcnemar_exact_p_two_sided": 0.145996,
+            "verdict": "SURVIVES",
+            "verdict_rule": "SURVIVES if d(E[a|5block])>=0; COLLAPSES if d<0 and per-step bootstrap CI95 excludes 0; else MARGINAL",
+            "n_prompts": 10,
+            "fidelity_gate_passed": true,
+            "per_prompt_positives": 5,
+            "per_prompt_negatives": 3,
+            "per_prompt_flat": 2
+          },
+          "per_prompt": [
+            {
+              "prompt": "code_histogram",
+              "n_steps": 8,
+              "base_avg_prefix": 3.125,
+              "reuse_avg_prefix": 2.875,
+              "d_avg_prefix": -0.25,
+              "base_p1_match": 0.75,
+              "reuse_p1_match": 0.875,
+              "d_p1_match": 0.125,
+              "base_match_pct": 80.0,
+              "reuse_match_pct": 70.0
+            },
+            {
+              "prompt": "code_sort_pairs",
+              "n_steps": 8,
+              "base_avg_prefix": 1.5,
+              "reuse_avg_prefix": 2.0,
+              "d_avg_prefix": 0.5,
+              "base_p1_match": 0.75,
+              "reuse_p1_match": 0.875,
+              "d_p1_match": 0.125,
+              "base_match_pct": 30.0,
+              "reuse_match_pct": 45.0
+            },
+            {
+              "prompt": "code_topk",
+              "n_steps": 8,
+              "base_avg_prefix": 1.625,
+              "reuse_avg_prefix": 1.75,
+              "d_avg_prefix": 0.125,
+              "base_p1_match": 0.625,
+              "reuse_p1_match": 0.625,
+              "d_p1_match": 0.0,
+              "base_match_pct": 37.5,
+              "reuse_match_pct": 40.0
+            },
+            {
+              "prompt": "grounded_archive",
+              "n_steps": 8,
+              "base_avg_prefix": 2.75,
+              "reuse_avg_prefix": 2.75,
+              "d_avg_prefix": 0.0,
+              "base_p1_match": 0.875,
+              "reuse_p1_match": 1.0,
+              "d_p1_match": 0.125,
+              "base_match_pct": 55.0,
+              "reuse_match_pct": 57.5
+            },
+            {
+              "prompt": "grounded_observatory",
+              "n_steps": 8,
+              "base_avg_prefix": 1.375,
+              "reuse_avg_prefix": 2.0,
+              "d_avg_prefix": 0.625,
+              "base_p1_match": 0.75,
+              "reuse_p1_match": 0.875,
+              "d_p1_match": 0.125,
+              "base_match_pct": 35.0,
+              "reuse_match_pct": 40.0
+            },
+            {
+              "prompt": "grounded_repair",
+              "n_steps": 8,
+              "base_avg_prefix": 2.375,
+              "reuse_avg_prefix": 2.625,
+              "d_avg_prefix": 0.25,
+              "base_p1_match": 0.75,
+              "reuse_p1_match": 0.875,
+              "d_p1_match": 0.125,
+              "base_match_pct": 52.5,
+              "reuse_match_pct": 55.0
+            },
+            {
+              "prompt": "mixed_exactness_smoke",
+              "n_steps": 8,
+              "base_avg_prefix": 1.5,
+              "reuse_avg_prefix": 1.375,
+              "d_avg_prefix": -0.125,
+              "base_p1_match": 0.875,
+              "reuse_p1_match": 0.875,
+              "d_p1_match": 0.0,
+              "base_match_pct": 30.0,
+              "reuse_match_pct": 32.5
+            },
+            {
+              "prompt": "synthesis_incident_json",
+              "n_steps": 8,
+              "base_avg_prefix": 2.25,
+              "reuse_avg_prefix": 2.125,
+              "d_avg_prefix": -0.125,
+              "base_p1_match": 0.875,
+              "reuse_p1_match": 0.875,
+              "d_p1_match": 0.0,
+              "base_match_pct": 55.0,
+              "reuse_match_pct": 55.0
+            },
+            {
+              "prompt": "synthesis_ops_json",
+              "n_steps": 8,
+              "base_avg_prefix": 3.0,
+              "reuse_avg_prefix": 3.0,
+              "d_avg_prefix": 0.0,
+              "base_p1_match": 0.875,
+              "reuse_p1_match": 0.875,
+              "d_p1_match": 0.0,
+              "base_match_pct": 62.5,
+              "reuse_match_pct": 67.5
+            },
+            {
+              "prompt": "synthesis_timeline_json",
+              "n_steps": 8,
+              "base_avg_prefix": 1.375,
+              "reuse_avg_prefix": 1.5,
+              "d_avg_prefix": 0.125,
+              "base_p1_match": 0.625,
+              "reuse_p1_match": 0.75,
+              "d_p1_match": 0.125,
+              "base_match_pct": 32.5,
+              "reuse_match_pct": 35.0
+            }
+          ],
+          "units": [
+            {
+              "prompt": "code_histogram",
+              "step": 1,
+              "base_prefix": 1,
+              "reuse_prefix": 1,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "code_histogram",
+              "step": 2,
+              "base_prefix": 0,
+              "reuse_prefix": 0,
+              "base_p1": 0,
+              "reuse_p1": 0
+            },
+            {
+              "prompt": "code_histogram",
+              "step": 3,
+              "base_prefix": 0,
+              "reuse_prefix": 2,
+              "base_p1": 0,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "code_histogram",
+              "step": 4,
+              "base_prefix": 5,
+              "reuse_prefix": 1,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "code_histogram",
+              "step": 5,
+              "base_prefix": 5,
+              "reuse_prefix": 5,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "code_histogram",
+              "step": 6,
+              "base_prefix": 4,
+              "reuse_prefix": 4,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "code_histogram",
+              "step": 7,
+              "base_prefix": 5,
+              "reuse_prefix": 5,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "code_histogram",
+              "step": 8,
+              "base_prefix": 5,
+              "reuse_prefix": 5,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "code_sort_pairs",
+              "step": 1,
+              "base_prefix": 2,
+              "reuse_prefix": 2,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "code_sort_pairs",
+              "step": 2,
+              "base_prefix": 1,
+              "reuse_prefix": 1,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "code_sort_pairs",
+              "step": 3,
+              "base_prefix": 0,
+              "reuse_prefix": 1,
+              "base_p1": 0,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "code_sort_pairs",
+              "step": 4,
+              "base_prefix": 1,
+              "reuse_prefix": 1,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "code_sort_pairs",
+              "step": 5,
+              "base_prefix": 0,
+              "reuse_prefix": 0,
+              "base_p1": 0,
+              "reuse_p1": 0
+            },
+            {
+              "prompt": "code_sort_pairs",
+              "step": 6,
+              "base_prefix": 2,
+              "reuse_prefix": 5,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "code_sort_pairs",
+              "step": 7,
+              "base_prefix": 1,
+              "reuse_prefix": 1,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "code_sort_pairs",
+              "step": 8,
+              "base_prefix": 5,
+              "reuse_prefix": 5,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "code_topk",
+              "step": 1,
+              "base_prefix": 1,
+              "reuse_prefix": 2,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "code_topk",
+              "step": 2,
+              "base_prefix": 1,
+              "reuse_prefix": 0,
+              "base_p1": 1,
+              "reuse_p1": 0
+            },
+            {
+              "prompt": "code_topk",
+              "step": 3,
+              "base_prefix": 0,
+              "reuse_prefix": 0,
+              "base_p1": 0,
+              "reuse_p1": 0
+            },
+            {
+              "prompt": "code_topk",
+              "step": 4,
+              "base_prefix": 1,
+              "reuse_prefix": 1,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "code_topk",
+              "step": 5,
+              "base_prefix": 0,
+              "reuse_prefix": 0,
+              "base_p1": 0,
+              "reuse_p1": 0
+            },
+            {
+              "prompt": "code_topk",
+              "step": 6,
+              "base_prefix": 0,
+              "reuse_prefix": 2,
+              "base_p1": 0,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "code_topk",
+              "step": 7,
+              "base_prefix": 5,
+              "reuse_prefix": 5,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "code_topk",
+              "step": 8,
+              "base_prefix": 5,
+              "reuse_prefix": 4,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_archive",
+              "step": 1,
+              "base_prefix": 5,
+              "reuse_prefix": 1,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_archive",
+              "step": 2,
+              "base_prefix": 5,
+              "reuse_prefix": 4,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_archive",
+              "step": 3,
+              "base_prefix": 4,
+              "reuse_prefix": 2,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_archive",
+              "step": 4,
+              "base_prefix": 3,
+              "reuse_prefix": 3,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_archive",
+              "step": 5,
+              "base_prefix": 2,
+              "reuse_prefix": 2,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_archive",
+              "step": 6,
+              "base_prefix": 1,
+              "reuse_prefix": 5,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_archive",
+              "step": 7,
+              "base_prefix": 0,
+              "reuse_prefix": 3,
+              "base_p1": 0,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_archive",
+              "step": 8,
+              "base_prefix": 2,
+              "reuse_prefix": 2,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_observatory",
+              "step": 1,
+              "base_prefix": 2,
+              "reuse_prefix": 2,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_observatory",
+              "step": 2,
+              "base_prefix": 1,
+              "reuse_prefix": 3,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_observatory",
+              "step": 3,
+              "base_prefix": 0,
+              "reuse_prefix": 2,
+              "base_p1": 0,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_observatory",
+              "step": 4,
+              "base_prefix": 1,
+              "reuse_prefix": 1,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_observatory",
+              "step": 5,
+              "base_prefix": 2,
+              "reuse_prefix": 0,
+              "base_p1": 1,
+              "reuse_p1": 0
+            },
+            {
+              "prompt": "grounded_observatory",
+              "step": 6,
+              "base_prefix": 2,
+              "reuse_prefix": 1,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_observatory",
+              "step": 7,
+              "base_prefix": 0,
+              "reuse_prefix": 4,
+              "base_p1": 0,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_observatory",
+              "step": 8,
+              "base_prefix": 3,
+              "reuse_prefix": 3,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_repair",
+              "step": 1,
+              "base_prefix": 4,
+              "reuse_prefix": 3,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_repair",
+              "step": 2,
+              "base_prefix": 2,
+              "reuse_prefix": 2,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_repair",
+              "step": 3,
+              "base_prefix": 1,
+              "reuse_prefix": 1,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_repair",
+              "step": 4,
+              "base_prefix": 0,
+              "reuse_prefix": 0,
+              "base_p1": 0,
+              "reuse_p1": 0
+            },
+            {
+              "prompt": "grounded_repair",
+              "step": 5,
+              "base_prefix": 0,
+              "reuse_prefix": 1,
+              "base_p1": 0,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_repair",
+              "step": 6,
+              "base_prefix": 5,
+              "reuse_prefix": 5,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_repair",
+              "step": 7,
+              "base_prefix": 5,
+              "reuse_prefix": 5,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "grounded_repair",
+              "step": 8,
+              "base_prefix": 2,
+              "reuse_prefix": 4,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "mixed_exactness_smoke",
+              "step": 1,
+              "base_prefix": 3,
+              "reuse_prefix": 1,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "mixed_exactness_smoke",
+              "step": 2,
+              "base_prefix": 2,
+              "reuse_prefix": 2,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "mixed_exactness_smoke",
+              "step": 3,
+              "base_prefix": 1,
+              "reuse_prefix": 1,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "mixed_exactness_smoke",
+              "step": 4,
+              "base_prefix": 2,
+              "reuse_prefix": 3,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "mixed_exactness_smoke",
+              "step": 5,
+              "base_prefix": 2,
+              "reuse_prefix": 2,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "mixed_exactness_smoke",
+              "step": 6,
+              "base_prefix": 1,
+              "reuse_prefix": 1,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "mixed_exactness_smoke",
+              "step": 7,
+              "base_prefix": 0,
+              "reuse_prefix": 0,
+              "base_p1": 0,
+              "reuse_p1": 0
+            },
+            {
+              "prompt": "mixed_exactness_smoke",
+              "step": 8,
+              "base_prefix": 1,
+              "reuse_prefix": 1,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_incident_json",
+              "step": 1,
+              "base_prefix": 3,
+              "reuse_prefix": 1,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_incident_json",
+              "step": 2,
+              "base_prefix": 2,
+              "reuse_prefix": 2,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_incident_json",
+              "step": 3,
+              "base_prefix": 1,
+              "reuse_prefix": 3,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_incident_json",
+              "step": 4,
+              "base_prefix": 4,
+              "reuse_prefix": 4,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_incident_json",
+              "step": 5,
+              "base_prefix": 3,
+              "reuse_prefix": 2,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_incident_json",
+              "step": 6,
+              "base_prefix": 4,
+              "reuse_prefix": 4,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_incident_json",
+              "step": 7,
+              "base_prefix": 1,
+              "reuse_prefix": 1,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_incident_json",
+              "step": 8,
+              "base_prefix": 0,
+              "reuse_prefix": 0,
+              "base_p1": 0,
+              "reuse_p1": 0
+            },
+            {
+              "prompt": "synthesis_ops_json",
+              "step": 1,
+              "base_prefix": 1,
+              "reuse_prefix": 1,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_ops_json",
+              "step": 2,
+              "base_prefix": 1,
+              "reuse_prefix": 0,
+              "base_p1": 1,
+              "reuse_p1": 0
+            },
+            {
+              "prompt": "synthesis_ops_json",
+              "step": 3,
+              "base_prefix": 5,
+              "reuse_prefix": 5,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_ops_json",
+              "step": 4,
+              "base_prefix": 4,
+              "reuse_prefix": 4,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_ops_json",
+              "step": 5,
+              "base_prefix": 5,
+              "reuse_prefix": 4,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_ops_json",
+              "step": 6,
+              "base_prefix": 3,
+              "reuse_prefix": 5,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_ops_json",
+              "step": 7,
+              "base_prefix": 0,
+              "reuse_prefix": 4,
+              "base_p1": 0,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_ops_json",
+              "step": 8,
+              "base_prefix": 5,
+              "reuse_prefix": 1,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_timeline_json",
+              "step": 1,
+              "base_prefix": 1,
+              "reuse_prefix": 1,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_timeline_json",
+              "step": 2,
+              "base_prefix": 0,
+              "reuse_prefix": 0,
+              "base_p1": 0,
+              "reuse_p1": 0
+            },
+            {
+              "prompt": "synthesis_timeline_json",
+              "step": 3,
+              "base_prefix": 0,
+              "reuse_prefix": 1,
+              "base_p1": 0,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_timeline_json",
+              "step": 4,
+              "base_prefix": 0,
+              "reuse_prefix": 0,
+              "base_p1": 0,
+              "reuse_p1": 0
+            },
+            {
+              "prompt": "synthesis_timeline_json",
+              "step": 5,
+              "base_prefix": 4,
+              "reuse_prefix": 4,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_timeline_json",
+              "step": 6,
+              "base_prefix": 3,
+              "reuse_prefix": 3,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_timeline_json",
+              "step": 7,
+              "base_prefix": 2,
+              "reuse_prefix": 2,
+              "base_p1": 1,
+              "reuse_p1": 1
+            },
+            {
+              "prompt": "synthesis_timeline_json",
+              "step": 8,
+              "base_prefix": 1,
+              "reuse_prefix": 1,
+              "base_p1": 1,
+              "reuse_p1": 1
+            }
+          ]
+        }
+      }
+    }
+  }
+}

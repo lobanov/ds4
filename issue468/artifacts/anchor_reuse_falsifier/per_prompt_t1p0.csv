@@ -1,0 +1,11 @@
+prompt,n_steps,base_avg_prefix,reuse_avg_prefix,d_avg_prefix,base_p1_match,reuse_p1_match,d_p1_match,base_match_pct,reuse_match_pct
+code_histogram,8,3.125,3.25,0.125,0.75,0.875,0.125,80.0,77.5
+code_sort_pairs,8,1.5,1.875,0.375,0.75,0.75,0.0,30.0,42.5
+code_topk,8,1.625,2.125,0.5,0.625,0.75,0.125,37.5,42.5
+grounded_archive,8,2.75,2.875,0.125,0.875,1.0,0.125,55.0,57.5
+grounded_observatory,8,1.375,2.0,0.625,0.75,0.875,0.125,35.0,40.0
+grounded_repair,8,2.375,2.75,0.375,0.75,0.875,0.125,52.5,57.5
+mixed_exactness_smoke,8,1.5,1.375,-0.125,0.875,0.875,0.0,30.0,32.5
+synthesis_incident_json,8,2.25,1.875,-0.375,0.875,0.875,0.0,55.0,47.5
+synthesis_ops_json,8,3.0,2.375,-0.625,0.875,0.75,-0.125,62.5,47.5
+synthesis_timeline_json,8,1.375,1.5,0.125,0.625,0.75,0.125,32.5,35.0

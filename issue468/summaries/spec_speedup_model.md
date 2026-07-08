@@ -45,6 +45,15 @@ given the anchor-reuse context, so its central attack lands on that assumption
 itself. Its perspective is recorded here as the primary caveat; it does not
 retract the under-assumption findings.
 
+**Update (2026-07-07, Lead 01 falsifier):** the anchor-reuse *acceptance-axis* risk
+has since been tested offline (`summaries/anchor_reuse_falsifier.md`). Result: no
+large acceptance collapse in any tested regime (5/6 cells SURVIVE, 1 MARGINAL, all CIs
+straddle 0), so the drafter tolerates stale-from-valid-prefix hidden — but the corpus
+is ~10× too underpowered to confirm this fragile edge, and reuse reshapes the block
+(early positions +, late positions −). Non-inferiority is NOT established; the
+verifier-hidden-equivalence / residual-overhead / cycle-timing risks below remain
+untested and now gate the optimistic edge via Lead 05.
+
 **On the assumption (codex's load-bearing objection).** Codex argues anchor-reuse
 is the unverified risk: on rejection the verify forward yields the correction
 token's *logits* but has not run the target on that token, so there is no valid
