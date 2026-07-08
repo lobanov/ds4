@@ -275,7 +275,7 @@ the available scheduling ceiling.
 
 Interpretation: the new replay path says the same thing as the earlier rationale
 but with end-to-end evidence. Scheduled verification is **not** a rescue under
-the shipped verifier economics. If Lead 05's anchor-reuse verifier proves
+the shipped verifier economics. If Lead 06's anchor-reuse verifier proves
 realizable, confidence scheduling looks like a real but secondary stacking lever
 on this held-out slice (`~+4%` to `+6%`, not gate-reviving by itself). This is
 still only the 60-prompt eval carrier; broader-corpus replay and the setup
@@ -357,4 +357,4 @@ clean stacking lever. The deployable-ish frozen-threshold result is only
 expected-opt figure is an offline policy diagnostic, not deployable evidence.
 Final recorded verdict: shipped scheduling is closed as non-viable locally, and
 anchor-reuse scheduling is only **marginal conditional secondary material**
-contingent on Lead 05 proving a genuinely cheap folded verifier.
+contingent on Lead 06 proving a genuinely cheap folded verifier.

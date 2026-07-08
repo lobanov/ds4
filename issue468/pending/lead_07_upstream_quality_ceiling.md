@@ -1,4 +1,4 @@
-# Lead 06 - Upstream quality ceiling
+# Lead 07 - Upstream quality ceiling
 
 Date: 2026-07-07. Status: **proposed diagnostic protocol; not yet executed.**
 Purpose: quantify whether the remaining acceptance deficit is recoverable by more

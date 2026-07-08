@@ -153,7 +153,7 @@ BUT non-inferiority is not established (the corpus was underpowered; reuse resha
 — early positions +, late −), and the **verifier-side** risks remain entirely untested:
 verify-forward-hidden equivalence under IQ2XXS, residual per-cycle overhead (~15–19 ms of
 readback/rollback/first-miss waste the model sets to zero), and actual cycle timing. Those
-gate the optimistic edge and are Lead 05's job.
+gate the optimistic edge and are Lead 06's job.
 
 ## Q1 — acceptance required to beat baseline / clear +20% (sliding framing)
 
@@ -212,7 +212,7 @@ same two verifier accountings used elsewhere in this dossier.
 
 So in the speedup model, scheduled verification is not an overlay or an independent route
 to viability. It is best represented as a **conditional secondary increment** that matters
-only if Lead 05 makes the optimized anchor-reusing verifier real and very cheap.
+only if Lead 06 makes the optimized anchor-reusing verifier real and very cheap.
 
 ## Verdict, levers, and open scope
 
@@ -223,15 +223,15 @@ accounting. Under anchor reuse, scheduling rises only to a fragile low-single-di
 band on fresh replay, so the case for a local speedup still requires a stack of unverified
 gains:
 
-1. **Anchor-reusing verifier** (Lead 05): acceptance-axis de-risked by Lead 01; verifier-
+1. **Anchor-reusing verifier** (Lead 06): acceptance-axis de-risked by Lead 01; verifier-
    hidden equivalence + residual overhead + cycle timing untested. This is the prerequisite
    for any positive scheduling result at all. It is worth ~18 pp at K=4 relative to shipped
    fixed-K accounting if realizable, but the realistic unscheduled edge it would feed is
    still only ~0.98×, and Lead 02 lifts that only to ~1.04× in the clean frozen-threshold
    result.
-2. **A materially better drafter** (Lead 06 upstream quality / training): the binding
+2. **A materially better drafter** (Lead 07 upstream quality / training): the binding
    constraint is per-cycle acceptance; precision is exhausted.
-3. **Drafter-state pollution** (Lead 05): the cycle-jump measures anchor-token difficulty
+3. **Drafter-state pollution** (Lead 06): the cycle-jump measures anchor-token difficulty
    along a *linear* trajectory; it does NOT model the drafter's KV/state being polluted by
    rejected drafts, tree/branching, or adaptive policies — the realistic trajectory could
    be worse than measured.
@@ -243,12 +243,12 @@ gains:
 - Corpus is dolly/codealpaca/jsonex (easy side); a code/synthesis deployment is harder.
   Acceptance is temp=0 greedy; temp 0.5/1.0 drops E[a|4] ~7 pp.
 - The optimized-verifier projection assumes a usable anchor hidden at the rejection point —
-  an implementation property to confirm against the ds4 graph (Lead 05).
+  an implementation property to confirm against the ds4 graph (Lead 06).
 
 Net: the realistic answer to "can DSpark beat baseline locally?" is **no, not with the
 current drafter + an optimized-but-unbuilt verifier on this corpus** — and adaptive
-scheduling does not alter that answer under shipped economics. At best, if Lead 05 delivers
+scheduling does not alter that answer under shipped economics. At best, if Lead 06 delivers
 a genuinely cheap folded verifier, scheduling contributes a fragile extra few points on top.
-The decision-grade open questions therefore move to Lead 05 (does a real folded verifier
-realize the anchor-reuse + low-overhead regime?) and Lead 06 (can the drafter's per-cycle
+The decision-grade open questions therefore move to Lead 06 (does a real folded verifier
+realize the anchor-reuse + low-overhead regime?) and Lead 07 (can the drafter's per-cycle
 acceptance rise enough to clear the ~0.06–0.10 drafts/cycle deficit?).

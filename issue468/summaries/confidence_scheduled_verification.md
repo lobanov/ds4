@@ -154,7 +154,7 @@ about **`3.89 ms/cycle`**. Adding `+4 ms/cycle` drops them to about **`0.988x`**
 
 **Decision:** Lead 02 does **not** rescue the shipped local path and does **not** clear its
 own stacking tier on the clean frozen-threshold policy. Record it as **marginal,
-conditional secondary material**: worth remembering only if Lead 05 proves a genuinely
+conditional secondary material**: worth remembering only if Lead 06 proves a genuinely
 cheap anchor-reuse verifier, but not a standalone priority and not evidence that scheduled
 verification revives the local gate.
 
@@ -165,7 +165,7 @@ verification revives the local gate.
 - **expected-opt** is still an offline policy diagnostic. It is informative about ceiling-ish
   value from the confidence scores, but it is not a proof of a deployable non-anticipating
   scheduler.
-- All anchor-reuse positives remain **conditional** on Lead 05's verifier economics. On the
+- All anchor-reuse positives remain **conditional** on Lead 06's verifier economics. On the
   fresh `lead3` slice, the frozen-threshold positive has only `3.01 ms/cycle` of headroom
   and expected-opt `3.89 ms/cycle`; a few milliseconds of real folded-verifier overhead
   would erase the gain.
@@ -174,10 +174,10 @@ verification revives the local gate.
 
 ## Implications
 
-- **Lead 05 (verifier engineering):** Lead 02 no longer carries the burden of reviving the
+- **Lead 06 (verifier engineering):** Lead 02 no longer carries the burden of reviving the
   local gate. If anchor reuse proves real and *very* cheap, scheduling is at most a modest
   extra term, not the main win.
-- **Lead 06 / upstream quality:** a better drafter remains the larger open lever; scheduling
+- **Lead 07 / upstream quality:** a better drafter remains the larger open lever; scheduling
   can only harvest what the confidence head can rank from the existing acceptance landscape.
 - **spec_speedup_model:** the prior open interval for scheduling is now narrowed:
   shipped local path stays non-viable; anchor-reuse path gets only a few additional points

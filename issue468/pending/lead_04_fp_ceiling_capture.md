@@ -1,6 +1,6 @@
-# Lead 08 — Served-precision acceptance ceiling (drafter vs native FP4/FP8 target)
+# Lead 04 — Served-precision acceptance ceiling (drafter vs native FP4/FP8 target)
 
-Date: 2026-07-08. Status: pending. **Conditional purchase — trigger on lead 06's
+Date: 2026-07-08. Status: pending. **Conditional purchase — trigger on lead 07's
 PoC landing flat or ambiguous** (if the PoC clears +3–5 pp p=1 on its own,
 realized gains trump mechanism and this drops to nice-to-have). Prep work
 (capture script + validation plan) is local and free; start anytime. Requires
@@ -16,12 +16,12 @@ precision"). This is codex's decisive mechanism test, deferred in
 `summaries/quant_mismatch_recommendation.md` as "needs a model not on disk":
 it resolves what Stage 0/Stage 1 could not — whether the local acceptance
 deficit (p=1 0.8125) is IQ2XXS-attributable distribution shift (recoverable →
-lead 06 has a defined target) or native drafter quality (fine-tune must beat
+lead 07 has a defined target) or native drafter quality (fine-tune must beat
 the drafter's own training quality — a much weaker bet). It is also the only
-defensible interpreter for a flat lead 06 PoC (bad fine-tune vs capacity
+defensible interpreter for a flat lead 07 PoC (bad fine-tune vs capacity
 limit). Best available prior on the gap size: DFlash pos-1 local 0.68 vs val
 0.74 (~6 pp quant penalty) — a similar-order DSpark gap lands exactly where the
-fine-tune needs it. No effect on verify-side leads 01/02/07, which stay ahead
+fine-tune needs it. No effect on verify-side leads 01/02/08, which stay ahead
 in priority.
 
 ## Content of work
@@ -97,7 +97,7 @@ Fidelity gates (must pass before any conclusion is admissible):
 Decision outcomes (either is a win — this experiment cannot fail to inform):
 
 - **Gap confirmed** (FP p=1 − Q2 p=1 ≥ ~+4 pp, CI excluding zero; E[a|5block]
-  gap consistent in sign): quant-attributable headroom is proven. Lead 06
+  gap consistent in sign): quant-attributable headroom is proven. Lead 07
   scale-up is motivated with the measured gap as its recovery target; a flat
   PoC reads as "fine-tune executed poorly — iterate," not "stop."
 - **Gap absent** (≤ ~+1–2 pp, CI tight enough to exclude +4 pp): the deficit is

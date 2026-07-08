@@ -33,8 +33,8 @@ Cycle-jump transition `s += accepted + 1` is correct for linear speculative deco
 
 The scope caveat exists in the trajectory script: anchor-token difficulty, **not** drafter-state pollution; see [run_lead03_trajectory.py](/Users/lobanov/Projects/ds4-dspark-research/issue468/run_lead03_trajectory.py:109). Put that caveat in the recorded verdict too.
 
-Downstream docs still have stale -0.9/0.99 language, e.g. [lead_05_verifier_engineering.md](/Users/lobanov/Projects/ds4-dspark-research/issue468/pending/lead_05_verifier_engineering.md:17). Sweep those if recording dossier-wide.
+Downstream docs still have stale -0.9/0.99 language, e.g. [lead_06_verifier_engineering.md](/Users/lobanov/Projects/ds4-dspark-research/issue468/pending/lead_06_verifier_engineering.md:17). Sweep those if recording dossier-wide.
 
 ## Final Read
 
-**RECORD with edits.** Keep the core verdict: realistic K=4 is **0.982x, signed below baseline on this corpus, corpus-mix-dependent**. Edit: remove stale `2.203` break-even framing, label sliding as optimistic diagnostic only, use combined300 per-source numbers, and explicitly scope out drafter-state pollution / Lead 05 verifier reality.
+**RECORD with edits.** Keep the core verdict: realistic K=4 is **0.982x, signed below baseline on this corpus, corpus-mix-dependent**. Edit: remove stale `2.203` break-even framing, label sliding as optimistic diagnostic only, use combined300 per-source numbers, and explicitly scope out drafter-state pollution / Lead 06 verifier reality.

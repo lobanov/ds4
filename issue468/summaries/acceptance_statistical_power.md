@@ -55,7 +55,7 @@ achieved on this corpus under the realistic trajectory. The honest band: sliding
 
 **Scope (what this does NOT settle):** the cycle-jump measures anchor-token difficulty along a
 *linear* trajectory. It does NOT model drafter-state pollution after rejected drafts, draft
-trees/branching, residual verifier overhead, or adaptive policies — those are Lead 05. The
+trees/branching, residual verifier overhead, or adaptive policies — those are Lead 06. The
 corpus is dolly/codealpaca/jsonex; a code/synthesis-heavy deployment would be harder (the old
 exactness 2.175).
 
@@ -90,8 +90,8 @@ dossier.
   **non-viable under shipped accounting** and only a **small stacking lever under anchor
   reuse** (`~1.037×` frozen-threshold, `~1.052×` expected-opt on fresh lead3), not a
   gate-reviving win.
-- **Lead 05 (verifier engineering):** the binding question is now sharper — K=4 is ~0.98× on
+- **Lead 06 (verifier engineering):** the binding question is now sharper — K=4 is ~0.98× on
   the realistic trajectory, so the verifier must either raise acceptance (drafter) or cut
   residual overhead to flip it positive; and the cycle-jump/drafter-state-pollution gap
-  (unmodeled here) is the next thing to measure. (Note: `pending/lead_05_*.md` still cites the
+  (unmodeled here) is the next thing to measure. (Note: `pending/lead_06_*.md` still cites the
   stale sliding −0.9%; treat as superseded by this cycle-jump 0.982×.)

@@ -127,7 +127,7 @@ Create a trustworthy active dossier that makes it easy to:
   met). **Net:** beating baseline at K=4 is NOT achieved on this corpus under the
   realistic trajectory; the honest band is sliding +1.2% (optimistic) to cycle-jump
   −1.8% (realistic, model currency). Scope: cycle-jump is linear-trajectory anchor-token
-  difficulty, NOT drafter-state pollution / trees / residual overhead (Lead 05).
+  difficulty, NOT drafter-state pollution / trees / residual overhead (Lead 06).
 - **Anchor-reuse falsifier (Lead 01): no large acceptance collapse observed, but
   non-inferiority NOT established.** Offline test (`summaries/anchor_reuse_falsifier.md`)
   of whether the drafter's acceptance survives drafting from the last-accepted-position
@@ -141,7 +141,7 @@ Create a trustworthy active dossier that makes it easy to:
   reshapes the block: it helps early positions (1–2) and hurts late positions (4–5), so
   flat net E[a|5block] is not 'free'. Two codex gates (setup + verdict) passed, findings
   independently verified. **Implication:** anchor reuse is NOT invalidated on
-  acceptance grounds; Lead 05 (verifier engineering) can proceed on the acceptance axis
+  acceptance grounds; Lead 06 (verifier engineering) can proceed on the acceptance axis
   but must still prove verify-produced-hidden equivalence under IQ2XXS, residual cycle
   overhead, and a powered K=4 non-inferiority bound. The −0.9% edge stays the optimistic
   edge of the band, now with the acceptance-axis risk downgraded from 'unverified /
@@ -157,7 +157,7 @@ Create a trustworthy active dossier that makes it easy to:
   dynamic break-even E[a|4]=2.256 (deficit 0.058). Corpus-dependent (cycle-jump K=4:
   jsonex +2.3%, codealpaca −1.9%, dolly −5.6%). The shipped `--mtp` pays a redundant
   anchor decode every cycle (~−18 pp at K=4) — anchor reuse (acceptance-axis de-risked
-  by Lead 01, verifier economics untested = Lead 05) is the largest lever, but it would
+  by Lead 01, verifier economics untested = Lead 06) is the largest lever, but it would
   feed a ~0.98× realistic edge, not the old sliding −0.9%. A 4-node draft tree still
   cannot help (ceiling +2.2%, dominated by a linear chain; hedging is doubly
   penalized). Levers: verifier-anchor reuse + a materially better drafter (training,
@@ -186,7 +186,7 @@ Create a trustworthy active dossier that makes it easy to:
   have only about **3.0–3.9 ms/cycle** of overhead headroom before they disappear.
   Per-source fresh frozen-threshold speedup under anchor reuse: codealpaca **1.046×**,
   dolly **1.003×**, jsonex **1.063×**. **Decision:** Lead 02 does NOT revive the local gate;
-  record it only as marginal conditional secondary material contingent on Lead 05 proving a
+  record it only as marginal conditional secondary material contingent on Lead 06 proving a
   genuinely cheap anchor-reuse verifier.
 - **DFlash drafter comparison: DSpark is more attractive on this corpus.**
   DFlash oracle built and validated vs the MLX reference (<=0.08% rel); the only

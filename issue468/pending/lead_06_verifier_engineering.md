@@ -1,4 +1,4 @@
-# Lead 05 — Verifier engineering: anchor reuse + residual cycle overhead
+# Lead 06 — Verifier engineering: anchor reuse + residual cycle overhead
 
 Date: 2026-07-07. Status: pending. **Updated 2026-07-07 by Lead 03:** the modeled K=4
 numbers below cite the SLIDING estimate (~−0.9% / 0.99×), which Lead 03 showed is

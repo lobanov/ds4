@@ -42,7 +42,7 @@ THE INVESTIGATOR'S VERDICT (about to be recorded):
   5/6 cells SURVIVE; the lone MARGINAL (t0p0/backfill, -0.075) is within noise and is NOT
   replicated at t0p5/t1p0 (both backfill SURVIVE). p=1 robustly non-negative in all 6 cells."
 - Implication: "The anchor-reuse accounting in spec_speedup_model is NOT invalidated on
-  acceptance grounds. Lead 05 (verifier engineering) is unblocked on the acceptance axis -- but
+  acceptance grounds. Lead 06 (verifier engineering) is unblocked on the acceptance axis -- but
   must still prove the full cycle economics (verify-produced-hidden equivalence under IQ2XXS
   prefill-vs-decode, residual cycle overhead, actual timing), which this offline test does NOT
   cover. The optimistic -0.9% edge at K=4 remains the optimistic edge of the band, conditional on

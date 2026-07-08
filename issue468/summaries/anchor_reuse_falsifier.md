@@ -120,7 +120,7 @@ catastrophic across sampling regimes, nothing finer.
   acceptance grounds**: this offline proxy does not show a collapse. The original
   concern ("the drafter cannot draft from stale hidden") is **not borne out as a large
   effect** in any tested regime.
-- **Lead 05 (verifier engineering) can proceed on the acceptance axis** — this falsifier
+- **Lead 06 (verifier engineering) can proceed on the acceptance axis** — this falsifier
   does not block it — **but** the full realizability of the −0.9% optimistic edge remains
   **unproven and contingent** on verifier-side factors this test does NOT cover:
   1. **verify-produced-hidden equivalence**: the test feeds `main_hidden[pos−1]` from a

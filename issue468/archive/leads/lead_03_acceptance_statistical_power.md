@@ -248,5 +248,5 @@ GATE 2 (gpt-5.5 xhigh): RECORD with edits. Independently verified the decisive c
 Edits applied to spec_speedup_model.md: corrected break-even framing (2.256/deficit 0.058/
 P<1=0.999), labelled sliding as diagnostic-only/optimistic, added the drafter-state-pollution
 + Lead-05 scope caveat. Per-source already 300-prompt (jsonex+2.3%, codealpaca-1.9%, dolly-5.6%).
-Downstream stale -0.9% language flagged in lead_05 (sweep in writeup). Reviews retained at
+Downstream stale -0.9% language flagged in lead_06 (sweep in writeup). Reviews retained at
 artifacts/acceptance_powered/codex_reviews/.

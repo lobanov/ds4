@@ -1,8 +1,8 @@
-# Lead 07 — Fused low-K batch-verify kernel (close the verify-vs-floor gap)
+# Lead 08 — Fused low-K batch-verify kernel (close the verify-vs-floor gap)
 
 Date: 2026-07-07. Status: pending. **Two-phase: a cheap profiling gate first
 (independent, can start immediately), kernel work only if the gate passes.**
-Related to lead 05 but a distinct thesis: the verifier is above its *own*
+Related to lead 06 but a distinct thesis: the verifier is above its *own*
 bandwidth floor, independent of the redundant anchor decode.
 
 ## Rationale
@@ -59,7 +59,7 @@ valuable) — re-run that simulation against any new curve.
    `DS4_METAL_LAYER_STAGE_PROFILE` (encode vs execute vs readback), K=2..6,
    same protocol as `run_mtp_verifier_bench_long.py`.
 2. Capture achieved GB/s during verify vs decode (Instruments / GPU counters).
-3. Log per-cycle expert-union sizes (shared instrumentation with lead 04) and
+3. Log per-cycle expert-union sizes (shared instrumentation with lead 05) and
    compute the true byte floor: dense-once + union-experts + KV at the measured
    effective bandwidth.
 4. Deliverable: a measured headroom number — `verify_ms(K) − floor_ms(K)` — and

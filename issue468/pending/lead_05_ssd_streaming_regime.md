@@ -1,4 +1,4 @@
-# Lead 04 — SSD-streaming / RAM-constrained regime benchmark
+# Lead 05 — SSD-streaming / RAM-constrained regime benchmark
 
 Date: 2026-07-07. Status: pending. Independent of leads 01–03; requires a scope
 decision before spending effort (see caveat).
