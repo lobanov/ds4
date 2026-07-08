@@ -1,0 +1,3 @@
+Extract the relevant information from the following paragraph about a travel SIM card activation into a JSON format.
+
+Hey there! Just wanted to let you know that I successfully activated my new travel SIM card for my upcoming trip. The process was super straightforward - I popped in the SIM, followed the simple instructions, and within minutes I had connectivity all set up. The activation status shows as "ready to go", which is perfect timing since my flight is in a couple days. I'm feeling relieved to have this travel essential taken care of before my big adventure. Can't wait to stay connected while I'm exploring a new country!

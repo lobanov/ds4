@@ -1,0 +1,3 @@
+Change the Python code to find the occurrences of an item in a list
+def count(list_of_items, item): 
+    return len(list_of_items)

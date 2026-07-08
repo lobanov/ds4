@@ -1,0 +1,2 @@
+Extract the 3rd element from a given list
+[1, 2, 3, 4, 5]

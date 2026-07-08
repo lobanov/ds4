@@ -1,0 +1,126 @@
+{
+  "K_values": {
+    "K2": {
+      "n_cycles": 11585,
+      "n_prompts": 240,
+      "E_a_K_pooled_cycle_weighted": 1.40984,
+      "E_a_K_per_prompt_mean": 1.43045,
+      "S_K_pooled": 0.63487,
+      "speedup_optimized_verifier": 0.67878,
+      "clustered_ci95_per_prompt_E_a_K": [
+        1.4069,
+        1.45349
+      ],
+      "per_source_pooled": {
+        "codealpaca": {
+          "E_a_K": 1.4006,
+          "S_K": 0.63174,
+          "speedup": 0.67677
+        },
+        "dolly": {
+          "E_a_K": 1.34893,
+          "S_K": 0.5988,
+          "speedup": 0.66841
+        },
+        "jsonex": {
+          "E_a_K": 1.48143,
+          "S_K": 0.6748,
+          "speedup": 0.69117
+        }
+      }
+    },
+    "K3": {
+      "n_cycles": 9692,
+      "n_prompts": 240,
+      "E_a_K_pooled_cycle_weighted": 1.88981,
+      "E_a_K_per_prompt_mean": 1.93905,
+      "S_K_pooled": 0.48566,
+      "speedup_optimized_verifier": 0.84968,
+      "clustered_ci95_per_prompt_E_a_K": [
+        1.8988,
+        1.9799
+      ],
+      "per_source_pooled": {
+        "codealpaca": {
+          "E_a_K": 1.88688,
+          "S_K": 0.48797,
+          "speedup": 0.84825
+        },
+        "dolly": {
+          "E_a_K": 1.78096,
+          "S_K": 0.43777,
+          "speedup": 0.82936
+        },
+        "jsonex": {
+          "E_a_K": 2.00609,
+          "S_K": 0.53299,
+          "speedup": 0.87174
+        }
+      }
+    },
+    "K4": {
+      "n_cycles": 8772,
+      "n_prompts": 240,
+      "E_a_K_pooled_cycle_weighted": 2.20189,
+      "E_a_K_per_prompt_mean": 2.28201,
+      "S_K_pooled": 0.34359,
+      "speedup_optimized_verifier": 0.98248,
+      "clustered_ci95_per_prompt_E_a_K": [
+        2.22398,
+        2.34093
+      ],
+      "per_source_pooled": {
+        "codealpaca": {
+          "E_a_K": 2.18847,
+          "S_K": 0.34515,
+          "speedup": 0.9779
+        },
+        "dolly": {
+          "E_a_K": 2.03012,
+          "S_K": 0.29585,
+          "speedup": 0.9436
+        },
+        "jsonex": {
+          "E_a_K": 2.40217,
+          "S_K": 0.39349,
+          "speedup": 1.0282
+        }
+      }
+    },
+    "K5": {
+      "n_cycles": 8212,
+      "n_prompts": 240,
+      "E_a_K_pooled_cycle_weighted": 2.4284,
+      "E_a_K_per_prompt_mean": 2.54291,
+      "S_K_pooled": 0.23344,
+      "speedup_optimized_verifier": 1.08879,
+      "clustered_ci95_per_prompt_E_a_K": [
+        2.4684,
+        2.61956
+      ],
+      "per_source_pooled": {
+        "codealpaca": {
+          "E_a_K": 2.42959,
+          "S_K": 0.24182,
+          "speedup": 1.08627
+        },
+        "dolly": {
+          "E_a_K": 2.2385,
+          "S_K": 0.19679,
+          "speedup": 1.04059
+        },
+        "jsonex": {
+          "E_a_K": 2.63237,
+          "S_K": 0.26397,
+          "speedup": 1.14249
+        }
+      }
+    }
+  },
+  "model_constants": {
+    "decode_ms": 26.0,
+    "draft_ms": 10.0,
+    "verify_ms_k4": 65.8,
+    "note": "optimized/anchor-reuse verifier cost: draft+verify+decode*S(K); speedup=(E[a|K]+1)*decode/cost"
+  }
+}

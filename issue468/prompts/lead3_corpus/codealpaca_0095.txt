@@ -1,0 +1,1 @@
+Write a Python code snippet to generate a list of the first five powers of the number 2.

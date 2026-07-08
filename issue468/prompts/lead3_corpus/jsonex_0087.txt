@@ -1,0 +1,13 @@
+Examine the chat transcript below and extract the key information about musical instrument maintenance into a JSON format with approximately 4 fields.
+
+Hey Sarah, I just picked up a new guitar and I want to make sure I take good care of it. Do you have any tips for properly maintaining a guitar?
+
+Sarah: Absolutely! Here are some key things to keep in mind for guitar maintenance:
+
+First, you'll want to store the guitar in a cool, dry place when not in use. Avoid exposing it to extreme temperatures or humidity, as that can cause the wood to warp or crack over time. A guitar stand or wall mount is a great way to keep it safely stored.
+
+You should also clean and condition the fretboard regularly. Use a small amount of lemon oil or fretboard conditioner and gently rub it into the wood to keep the frets smooth and prevent any corrosion. Be sure to wipe off any excess oil.
+
+It's a good idea to change the strings every few months as well, depending on how frequently you play. Older, worn strings can cause tuning issues and negatively impact the guitar's sound quality.
+
+Finally, you may want to consider having a professional setup or adjustment done periodically. The

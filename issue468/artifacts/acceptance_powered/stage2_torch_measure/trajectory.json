@@ -1,0 +1,58 @@
+{
+  "n_prompts": 240,
+  "n_cycles_total": 27720,
+  "n_first_step_excluded": 240,
+  "predicted_anchor": {
+    "n": 21712,
+    "E_ak": {
+      "E[a|1]": 0.80573,
+      "E[a|2]": 1.47904,
+      "E[a|3]": 2.0187,
+      "E[a|4]": 2.42746,
+      "E[a|5]": 2.72066
+    },
+    "S_k": {
+      "S(1)": 0.80573,
+      "S(2)": 0.67331,
+      "S(3)": 0.53966,
+      "S(4)": 0.40876,
+      "S(5)": 0.2932
+    }
+  },
+  "correction_anchor": {
+    "n": 5768,
+    "E_ak": {
+      "E[a|1]": 0.72417,
+      "E[a|2]": 1.28936,
+      "E[a|3]": 1.70718,
+      "E[a|4]": 1.99445,
+      "E[a|5]": 2.18759
+    },
+    "S_k": {
+      "S(1)": 0.72417,
+      "S(2)": 0.56519,
+      "S(3)": 0.41782,
+      "S(4)": 0.28727,
+      "S(5)": 0.19313
+    }
+  },
+  "overall_mixture": {
+    "n": 27720,
+    "E_ak": {
+      "E[a|1]": 0.79037,
+      "E[a|2]": 1.44351,
+      "E[a|3]": 1.95985,
+      "E[a|4]": 2.34481,
+      "E[a|5]": 2.61782
+    },
+    "S_k": {
+      "S(1)": 0.79037,
+      "S(2)": 0.65314,
+      "S(3)": 0.51634,
+      "S(4)": 0.38496,
+      "S(5)": 0.27302
+    }
+  },
+  "sanity_predicted_fraction_of_partitioned": 0.7901,
+  "note": "predicted_anchor = prior step's draft[0] matched this step's anchor; correction_anchor = prior step missed. Mixture == overall. Step-1 cycles (no prior) excluded from the partition but counted in the mixture. Scope: measures anchor-token difficulty, NOT drafter-state pollution from rejected drafts (Lead 05)."
+}

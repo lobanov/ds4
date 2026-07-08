@@ -1,0 +1,4 @@
+Extract key information from the provided memo into a concise JSON format.
+
+Quarterly Operations Update - Q3 2023
+The weather conditions this quarter have been largely stable, with average Temperatures of 20°C and clear Skies. Precipitation levels have been moderate, with a total Rainfall of 45mm. Overall, the weather has been favorable for operations during this period.

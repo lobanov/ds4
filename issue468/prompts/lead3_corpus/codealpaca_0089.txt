@@ -1,0 +1,2 @@
+Using a for loop and an if statement, count how many even numbers are in the given array.
+[1,2,3,4]

@@ -1,0 +1,3 @@
+Write a Python algorithm to search a list of numbers for the index of the given element.
+nums = [5,7,11,23,44,30]
+x = 11

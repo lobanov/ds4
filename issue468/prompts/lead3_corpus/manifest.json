@@ -1,0 +1,488 @@
+{
+  "description": "Lead 03 broader capture (60 new prompts, non-overlapping with Stage 2).",
+  "seed": 43,
+  "generation_length_tokens": 128,
+  "n_prompts": 60,
+  "prompts": [
+    {
+      "prompt_id": "dolly_0080",
+      "source": "dolly",
+      "split": "lead3",
+      "file": "prompts/lead3_corpus/dolly_0080.txt",
+      "source_idx": 12645,
+      "chars": 70
+    },
+    {
+      "prompt_id": "dolly_0081",
+      "source": "dolly",
+      "split": "lead3",
+      "file": "prompts/lead3_corpus/dolly_0081.txt",
+      "source_idx": 2142,
+      "chars": 55
+    },
+    {
+      "prompt_id": "dolly_0082",
+      "source": "dolly",
+      "split": "lead3",
+      "file": "prompts/lead3_corpus/dolly_0082.txt",
+      "source_idx": 2565,
+      "chars": 41
+    },
+    {
+      "prompt_id": "dolly_0083",
+      "source": "dolly",
+      "split": "lead3",
+      "file": "prompts/lead3_corpus/dolly_0083.txt",
+      "source_idx": 4636,
+      "chars": 54
+    },
+    {
+      "prompt_id": "dolly_0084",
+      "source": "dolly",
+      "split": "lead3",
+      "file": "prompts/lead3_corpus/dolly_0084.txt",
+      "source_idx": 505,
+      "chars": 118
+    },
+    {
+      "prompt_id": "dolly_0085",
+      "source": "dolly",
+      "split": "lead3",
+      "file": "prompts/lead3_corpus/dolly_0085.txt",
+      "source_idx": 832,
+      "chars": 811
+    },
+    {
+      "prompt_id": "dolly_0086",
+      "source": "dolly",
+      "split": "lead3",
+      "file": "prompts/lead3_corpus/dolly_0086.txt",
+      "source_idx": 8617,
+      "chars": 37
+    },
+    {
+      "prompt_id": "dolly_0087",
+      "source": "dolly",
+      "split": "lead3",
+      "file": "prompts/lead3_corpus/dolly_0087.txt",
+      "source_idx": 4132,
+      "chars": 95
+    },
+    {
+      "prompt_id": "dolly_0088",
+      "source": "dolly",
+      "split": "lead3",
+      "file": "prompts/lead3_corpus/dolly_0088.txt",
+      "source_idx": 4889,
+      "chars": 968
+    },
+    {
+      "prompt_id": "dolly_0089",
+      "source": "dolly",
+      "split": "lead3",
+      "file": "prompts/lead3_corpus/dolly_0089.txt",
+      "source_idx": 2782,
+      "chars": 815
+    },
+    {
+      "prompt_id": "dolly_0090",
+      "source": "dolly",
+      "split": "lead3",
+      "file": "prompts/lead3_corpus/dolly_0090.txt",
+      "source_idx": 6316,
+      "chars": 503
+    },
+    {
+      "prompt_id": "dolly_0091",
+      "source": "dolly",
+      "split": "lead3",
+      "file": "prompts/lead3_corpus/dolly_0091.txt",
+      "source_idx": 834,
+      "chars": 722
+    },
+    {
+      "prompt_id": "dolly_0092",
+      "source": "dolly",
+      "split": "lead3",
+      "file": "prompts/lead3_corpus/dolly_0092.txt",
+      "source_idx": 14489,
+      "chars": 46
+    },
+    {
+      "prompt_id": "dolly_0093",
+      "source": "dolly",
+      "split": "lead3",
+      "file": "prompts/lead3_corpus/dolly_0093.txt",
+      "source_idx": 12958,
+      "chars": 49
+    },
+    {
+      "prompt_id": "dolly_0094",
+      "source": "dolly",
+      "split": "lead3",
+      "file": "prompts/lead3_corpus/dolly_0094.txt",
+      "source_idx": 10697,
+      "chars": 71
+    },
+    {
+      "prompt_id": "dolly_0095",
+      "source": "dolly",
+      "split": "lead3",
+      "file": "prompts/lead3_corpus/dolly_0095.txt",
+      "source_idx": 8879,
+      "chars": 199
+    },
+    {
+      "prompt_id": "dolly_0096",
+      "source": "dolly",
+      "split": "lead3",
+      "file": "prompts/lead3_corpus/dolly_0096.txt",
+      "source_idx": 13893,
+      "chars": 907
+    },
+    {
+      "prompt_id": "dolly_0097",
+      "source": "dolly",
+      "split": "lead3",
+      "file": "prompts/lead3_corpus/dolly_0097.txt",
+      "source_idx": 5295,
+      "chars": 41
+    },
+    {
+      "prompt_id": "dolly_0098",
+      "source": "dolly",
+      "split": "lead3",
+      "file": "prompts/lead3_corpus/dolly_0098.txt",
+      "source_idx": 12930,
+      "chars": 462
+    },
+    {
+      "prompt_id": "dolly_0099",
+      "source": "dolly",
+      "split": "lead3",
+      "file": "prompts/lead3_corpus/dolly_0099.txt",
+      "source_idx": 9734,
+      "chars": 59
+    },
+    {
+      "prompt_id": "codealpaca_0080",
+      "source": "codealpaca",
+      "split": "lead3",
+      "file": "prompts/lead3_corpus/codealpaca_0080.txt",
+      "source_idx": 4184,
+      "chars": 79
+    },
+    {
+      "prompt_id": "codealpaca_0081",
+      "source": "codealpaca",
+      "split": "lead3",
+      "file": "prompts/lead3_corpus/codealpaca_0081.txt",
+      "source_idx": 295,
+      "chars": 84
+    },
+    {
+      "prompt_id": "codealpaca_0082",
+      "source": "codealpaca",
+      "split": "lead3",
+      "file": "prompts/lead3_corpus/codealpaca_0082.txt",
+      "source_idx": 1519,
+      "chars": 102
+    },
+    {
+      "prompt_id": "codealpaca_0083",
+      "source": "codealpaca",
+      "split": "lead3",
+      "file": "prompts/lead3_corpus/codealpaca_0083.txt",
+      "source_idx": 2869,
+      "chars": 73
+    },
+    {
+      "prompt_id": "codealpaca_0084",
+      "source": "codealpaca",
+      "split": "lead3",
+      "file": "prompts/lead3_corpus/codealpaca_0084.txt",
+      "source_idx": 1697,
+      "chars": 63
+    },
+    {
+      "prompt_id": "codealpaca_0085",
+      "source": "codealpaca",
+      "split": "lead3",
+      "file": "prompts/lead3_corpus/codealpaca_0085.txt",
+      "source_idx": 1332,
+      "chars": 57
+    },
+    {
+      "prompt_id": "codealpaca_0086",
+      "source": "codealpaca",
+      "split": "lead3",
+      "file": "prompts/lead3_corpus/codealpaca_0086.txt",
+      "source_idx": 1390,
+      "chars": 150
+    },
+    {
+      "prompt_id": "codealpaca_0087",
+      "source": "codealpaca",
+      "split": "lead3",
+      "file": "prompts/lead3_corpus/codealpaca_0087.txt",
+      "source_idx": 1404,
+      "chars": 88
+    },
+    {
+      "prompt_id": "codealpaca_0088",
+      "source": "codealpaca",
+      "split": "lead3",
+      "file": "prompts/lead3_corpus/codealpaca_0088.txt",
+      "source_idx": 4766,
+      "chars": 130
+    },
+    {
+      "prompt_id": "codealpaca_0089",
+      "source": "codealpaca",
+      "split": "lead3",
+      "file": "prompts/lead3_corpus/codealpaca_0089.txt",
+      "source_idx": 775,
+      "chars": 99
+    },
+    {
+      "prompt_id": "codealpaca_0090",
+      "source": "codealpaca",
+      "split": "lead3",
+      "file": "prompts/lead3_corpus/codealpaca_0090.txt",
+      "source_idx": 1255,
+      "chars": 54
+    },
+    {
+      "prompt_id": "codealpaca_0091",
+      "source": "codealpaca",
+      "split": "lead3",
+      "file": "prompts/lead3_corpus/codealpaca_0091.txt",
+      "source_idx": 3307,
+      "chars": 57
+    },
+    {
+      "prompt_id": "codealpaca_0092",
+      "source": "codealpaca",
+      "split": "lead3",
+      "file": "prompts/lead3_corpus/codealpaca_0092.txt",
+      "source_idx": 409,
+      "chars": 61
+    },
+    {
+      "prompt_id": "codealpaca_0093",
+      "source": "codealpaca",
+      "split": "lead3",
+      "file": "prompts/lead3_corpus/codealpaca_0093.txt",
+      "source_idx": 4614,
+      "chars": 72
+    },
+    {
+      "prompt_id": "codealpaca_0094",
+      "source": "codealpaca",
+      "split": "lead3",
+      "file": "prompts/lead3_corpus/codealpaca_0094.txt",
+      "source_idx": 3140,
+      "chars": 102
+    },
+    {
+      "prompt_id": "codealpaca_0095",
+      "source": "codealpaca",
+      "split": "lead3",
+      "file": "prompts/lead3_corpus/codealpaca_0095.txt",
+      "source_idx": 64,
+      "chars": 88
+    },
+    {
+      "prompt_id": "codealpaca_0096",
+      "source": "codealpaca",
+      "split": "lead3",
+      "file": "prompts/lead3_corpus/codealpaca_0096.txt",
+      "source_idx": 4,
+      "chars": 120
+    },
+    {
+      "prompt_id": "codealpaca_0097",
+      "source": "codealpaca",
+      "split": "lead3",
+      "file": "prompts/lead3_corpus/codealpaca_0097.txt",
+      "source_idx": 1208,
+      "chars": 51
+    },
+    {
+      "prompt_id": "codealpaca_0098",
+      "source": "codealpaca",
+      "split": "lead3",
+      "file": "prompts/lead3_corpus/codealpaca_0098.txt",
+      "source_idx": 2199,
+      "chars": 227
+    },
+    {
+      "prompt_id": "codealpaca_0099",
+      "source": "codealpaca",
+      "split": "lead3",
+      "file": "prompts/lead3_corpus/codealpaca_0099.txt",
+      "source_idx": 528,
+      "chars": 103
+    },
+    {
+      "prompt_id": "jsonex_0080",
+      "source": "jsonex",
+      "split": "lead3",
+      "file": "prompts/lead3_corpus/jsonex_0080.txt",
+      "source_idx": 39147,
+      "chars": 1124
+    },
+    {
+      "prompt_id": "jsonex_0081",
+      "source": "jsonex",
+      "split": "lead3",
+      "file": "prompts/lead3_corpus/jsonex_0081.txt",
+      "source_idx": 3865,
+      "chars": 816
+    },
+    {
+      "prompt_id": "jsonex_0082",
+      "source": "jsonex",
+      "split": "lead3",
+      "file": "prompts/lead3_corpus/jsonex_0082.txt",
+      "source_idx": 275,
+      "chars": 536
+    },
+    {
+      "prompt_id": "jsonex_0083",
+      "source": "jsonex",
+      "split": "lead3",
+      "file": "prompts/lead3_corpus/jsonex_0083.txt",
+      "source_idx": 12629,
+      "chars": 810
+    },
+    {
+      "prompt_id": "jsonex_0084",
+      "source": "jsonex",
+      "split": "lead3",
+      "file": "prompts/lead3_corpus/jsonex_0084.txt",
+      "source_idx": 3869,
+      "chars": 819
+    },
+    {
+      "prompt_id": "jsonex_0085",
+      "source": "jsonex",
+      "split": "lead3",
+      "file": "prompts/lead3_corpus/jsonex_0085.txt",
+      "source_idx": 27931,
+      "chars": 637
+    },
+    {
+      "prompt_id": "jsonex_0086",
+      "source": "jsonex",
+      "split": "lead3",
+      "file": "prompts/lead3_corpus/jsonex_0086.txt",
+      "source_idx": 5942,
+      "chars": 1097
+    },
+    {
+      "prompt_id": "jsonex_0087",
+      "source": "jsonex",
+      "split": "lead3",
+      "file": "prompts/lead3_corpus/jsonex_0087.txt",
+      "source_idx": 23276,
+      "chars": 1176
+    },
+    {
+      "prompt_id": "jsonex_0088",
+      "source": "jsonex",
+      "split": "lead3",
+      "file": "prompts/lead3_corpus/jsonex_0088.txt",
+      "source_idx": 38056,
+      "chars": 547
+    },
+    {
+      "prompt_id": "jsonex_0089",
+      "source": "jsonex",
+      "split": "lead3",
+      "file": "prompts/lead3_corpus/jsonex_0089.txt",
+      "source_idx": 2766,
+      "chars": 1241
+    },
+    {
+      "prompt_id": "jsonex_0090",
+      "source": "jsonex",
+      "split": "lead3",
+      "file": "prompts/lead3_corpus/jsonex_0090.txt",
+      "source_idx": 10453,
+      "chars": 378
+    },
+    {
+      "prompt_id": "jsonex_0091",
+      "source": "jsonex",
+      "split": "lead3",
+      "file": "prompts/lead3_corpus/jsonex_0091.txt",
+      "source_idx": 6241,
+      "chars": 373
+    },
+    {
+      "prompt_id": "jsonex_0092",
+      "source": "jsonex",
+      "split": "lead3",
+      "file": "prompts/lead3_corpus/jsonex_0092.txt",
+      "source_idx": 10608,
+      "chars": 861
+    },
+    {
+      "prompt_id": "jsonex_0093",
+      "source": "jsonex",
+      "split": "lead3",
+      "file": "prompts/lead3_corpus/jsonex_0093.txt",
+      "source_idx": 16789,
+      "chars": 823
+    },
+    {
+      "prompt_id": "jsonex_0094",
+      "source": "jsonex",
+      "split": "lead3",
+      "file": "prompts/lead3_corpus/jsonex_0094.txt",
+      "source_idx": 1920,
+      "chars": 812
+    },
+    {
+      "prompt_id": "jsonex_0095",
+      "source": "jsonex",
+      "split": "lead3",
+      "file": "prompts/lead3_corpus/jsonex_0095.txt",
+      "source_idx": 22890,
+      "chars": 841
+    },
+    {
+      "prompt_id": "jsonex_0096",
+      "source": "jsonex",
+      "split": "lead3",
+      "file": "prompts/lead3_corpus/jsonex_0096.txt",
+      "source_idx": 6791,
+      "chars": 1105
+    },
+    {
+      "prompt_id": "jsonex_0097",
+      "source": "jsonex",
+      "split": "lead3",
+      "file": "prompts/lead3_corpus/jsonex_0097.txt",
+      "source_idx": 10648,
+      "chars": 750
+    },
+    {
+      "prompt_id": "jsonex_0098",
+      "source": "jsonex",
+      "split": "lead3",
+      "file": "prompts/lead3_corpus/jsonex_0098.txt",
+      "source_idx": 22063,
+      "chars": 159
+    },
+    {
+      "prompt_id": "jsonex_0099",
+      "source": "jsonex",
+      "split": "lead3",
+      "file": "prompts/lead3_corpus/jsonex_0099.txt",
+      "source_idx": 24962,
+      "chars": 913
+    }
+  ]
+}

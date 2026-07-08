@@ -1,0 +1,11 @@
+Extract staff book recommendations from the provided bullet-point notes.
+
+• Staff Name: Diane Young
+• Staff Position: Librarian
+• Recommended Book: 
+  - Title: The Kite Runner
+  - Author: Khaled Hosseini
+  - Genre: Fiction
+  - Publication Date: 2003-05-29
+  - ISBN: 1594631370
+• Recommendation Reason: A powerful story of friendship, betrayal, and redemption set in Afghanistan.

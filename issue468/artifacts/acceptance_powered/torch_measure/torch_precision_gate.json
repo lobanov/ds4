@@ -1,0 +1,88 @@
+{
+  "n_prompts": 10,
+  "mean_step_agree": 1.0,
+  "mean_token_agree": 1.0,
+  "verdict_pass_99pct": true,
+  "per_prompt": [
+    {
+      "prompt_id": "codealpaca_0000",
+      "torch_E_a_5": 2.4508,
+      "numpy_E_a_5": 2.4508196721311477,
+      "step_draft_agree": 1.0,
+      "token_agree": 1.0,
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "codealpaca_0001",
+      "torch_E_a_5": 3.2213,
+      "numpy_E_a_5": 3.221311475409836,
+      "step_draft_agree": 1.0,
+      "token_agree": 1.0,
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "codealpaca_0002",
+      "torch_E_a_5": 3.0082,
+      "numpy_E_a_5": 3.0081967213114753,
+      "step_draft_agree": 1.0,
+      "token_agree": 1.0,
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "codealpaca_0003",
+      "torch_E_a_5": 2.6066,
+      "numpy_E_a_5": 2.6065573770491803,
+      "step_draft_agree": 1.0,
+      "token_agree": 1.0,
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "codealpaca_0004",
+      "torch_E_a_5": 3.0082,
+      "numpy_E_a_5": 3.0081967213114753,
+      "step_draft_agree": 1.0,
+      "token_agree": 1.0,
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "codealpaca_0005",
+      "torch_E_a_5": 2.1967,
+      "numpy_E_a_5": 2.19672131147541,
+      "step_draft_agree": 1.0,
+      "token_agree": 1.0,
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "codealpaca_0006",
+      "torch_E_a_5": 2.5164,
+      "numpy_E_a_5": 2.5163934426229506,
+      "step_draft_agree": 1.0,
+      "token_agree": 1.0,
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "codealpaca_0007",
+      "torch_E_a_5": 2.4016,
+      "numpy_E_a_5": 2.401639344262295,
+      "step_draft_agree": 1.0,
+      "token_agree": 1.0,
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "codealpaca_0008",
+      "torch_E_a_5": 2.418,
+      "numpy_E_a_5": 2.418032786885246,
+      "step_draft_agree": 1.0,
+      "token_agree": 1.0,
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "codealpaca_0009",
+      "torch_E_a_5": 2.9754,
+      "numpy_E_a_5": 2.9754098360655736,
+      "step_draft_agree": 1.0,
+      "token_agree": 1.0,
+      "n_steps": 122
+    }
+  ]
+}

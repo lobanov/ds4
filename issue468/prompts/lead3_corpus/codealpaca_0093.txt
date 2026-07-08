@@ -1,0 +1,1 @@
+Design a data structure to track the frequency of words in a given text.

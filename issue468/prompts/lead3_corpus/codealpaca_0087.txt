@@ -1,0 +1,3 @@
+Generate a python script that concatenates two strings.
+String 1: "foo" 
+String 2: "bar"

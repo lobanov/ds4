@@ -1,0 +1,19 @@
+Extract the relevant ecommerce information from the provided business letter into a JSON format.
+
+Dear Valued Customer,
+
+We are pleased to provide you with the details of your recent purchase from our online store. Your order was processed with the utmost care and attention to ensure your complete satisfaction.
+
+The total amount of your purchase, including applicable taxes and fees, is $2,899.99. This amount covers the following items:
+
+- 1 x High-Performance Laptop - $1,999.99
+- 2 x Wireless Noise-Cancelling Headphones - $450.00 each
+- 1 x Extended Warranty Plan - $99.99
+
+Please note that the subtotal for your order is $2,799.99, and the sales tax applied is $100.00. We appreciate your business and look forward to serving you again in the future.
+
+If you have any questions or concerns, please do not hesitate to contact our customer service team.
+
+Sincerely,
+[Company Name]
+Customer Service Department

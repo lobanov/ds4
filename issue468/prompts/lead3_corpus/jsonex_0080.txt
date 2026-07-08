@@ -1,0 +1,13 @@
+Please extract the key details about the product lifecycle management system from the email below.
+
+Hey there, 
+
+I wanted to give you an update on the new PLM system we're implementing at the manufacturing plant. The team has been working hard to get it all set up and integrated with our existing systems. 
+
+The system is designed to help us better manage the entire product lifecycle, from initial design all the way through production and maintenance. It's going to give us much better visibility into the status of our products at each stage.
+
+One of the key features is the ability to track product_revisions and changes over time. This will make it a lot easier for us to see how a design has evolved and identify any issues that came up during manufacturing.
+
+The system also has some cool analytics capabilities that should help us optimize our processes. We'll be able to analyze things like production time, defect rates, and supply chain efficiency.
+
+Overall, I'm really excited about the potential of this new PLM system. I think it's going to be a game-changer for how we manage our manufacturing operations. Le

@@ -64,7 +64,7 @@ def hc_pre(x_hc, fn, scale, base):
 
 
 def hc_post(x, residual, post, comb):
-    return post.unsqueeze(-1) * x.unsqueeze(-2) + (comb.unsqueeze(-1) * residual.unsqueeze(-3)).sum(-2)
+    return post.unsqueeze(-1) * x.unsqueeze(-2) + (comb.unsqueeze(-1) * residual.unsqueeze(-2)).sum(-2)
 
 
 def sparse_attn(q, kv_g, sink, scale):
@@ -173,7 +173,9 @@ class DrafterBody:
 def build_body(dspark_path, target_path, device, dtype=torch.float32):
     cache = HERE / "dspark_train" / "data" / "drafter_body_weights.npz"
     if cache.exists():
-        lo = np.load(cache, allow_pickle=True)
+        # mmap so the ~81 GB F32 expert cache stays on disk and is read per-array on
+        # demand (Lead 03: avoids an ~80 GB CPU-RAM spike when moving to MPS as F16).
+        lo = np.load(cache, allow_pickle=True, mmap_mode='r')
         p = {k: lo[k] for k in lo.files}
         p["layer_keys"] = ["hc_attn_fn", "hc_attn_scale", "hc_attn_base", "attn_norm",
                   "q_a", "q_a_norm", "q_b", "kv", "kv_a_norm", "attn_sinks",

@@ -1,0 +1,1 @@
+Create a stand-alone Python script to print the sum of all the divisors of a number.

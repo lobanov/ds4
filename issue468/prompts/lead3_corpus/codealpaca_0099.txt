@@ -1,0 +1,5 @@
+Create a Bash script that runs a Python code
+Python code:
+
+def hello_world():
+    print("Hello World!")

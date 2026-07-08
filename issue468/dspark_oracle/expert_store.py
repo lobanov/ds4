@@ -11,18 +11,27 @@ Optional prefetch(n_workers) dequants likely-needed experts in parallel to use
 spare CPU. Default is on-demand only.
 """
 import numpy as np
+from collections import OrderedDict
 from gguf_loader import dequant_q4_k_expert, read_dense_expert
 
 
 class ExpertStore:
-    """Per-layer lazy expert dequant for one DSparkBlock's MoE."""
+    """Per-layer lazy expert dequant for one DSparkBlock's MoE.
 
-    def __init__(self, path, infos, data_off, stage):
+    `max_cache` (default None = unbounded) bounds the dequanted-expert cache as an
+    LRU: once full, the least-recently-used expert is evicted. The drafter routes
+    diversely (~215 unique experts/122-step prompt), so an unbounded cache can grow
+    to ~77 GB (all 768 experts); Lead 03's powered measurement sets max_cache to
+    bound RAM (experts are ~100 MB each). Hot experts recur across prompts, so a
+    few-hundred cap retains most reuse after warmup."""
+
+    def __init__(self, path, infos, data_off, stage, max_cache=None):
         self.path = path
         self.infos = infos
         self.data_off = data_off
         self.stage = stage
-        self._cache = {}
+        self.max_cache = max_cache
+        self._cache = OrderedDict()  # expert_id -> (gate, up, down)
 
     def _read(self, part, e):
         nm = f"mtp.{self.stage}.ffn_{part}_exps.weight"
@@ -34,9 +43,14 @@ class ExpertStore:
 
     def expert(self, e):
         """Return (gate_wg [inter,dim], up_wu [inter,dim], down_wd [dim,inter])."""
-        if e not in self._cache:
-            self._cache[e] = (self._read("gate", e), self._read("up", e), self._read("down", e))
-        return self._cache[e]
+        if e in self._cache:
+            self._cache.move_to_end(e)  # LRU: mark recently used
+            return self._cache[e]
+        val = (self._read("gate", e), self._read("up", e), self._read("down", e))
+        self._cache[e] = val
+        if self.max_cache is not None and len(self._cache) > self.max_cache:
+            self._cache.popitem(last=False)  # evict least-recently-used
+        return val
 
     def clear(self):
         """Drop cached dequanted experts to bound RAM between bundles in bulk mode."""

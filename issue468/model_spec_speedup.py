@@ -34,15 +34,27 @@ DRAFT_MS = 10.0                          # DSPark drafter, given
 # K=1 not directly measured; a 1-token suffix verify ~= one target forward = decode.
 VERIFY_MS = {1: 26.0, 2: 43.6, 3: 59.7, 4: 65.8, 5: 74.5, 6: 79.6}
 
-# greedy prefix histogram over a 5-token block, temp=0 (exactness_small_bundles summary).
-HIST5 = {0: 15, 1: 13, 2: 18, 3: 11, 4: 10, 5: 13}
+# greedy prefix histogram over a 5-token block, temp=0.
+# Lead 03 refresh: 300-prompt powered corpus (Stage 2's 240 + 60 new; dolly/codealpaca/jsonex;
+# 128-tok, temp=0), torch/MPS measurement, SLIDING (cycle-weighted) cycle-level hist.
+# Legacy 10-prompt exactness (code/synthesis) hist was {0:15,1:13,2:18,3:11,4:10,5:13}
+# (E[a|5]=2.3375); the 300-prompt dolly/codealpaca/jsonex corpus is EASIER (E[a|5]=2.609).
+HIST5 = {0: 7278, 1: 4797, 2: 4782, 3: 4558, 4: 3828, 5: 9417}
 _N = sum(HIST5.values())
 P = {a: HIST5[a] / _N for a in range(6)}
 # survival S[a] = P(prefix >= a);  E[prefix|K] = sum_{a=1..K} S[a]
 S = {0: 1.0}
 for a in range(1, 6):
     S[a] = S[a - 1] - P[a - 1]
-assert abs(S[5] - P[5]) < 1e-9 and abs(sum(S[a] for a in range(1, 6)) - 2.3375) < 1e-6
+assert abs(S[5] - P[5]) < 1e-9 and abs(sum(S[a] for a in range(1, 6)) - 2.609117137911136) < 1e-6
+
+# Lead 03 REALISTIC-trajectory (cycle-jump) acceptance -- the honest estimator.
+# Real speculative decode advances by (accepted+1)/cycle, so per-cycle accepted is
+# LOWER than the sliding E[a|K] (which uniformly samples positions, under-weighting
+# post-rejection correction cycles). From run_lead03_cyclejump.py on the 300 corpus:
+CYCLEJUMP = {  # K -> (E[a|K] cycle-pooled, S(K)=P(accept==K) cycle-pooled)
+    2: (1.40984, None), 3: (None, None), 4: (2.1976, 0.34019), 5: (None, None),
+}
 
 
 # ---- core model --------------------------------------------------------------
@@ -230,7 +242,18 @@ def main():
         "decode_ms": DECODE_MS, "draft_ms": DRAFT_MS, "verify_ms": VERIFY_MS,
         "prefix_hist_temp0": HIST5, "survival_S": {str(k): v for k, v in S.items()},
         "note": "verify_ms = cross-prompt median of mtp_verifier_bench_long; "
-                "prefix_hist from exactness_small_bundles temp=0; decode from 38.49 t/s baseline",
+                "decode from 38.49 t/s baseline. "
+                "Lead 03 refresh: prefix_hist/survival_S = 300-prompt powered corpus "
+                "(Stage 2's 240 + 60 new; dolly/codealpaca/jsonex; 128-tok temp=0; "
+                "torch/MPS, precision-gated vs numpy). SLIDING estimator (optimistic).",
+        "lead03_cyclejump_realistic": {
+            "note": "Realistic-trajectory (cycle-jump) acceptance from run_lead03_cyclejump.py "
+                    "on the 300 corpus; per-cycle accepted (model currency), NOT sliding. "
+                    "Real decode advances by (accepted+1)/cycle, so this is lower than sliding.",
+            "K4": {"E_a_4_cycle_pooled": 2.1976, "S4_cycle_pooled": 0.34019,
+                   "speedup_optimized_verifier": 0.98219},
+            "per_source_K4_speedup": {"jsonex": 1.02275, "codealpaca": 0.98055, "dolly": 0.9445},
+        },
     }, indent=2) + "\n")
     (OUT / "summary.json").write_text(json.dumps(
         {"partA_linear": a, "partB_required_acceptance": b, "partC_trees": c}, indent=2) + "\n")

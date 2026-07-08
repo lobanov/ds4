@@ -1,0 +1,6 @@
+Extract relevant information from the business invoice into a JSON format.
+
+- Client: Acme Inc.
+- Invoice #: 2023-045
+- Date: March 15, 2023
+- Total: $1,234.56

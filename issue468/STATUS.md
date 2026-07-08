@@ -58,6 +58,12 @@ Create a trustworthy active dossier that makes it easy to:
   - harness: `issue468/run_anchor_reuse_falsifier.py` (reuse modes added to `dspark_oracle/measure_acceptance_bundle.py`)
   - artifacts: `issue468/artifacts/anchor_reuse_falsifier/` (falsifier_result.json, per_prompt/units csv, codex setup+verdict reviews)
   - lead (resolved, archived): `issue468/archive/leads/lead_01_anchor_reuse_falsifier.md`
+- Acceptance statistical power + realistic-trajectory (Lead 03; powered measurement + cycle-jump correction):
+  - summary: `issue468/summaries/acceptance_statistical_power.md` (canonical result)
+  - worklog: `issue468/pending/lead_03_acceptance_statistical_power.md` (running; stays in pending/)
+  - harness: `run_lead03_torch_measure.py` (torch/MPS), `run_lead03_cyclejump.py` (realistic trajectory), `run_lead03_aggregate.py`, `run_lead03_trajectory.py`, `run_lead03_sample_corpus.py`; store `dspark_oracle/stage2_capture_store.py` (multi-dir merge); torch port fix `dspark_train/drafter_body.py` (hc_post)
+  - artifacts: `issue468/artifacts/acceptance_powered/` (combined300/{aggregate,cyclejump,trajectory}.json, stage2_torch_measure/, lead3_new_shards/ via `dspark_train/data/`, torch_measure/torch_precision_gate.json, codex_reviews/)
+  - model: `model_spec_speedup.py` refreshed + `artifacts/spec_speedup_model/model_inputs.json` (powered sliding + `lead03_cyclejump_realistic`)
 - DFlash oracle + accepted-prefix comparison vs DSpark (resolved):
   - summary: `issue468/summaries/dflash_oracle_investigation.md`
   - weights: `issue468/dflash_drafter/` (gitignored); forward + harness: `issue468/dflash_oracle/`
@@ -100,6 +106,23 @@ Create a trustworthy active dossier that makes it easy to:
   server-side multi-request batching that amortizes the verify bandwidth floor.
   See `summaries/mtp_verifier_bench_results.md` (confirmed on three 8k prompts,
   K=2..6: net-negative at every cell; best case grounded_8k K=2 at −0.3%).
+- **Acceptance statistical power + realistic trajectory (Lead 03): the K=4 verdict
+  flips to BELOW baseline under the realistic cycle-jump trajectory; the prior sliding
+  estimate was optimistic.** Powered the corpus to 300 prompts (Stage 2's 240 + 60 new;
+  dolly/codealpaca/jsonex; 128-tok temp=0) via a torch/MPS port precision-gated at 100%
+  vs the numpy oracle (`summaries/acceptance_statistical_power.md`). Two codex gates
+  (GATE-1 caught an overclaim + a torch-body `hc_post` bug; GATE-2 corrected the
+  break-even framing). Findings: (1) **sliding** E[a|4]=2.337 -> K=4 **+1.2%** (the
+  model's old method; OPTIMISTIC, diagnostic only); (2) **cycle-jump** (realistic
+  per-cycle trajectory) E[a|4]=**2.198**, S(4)=0.340 -> K=4 **0.982× (−1.8%)**,
+  speedup CI [0.971,0.993], **P(speed<1)=0.999** — significantly below baseline. The
+  dynamic break-even (at S(4)=0.340) is E[a|4]=2.256 (deficit 0.058), not the stale 2.203.
+  Corpus-dependent (cycle-jump: jsonex +2.3%, codealpaca −1.9%, dolly −5.6%; old
+  code/synthesis exactness was harder at 2.175). Sliding CI half-width 0.046 (<0.05 floor,
+  met). **Net:** beating baseline at K=4 is NOT achieved on this corpus under the
+  realistic trajectory; the honest band is sliding +1.2% (optimistic) to cycle-jump
+  −1.8% (realistic, model currency). Scope: cycle-jump is linear-trajectory anchor-token
+  difficulty, NOT drafter-state pollution / trees / residual overhead (Lead 05).
 - **Anchor-reuse falsifier (Lead 01): no large acceptance collapse observed, but
   non-inferiority NOT established.** Offline test (`summaries/anchor_reuse_falsifier.md`)
   of whether the drafter's acceptance survives drafting from the last-accepted-position

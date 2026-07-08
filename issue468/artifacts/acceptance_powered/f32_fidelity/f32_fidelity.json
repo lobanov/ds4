@@ -1,0 +1,30 @@
+{
+  "prompts": [
+    {
+      "prompt_id": "codealpaca_0000",
+      "pos0": 33,
+      "n_steps_f32": 122,
+      "f32_avg_prefix": 2.4508196721311477,
+      "f16_avg_prefix": 2.4508196721311477,
+      "d_avg_prefix": 0.0,
+      "f32_p1": 0.8279,
+      "f16_p1": 0.8279,
+      "draft_token_agree_f32_vs_f16": 1.0,
+      "main_hidden_max_rel_diff_f16_vs_f32": 0.00029
+    },
+    {
+      "prompt_id": "dolly_0000",
+      "pos0": 29,
+      "n_steps_f32": 63,
+      "f32_avg_prefix": 3.380952380952381,
+      "f16_avg_prefix": 3.3870967741935485,
+      "d_avg_prefix": 0.0061,
+      "f32_p1": 0.8889,
+      "f16_p1": 0.8871,
+      "draft_token_agree_f32_vs_f16": 1.0,
+      "main_hidden_max_rel_diff_f16_vs_f32": 0.00028
+    }
+  ],
+  "tolerance_note": "F16 usable if d_avg_prefix within ~0.03 and draft-token agreement >~0.95 per prompt",
+  "verdict_f16_usable": true
+}

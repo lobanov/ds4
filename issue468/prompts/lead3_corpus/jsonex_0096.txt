@@ -1,0 +1,16 @@
+Extract the key information from the provided internal memo into a JSON format.
+
+Dear Team,
+
+I regret to inform you that an error has occurred in our enterprise data processing pipeline. During a routine data ingestion procedure, our system encountered an unexpected technical issue that resulted in a failure to properly ingest and process a critical dataset.
+
+The incident was detected at 9:42 AM UTC on March 15th, 2023. Our engineering team has been alerted and is currently investigating the root cause of the failure. We are working diligently to resolve the issue and restore normal operations as soon as possible.
+
+In the meantime, I kindly request that all affected stakeholders refrain from accessing or manipulating the impacted dataset until further notice. This is to ensure the integrity of our systems and to prevent any further disruptions.
+
+We will provide regular updates on the status of the incident and the actions being taken to address it. Please do not hesitate to reach out if you have any questions or concerns.
+
+Thank you for your understanding and cooperation.
+
+Sincerely,
+[You

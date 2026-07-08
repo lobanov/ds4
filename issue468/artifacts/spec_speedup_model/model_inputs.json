@@ -10,20 +10,33 @@
     "6": 79.6
   },
   "prefix_hist_temp0": {
-    "0": 15,
-    "1": 13,
-    "2": 18,
-    "3": 11,
-    "4": 10,
-    "5": 13
+    "0": 7278,
+    "1": 4797,
+    "2": 4782,
+    "3": 4558,
+    "4": 3828,
+    "5": 9417
   },
   "survival_S": {
     "0": 1.0,
-    "1": 0.8125,
-    "2": 0.65,
-    "3": 0.42500000000000004,
-    "4": 0.28750000000000003,
-    "5": 0.16250000000000003
+    "1": 0.7900173110213502,
+    "2": 0.6516156953260241,
+    "3": 0.5136468551644546,
+    "4": 0.38214079630698206,
+    "5": 0.2716964800923254
   },
-  "note": "verify_ms = cross-prompt median of mtp_verifier_bench_long; prefix_hist from exactness_small_bundles temp=0; decode from 38.49 t/s baseline"
+  "note": "verify_ms = cross-prompt median of mtp_verifier_bench_long; decode from 38.49 t/s baseline. Lead 03 refresh: prefix_hist/survival_S = 300-prompt powered corpus (Stage 2's 240 + 60 new; dolly/codealpaca/jsonex; 128-tok temp=0; torch/MPS, precision-gated vs numpy). SLIDING estimator (optimistic).",
+  "lead03_cyclejump_realistic": {
+    "note": "Realistic-trajectory (cycle-jump) acceptance from run_lead03_cyclejump.py on the 300 corpus; per-cycle accepted (model currency), NOT sliding. Real decode advances by (accepted+1)/cycle, so this is lower than sliding.",
+    "K4": {
+      "E_a_4_cycle_pooled": 2.1976,
+      "S4_cycle_pooled": 0.34019,
+      "speedup_optimized_verifier": 0.98219
+    },
+    "per_source_K4_speedup": {
+      "jsonex": 1.02275,
+      "codealpaca": 0.98055,
+      "dolly": 0.9445
+    }
+  }
 }

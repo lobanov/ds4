@@ -1,0 +1,9 @@
+Given the following code, write a function to calculate the length of the linked list.
+"""
+class Node:
+  def __init__(self, val, next=None):
+    self.val = val
+    self.next = next
+
+head = Node(4, Node(3, Node(2, Node(1))))
+"""

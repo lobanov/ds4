@@ -116,6 +116,9 @@ def build_model_ctx(model_path: str) -> dict:
 def build_drafter_ctx(dspark_path: str) -> dict:
     """Load drafter-specific dense tensors + per-layer weight dicts + expert stores.
     Load once per drafter GGUF, reuse across every bundle."""
+    import os
+    mc_env = os.environ.get("DS4_EXPERT_MAX_CACHE")
+    max_cache = int(mc_env) if mc_env and mc_env.strip() else None
     _, T, infos, doff, _ = load_gguf_dense_only(dspark_path)
     return {
         "T": T,
@@ -124,15 +127,23 @@ def build_drafter_ctx(dspark_path: str) -> dict:
         "main_proj": T["mtp.0.main_proj.weight"][0],
         "main_norm_w": T["mtp.0.main_norm.weight"][0],
         "layers": [layer_weights(T, s) for s in range(3)],
-        "stores": [ExpertStore(dspark_path, infos, doff, s) for s in range(3)],
+        "stores": [ExpertStore(dspark_path, infos, doff, s, max_cache=max_cache) for s in range(3)],
     }
 
 
-def measure_bundle(bundle_dir: Path, mctx: dict, dctx: dict, *, candidate: str | None = None,
-                    reuse_mode: str = "none") -> dict:
-    """Run the drafter forward over one retained bundle and return the acceptance
-    summary dict. Fresh per-bundle KV window; does NOT clear expert caches (the
-    caller decides memory policy).
+def measure_bundle(bundle_dir: Path | None = None, mctx: dict | None = None, dctx: dict | None = None,
+                    *, candidate: str | None = None, reuse_mode: str = "none",
+                    store=None, prompt_id: str | None = None) -> dict:
+    """Run the drafter forward over one retained bundle OR one Stage2CaptureStore
+    prompt and return the acceptance summary dict. Fresh per-bundle KV window;
+    does NOT clear expert caches (the caller decides memory policy).
+
+    Two load paths (baseline numerics identical between them -- fidelity-gated):
+      bundle_dir path (default): reads bundle_manifest.json + target_selected_tokens.json
+        + main_hidden via load_mh (oracle_inputs.npz / main_hidden_pos*.npy).
+      store path (Lead 03): if `store` (a Stage2CaptureStore) + `prompt_id` are given,
+        reads prompt_tokens/target_tokens/main_hidden directly from the sharded
+        safetensors -- no bundle dir or per-position .npy materialized (few-file).
 
     Anchor-reuse modes (issue468 Lead 01 falsifier):
     -----------------------------------------------
@@ -162,7 +173,7 @@ def measure_bundle(bundle_dir: Path, mctx: dict, dctx: dict, *, candidate: str |
 
     Both reuse modes feed the same correction token (target_tokens[step]) as the
     anchor; only the hidden sourcing differs."""
-    bundle_dir = Path(bundle_dir)
+    bundle_dir = Path(bundle_dir) if bundle_dir is not None else None
     T = dctx["T"]
     layers = dctx["layers"]
     stores = dctx["stores"]
@@ -172,14 +183,36 @@ def measure_bundle(bundle_dir: Path, mctx: dict, dctx: dict, *, candidate: str |
     lm_head = mctx["lm_head"]
     cos, sin = mctx["cos"], mctx["sin"]
 
-    manifest = json.loads((bundle_dir / "bundle_manifest.json").read_text())
-    target_tokens = json.loads((bundle_dir / "target_selected_tokens.json").read_text())
-    pos0 = int(manifest["prompt_tokens"])
-    label = f"{manifest['prompt_name']}@temp={manifest['temperature']}"
+    if store is not None:
+        if prompt_id is None:
+            raise ValueError("store path requires prompt_id")
+        meta = store.prompt_meta(prompt_id)
+        pos0 = int(meta["prompt_tokens"])
+        target_tokens = store.target_tokens(prompt_id)
+        label = f"{prompt_id}@stage2"
+        prompt_name = prompt_id
+        temperature = 0.0
+        seed = 2
+        reference_mode = "greedy"
+        measure_steps_cap = len(target_tokens) - BLOCK - 1  # use all generated positions
+        def _load_mh(pos):
+            return store.main_hidden_at(prompt_id, pos)
+    else:
+        manifest = json.loads((bundle_dir / "bundle_manifest.json").read_text())
+        target_tokens = json.loads((bundle_dir / "target_selected_tokens.json").read_text())
+        pos0 = int(manifest["prompt_tokens"])
+        label = f"{manifest['prompt_name']}@temp={manifest['temperature']}"
+        prompt_name = manifest["prompt_name"]
+        temperature = manifest["temperature"]
+        seed = manifest["seed"]
+        reference_mode = "greedy" if float(temperature) == 0.0 else "sampled-stream"
+        measure_steps_cap = int(manifest["measure_steps"])
+        def _load_mh(pos):
+            return load_mh(bundle_dir, pos)
 
     win_kv = [np.zeros((WIN, HEAD_DIM), dtype=np.float32) for _ in range(3)]
 
-    mh0 = load_mh(bundle_dir, pos0)
+    mh0 = _load_mh(pos0)
     if mh0 is None:
         raise FileNotFoundError(f"missing oracle main_hidden for pos {pos0}")
     main_x0 = rmsnorm(mh0.reshape(1, 1, 3 * DIM) @ main_proj.T, main_norm_w)
@@ -193,7 +226,7 @@ def measure_bundle(bundle_dir: Path, mctx: dict, dctx: dict, *, candidate: str |
     prefix_hist = {k: 0 for k in range(BLOCK + 1)}
     total_match = 0
     total_pos = 0
-    max_step = min(len(target_tokens) - BLOCK - 1, int(manifest["measure_steps"]))
+    max_step = min(len(target_tokens) - BLOCK - 1, measure_steps_cap)
 
     for step in range(1, max_step + 1):
         pos = pos0 + step
@@ -203,12 +236,12 @@ def measure_bundle(bundle_dir: Path, mctx: dict, dctx: dict, *, candidate: str |
         #   lag       -> main_hidden[pos-1]    (stale; kept in win_kv -> consistent lag)
         #   backfill  -> main_hidden[pos-1] for the draft, main_hidden[pos] backfilled after
         reuse = reuse_mode in ("lag", "backfill")
-        mh = load_mh(bundle_dir, pos - 1 if reuse else pos)
+        mh = _load_mh(pos - 1 if reuse else pos)
         if mh is None:
             break
         main_x = rmsnorm(mh.reshape(1, 1, 3 * DIM) @ main_proj.T, main_norm_w)
         if reuse_mode == "backfill":
-            mh_true = load_mh(bundle_dir, pos)
+            mh_true = _load_mh(pos)
             if mh_true is None:
                 break
             main_x_true = rmsnorm(mh_true.reshape(1, 1, 3 * DIM) @ main_proj.T, main_norm_w)
@@ -281,11 +314,11 @@ def measure_bundle(bundle_dir: Path, mctx: dict, dctx: dict, *, candidate: str |
         "label": label,
         "candidate": candidate,
         "reuse_mode": reuse_mode,
-        "bundle_dir": str(bundle_dir),
-        "prompt_name": manifest["prompt_name"],
-        "temperature": manifest["temperature"],
-        "seed": manifest["seed"],
-        "prompt_tokens": manifest["prompt_tokens"],
+        "bundle_dir": str(bundle_dir) if bundle_dir is not None else None,
+        "prompt_name": prompt_name,
+        "temperature": temperature,
+        "seed": seed,
+        "prompt_tokens": pos0,
         "measure_steps": n_rows,
         "total_positions": total_pos,
         "total_match": total_match,
@@ -293,7 +326,7 @@ def measure_bundle(bundle_dir: Path, mctx: dict, dctx: dict, *, candidate: str |
         "average_prefix": avg_prefix,
         "prefix_hist": prefix_hist,
         "rows": rows,
-        "reference_mode": "greedy" if float(manifest["temperature"]) == 0.0 else "sampled-stream",
+        "reference_mode": reference_mode,
     }
     return summary
 

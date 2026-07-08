@@ -1,0 +1,2 @@
+Write a code snippet to count the occurrence of number 4 in an array called arr.
+arr = [1, 4, 2, 4, 5]

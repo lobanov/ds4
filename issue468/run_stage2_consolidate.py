@@ -87,7 +87,7 @@ def main() -> int:
     manifest = json.loads(Path(args.manifest).read_text())
     id2meta = {r["prompt_id"]: r for r in manifest["prompts"]}
 
-    splits: dict[str, list] = {"train": [], "eval": []}
+    splits: dict[str, list] = {}  # any split key (train/eval/lead3/...); grouped per-split into shards
     index_prompts = []
     prompt_ids_seen = []
     # discover captured prompts from topk files
@@ -107,7 +107,7 @@ def main() -> int:
             "n_positions": len(mh), "pos_range": [pmin, pmax],
         })
         prompt_ids_seen.append(pid)
-        splits[meta["split"]].append((idx, mh, tok, tids, tlp, pip))
+        splits.setdefault(meta["split"], []).append((idx, mh, tok, tids, tlp, pip))
 
     shard_files = []
     for split, recs in splits.items():

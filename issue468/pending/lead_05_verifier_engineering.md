@@ -1,6 +1,11 @@
 # Lead 05 — Verifier engineering: anchor reuse + residual cycle overhead
 
-Date: 2026-07-07. Status: pending. **Gated:** start only after lead 01 confirms
+Date: 2026-07-07. Status: pending. **Updated 2026-07-07 by Lead 03:** the modeled K=4
+numbers below cite the SLIDING estimate (~−0.9% / 0.99×), which Lead 03 showed is
+OPTIMISTIC — the realistic cycle-jump K=4 edge is **0.982× (−1.8%, P(speed<1)=0.999)**
+on the 300-prompt corpus (`summaries/acceptance_statistical_power.md`). Treat the
+−0.9% figures here as superseded; the verifier must now overcome a ~−1.8% (cycle-jump)
+gap, not ~−0.9% (sliding). **Gated:** start only after lead 01 confirms
 anchor reuse is acceptance-safe and (ideally) lead 02 sizes the scheduled
 ceiling. This is the only lead requiring real ds4 engineering (weeks, not days).
 

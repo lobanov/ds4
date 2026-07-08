@@ -1,0 +1,1 @@
+What is the Pythonic way to combine two dictionaries key-value pairs and store it in a new dictionary?

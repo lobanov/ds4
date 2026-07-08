@@ -1,0 +1,9 @@
+Extract the key information from the news article excerpt about a medical research data access request, including the data use agreement, the research topic, the data request subject, and any other relevant details.
+
+In a move aimed at advancing medical research, the XYZ Research Institute today announced the launch of its new Medical Research Data Access Request program. The program is designed to provide qualified researchers with secure access to a comprehensive dataset covering a wide range of medical conditions and treatments. 
+
+To participate, researchers must submit a detailed application outlining their proposed study, research objectives, and data usage plans. A key requirement is the acceptance of the institute's data use agreement, which stipulates that all data must be used solely for legitimate research purposes and cannot be shared or repurposed without prior approval.
+
+The current dataset includes anonymized records from over 50,000 patients, spanning topics such as oncology, cardiology, and neurology. "This is an exciting opportunity for the medical research community to gain insights that could lead to breakthroughs in patient care," said Dr. Jane Smith, the institute's director of data sciences.
+
+Researc

@@ -1,0 +1,15 @@
+Extract the key details about the client's movie poster design requirements into a structured JSON format.
+
+Dear Ms. Johnson,
+
+Thank you for your recent inquiry regarding custom movie poster design services. We are pleased to provide the following details to assist with your project.
+
+The poster size should be A1. The artwork file should be in Vector format and hosted at the URL https://example.com/big-blockbuster-poster.svg. 
+
+In addition, please ensure the poster is printed on premium, archival-quality paper. If you have any other special requests, please let us know.
+
+We look forward to working with you on this exciting project. Please let me know if you require any additional information.
+
+Sincerely,
+Tom Wilson
+Poster Design Specialists

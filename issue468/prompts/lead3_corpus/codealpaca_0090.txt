@@ -1,0 +1,2 @@
+Find all the prime numbers within a given range.
+2, 20

@@ -1,0 +1,2 @@
+Write a code to filter out all the words from a input list of strings, containing the letter 'a'.
+words = ['apple', 'book', 'zebra', 'banana', 'ball']

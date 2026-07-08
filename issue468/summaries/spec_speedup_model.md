@@ -1,9 +1,46 @@
 # Speculative-decode speedup model — DSPark drafter on the ds4 target
 
-Date: 2026-07-06 (cycle-cost corrected per reviewer). Numpy projection of
-speculative-decode speedup answering three questions. Model:
-`issue468/model_spec_speedup.py`; outputs:
-`issue48/artifacts/spec_speedup_model/{summary.json,model_inputs.json}`.
+Date: 2026-07-06 (cycle-cost corrected per reviewer); **Lead 03 powered refresh
+2026-07-07** (see top update). Numpy projection of speculative-decode speedup answering
+three questions. Model: `issue468/model_spec_speedup.py`; outputs:
+`issue468/artifacts/spec_speedup_model/{summary.json,model_inputs.json}`.
+
+## ⚠ Lead 03 powered refresh (2026-07-07) — the SLIDING estimator is OPTIMISTIC
+
+The model's `E[a|K]`/`S(K)` below come from the **sliding** greedy-prefix histogram
+(uniformly sampling positions). Lead 03 powered the corpus (300 prompts, torch/MPS,
+precision-gated vs numpy; `summaries/acceptance_statistical_power.md`) and found:
+
+1. **Powered SLIDING acceptance is HIGHER than the old 10-prompt estimate** (E[a|4]
+   2.337 vs 2.175), but this is partly CORPUS — the 300-prompt dolly/codealpaca/jsonex
+   mix is easier than the old 10 code/synthesis exactness prompts (per-source E[a|4]:
+   jsonex 2.51, codealpaca 2.36, dolly 2.22; old code/synthesis 2.175).
+2. **The sliding estimator OVER-estimates per-cycle acceptance.** Real speculative
+   decode advances by (accepted+1) per cycle, so the model currency is the CYCLE-JUMP
+   (per-cycle) acceptance, which is lower (it lands on post-rejection correction cycles
+   the sliding average under-weights). On the 300 corpus: cycle-jump E[a|4]=**2.198**,
+   S(4)=0.340 -> K=4 speedup **0.982× (−1.8%, BELOW baseline)** vs the sliding
+   +1.2% (E[a|4]=2.337). The sliding/cycle-jump gap is ~3 pp.
+3. **CORRECTED K=4 verdict:** under the realistic cycle-jump trajectory, K=4 speedup is
+   **0.982× (−1.8%)**, and it is **significantly below baseline**: the cycle-jump speedup
+   CI is [0.971, 0.993] with **P(speed<1) = 0.999**. The relevant (dynamic) break-even at
+   S(4)=0.340 is **E[a|4]=2.256** (not 2.203 — that was the old sliding-S break-even); the
+   deficit is 0.058 accepted drafts/cycle, not 0.005. It is corpus-dependent (per-source
+   cycle-jump speedup: jsonex +2.3%, codealpaca −1.9%, dolly −5.6%). Beating baseline at
+   K=4 is NOT achieved under the realistic trajectory on this corpus mix. (Scope: the
+   cycle-jump measures anchor-token difficulty along a linear trajectory; it does NOT
+   model drafter-state pollution after rejected drafts, tree/branching, residual verifier
+   overhead, or adaptive policies — those are Lead 05.) The prior "−0.9% / ~2pp short" was
+   (a) sliding-based (optimistic diagnostic) and (b) the harder 10-prompt corpus.
+
+`model_inputs.json` now carries both: `prefix_hist_temp0`/`survival_S` (sliding, 300-
+prompt, what the Q1/Q2/Q3 tables below use) and `lead03_cyclejump_realistic` (the
+honest per-cycle estimate, with the cycle-jump speedup CI [0.971,0.993], P(speed<1)=0.999,
+and dynamic break-even E[a|4]=2.256). **Read the Q1/Q2/Q3 tables below as the SLIDING
+(optimistic, diagnostic-only) edge; the cycle-jump 0.982× is the realistic edge.** (The
+Lead 01 anchor-reuse finding still holds: reuse does not collapse acceptance — but the
+realistic cycle-jump edge at K=4 is ~0.98×, significantly below baseline, not the ~−0.9%
+sliding estimate.)
 
 ## Model (corrected cycle accounting)
 
