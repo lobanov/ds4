@@ -105,7 +105,7 @@ def main():
     best_rank = max(results, key=lambda r: results[r]["p1_mean"])
     best = results[best_rank]["p1_mean"]; gate = (best - base) * 100
     verdict = ("REAFFIRM (>=+5pp)" if gate >= 5
-               else f"NOT-JUSTIFIED (<+1pp after rank 32/64/128 + 3-seed sweep); best +{gate:.2f}pp" if gate < 1
+               else f"NOT-JUSTIFIED (<+1pp after rank 32/64/128 + seed sweep); best {gate:+.2f}pp" if gate < 1
                else f"INCONCLUSIVE ({gate:+.2f}pp)")
     print(f"  best: rank {best_rank} = {best:.4f} ({gate:+.2f} pp) -> {verdict}")
     (DATA / "activity7_kloss_summary.json").write_text(json.dumps({

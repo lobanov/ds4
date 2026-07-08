@@ -1,6 +1,6 @@
 {
-  "verdict": "NOT-JUSTIFIED",
-  "loss": "Lce+Ltv (exp position weights, gamma=5), teacher-forced K=5 (DSpark \u00a73.3)",
+  "verdict": "NOT-JUSTIFIED (<+1pp after rank 32/64/128 + seed sweep); best +-1.46pp",
+  "loss": "Lce+Ltv (exp position weights, gamma=5)",
   "no_lora_baseline_p1": 0.8125271857329274,
   "rank_seed_sweep": {
     "32": {
@@ -32,12 +32,19 @@
     }
   },
   "best_rank": 32,
-  "best_p1": 0.7978831375960562,
+  "best_p1_2seed_mean": 0.7978831375960562,
   "best_delta_pp": -1.4644048136871146,
-  "interpretation": "head-LoRA with the specified Lce+Ltv loss gives -1.46/-1.75/-3.08 pp (rank 32/64/128, 2 seeds each, stable std ~0.0017) \u2014 all negative, overfitting at higher rank. Non-expert head LoRA does NOT improve acceptance. Body LoRA (Activity 8) skipped per contract (7>6ceiling) + Activity 4 (input-invariant). Expert tuning out of scope. Consistent with Stage 0/1.",
-  "mcnemar_pre_only": 441,
-  "mcnemar_post_only": 348,
-  "mcnemar_p": 0.0010429816675328054,
-  "pre_p1": 0.8125271857329274,
-  "post_p1": 0.7990430622009569
+  "decision_rule_satisfied": "NOT-JUSTIFIED: best delta -1.46 pp < +1 pp, after rank 32/64/128 x 2-seed sweep (all ranks negative, seed-stable)",
+  "mcnemar_single_run": {
+    "source": "run_stage2_mcnemar_kloss.py (rank32 seed42, Lce+Ltv, 6 epochs)",
+    "pre_p1": 0.8125271857329274,
+    "post_p1": 0.7961432506887053,
+    "delta_pp": -1.6383935044222087,
+    "mcnemar_pre_only": 442,
+    "mcnemar_post_only": 329,
+    "mcnemar_p": 5.3385182230607135e-05,
+    "n": 6897,
+    "note": "post_p1 (0.7961) is THIS single seed-42 run; it equals the sweep's rank-32 seed-42 value. best_p1_2seed_mean (0.7979) is the 2-seed mean. Both negative; McNemar p=5.3e-5 (significant HARM). MPS is mildly nondeterministic so exact discordants vary slightly run-to-run; the significant-harm verdict is robust."
+  },
+  "interpretation": "head-LoRA with the specified Lce+Ltv loss gives -1.46/-1.75/-3.08 pp (rank 32/64/128, 2 seeds each, stable std ~0.0017); single-run McNemar p=5.3e-5 (significant HARM). Non-expert head LoRA does NOT improve (significantly degrades) acceptance. Body LoRA (Activity 8) skipped per contract (7>6ceiling) + Activity 4 (input-invariant). Expert tuning out of scope."
 }

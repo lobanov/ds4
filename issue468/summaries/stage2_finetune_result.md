@@ -35,8 +35,11 @@ not run — gated out by its contract (Activity 7 best > Activity 6 ceiling) and
   **Overfit-to-eval 0.9947** ⇒ head impl correct, `h` carries the target info.
 - **Activity 7/9 (head-LoRA, Lce+Ltv, rank×seed sweep):** baseline 0.8125; **rank 32 −1.46 pp
   (±0.0017 over 2 seeds), rank 64 −1.75, rank 128 −3.08** — **all negative**, worse at higher
-  rank (overfitting), seed-stable. (An earlier p=1-CE-only run gave −0.13/−1.44 pp — same
-  direction; the Lce+Ltv is the contract-specified loss and is reported as the result.)
+  rank (overfitting), seed-stable. Reproducible single-run McNemar (rank32 seed42):
+  pre 0.8125 → post 0.7961, discordants 442/329, **p=5.3e-5 (significant HARM)**
+  (`run_stage2_mcnemar_kloss.py` → `artifacts/stage2_results/mcnemar_lce_ltv.json`).
+  (An earlier p=1-CE-only run gave −0.13/−1.44 pp — same direction; the Lce+Ltv is the
+  contract-specified loss and is reported as the result.)
 - **Activity 8** skipped per its contract (Activity 7 best 0.7979 > Activity 6 ceiling 0.7479)
   + Activity 4 (input-negligible). Body LoRA is the untested non-expert lever (codex flagged
   the skip as the weakest point; documented).

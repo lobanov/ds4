@@ -1,0 +1,10 @@
+{
+  "config": "head-LoRA rank32 seed42, Lce+Ltv (exp weights gamma=5), 6 epochs",
+  "pre_p1": 0.8125271857329274,
+  "post_p1": 0.7961432506887053,
+  "delta_pp": -1.6383935044222087,
+  "mcnemar_pre_only": 442,
+  "mcnemar_post_only": 329,
+  "mcnemar_p": 5.3385182230607135e-05,
+  "n": 6897
+}

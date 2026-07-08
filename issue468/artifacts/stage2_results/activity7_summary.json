@@ -33,5 +33,5 @@
   "best_rank": 32,
   "best_p1": 0.7978831375960562,
   "best_delta_pp": -1.4644048136871146,
-  "verdict": "NOT-JUSTIFIED (<+1pp after rank 32/64/128 + 3-seed sweep); best +-1.46pp"
+  "verdict": "NOT-JUSTIFIED (<+1pp after rank 32/64/128 + seed sweep); best +-1.46pp"
 }
