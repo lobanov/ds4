@@ -1,0 +1,93 @@
+{
+  "gate": "lead02_confidence_extraction_fidelity",
+  "bundles_dir": "/Users/lobanov/Projects/ds4-dspark-research/issue468/artifacts/exactness_small_bundles",
+  "model": "/Users/lobanov/Projects/ds4/gguf/DeepSeek-V4-Flash-IQ2XXS-w2Q2K-AProjQ8-SExpQ8-OutQ8-chat-v2-imatrix.gguf",
+  "dspark": "/Users/lobanov/Projects/ds4/gguf/dspark.gguf",
+  "temperature": 0.0,
+  "n_bundles_checked": 10,
+  "pass": true,
+  "checked": [
+    {
+      "bundle": "code_histogram__t0p0",
+      "prompt_name": "code_histogram",
+      "measure_steps": 8,
+      "rows_equal_after_stripping_confidence": true,
+      "confidence_present_all_rows": true,
+      "confidence_shape_5": true
+    },
+    {
+      "bundle": "code_sort_pairs__t0p0",
+      "prompt_name": "code_sort_pairs",
+      "measure_steps": 8,
+      "rows_equal_after_stripping_confidence": true,
+      "confidence_present_all_rows": true,
+      "confidence_shape_5": true
+    },
+    {
+      "bundle": "code_topk__t0p0",
+      "prompt_name": "code_topk",
+      "measure_steps": 8,
+      "rows_equal_after_stripping_confidence": true,
+      "confidence_present_all_rows": true,
+      "confidence_shape_5": true
+    },
+    {
+      "bundle": "grounded_archive__t0p0",
+      "prompt_name": "grounded_archive",
+      "measure_steps": 8,
+      "rows_equal_after_stripping_confidence": true,
+      "confidence_present_all_rows": true,
+      "confidence_shape_5": true
+    },
+    {
+      "bundle": "grounded_observatory__t0p0",
+      "prompt_name": "grounded_observatory",
+      "measure_steps": 8,
+      "rows_equal_after_stripping_confidence": true,
+      "confidence_present_all_rows": true,
+      "confidence_shape_5": true
+    },
+    {
+      "bundle": "grounded_repair__t0p0",
+      "prompt_name": "grounded_repair",
+      "measure_steps": 8,
+      "rows_equal_after_stripping_confidence": true,
+      "confidence_present_all_rows": true,
+      "confidence_shape_5": true
+    },
+    {
+      "bundle": "mixed_exactness_smoke__t0p0",
+      "prompt_name": "mixed_exactness_smoke",
+      "measure_steps": 8,
+      "rows_equal_after_stripping_confidence": true,
+      "confidence_present_all_rows": true,
+      "confidence_shape_5": true
+    },
+    {
+      "bundle": "synthesis_incident_json__t0p0",
+      "prompt_name": "synthesis_incident_json",
+      "measure_steps": 8,
+      "rows_equal_after_stripping_confidence": true,
+      "confidence_present_all_rows": true,
+      "confidence_shape_5": true
+    },
+    {
+      "bundle": "synthesis_ops_json__t0p0",
+      "prompt_name": "synthesis_ops_json",
+      "measure_steps": 8,
+      "rows_equal_after_stripping_confidence": true,
+      "confidence_present_all_rows": true,
+      "confidence_shape_5": true
+    },
+    {
+      "bundle": "synthesis_timeline_json__t0p0",
+      "prompt_name": "synthesis_timeline_json",
+      "measure_steps": 8,
+      "rows_equal_after_stripping_confidence": true,
+      "confidence_present_all_rows": true,
+      "confidence_shape_5": true
+    }
+  ],
+  "failures": [],
+  "criterion": "baseline summary must equal confidence-enabled summary after removing confidence-only fields"
+}

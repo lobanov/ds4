@@ -1,0 +1,1147 @@
+{
+  "n_prompts": 180,
+  "n_steps_total": 20823,
+  "ece_bins": 15,
+  "sources": {
+    "codealpaca": 60,
+    "dolly": 60,
+    "jsonex": 60
+  },
+  "splits": {
+    "train": 180
+  },
+  "by_position": {
+    "p1": {
+      "n": 20823,
+      "positive_rate": 0.791721,
+      "raw_auc": 0.780436,
+      "raw_ece": 0.045809,
+      "cum_auc": 0.780436,
+      "cum_ece": 0.045809,
+      "raw_mean_score": 0.771278,
+      "cum_mean_score": 0.771278
+    },
+    "p2": {
+      "n": 20823,
+      "positive_rate": 0.65394,
+      "raw_auc": 0.768706,
+      "raw_ece": 0.092907,
+      "cum_auc": 0.793393,
+      "cum_ece": 0.077859,
+      "raw_mean_score": 0.720823,
+      "cum_mean_score": 0.589365
+    },
+    "p3": {
+      "n": 20823,
+      "positive_rate": 0.516736,
+      "raw_auc": 0.790425,
+      "raw_ece": 0.125932,
+      "cum_auc": 0.809463,
+      "cum_ece": 0.089971,
+      "raw_mean_score": 0.626138,
+      "cum_mean_score": 0.436011
+    },
+    "p4": {
+      "n": 20823,
+      "positive_rate": 0.385871,
+      "raw_auc": 0.807751,
+      "raw_ece": 0.139577,
+      "cum_auc": 0.826179,
+      "cum_ece": 0.085393,
+      "raw_mean_score": 0.515647,
+      "cum_mean_score": 0.31173
+    },
+    "p5": {
+      "n": 20823,
+      "positive_rate": 0.273256,
+      "raw_auc": 0.822415,
+      "raw_ece": 0.137567,
+      "cum_auc": 0.843218,
+      "cum_ece": 0.074985,
+      "raw_mean_score": 0.407768,
+      "cum_mean_score": 0.215329
+    }
+  },
+  "per_prompt": [
+    {
+      "prompt_id": "codealpaca_0000",
+      "source": "codealpaca",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "codealpaca_0001",
+      "source": "codealpaca",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "codealpaca_0002",
+      "source": "codealpaca",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "codealpaca_0003",
+      "source": "codealpaca",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "codealpaca_0004",
+      "source": "codealpaca",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "codealpaca_0005",
+      "source": "codealpaca",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "codealpaca_0006",
+      "source": "codealpaca",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "codealpaca_0007",
+      "source": "codealpaca",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "codealpaca_0008",
+      "source": "codealpaca",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "codealpaca_0009",
+      "source": "codealpaca",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "codealpaca_0010",
+      "source": "codealpaca",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "codealpaca_0011",
+      "source": "codealpaca",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "codealpaca_0012",
+      "source": "codealpaca",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "codealpaca_0013",
+      "source": "codealpaca",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "codealpaca_0014",
+      "source": "codealpaca",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "codealpaca_0015",
+      "source": "codealpaca",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "codealpaca_0016",
+      "source": "codealpaca",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "codealpaca_0017",
+      "source": "codealpaca",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "codealpaca_0018",
+      "source": "codealpaca",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "codealpaca_0019",
+      "source": "codealpaca",
+      "split": "train",
+      "n_steps": 90
+    },
+    {
+      "prompt_id": "codealpaca_0020",
+      "source": "codealpaca",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "codealpaca_0021",
+      "source": "codealpaca",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "codealpaca_0022",
+      "source": "codealpaca",
+      "split": "train",
+      "n_steps": 115
+    },
+    {
+      "prompt_id": "codealpaca_0023",
+      "source": "codealpaca",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "codealpaca_0024",
+      "source": "codealpaca",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "codealpaca_0025",
+      "source": "codealpaca",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "codealpaca_0026",
+      "source": "codealpaca",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "codealpaca_0027",
+      "source": "codealpaca",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "codealpaca_0028",
+      "source": "codealpaca",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "codealpaca_0029",
+      "source": "codealpaca",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "codealpaca_0030",
+      "source": "codealpaca",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "codealpaca_0031",
+      "source": "codealpaca",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "codealpaca_0032",
+      "source": "codealpaca",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "codealpaca_0033",
+      "source": "codealpaca",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "codealpaca_0034",
+      "source": "codealpaca",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "codealpaca_0035",
+      "source": "codealpaca",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "codealpaca_0036",
+      "source": "codealpaca",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "codealpaca_0037",
+      "source": "codealpaca",
+      "split": "train",
+      "n_steps": 78
+    },
+    {
+      "prompt_id": "codealpaca_0038",
+      "source": "codealpaca",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "codealpaca_0039",
+      "source": "codealpaca",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "codealpaca_0040",
+      "source": "codealpaca",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "codealpaca_0041",
+      "source": "codealpaca",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "codealpaca_0042",
+      "source": "codealpaca",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "codealpaca_0043",
+      "source": "codealpaca",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "codealpaca_0044",
+      "source": "codealpaca",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "codealpaca_0045",
+      "source": "codealpaca",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "codealpaca_0046",
+      "source": "codealpaca",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "codealpaca_0047",
+      "source": "codealpaca",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "codealpaca_0048",
+      "source": "codealpaca",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "codealpaca_0049",
+      "source": "codealpaca",
+      "split": "train",
+      "n_steps": 111
+    },
+    {
+      "prompt_id": "codealpaca_0050",
+      "source": "codealpaca",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "codealpaca_0051",
+      "source": "codealpaca",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "codealpaca_0052",
+      "source": "codealpaca",
+      "split": "train",
+      "n_steps": 50
+    },
+    {
+      "prompt_id": "codealpaca_0053",
+      "source": "codealpaca",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "codealpaca_0054",
+      "source": "codealpaca",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "codealpaca_0055",
+      "source": "codealpaca",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "codealpaca_0056",
+      "source": "codealpaca",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "codealpaca_0057",
+      "source": "codealpaca",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "codealpaca_0058",
+      "source": "codealpaca",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "codealpaca_0059",
+      "source": "codealpaca",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "dolly_0000",
+      "source": "dolly",
+      "split": "train",
+      "n_steps": 62
+    },
+    {
+      "prompt_id": "dolly_0001",
+      "source": "dolly",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "dolly_0002",
+      "source": "dolly",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "dolly_0003",
+      "source": "dolly",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "dolly_0004",
+      "source": "dolly",
+      "split": "train",
+      "n_steps": 49
+    },
+    {
+      "prompt_id": "dolly_0005",
+      "source": "dolly",
+      "split": "train",
+      "n_steps": 66
+    },
+    {
+      "prompt_id": "dolly_0006",
+      "source": "dolly",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "dolly_0007",
+      "source": "dolly",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "dolly_0008",
+      "source": "dolly",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "dolly_0009",
+      "source": "dolly",
+      "split": "train",
+      "n_steps": 95
+    },
+    {
+      "prompt_id": "dolly_0010",
+      "source": "dolly",
+      "split": "train",
+      "n_steps": 107
+    },
+    {
+      "prompt_id": "dolly_0011",
+      "source": "dolly",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "dolly_0012",
+      "source": "dolly",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "dolly_0013",
+      "source": "dolly",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "dolly_0014",
+      "source": "dolly",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "dolly_0015",
+      "source": "dolly",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "dolly_0016",
+      "source": "dolly",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "dolly_0017",
+      "source": "dolly",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "dolly_0018",
+      "source": "dolly",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "dolly_0019",
+      "source": "dolly",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "dolly_0020",
+      "source": "dolly",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "dolly_0021",
+      "source": "dolly",
+      "split": "train",
+      "n_steps": 93
+    },
+    {
+      "prompt_id": "dolly_0022",
+      "source": "dolly",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "dolly_0023",
+      "source": "dolly",
+      "split": "train",
+      "n_steps": 90
+    },
+    {
+      "prompt_id": "dolly_0024",
+      "source": "dolly",
+      "split": "train",
+      "n_steps": 59
+    },
+    {
+      "prompt_id": "dolly_0025",
+      "source": "dolly",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "dolly_0026",
+      "source": "dolly",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "dolly_0027",
+      "source": "dolly",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "dolly_0028",
+      "source": "dolly",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "dolly_0029",
+      "source": "dolly",
+      "split": "train",
+      "n_steps": 69
+    },
+    {
+      "prompt_id": "dolly_0030",
+      "source": "dolly",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "dolly_0031",
+      "source": "dolly",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "dolly_0032",
+      "source": "dolly",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "dolly_0033",
+      "source": "dolly",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "dolly_0034",
+      "source": "dolly",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "dolly_0035",
+      "source": "dolly",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "dolly_0036",
+      "source": "dolly",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "dolly_0037",
+      "source": "dolly",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "dolly_0038",
+      "source": "dolly",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "dolly_0039",
+      "source": "dolly",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "dolly_0040",
+      "source": "dolly",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "dolly_0041",
+      "source": "dolly",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "dolly_0042",
+      "source": "dolly",
+      "split": "train",
+      "n_steps": 62
+    },
+    {
+      "prompt_id": "dolly_0043",
+      "source": "dolly",
+      "split": "train",
+      "n_steps": 80
+    },
+    {
+      "prompt_id": "dolly_0044",
+      "source": "dolly",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "dolly_0045",
+      "source": "dolly",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "dolly_0046",
+      "source": "dolly",
+      "split": "train",
+      "n_steps": 88
+    },
+    {
+      "prompt_id": "dolly_0047",
+      "source": "dolly",
+      "split": "train",
+      "n_steps": 46
+    },
+    {
+      "prompt_id": "dolly_0048",
+      "source": "dolly",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "dolly_0049",
+      "source": "dolly",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "dolly_0050",
+      "source": "dolly",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "dolly_0051",
+      "source": "dolly",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "dolly_0052",
+      "source": "dolly",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "dolly_0053",
+      "source": "dolly",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "dolly_0054",
+      "source": "dolly",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "dolly_0055",
+      "source": "dolly",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "dolly_0056",
+      "source": "dolly",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "dolly_0057",
+      "source": "dolly",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "dolly_0058",
+      "source": "dolly",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "dolly_0059",
+      "source": "dolly",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "jsonex_0000",
+      "source": "jsonex",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "jsonex_0001",
+      "source": "jsonex",
+      "split": "train",
+      "n_steps": 91
+    },
+    {
+      "prompt_id": "jsonex_0002",
+      "source": "jsonex",
+      "split": "train",
+      "n_steps": 39
+    },
+    {
+      "prompt_id": "jsonex_0003",
+      "source": "jsonex",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "jsonex_0004",
+      "source": "jsonex",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "jsonex_0005",
+      "source": "jsonex",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "jsonex_0006",
+      "source": "jsonex",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "jsonex_0007",
+      "source": "jsonex",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "jsonex_0008",
+      "source": "jsonex",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "jsonex_0009",
+      "source": "jsonex",
+      "split": "train",
+      "n_steps": 40
+    },
+    {
+      "prompt_id": "jsonex_0010",
+      "source": "jsonex",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "jsonex_0011",
+      "source": "jsonex",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "jsonex_0012",
+      "source": "jsonex",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "jsonex_0013",
+      "source": "jsonex",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "jsonex_0014",
+      "source": "jsonex",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "jsonex_0015",
+      "source": "jsonex",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "jsonex_0016",
+      "source": "jsonex",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "jsonex_0017",
+      "source": "jsonex",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "jsonex_0018",
+      "source": "jsonex",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "jsonex_0019",
+      "source": "jsonex",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "jsonex_0020",
+      "source": "jsonex",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "jsonex_0021",
+      "source": "jsonex",
+      "split": "train",
+      "n_steps": 110
+    },
+    {
+      "prompt_id": "jsonex_0022",
+      "source": "jsonex",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "jsonex_0023",
+      "source": "jsonex",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "jsonex_0024",
+      "source": "jsonex",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "jsonex_0025",
+      "source": "jsonex",
+      "split": "train",
+      "n_steps": 95
+    },
+    {
+      "prompt_id": "jsonex_0026",
+      "source": "jsonex",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "jsonex_0027",
+      "source": "jsonex",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "jsonex_0028",
+      "source": "jsonex",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "jsonex_0029",
+      "source": "jsonex",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "jsonex_0030",
+      "source": "jsonex",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "jsonex_0031",
+      "source": "jsonex",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "jsonex_0032",
+      "source": "jsonex",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "jsonex_0033",
+      "source": "jsonex",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "jsonex_0034",
+      "source": "jsonex",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "jsonex_0035",
+      "source": "jsonex",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "jsonex_0036",
+      "source": "jsonex",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "jsonex_0037",
+      "source": "jsonex",
+      "split": "train",
+      "n_steps": 99
+    },
+    {
+      "prompt_id": "jsonex_0038",
+      "source": "jsonex",
+      "split": "train",
+      "n_steps": 92
+    },
+    {
+      "prompt_id": "jsonex_0039",
+      "source": "jsonex",
+      "split": "train",
+      "n_steps": 62
+    },
+    {
+      "prompt_id": "jsonex_0040",
+      "source": "jsonex",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "jsonex_0041",
+      "source": "jsonex",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "jsonex_0042",
+      "source": "jsonex",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "jsonex_0043",
+      "source": "jsonex",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "jsonex_0044",
+      "source": "jsonex",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "jsonex_0045",
+      "source": "jsonex",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "jsonex_0046",
+      "source": "jsonex",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "jsonex_0047",
+      "source": "jsonex",
+      "split": "train",
+      "n_steps": 120
+    },
+    {
+      "prompt_id": "jsonex_0048",
+      "source": "jsonex",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "jsonex_0049",
+      "source": "jsonex",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "jsonex_0050",
+      "source": "jsonex",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "jsonex_0051",
+      "source": "jsonex",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "jsonex_0052",
+      "source": "jsonex",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "jsonex_0053",
+      "source": "jsonex",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "jsonex_0054",
+      "source": "jsonex",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "jsonex_0055",
+      "source": "jsonex",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "jsonex_0056",
+      "source": "jsonex",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "jsonex_0057",
+      "source": "jsonex",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "jsonex_0058",
+      "source": "jsonex",
+      "split": "train",
+      "n_steps": 121
+    },
+    {
+      "prompt_id": "jsonex_0059",
+      "source": "jsonex",
+      "split": "train",
+      "n_steps": 122
+    }
+  ]
+}

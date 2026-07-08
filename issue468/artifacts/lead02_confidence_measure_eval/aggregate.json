@@ -1,0 +1,427 @@
+{
+  "n_prompts": 60,
+  "n_steps_total": 6897,
+  "ece_bins": 15,
+  "sources": {
+    "codealpaca": 20,
+    "dolly": 20,
+    "jsonex": 20
+  },
+  "splits": {
+    "eval": 60
+  },
+  "by_position": {
+    "p1": {
+      "n": 6897,
+      "positive_rate": 0.786284,
+      "raw_auc": 0.776931,
+      "raw_ece": 0.048738,
+      "cum_auc": 0.776931,
+      "cum_ece": 0.048738,
+      "raw_mean_score": 0.771803,
+      "cum_mean_score": 0.771803
+    },
+    "p2": {
+      "n": 6897,
+      "positive_rate": 0.650718,
+      "raw_auc": 0.771053,
+      "raw_ece": 0.097705,
+      "cum_auc": 0.794016,
+      "cum_ece": 0.074554,
+      "raw_mean_score": 0.725283,
+      "cum_mean_score": 0.593312
+    },
+    "p3": {
+      "n": 6897,
+      "positive_rate": 0.515152,
+      "raw_auc": 0.79331,
+      "raw_ece": 0.132844,
+      "cum_auc": 0.814136,
+      "cum_ece": 0.083766,
+      "raw_mean_score": 0.63569,
+      "cum_mean_score": 0.442769
+    },
+    "p4": {
+      "n": 6897,
+      "positive_rate": 0.382195,
+      "raw_auc": 0.803929,
+      "raw_ece": 0.150966,
+      "cum_auc": 0.829043,
+      "cum_ece": 0.079238,
+      "raw_mean_score": 0.526557,
+      "cum_mean_score": 0.317544
+    },
+    "p5": {
+      "n": 6897,
+      "positive_rate": 0.272292,
+      "raw_auc": 0.816535,
+      "raw_ece": 0.150575,
+      "cum_auc": 0.839869,
+      "cum_ece": 0.071444,
+      "raw_mean_score": 0.419256,
+      "cum_mean_score": 0.218625
+    }
+  },
+  "per_prompt": [
+    {
+      "prompt_id": "codealpaca_0060",
+      "source": "codealpaca",
+      "split": "eval",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "codealpaca_0061",
+      "source": "codealpaca",
+      "split": "eval",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "codealpaca_0062",
+      "source": "codealpaca",
+      "split": "eval",
+      "n_steps": 84
+    },
+    {
+      "prompt_id": "codealpaca_0063",
+      "source": "codealpaca",
+      "split": "eval",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "codealpaca_0064",
+      "source": "codealpaca",
+      "split": "eval",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "codealpaca_0065",
+      "source": "codealpaca",
+      "split": "eval",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "codealpaca_0066",
+      "source": "codealpaca",
+      "split": "eval",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "codealpaca_0067",
+      "source": "codealpaca",
+      "split": "eval",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "codealpaca_0068",
+      "source": "codealpaca",
+      "split": "eval",
+      "n_steps": 114
+    },
+    {
+      "prompt_id": "codealpaca_0069",
+      "source": "codealpaca",
+      "split": "eval",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "codealpaca_0070",
+      "source": "codealpaca",
+      "split": "eval",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "codealpaca_0071",
+      "source": "codealpaca",
+      "split": "eval",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "codealpaca_0072",
+      "source": "codealpaca",
+      "split": "eval",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "codealpaca_0073",
+      "source": "codealpaca",
+      "split": "eval",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "codealpaca_0074",
+      "source": "codealpaca",
+      "split": "eval",
+      "n_steps": 79
+    },
+    {
+      "prompt_id": "codealpaca_0075",
+      "source": "codealpaca",
+      "split": "eval",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "codealpaca_0076",
+      "source": "codealpaca",
+      "split": "eval",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "codealpaca_0077",
+      "source": "codealpaca",
+      "split": "eval",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "codealpaca_0078",
+      "source": "codealpaca",
+      "split": "eval",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "codealpaca_0079",
+      "source": "codealpaca",
+      "split": "eval",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "dolly_0060",
+      "source": "dolly",
+      "split": "eval",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "dolly_0061",
+      "source": "dolly",
+      "split": "eval",
+      "n_steps": 59
+    },
+    {
+      "prompt_id": "dolly_0062",
+      "source": "dolly",
+      "split": "eval",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "dolly_0063",
+      "source": "dolly",
+      "split": "eval",
+      "n_steps": 120
+    },
+    {
+      "prompt_id": "dolly_0064",
+      "source": "dolly",
+      "split": "eval",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "dolly_0065",
+      "source": "dolly",
+      "split": "eval",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "dolly_0066",
+      "source": "dolly",
+      "split": "eval",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "dolly_0067",
+      "source": "dolly",
+      "split": "eval",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "dolly_0068",
+      "source": "dolly",
+      "split": "eval",
+      "n_steps": 72
+    },
+    {
+      "prompt_id": "dolly_0069",
+      "source": "dolly",
+      "split": "eval",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "dolly_0070",
+      "source": "dolly",
+      "split": "eval",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "dolly_0071",
+      "source": "dolly",
+      "split": "eval",
+      "n_steps": 102
+    },
+    {
+      "prompt_id": "dolly_0072",
+      "source": "dolly",
+      "split": "eval",
+      "n_steps": 109
+    },
+    {
+      "prompt_id": "dolly_0073",
+      "source": "dolly",
+      "split": "eval",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "dolly_0074",
+      "source": "dolly",
+      "split": "eval",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "dolly_0075",
+      "source": "dolly",
+      "split": "eval",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "dolly_0076",
+      "source": "dolly",
+      "split": "eval",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "dolly_0077",
+      "source": "dolly",
+      "split": "eval",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "dolly_0078",
+      "source": "dolly",
+      "split": "eval",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "dolly_0079",
+      "source": "dolly",
+      "split": "eval",
+      "n_steps": 56
+    },
+    {
+      "prompt_id": "jsonex_0060",
+      "source": "jsonex",
+      "split": "eval",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "jsonex_0061",
+      "source": "jsonex",
+      "split": "eval",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "jsonex_0062",
+      "source": "jsonex",
+      "split": "eval",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "jsonex_0063",
+      "source": "jsonex",
+      "split": "eval",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "jsonex_0064",
+      "source": "jsonex",
+      "split": "eval",
+      "n_steps": 81
+    },
+    {
+      "prompt_id": "jsonex_0065",
+      "source": "jsonex",
+      "split": "eval",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "jsonex_0066",
+      "source": "jsonex",
+      "split": "eval",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "jsonex_0067",
+      "source": "jsonex",
+      "split": "eval",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "jsonex_0068",
+      "source": "jsonex",
+      "split": "eval",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "jsonex_0069",
+      "source": "jsonex",
+      "split": "eval",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "jsonex_0070",
+      "source": "jsonex",
+      "split": "eval",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "jsonex_0071",
+      "source": "jsonex",
+      "split": "eval",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "jsonex_0072",
+      "source": "jsonex",
+      "split": "eval",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "jsonex_0073",
+      "source": "jsonex",
+      "split": "eval",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "jsonex_0074",
+      "source": "jsonex",
+      "split": "eval",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "jsonex_0075",
+      "source": "jsonex",
+      "split": "eval",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "jsonex_0076",
+      "source": "jsonex",
+      "split": "eval",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "jsonex_0077",
+      "source": "jsonex",
+      "split": "eval",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "jsonex_0078",
+      "source": "jsonex",
+      "split": "eval",
+      "n_steps": 43
+    },
+    {
+      "prompt_id": "jsonex_0079",
+      "source": "jsonex",
+      "split": "eval",
+      "n_steps": 122
+    }
+  ]
+}

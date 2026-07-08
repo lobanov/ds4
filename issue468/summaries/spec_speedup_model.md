@@ -1,7 +1,8 @@
 # Speculative-decode speedup model — DSPark drafter on the ds4 target
 
-Date: 2026-07-06 (cycle-cost model); **holistic integration 2026-07-08** of the Lead 01
-(anchor-reuse falsifier) and Lead 03 (powered acceptance + realistic-trajectory) findings.
+Date: 2026-07-06 (cycle-cost model); **holistic integration 2026-07-08** of Lead 01
+(anchor-reuse falsifier), Lead 02 (confidence-scheduled verification), and Lead 03
+(powered acceptance + realistic-trajectory).
 Model: `issue468/model_spec_speedup.py`; powered data + cycle-jump:
 `issue468/artifacts/acceptance_powered/`; outputs:
 `issue468/artifacts/spec_speedup_model/{summary.json,model_inputs.json}`.
@@ -9,22 +10,23 @@ Model: `issue468/model_spec_speedup.py`; powered data + cycle-jump:
 ## Headline (current best understanding)
 
 **Under the realistic per-cycle trajectory, DSpark speculative decoding does NOT beat plain
-ds4 decode at any tested K on the measured corpus.** The optimum is K≈4–5 at speedup
-**~0.98× (−1.8%)**, with K=4's cycle-jump speedup CI [0.971, 0.993] and P(speed<1)=0.999.
-Beating baseline is reachable only by a stack of presently-unverified gains — an
-anchor-reusing verifier (acceptance-axis now de-risked by Lead 01, but verifier economics
-untested), low residual cycle overhead, and a drafter whose per-cycle acceptance exceeds
-today's measured trajectory. The earlier "K=4 at −0.9%, ~2 pp short of beating baseline"
-was an artifact of (a) the sliding (optimistic) acceptance estimator and (b) a 10-prompt
-corpus; both are superseded.
+ds4 decode locally on the measured corpus.** The best fixed-K result under the optimized
+anchor-reusing verifier is K≈4–5 at **~0.98×**; the shipped verifier is materially worse.
+Confidence scheduling narrows but does not reverse that conclusion: on fresh out-of-sample
+replay it still loses under shipped accounting, and under anchor reuse it reaches only a
+fragile **1.0375×** (frozen threshold) to **1.0523×** (expected-opt diagnostic) with less
+than **4 ms/cycle** of overhead headroom. So beating baseline remains contingent on an
+unbuilt cheap anchor-reusing verifier plus a better drafter; scheduling is at most
+conditional secondary material, not a path to the primary gate.
 
 ## The question and the gates
 
 Can a DSpark-style speculative path deliver a **material local decode speedup** on `ds4`
 with exact greedy output preserved? Primary gate ≥+20% vs baseline; secondary gate beat or
-match the shipped `--mtp` path. This document is the cycle-cost model + the measured
-acceptance that feeds it; thedrafter-precision question is closed separately
-(`dspark_quantization_ceiling.md` — precision is exhausted, not the lever).
+match the shipped `--mtp` path. This document is the cycle-cost model plus the measured
+fixed-K acceptance and adaptive-scheduling evidence that feed it; the drafter-precision
+question is closed separately (`dspark_quantization_ceiling.md` — precision is exhausted,
+not the lever).
 
 ## Notation & definitions
 
@@ -126,7 +128,8 @@ of the band; cycle-jump the realistic edge.
 - **K=4 cycle-jump (the headline):** speedup 0.982×, prompt-clustered bootstrap CI
   [0.971, 0.993], **P(speed<1) = 0.999**. The dynamic break-even E[a|4] at S(4)=0.340 is
   **2.256**; the deficit is **0.058 accepted drafts/cycle** (deficit > CI half-width, so
-  "below baseline" is signed). Read the sliding column as the optimistic edge only.
+  "below baseline" is signed). Read the sliding column as the optimistic edge only. These
+  are the unscheduled fixed-K reference points for the scheduling results below.
 - **Corpus-dependent** (cycle-jump K=4 speedup): jsonex **+2.3%**, codealpaca −1.9%, dolly
   −5.6%. The mix is on the easy side — the old 10-prompt code/synthesis exactness corpus was
   E[a|4]=2.175 (harder than all three families), so a code/synthesis-heavy deployment would
@@ -180,16 +183,52 @@ verify nodes without extending the committed prefix, AND raising pos-3 coverage 
 the full-accept decode penalty). **Do not branch — use a linear chain;** no 4-node tree
 beats the gate.
 
+## Adaptive scheduling in the same model (Lead 02)
+
+Lead 02 asks whether the existing confidence head can improve the local economics by
+choosing a shorter verify span cycle-by-cycle. The policy evidence is fully offline:
+confidence is extracted from the oracle / torch-MPS carrier, calibrated with train-fit STS,
+thresholds are chosen on `eval`, and then replayed unchanged on fresh `lead3` under the
+same two verifier accountings used elsewhere in this dossier.
+
+| policy (fresh `lead3`) | shipped accounting | anchor-reuse accounting |
+|---|---:|---:|
+| fixed-K4 | 0.8123x | 0.9810x |
+| **STS selected threshold** | **0.8646x** | **1.0375x** |
+| **STS expected-opt** | **0.9205x** | **1.0523x** |
+| oracle ceiling | 1.1297x | 1.2447x |
+
+- Under **shipped** accounting, adaptive scheduling does **not** rescue the path. The
+  table's `0.8646x` uses the anchor-reuse-selected threshold `0.08` held fixed across both
+  accountings; even the threshold selected specifically for shipped costs (`0.52`) reaches
+  only **0.8987x** on fresh `lead3`.
+- Under **anchor reuse**, scheduling improves on unscheduled fixed-K4 but only into a
+  narrow, fragile positive band. The clean frozen-threshold result is **1.0375x**, below
+  Lead 02's predeclared `+5–10%` stacking tier. The **1.0523x** expected-opt figure is a
+  useful diagnostic upper-ish policy, but it is not deployable evidence.
+- The anchor-reuse positives are highly sensitive to residual folded-verifier overhead: the
+  frozen-threshold gain has about **3.01 ms/cycle** of headroom and expected-opt about
+  **3.89 ms/cycle**. Adding `+4 ms/cycle` drops them to about **0.988x** and **0.999x**.
+
+So in the speedup model, scheduled verification is not an overlay or an independent route
+to viability. It is best represented as a **conditional secondary increment** that matters
+only if Lead 05 makes the optimized anchor-reusing verifier real and very cheap.
+
 ## Verdict, levers, and open scope
 
 **Verdict:** with the current drafter on the measured corpus, DSpark does not beat plain ds4
-decode locally at any K under the realistic trajectory (K4/K5 optimum ~0.98×, significantly
-below baseline). The case for a local speedup requires a stack of unverified gains:
+decode locally at any tested fixed K under the realistic trajectory (K4/K5 optimum ~0.98×,
+significantly below baseline), and confidence scheduling does not change that under shipped
+accounting. Under anchor reuse, scheduling rises only to a fragile low-single-digit positive
+band on fresh replay, so the case for a local speedup still requires a stack of unverified
+gains:
 
 1. **Anchor-reusing verifier** (Lead 05): acceptance-axis de-risked by Lead 01; verifier-
-   hidden equivalence + residual overhead + cycle timing untested. Worth ~18 pp at K=4 if
-   realizable — the largest single lever — but the realistic cycle-jump edge it would feed
-   is ~0.98×, not the old sliding −0.9%.
+   hidden equivalence + residual overhead + cycle timing untested. This is the prerequisite
+   for any positive scheduling result at all. It is worth ~18 pp at K=4 relative to shipped
+   fixed-K accounting if realizable, but the realistic unscheduled edge it would feed is
+   still only ~0.98×, and Lead 02 lifts that only to ~1.04× in the clean frozen-threshold
+   result.
 2. **A materially better drafter** (Lead 06 upstream quality / training): the binding
    constraint is per-cycle acceptance; precision is exhausted.
 3. **Drafter-state pollution** (Lead 05): the cycle-jump measures anchor-token difficulty
@@ -207,7 +246,9 @@ below baseline). The case for a local speedup requires a stack of unverified gai
   an implementation property to confirm against the ds4 graph (Lead 05).
 
 Net: the realistic answer to "can DSpark beat baseline locally?" is **no, not with the
-current drafter + an optimized-but-unbuilt verifier on this corpus** — the prior optimistic
-headline is superseded. The decision-grade open question moves to Lead 05 (does a real
-folded verifier realize the anchor-reuse + low-overhead regime?) and Lead 06 (can the
-drafter's per-cycle acceptance rise enough to clear the ~0.06–0.10 drafts/cycle deficit?).
+current drafter + an optimized-but-unbuilt verifier on this corpus** — and adaptive
+scheduling does not alter that answer under shipped economics. At best, if Lead 05 delivers
+a genuinely cheap folded verifier, scheduling contributes a fragile extra few points on top.
+The decision-grade open questions therefore move to Lead 05 (does a real folded verifier
+realize the anchor-reuse + low-overhead regime?) and Lead 06 (can the drafter's per-cycle
+acceptance rise enough to clear the ~0.06–0.10 drafts/cycle deficit?).

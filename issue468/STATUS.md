@@ -64,6 +64,11 @@ Create a trustworthy active dossier that makes it easy to:
   - harness: `run_lead03_torch_measure.py` (torch/MPS), `run_lead03_cyclejump.py` (realistic trajectory), `run_lead03_aggregate.py`, `run_lead03_trajectory.py`, `run_lead03_sample_corpus.py`; store `dspark_oracle/stage2_capture_store.py` (multi-dir merge); torch port fix `dspark_train/drafter_body.py` (hc_post)
   - artifacts: `issue468/artifacts/acceptance_powered/` (combined300/{aggregate,cyclejump,trajectory}.json, stage2_torch_measure/, lead3_new_shards/ via `dspark_train/data/`, torch_measure/torch_precision_gate.json, codex_reviews/)
   - model: `model_spec_speedup.py` refreshed + `artifacts/spec_speedup_model/model_inputs.json` (powered sliding + `lead03_cyclejump_realistic`)
+- Confidence-scheduled verification (Lead 02; confidence extraction + STS + adaptive replay):
+  - summary: `issue468/summaries/confidence_scheduled_verification.md`
+  - worklog (resolved, archived): `issue468/archive/leads/lead_02_confidence_scheduled_verification.md`
+  - harness: `run_lead02_confidence_fidelity.py`, `run_lead02_torch_confidence_gate.py`, `run_lead02_measure_confidence.py`, `run_lead02_sts.py`, `run_lead02_replay.py`
+  - artifacts: `issue468/artifacts/lead02_confidence_{fidelity,measure_smoke,measure_eval,measure_train,measure_lead3,sts_eval,sts_train,replay_eval,replay_eval_trainsts,replay_lead3_trainsts,torch_confidence_gate}/`
 - DFlash oracle + accepted-prefix comparison vs DSpark (resolved):
   - summary: `issue468/summaries/dflash_oracle_investigation.md`
   - weights: `issue468/dflash_drafter/` (gitignored); forward + harness: `issue468/dflash_oracle/`
@@ -165,6 +170,24 @@ Create a trustworthy active dossier that makes it easy to:
   set to zero in the model and prompt-level noise (sd ≈0.43 on E[a|4]).
   The under-assumption findings stand; treat them as the optimistic edge of a band
   whose pessimistic edge is the shipped-verifier reality.
+- **Confidence-scheduled verification (Lead 02): useless under shipped economics; only
+  fragile conditional secondary material under anchor reuse.** Canonical result:
+  `summaries/confidence_scheduled_verification.md`. Confidence extraction was fidelity-gated
+  against both the retained oracle and a torch-vs-numpy 3-source sample; the powered head is
+  decision-relevant on IQ2XXS (per-position AUC ~0.77–0.82, cumulative AUC ~0.79–0.85 across
+  train/eval/lead3), and STS modestly improves cumulative-prefix calibration. But the replay
+  verdict is now out-of-sample: **fit STS on `train` (180 prompts), choose threshold on
+  `eval` (60), evaluate on fresh `lead3` (60)**. On the fresh slice, the externally selected
+  anchor-reuse-selected STS threshold `0.08` gives **0.8646×** under shipped accounting
+  (the shipped-selected `eval` threshold `0.52` still reaches only **0.8987×** on fresh
+  `lead3`) and **1.0375×** under anchor reuse (CI [1.013,1.064]); STS expected-opt is
+  **0.9205×** shipped and **1.0523×** under anchor reuse. The clean frozen-threshold result
+  is **below** Lead 02's predeclared `+5–10%` stacking tier, and the anchor-reuse positives
+  have only about **3.0–3.9 ms/cycle** of overhead headroom before they disappear.
+  Per-source fresh frozen-threshold speedup under anchor reuse: codealpaca **1.046×**,
+  dolly **1.003×**, jsonex **1.063×**. **Decision:** Lead 02 does NOT revive the local gate;
+  record it only as marginal conditional secondary material contingent on Lead 05 proving a
+  genuinely cheap anchor-reuse verifier.
 - **DFlash drafter comparison: DSpark is more attractive on this corpus.**
   DFlash oracle built and validated vs the MLX reference (<=0.08% rel); the only
   bug was a self-inflicted `d2t` token-mapping error (`d2t` is an offset, not an

@@ -61,6 +61,8 @@ def parse_args() -> argparse.Namespace:
                     help="anchor-reuse mode: none (baseline) / lag (stale, consistent) / backfill (stale current, true prior)")
     ap.add_argument("--reuse", choices=["lag"], default=None,
                     help="deprecated shorthand for --reuse-mode=lag")
+    ap.add_argument("--include-confidence", action="store_true",
+                    help="include per-position confidence logits/scores in row outputs")
     return ap.parse_args()
 
 
@@ -133,7 +135,8 @@ def build_drafter_ctx(dspark_path: str) -> dict:
 
 def measure_bundle(bundle_dir: Path | None = None, mctx: dict | None = None, dctx: dict | None = None,
                     *, candidate: str | None = None, reuse_mode: str = "none",
-                    store=None, prompt_id: str | None = None) -> dict:
+                    store=None, prompt_id: str | None = None,
+                    include_confidence: bool = False) -> dict:
     """Run the drafter forward over one retained bundle OR one Stage2CaptureStore
     prompt and return the acceptance summary dict. Fresh per-bundle KV window;
     does NOT clear expert caches (the caller decides memory policy).
@@ -272,7 +275,7 @@ def measure_bundle(bundle_dir: Path | None = None, mctx: dict | None = None, dct
                 mkv_t = rmsnorm(main_x_true @ layers[s]["kv"].T, layers[s]["kv_a_norm"])
                 mkv_t[..., -ROPE_DIM:] = apply_rotary(mkv_t[..., -ROPE_DIM:], cos[step], sin[step])
                 win_kv[s][step % WIN] = mkv_t[0, 0]
-        out, _ = forward_head(
+        head_out = forward_head(
             x,
             anchor,
             None,
@@ -285,7 +288,12 @@ def measure_bundle(bundle_dir: Path | None = None, mctx: dict | None = None, dct
             T["mtp.2.confidence_head.proj.weight"][0],
             lm_head,
             temp=1.0,
+            return_conf=include_confidence,
         )
+        if include_confidence:
+            out, _logits, conf_logits, conf_scores = head_out
+        else:
+            out, _logits = head_out
         draft = [int(v) for v in out[1:].tolist()]
         target = [int(v) for v in target_tokens[step + 1:step + 1 + BLOCK]]
         match = sum(1 for d, t in zip(draft, target) if d == t)
@@ -298,7 +306,7 @@ def measure_bundle(bundle_dir: Path | None = None, mctx: dict | None = None, dct
         prefix_hist[prefix] += 1
         total_match += match
         total_pos += BLOCK
-        rows.append({
+        row = {
             "step": step,
             "position": pos,
             "anchor": anchor,
@@ -306,7 +314,11 @@ def measure_bundle(bundle_dir: Path | None = None, mctx: dict | None = None, dct
             "target": target,
             "match": match,
             "prefix": prefix,
-        })
+        }
+        if include_confidence:
+            row["confidence_logits"] = [float(v) for v in conf_logits.tolist()]
+            row["confidence_scores"] = [float(v) for v in conf_scores.tolist()]
+        rows.append(row)
 
     n_rows = len(rows)
     avg_prefix = float(sum(row["prefix"] for row in rows) / n_rows) if n_rows else 0.0
@@ -336,7 +348,8 @@ def main() -> int:
     mctx = build_model_ctx(args.model)
     dctx = build_drafter_ctx(args.dspark)
     summary = measure_bundle(Path(args.bundle_dir), mctx, dctx,
-                             reuse_mode=(args.reuse if args.reuse else args.reuse_mode))
+                             reuse_mode=(args.reuse if args.reuse else args.reuse_mode),
+                             include_confidence=args.include_confidence)
     if args.json_out:
         Path(args.json_out).write_text(json.dumps(summary, indent=2) + "\n")
     else:

@@ -1,0 +1,10 @@
+{
+  "temperatures": [
+    1.057018,
+    0.757858,
+    1.03766,
+    1.203025,
+    1.447269
+  ],
+  "note": "STS temperatures for draft positions 1..5; apply as sigmoid(logit / T_k)."
+}

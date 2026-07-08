@@ -1,0 +1,85 @@
+{
+  "n_prompts": 3,
+  "n_steps_total": 306,
+  "ece_bins": 15,
+  "sources": {
+    "codealpaca": 1,
+    "dolly": 1,
+    "jsonex": 1
+  },
+  "splits": {
+    "train": 3
+  },
+  "by_position": {
+    "p1": {
+      "n": 306,
+      "positive_rate": 0.80719,
+      "raw_auc": 0.814794,
+      "raw_ece": 0.056268,
+      "cum_auc": 0.814794,
+      "cum_ece": 0.056268,
+      "raw_mean_score": 0.780494,
+      "cum_mean_score": 0.780494
+    },
+    "p2": {
+      "n": 306,
+      "positive_rate": 0.653595,
+      "raw_auc": 0.7525,
+      "raw_ece": 0.129726,
+      "cum_auc": 0.787028,
+      "cum_ece": 0.089636,
+      "raw_mean_score": 0.74218,
+      "cum_mean_score": 0.60834
+    },
+    "p3": {
+      "n": 306,
+      "positive_rate": 0.513072,
+      "raw_auc": 0.774676,
+      "raw_ece": 0.161768,
+      "cum_auc": 0.798615,
+      "cum_ece": 0.082849,
+      "raw_mean_score": 0.638961,
+      "cum_mean_score": 0.447314
+    },
+    "p4": {
+      "n": 306,
+      "positive_rate": 0.379085,
+      "raw_auc": 0.800907,
+      "raw_ece": 0.1747,
+      "cum_auc": 0.807804,
+      "cum_ece": 0.124385,
+      "raw_mean_score": 0.522598,
+      "cum_mean_score": 0.324083
+    },
+    "p5": {
+      "n": 306,
+      "positive_rate": 0.261438,
+      "raw_auc": 0.843584,
+      "raw_ece": 0.132911,
+      "cum_auc": 0.845188,
+      "cum_ece": 0.077752,
+      "raw_mean_score": 0.393927,
+      "cum_mean_score": 0.217595
+    }
+  },
+  "per_prompt": [
+    {
+      "prompt_id": "codealpaca_0000",
+      "source": "codealpaca",
+      "split": "train",
+      "n_steps": 122
+    },
+    {
+      "prompt_id": "dolly_0000",
+      "source": "dolly",
+      "split": "train",
+      "n_steps": 62
+    },
+    {
+      "prompt_id": "jsonex_0000",
+      "source": "jsonex",
+      "split": "train",
+      "n_steps": 122
+    }
+  ]
+}

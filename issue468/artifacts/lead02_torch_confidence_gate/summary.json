@@ -1,0 +1,49 @@
+{
+  "gate": "lead02_torch_confidence_vs_numpy",
+  "dtype": "float32",
+  "device": "mps",
+  "pids": [
+    "codealpaca_0000",
+    "dolly_0000",
+    "jsonex_0000"
+  ],
+  "thresholds": {
+    "step_draft_agree": 1.0,
+    "max_logit_mae": 0.001,
+    "max_score_mae": 0.0001
+  },
+  "pass": true,
+  "checked": [
+    {
+      "prompt_id": "codealpaca_0000",
+      "n_steps": 122,
+      "step_draft_agree": 1.0,
+      "token_agree": 1.0,
+      "confidence_logit_mae": 6.57e-06,
+      "confidence_score_mae": 7.5e-07,
+      "confidence_logit_max_abs": 6.962e-05,
+      "confidence_score_max_abs": 9.66e-06
+    },
+    {
+      "prompt_id": "dolly_0000",
+      "n_steps": 62,
+      "step_draft_agree": 1.0,
+      "token_agree": 1.0,
+      "confidence_logit_mae": 8.97e-06,
+      "confidence_score_mae": 7.5e-07,
+      "confidence_logit_max_abs": 5.674e-05,
+      "confidence_score_max_abs": 8.02e-06
+    },
+    {
+      "prompt_id": "jsonex_0000",
+      "n_steps": 122,
+      "step_draft_agree": 1.0,
+      "token_agree": 1.0,
+      "confidence_logit_mae": 5.81e-06,
+      "confidence_score_mae": 6.3e-07,
+      "confidence_logit_max_abs": 7.153e-05,
+      "confidence_score_max_abs": 5.25e-06
+    }
+  ],
+  "failures": []
+}

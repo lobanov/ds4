@@ -91,19 +91,34 @@ def block_forward(x, main_x, input_ids, w, store, stage, start_pos, cos, sin, sl
 
 
 def forward_head(h, anchor_tok, w_head, norm_w, hc_head_fn, hc_head_scale, hc_head_base,
-                 markov_w1, markov_w2, conf_proj, lm_head, temp=1.0):
-    """mtp.2.forward_head. h [1,block,hc,dim] -> output_ids [block+1], logits [block,vocab]."""
+                 markov_w1, markov_w2, conf_proj, lm_head, temp=1.0, return_conf=False):
+    """mtp.2.forward_head.
+
+    h [1,block,hc,dim] -> output_ids [block+1], logits [block,vocab]
+    Optional confidence output follows the DSpark paper / converter contract:
+    one scalar per draft position from the concatenation of normalized hidden h_k
+    and the Markov embedding of the previous token.
+    """
     x = hc_head(h, hc_head_fn, hc_head_scale, hc_head_base)        # [1,block,dim]
     x = rmsnorm(x, norm_w)
     logits = x[0] @ lm_head.T                                       # [block, vocab] (lm_head HF [vocab,dim])
     output_ids = np.zeros(BLOCK + 1, dtype=np.int64)
     output_ids[0] = anchor_tok
+    conf_logits = np.zeros(BLOCK, dtype=np.float32) if return_conf else None
+    conf_scores = np.zeros(BLOCK, dtype=np.float32) if return_conf else None
     for i in range(BLOCK):
         # markov_head(output_ids[i]): markov_w1 embed [rank], markov_w2 -> [vocab]
         emb = markov_w1[output_ids[i]]                             # [rank]  (markov_w1 HF [vocab,rank])
+        if return_conf:
+            conf_inp = np.concatenate((x[0, i], emb.astype(np.float32)), axis=0)
+            clogit = np.float32(conf_inp @ conf_proj.astype(np.float32))
+            conf_logits[i] = clogit
+            conf_scores[i] = np.float32(1.0 / (1.0 + np.exp(-clogit)))
         bias = emb @ markov_w2.T                                   # [vocab]  (markov_w2 HF [vocab,rank])
         li = (logits[i] + bias) / max(temp, 1e-5)
         output_ids[i + 1] = int(np.argmax(li))
+    if return_conf:
+        return output_ids, logits, conf_logits, conf_scores
     return output_ids, logits
 
 

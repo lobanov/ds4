@@ -26,6 +26,7 @@ import numpy as np
 
 OUT = Path(__file__).resolve().parent.parent / "issue468/artifacts/spec_speedup_model"
 OUT.mkdir(parents=True, exist_ok=True)
+LEAD02_REPLAY = Path(__file__).resolve().parent / "artifacts" / "lead02_confidence_replay_lead3_trainsts" / "summary.json"
 
 # ---- empirical inputs --------------------------------------------------------
 DECODE_MS = 26.0                         # 1000 / 38.49 baseline t/s (mtp_verifier_bench)
@@ -234,10 +235,49 @@ def partC_trees():
     return rows
 
 
+def partD_lead02_scheduling():
+    print("\n" + "=" * 78)
+    print("PART D — Lead 02 adaptive scheduling (out-of-sample lead3 replay)")
+    print("=" * 78)
+    if not LEAD02_REPLAY.exists():
+        print(f"lead02 replay artifact missing: {LEAD02_REPLAY}")
+        return None
+    data = json.loads(LEAD02_REPLAY.read_text())
+    rows = {}
+    for acct in ("shipped", "anchor_reuse"):
+        suite = data["policies"]["sts"][acct]
+        selected = suite["selected_threshold"]
+        expected = suite["expected_opt"]
+        oracle = suite["oracle"]
+        rows[acct] = {
+            "selected_threshold": selected["threshold"],
+            "selected_speedup": selected["summary"]["speedup"],
+            "selected_ci95": selected["summary"]["clustered_ci95_speedup"],
+            "selected_p_speed_lt_1": selected["summary"]["p_speed_lt_1"],
+            "expected_opt_speedup": expected["speedup"],
+            "expected_opt_ci95": expected["clustered_ci95_speedup"],
+            "expected_opt_p_speed_lt_1": expected["p_speed_lt_1"],
+            "oracle_speedup": oracle["speedup"],
+            "oracle_ci95": oracle["clustered_ci95_speedup"],
+            "oracle_p_speed_lt_1": oracle["p_speed_lt_1"],
+        }
+    print("fresh lead3, train-fit STS:")
+    for acct, row in rows.items():
+        print(
+            f"  {acct:>12} | selected(thr={row['selected_threshold']:.2f}) "
+            f"{row['selected_speedup']:.3f} CI{tuple(row['selected_ci95'])} "
+            f"| expected-opt {row['expected_opt_speedup']:.3f} CI{tuple(row['expected_opt_ci95'])} "
+            f"| oracle {row['oracle_speedup']:.3f}"
+        )
+    print("Reading: shipped remains clearly <1; anchor reuse gains only a few points out-of-sample.")
+    return rows
+
+
 def main():
     a = partA_linear()
     b = partB_required_acceptance()
     c = partC_trees()
+    d = partD_lead02_scheduling()
     (OUT / "model_inputs.json").write_text(json.dumps({
         "decode_ms": DECODE_MS, "draft_ms": DRAFT_MS, "verify_ms": VERIFY_MS,
         "prefix_hist_temp0": HIST5, "survival_S": {str(k): v for k, v in S.items()},
@@ -254,9 +294,16 @@ def main():
                    "speedup_optimized_verifier": 0.98219},
             "per_source_K4_speedup": {"jsonex": 1.02275, "codealpaca": 0.98055, "dolly": 0.9445},
         },
+        "lead02_confidence_replay": {
+            "note": "Out-of-sample confidence-scheduled replay from run_lead02_replay.py "
+                    "(train-fit STS -> eval threshold choice -> fresh lead3 evaluation). "
+                    "selected_threshold = deployable-ish fixed policy; expected_opt = offline diagnostic.",
+            "artifact": str(LEAD02_REPLAY),
+            "sts_lead3_out_of_sample": d,
+        } if d is not None else None,
     }, indent=2) + "\n")
     (OUT / "summary.json").write_text(json.dumps(
-        {"partA_linear": a, "partB_required_acceptance": b, "partC_trees": c}, indent=2) + "\n")
+        {"partA_linear": a, "partB_required_acceptance": b, "partC_trees": c, "partD_lead02_scheduling": d}, indent=2) + "\n")
     print(f"\nwrote {OUT}/summary.json and model_inputs.json")
 
 

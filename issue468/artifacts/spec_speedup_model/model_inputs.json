@@ -38,5 +38,53 @@
       "codealpaca": 0.98055,
       "dolly": 0.9445
     }
+  },
+  "lead02_confidence_replay": {
+    "note": "Out-of-sample confidence-scheduled replay from run_lead02_replay.py (train-fit STS -> eval threshold choice -> fresh lead3 evaluation). selected_threshold = deployable-ish fixed policy; expected_opt = offline diagnostic.",
+    "artifact": "/Users/lobanov/Projects/ds4-dspark-research/issue468/artifacts/lead02_confidence_replay_lead3_trainsts/summary.json",
+    "sts_lead3_out_of_sample": {
+      "shipped": {
+        "selected_threshold": 0.08,
+        "selected_speedup": 0.864629,
+        "selected_ci95": [
+          0.83743,
+          0.893333
+        ],
+        "selected_p_speed_lt_1": 1.0,
+        "expected_opt_speedup": 0.92052,
+        "expected_opt_ci95": [
+          0.89903,
+          0.943786
+        ],
+        "expected_opt_p_speed_lt_1": 1.0,
+        "oracle_speedup": 1.129695,
+        "oracle_ci95": [
+          1.112408,
+          1.147656
+        ],
+        "oracle_p_speed_lt_1": 0.0
+      },
+      "anchor_reuse": {
+        "selected_threshold": 0.08,
+        "selected_speedup": 1.037491,
+        "selected_ci95": [
+          1.012967,
+          1.063861
+        ],
+        "selected_p_speed_lt_1": 0.0015,
+        "expected_opt_speedup": 1.052283,
+        "expected_opt_ci95": [
+          1.031038,
+          1.075351
+        ],
+        "expected_opt_p_speed_lt_1": 0.0,
+        "oracle_speedup": 1.244745,
+        "oracle_ci95": [
+          1.231115,
+          1.259106
+        ],
+        "oracle_p_speed_lt_1": 0.0
+      }
+    }
   }
 }

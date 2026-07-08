@@ -32,7 +32,7 @@ def _t(a):
 
 
 class DrafterHead(nn.Module):
-    def __init__(self, hc_fn, hc_scale, hc_base, norm_w, markov_w1, markov_w2, lm_head,
+    def __init__(self, hc_fn, hc_scale, hc_base, norm_w, markov_w1, markov_w2, conf_proj, lm_head,
                  lora_rank: int = 0):
         super().__init__()
         self.register_buffer("hc_fn", _t(hc_fn))              # [HC, HC*DIM]
@@ -41,6 +41,7 @@ class DrafterHead(nn.Module):
         self.register_buffer("norm_w", _t(norm_w))            # [DIM]
         self.register_buffer("markov_w1", _t(markov_w1))      # [VOCAB, rank_m]
         self.register_buffer("markov_w2", _t(markov_w2))      # [VOCAB, rank_m]
+        self.register_buffer("conf_proj", _t(conf_proj))      # [DIM + rank_m]
         self.register_buffer("lm_head", _t(lm_head))          # [VOCAB, DIM]
         self.lora_rank = lora_rank
         self.rank_m = markov_w1.shape[1]
@@ -71,6 +72,9 @@ class DrafterHead(nn.Module):
         w2 = self.markov_w2 + (self.lora_mw2_B @ self.lora_mw2_A) if self.lora_rank else self.markov_w2
         return w2.T.to(dtype)
 
+    def _conf_proj(self, dtype):
+        return self.conf_proj.to(dtype)
+
     def hc_head(self, x):  # x [b, BLOCK, HC, DIM] -> [b, BLOCK, DIM]
         b, s, hc, d = x.shape
         flat = x.reshape(b, s, hc * d)
@@ -96,7 +100,21 @@ class DrafterHead(nn.Module):
         bias = self._mw1(anchor.to(dev)).to(dev, dt) @ self._mw2_T(dt)  # [N,VOCAB]
         return base + bias
 
-    def forward(self, x, anchor, temp=1.0):  # x [b,BLOCK,HC,DIM], anchor [b]
+    def confidence_logits(self, h, prev_tok):
+        """Per-position confidence logits / scores from normalized hidden + Markov embedding.
+
+        h        : [b, BLOCK, DIM] normalized hidden states
+        prev_tok : [b, BLOCK] previous-token ids for each draft position
+        returns  : (logits [b, BLOCK], scores [b, BLOCK])
+        """
+        dev = h.device
+        dt = h.dtype
+        emb = self._mw1(prev_tok.to(dev)).to(dev, dt)                     # [b, BLOCK, rank_m]
+        conf_inp = torch.cat((h, emb), dim=-1)                            # [b, BLOCK, DIM+rank_m]
+        logits = (conf_inp * self._conf_proj(dt).to(dev)).sum(dim=-1)     # [b, BLOCK]
+        return logits, torch.sigmoid(logits)
+
+    def forward(self, x, anchor, temp=1.0, return_conf=False):  # x [b,BLOCK,HC,DIM], anchor [b]
         dev = x.device
         dt = self.lm_head.dtype
         h = self.hc_head(x.to(dev)).to(dev, dt)
@@ -105,11 +123,16 @@ class DrafterHead(nn.Module):
         b = x.shape[0]
         out = torch.zeros(b, BLOCK + 1, dtype=torch.long, device=dev)
         out[:, 0] = anchor.to(dev)
+        prev_tok = torch.zeros(b, BLOCK, dtype=torch.long, device=dev)
         mw2_T = self._mw2_T(dt)                                  # [rank_m, VOCAB]
         for i in range(BLOCK):
+            prev_tok[:, i] = out[:, i]
             emb = self._mw1(out[:, i]).to(dev, dt)               # [b, rank_m]
             li = (base[:, i] + emb @ mw2_T) / max(temp, 1e-5)
             out[:, i + 1] = li.argmax(-1)
+        if return_conf:
+            conf_logits, conf_scores = self.confidence_logits(h, prev_tok)
+            return out, base, conf_logits, conf_scores
         return out, base
 
 
@@ -122,7 +145,8 @@ def build_head(dspark_path: str, target_path: str, device, lora_rank: int = 0,
     norm_w = T["mtp.2.norm.weight"][0]
     mw1 = T["mtp.2.markov_head.markov_w1.weight"][0]
     mw2 = T["mtp.2.markov_head.markov_w2.weight"][0]
+    conf_proj = T["mtp.2.confidence_head.proj.weight"][0]
     _, tinfos, tdoff = index_gguf(target_path)
     lm_head = read_tensor(target_path, tinfos, tdoff, "output.weight").astype(np.float32)
-    head = DrafterHead(hc_fn, hc_scale, hc_base, norm_w, mw1, mw2, lm_head, lora_rank=lora_rank)
+    head = DrafterHead(hc_fn, hc_scale, hc_base, norm_w, mw1, mw2, conf_proj, lm_head, lora_rank=lora_rank)
     return head.to(device=device, dtype=dtype)

@@ -84,7 +84,12 @@ dossier.
 - **Lead 01 (anchor reuse):** still holds — reuse does not collapse acceptance — but the
   *realistic* K=4 edge it feeds is now ~0.98× (cycle-jump), not the ~−0.9% sliding estimate.
 - **Lead 02 (confidence-scheduled verification):** the cycle-jump acceptance (2.198) is the
-  honest input, not the sliding 2.337.
+  honest input, not the sliding 2.337. Lead 02 is now resolved:
+  `summaries/confidence_scheduled_verification.md`. Out-of-sample replay
+  (train-fit STS -> eval threshold choice -> fresh lead3 evaluation) says scheduling is
+  **non-viable under shipped accounting** and only a **small stacking lever under anchor
+  reuse** (`~1.037×` frozen-threshold, `~1.052×` expected-opt on fresh lead3), not a
+  gate-reviving win.
 - **Lead 05 (verifier engineering):** the binding question is now sharper — K=4 is ~0.98× on
   the realistic trajectory, so the verifier must either raise acceptance (drafter) or cut
   residual overhead to flip it positive; and the cycle-jump/drafter-state-pollution gap
