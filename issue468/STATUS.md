@@ -60,7 +60,7 @@ Create a trustworthy active dossier that makes it easy to:
   - lead (resolved, archived): `issue468/archive/leads/lead_01_anchor_reuse_falsifier.md`
 - Acceptance statistical power + realistic-trajectory (Lead 03; powered measurement + cycle-jump correction):
   - summary: `issue468/summaries/acceptance_statistical_power.md` (canonical result)
-  - worklog: `issue468/pending/lead_03_acceptance_statistical_power.md` (running; stays in pending/)
+  - worklog (resolved, archived): `issue468/archive/leads/lead_03_acceptance_statistical_power.md`
   - harness: `run_lead03_torch_measure.py` (torch/MPS), `run_lead03_cyclejump.py` (realistic trajectory), `run_lead03_aggregate.py`, `run_lead03_trajectory.py`, `run_lead03_sample_corpus.py`; store `dspark_oracle/stage2_capture_store.py` (multi-dir merge); torch port fix `dspark_train/drafter_body.py` (hc_post)
   - artifacts: `issue468/artifacts/acceptance_powered/` (combined300/{aggregate,cyclejump,trajectory}.json, stage2_torch_measure/, lead3_new_shards/ via `dspark_train/data/`, torch_measure/torch_precision_gate.json, codex_reviews/)
   - model: `model_spec_speedup.py` refreshed + `artifacts/spec_speedup_model/model_inputs.json` (powered sliding + `lead03_cyclejump_realistic`)

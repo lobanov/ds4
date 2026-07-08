@@ -10,7 +10,7 @@ READ FIRST:
 - issue468/artifacts/spec_speedup_model/model_inputs.json  (sliding prefix_hist + lead03_cyclejump_realistic)
 - issue468/artifacts/acceptance_powered/combined300/{aggregate.json,cyclejump.json}  (300-prompt powered data)
 - issue468/artifacts/acceptance_powered/stage2_torch_measure/cyclejump.json  (240-prompt, for consistency)
-- issue468/pending/lead_03_acceptance_statistical_power.md  (worklog: GATE-1 cycle-jump correction history)
+- issue468/archive/leads/lead_03_acceptance_statistical_power.md  (worklog: GATE-1 cycle-jump correction history)
 
 RECAP: Lead 03 powered the acceptance measurement (300 prompts: Stage 2's 240 dolly/codealpaca/jsonex
 + 60 new; 128-tok temp=0) via a torch/MPS port precision-gated at 100% draft-token agreement vs the

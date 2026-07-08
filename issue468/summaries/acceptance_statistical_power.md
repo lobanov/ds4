@@ -5,7 +5,7 @@ GATE-2 edits). Harness: `run_lead03_torch_measure.py` (torch/MPS, precision-gate
 `run_lead03_cyclejump.py` (realistic trajectory) + `run_lead03_aggregate.py`. Artifacts:
 `issue468/artifacts/acceptance_powered/` (combined300/{aggregate,cyclejump,trajectory}.json,
 stage2_torch_measure/, torch_measure/torch_precision_gate.json, codex_reviews/). Worklog:
-`issue468/pending/lead_03_acceptance_statistical_power.md`.
+`issue468/archive/leads/lead_03_acceptance_statistical_power.md`.
 
 ## Question
 

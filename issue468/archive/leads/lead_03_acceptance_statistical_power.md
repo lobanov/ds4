@@ -1,7 +1,9 @@
 # Lead 03 — Acceptance statistical power + realistic-trajectory measurement
 
-Date: 2026-07-07. Status: **in progress** (worklog; goal `mras0t7x-e5byoo`). De-risks
-every other lead; can run in parallel with leads 01/02.
+Date: 2026-07-07. Status: **resolved & archived 2026-07-07** (moved from `issue468/pending/`;
+goal `mras0t7x-e5byoo` complete). This file served as the **running worklog** during the
+goal. Canonical result: `issue468/summaries/acceptance_statistical_power.md`. Originally:
+de-risks every other lead; can run in parallel with leads 01/02.
 
 ## Rationale
 

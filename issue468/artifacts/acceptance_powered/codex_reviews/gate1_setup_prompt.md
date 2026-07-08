@@ -10,7 +10,7 @@ READ FIRST:
 - issue468/artifacts/acceptance_powered/stage2_torch_measure/trajectory.json  (predicted vs correction anchor)
 - issue468/artifacts/acceptance_powered/torch_measure/torch_precision_gate.json  (torch-vs-numpy parity)
 - issue468/summaries/spec_speedup_model.md  (the model being refreshed; K=4 break-even E[a|4]=2.203)
-- issue468/pending/lead_03_acceptance_statistical_power.md  (worklog: the torch hc_post bug fix + findings)
+- issue468/archive/leads/lead_03_acceptance_statistical_power.md  (worklog: the torch hc_post bug fix + findings)
 
 CODE: issue468/run_lead03_torch_measure.py (torch acceptance harness), run_lead03_aggregate.py
 (aggregate + power calc), run_lead03_trajectory.py (trajectory partition), dspark_train/drafter_body.py
