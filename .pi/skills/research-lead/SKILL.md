@@ -1,6 +1,6 @@
 ---
 name: research-lead
-description: Playbook for executing a research lead in the issue468 dossier (a `pending/lead_*.md`). Use when assigned or resuming a lead. Distills hard-won lessons from Leads 01 and 03 — orient and verify assets before acting; lock the decision rule + estimator before measuring; fidelity-gate every implementation change; run codex gates at setup AND verdict for decision-grade work and independently verify their findings; report CIs + per-source (corpus drives the verdict); single-process memory discipline on the shared machine; propagate honestly (canonical summary + STATUS + sweep downstream stale numbers + commit on dspark-research); **archive the lead on completion** (move to `archive/leads/`, sweep every link); **add a notation/glossary section to table- or formula-heavy summaries** so every symbol/estimator is unambiguous on a later read.
+description: Playbook for executing a research lead in the issue468 dossier (a `pending/lead_*.md`). Use when assigned or resuming a lead.
 ---
 
 # Research lead execution
@@ -75,7 +75,15 @@ for the gates.
    help — diversity might. *Lead 03: dolly/codealpaca/jsonex per-source E[a|4] spanned
    2.22–2.51; the old code/synthesis corpus was 2.175 (harder). The verdict was
    corpus-limited, so chasing N was over-powered.*
-8. **Single-process memory discipline.** This is a shared ~128 GB Apple-Silicon box
+8. **The regime is part of the result.** For any headline number, record **which
+   estimator, which accounting regime, and which policy/sample provenance** produced
+   it. "1.04x" is incomplete; "anchor-reuse accounting, frozen threshold chosen on
+   eval and replayed on lead3, 1.0375x" is decision-grade. This matters most for
+   adaptive-policy leads where shipped vs optimized accounting, in-sample vs frozen
+   policy, and deployable vs diagnostic policy can move the headline. *Lead 02:
+   the same scheduler family ranged from shipped-losing to anchor-reuse-fragile
+   depending on those qualifiers.*
+9. **Single-process memory discipline.** This is a shared ~128 GB Apple-Silicon box
    running an 87 GB model. **NEVER run two heavy processes concurrently** (e.g. a
    multi-worker Python measurement + `ds4` loading the model, or two `ds4` captures).
    Know each tool's memory profile (per-call expert dequant spikes; mmap'd GGUFs; the
@@ -83,11 +91,16 @@ for the gates.
    retry the same way.** *Lead 03: two machine restarts from oversubscription →
    switched the numpy oracle (per-expert re-dequant) to a torch/MPS port (experts
    loaded once).*
-9. **Add a notation/glossary section to every table- or formula-heavy summary.** Define
+10. **Add a notation/glossary section to every table- or formula-heavy summary.** Define
    every symbol and term up front — estimator-qualified metrics (sliding vs cycle-jump
    `E[a|K]`), `S(K)`, costs (`decode_ms`/`verify_ms`), break-even, `CI`, `P(speed<1)`,
    per-source — so a number like "E[a|4]=2.2" is unambiguous on a later read. The
    glossary is the quick-reference; a separate prose section can hold the reasoning.
+11. **Separate deployable evidence from diagnostic ceilings.** For adaptive or policy
+   leads, explicitly label each result tier: deployable frozen policy, in-sample tuned
+   policy, offline expected-value policy, oracle/upper bound. Do **not** headline a
+   weaker tier as if it were stronger. *Lead 02: the frozen threshold was the clean
+   evidence; expected-opt was diagnostic; oracle was only a ceiling.*
 
 ## Workflow
 
@@ -126,9 +139,34 @@ for the gates.
 8. **Propagate honestly + completely.** Write a canonical `summaries/<topic>.md`;
    update `STATUS.md` (conclusions + inventory); update `spec_speedup_model.md` (or
    whatever model the lead feeds) with the new numbers; **sweep downstream docs for
-   stale numbers the finding changes** and flag them. Keep the lead file as the
+   stale numbers the finding changes** and flag them. When a resolved lead changes a
+   canonical model/result summary, **rewrite that summary into the best current single
+   account** rather than layering a "Lead NN update" overlay on top of superseded
+   framing. Keep the lead file as the
    worklog (it stays in `pending/` until the goal completes). On completion, archive
    it to `archive/leads/` (update header + all links). **Commit on `dspark-research`.**
+
+## Adaptive-policy evidence ladder
+
+For any lead that evaluates an adaptive policy / scheduler / controller, report the
+result tier explicitly and keep the headline attached to the strongest deployable tier
+you actually measured:
+
+1. **Oracle / upper bound** — chooses using realized future information. Ceiling only.
+2. **Offline expected-value / expected-opt policy** — chooses from a modeled expectation
+   using current-cycle features. Diagnostic, useful for value estimation, but not the
+   clean deployment claim.
+3. **In-sample tuned policy** — threshold/hyperparameter chosen and evaluated on the same
+   slice. Useful for search, not the headline evidence.
+4. **Frozen out-of-sample policy** — policy/threshold chosen on one slice and replayed
+   unchanged on a fresh slice. This is usually the cleanest offline deployable-ish
+   evidence.
+5. **Live/implemented measurement** — policy actually executed in the target system.
+   Strongest evidence when available.
+
+When several tiers are present, lead with the strongest deployable tier you measured and
+place diagnostic tiers after it. Never let oracle or expected-opt displace a weaker but
+more decision-relevant frozen-policy result.
 
 ## Lead archival (on completion) — checklist
 
@@ -179,11 +217,18 @@ Don't let them drift — numbers must match.
   needs an upfront **Notation & definitions** section defining every symbol
   (estimator-qualified metrics, `S(K)`, break-even, `CI`, costs), not just an in-line
   mention.
+- **Never report a headline number without its qualifiers.** At minimum: estimator,
+  accounting regime, policy tier/provenance, and sample/split when those can change the
+  conclusion.
 - **Never commit research/engine work to an upstream feature branch.** Land it on
   `dspark-research`.
 - **Never leave stale numbers downstream.** A lead that changes a headline number
   must sweep the docs that cite the old one (other `pending/leads`, `STATUS.md`, the
   model summary) and flag the supersession.
+- **Never integrate a resolved lead as an overlay if it changes a canonical model.**
+  Rewrite the target summary so it reads as one coherent current account.
+- **Never present oracle / expected-opt / in-sample-tuned policy results as if they were
+  frozen out-of-sample or deployed evidence.** Label the policy tier explicitly.
 
 ## Anti-patterns (from experience)
 
