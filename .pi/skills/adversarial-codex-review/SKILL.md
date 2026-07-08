@@ -148,6 +148,7 @@ OUTPUT (terse, evidence-based):
 
 ## Notes & guardrails
 
+- **Security.** NEVER share any secrets/tokens/passwords with codex.
 - **Verify, don't defer.** codex is a strong but fallible second pair of eyes,
   not an oracle. The skill's value is the *independent verification* step, not
   the raw codex output. Never report a codex finding as fact without your own
