@@ -10825,8 +10825,21 @@ static bool metal_graph_debug_wants(const char *name, uint32_t il, uint32_t pos)
     if (name_env && name_env[0] && strstr(name_env, name) == NULL) return false;
 
     const char *layer_env = getenv("DS4_METAL_GRAPH_DUMP_LAYER");
-    if (layer_env && layer_env[0] && strcmp(layer_env, "all") != 0 &&
-        (uint32_t)strtoul(layer_env, NULL, 10) != il) return false;
+    if (layer_env && layer_env[0] && strcmp(layer_env, "all") != 0) {
+        /* Accept a comma/space-separated list (e.g. "40,41,42"); a bare int still
+         * works. Research instrumentation for Stage 2 dataset capture. */
+        bool layer_match = false;
+        const char *lp = layer_env;
+        while (*lp) {
+            char *lend;
+            unsigned long lv = strtoul(lp, &lend, 10);
+            if (lend == lp) break;
+            if ((uint32_t)lv == il) { layer_match = true; break; }
+            lp = lend;
+            while (*lp == ',' || *lp == ' ' || *lp == '\t') lp++;
+        }
+        if (!layer_match) return false;
+    }
 
     const char *pos_env = getenv("DS4_METAL_GRAPH_DUMP_POS");
     if (pos_env && pos_env[0] && (uint32_t)strtoul(pos_env, NULL, 10) != pos) return false;

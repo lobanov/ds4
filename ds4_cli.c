@@ -24,6 +24,7 @@
 #include <stdarg.h>
 #include <time.h>
 #include <unistd.h>
+#include <sys/stat.h>
 
 typedef struct {
     const char *prompt;
@@ -43,6 +44,9 @@ typedef struct {
     const char *imatrix_output_path;
     int imatrix_max_prompts;
     int imatrix_max_tokens;
+    const char *capture_dataset_path;
+    const char *capture_out_dir;
+    const char *capture_layers;
     ds4_think_mode think_mode;
     bool head_test;
     bool first_token_test;
@@ -800,6 +804,85 @@ static int run_logprob_dump(ds4_engine *engine, const cli_config *cfg, const ds4
     free(scores);
     ds4_session_free(session);
     return 0;
+}
+
+/* Activity 2 research instrumentation: load the model once and, for each prompt
+ * listed in the list file (one "id<TAB>path" per line), capture the chat-rendered
+ * greedy-continuation top-k logprobs (via run_logprob_dump) AND the
+ * DS4_METAL_GRAPH_DUMP hidden states for `layers` (default 40,41,42) in a single
+ * decode pass per prompt (multi-layer comma-list patch in ds4.c). Reuses
+ * run_logprob_dump's per-prompt session cycle verbatim. */
+static int run_capture_dataset(ds4_engine *engine, const cli_config *cfg) {
+    if (!cfg->gen.capture_dataset_path || !cfg->gen.capture_out_dir) {
+        fprintf(stderr, "ds4: --capture-dataset requires --capture-out\n");
+        return 1;
+    }
+    const char *layers = (cfg->gen.capture_layers && cfg->gen.capture_layers[0])
+                         ? cfg->gen.capture_layers : "40,41,42";
+    setenv("DS4_METAL_GRAPH_DUMP_NAME", "hc_ffn_post", 1);
+    setenv("DS4_METAL_GRAPH_DUMP_LAYER", layers, 1);
+    mkdir(cfg->gen.capture_out_dir, 0755);  /* best-effort; orchestrator also pre-creates */
+
+    FILE *lf = fopen(cfg->gen.capture_dataset_path, "r");
+    if (!lf) {
+        fprintf(stderr, "ds4: cannot open --capture-dataset list %s\n", cfg->gen.capture_dataset_path);
+        return 1;
+    }
+    int top_k = cfg->gen.dump_logprobs_top_k > 0 ? cfg->gen.dump_logprobs_top_k : 128;
+    if (top_k > 128) top_k = 128;
+
+    char line[8192];
+    int n_done = 0, n_fail = 0, n = 0;
+    while (fgets(line, sizeof(line), lf)) {
+        size_t L = strlen(line);
+        while (L && (line[L-1] == '\n' || line[L-1] == '\r' || line[L-1] == ' ' || line[L-1] == '\t'))
+            line[--L] = 0;
+        if (!L || line[0] == '#') continue;
+        char *tab = strchr(line, '\t');
+        if (!tab) {
+            fprintf(stderr, "ds4: capture: skipping malformed line (expected id<TAB>path): %s\n", line);
+            n_fail++;
+            continue;
+        }
+        *tab = 0;
+        const char *id = line;
+        char *path = tab + 1;
+
+        char *text = read_prompt_file(path, false);
+        if (!text) {
+            fprintf(stderr, "ds4: capture [%s]: cannot read %s, skipping\n", id, path);
+            n_fail++;
+            continue;
+        }
+        ds4_tokens prompt = {0};
+        cli_config per = *cfg;
+        per.gen.prompt = text;
+        build_prompt(engine, &per.gen, &prompt);
+        free(text);
+        if (prompt.len <= 0) {
+            fprintf(stderr, "ds4: capture [%s]: empty prompt, skipping\n", id);
+            ds4_tokens_free(&prompt);
+            n_fail++;
+            continue;
+        }
+
+        char topk_path[2048], prefix[2048];
+        snprintf(topk_path, sizeof(topk_path), "%s/%s.topk.json", cfg->gen.capture_out_dir, id);
+        snprintf(prefix, sizeof(prefix), "%s/%s", cfg->gen.capture_out_dir, id);
+        per.gen.dump_logprobs_path = topk_path;
+        per.gen.dump_logprobs_top_k = top_k;
+        setenv("DS4_METAL_GRAPH_DUMP_PREFIX", prefix, 1);
+
+        n++;
+        fprintf(stderr, "ds4: capture [%d] %s (prompt_tokens=%d, layers=%s)\n", n, id, prompt.len, layers);
+        int rc = run_logprob_dump(engine, &per, &prompt);
+        ds4_tokens_free(&prompt);
+        if (rc == 0) n_done++;
+        else { n_fail++; fprintf(stderr, "ds4: capture [%s] FAILED (rc=%d)\n", id, rc); }
+    }
+    fclose(lf);
+    fprintf(stderr, "ds4: capture complete: %d ok, %d failed (%d attempted)\n", n_done, n_fail, n);
+    return n_fail ? 1 : 0;
 }
 
 static int run_perplexity_file(ds4_engine *engine, const cli_config *cfg) {
@@ -1577,6 +1660,13 @@ static cli_config parse_options(int argc, char **argv) {
             c.gen.imatrix_max_prompts = parse_int(need_arg(&i, argc, argv, arg), arg);
         } else if (!strcmp(arg, "--imatrix-max-tokens")) {
             c.gen.imatrix_max_tokens = parse_int(need_arg(&i, argc, argv, arg), arg);
+        } else if (!strcmp(arg, "--capture-dataset")) {
+            c.gen.capture_dataset_path = need_arg(&i, argc, argv, arg);
+            c.engine.backend = DS4_BACKEND_METAL;
+        } else if (!strcmp(arg, "--capture-out")) {
+            c.gen.capture_out_dir = need_arg(&i, argc, argv, arg);
+        } else if (!strcmp(arg, "--capture-layers")) {
+            c.gen.capture_layers = need_arg(&i, argc, argv, arg);
         } else if (!strcmp(arg, "--think")) {
             c.gen.think_mode = DS4_THINK_HIGH;
         } else if (!strcmp(arg, "--think-max")) {
@@ -1710,6 +1800,8 @@ int main(int argc, char **argv) {
                                         cfg.gen.imatrix_max_tokens);
     } else if (cfg.gen.perplexity_file_path) {
         rc = run_perplexity_file(engine, &cfg);
+    } else if (cfg.gen.capture_dataset_path) {
+        rc = run_capture_dataset(engine, &cfg);
     } else if (cfg.gen.prompt == NULL) {
         rc = run_repl(engine, &cfg);
     } else {
