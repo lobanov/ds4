@@ -6,7 +6,7 @@
       "E_a_K_pooled_cycle_weighted": 1.40771,
       "E_a_K_per_prompt_mean": 1.42905,
       "S_K_pooled": 0.63319,
-      "speedup_optimized_verifier": 0.6785,
+      "speedup_optimized_verifier": 0.89349,
       "clustered_ci95_per_prompt_E_a_K": [
         1.40838,
         1.44987
@@ -15,17 +15,17 @@
         "codealpaca": {
           "E_a_K": 1.39846,
           "S_K": 0.62902,
-          "speedup": 0.67669
+          "speedup": 0.89144
         },
         "dolly": {
           "E_a_K": 1.34818,
           "S_K": 0.59745,
-          "speedup": 0.66846
+          "speedup": 0.88311
         },
         "jsonex": {
           "E_a_K": 1.47703,
           "S_K": 0.67338,
-          "speedup": 0.69022
+          "speedup": 0.90571
         }
       }
     },
@@ -35,7 +35,7 @@
       "E_a_K_pooled_cycle_weighted": 1.88623,
       "E_a_K_per_prompt_mean": 1.93597,
       "S_K_pooled": 0.48278,
-      "speedup_optimized_verifier": 0.84935,
+      "speedup_optimized_verifier": 0.91234,
       "clustered_ci95_per_prompt_E_a_K": [
         1.90014,
         1.97231
@@ -44,17 +44,17 @@
         "codealpaca": {
           "E_a_K": 1.88375,
           "S_K": 0.48559,
-          "speedup": 0.84792
+          "speedup": 0.91075
         },
         "dolly": {
           "E_a_K": 1.78228,
           "S_K": 0.43767,
-          "speedup": 0.82977
+          "speedup": 0.8922
         },
         "jsonex": {
           "E_a_K": 1.9952,
           "S_K": 0.52602,
-          "speedup": 0.87034
+          "speedup": 0.93402
         }
       }
     },
@@ -87,13 +87,12 @@
         }
       },
       "speedup_ci95": [
-        0.9711,
-        0.9931
+        0.97114,
+        0.99308
       ],
       "P_speedup_below_1": 0.999,
-      "dynamic_break_even_E_a_4": 2.25591,
-      "deficit_vs_break_even": 0.05831,
-      "bootstrap_note": "cycle-jump speedup bootstrap (resample 300 prompts, recompute pooled E/S/speed); independently verified + matches codex GATE-2."
+      "dynamic_break_even_E_a_4": 2.25558,
+      "deficit_vs_break_even": 0.05798
     },
     "K5": {
       "n_cycles": 10279,
@@ -101,7 +100,7 @@
       "E_a_K_pooled_cycle_weighted": 2.42154,
       "E_a_K_per_prompt_mean": 2.53633,
       "S_K_pooled": 0.23222,
-      "speedup_optimized_verifier": 1.08703,
+      "speedup_optimized_verifier": 0.98257,
       "clustered_ci95_per_prompt_E_a_K": [
         2.47038,
         2.6041
@@ -110,17 +109,17 @@
         "codealpaca": {
           "E_a_K": 2.42239,
           "S_K": 0.24198,
-          "speedup": 1.08394
+          "speedup": 0.98007
         },
         "dolly": {
           "E_a_K": 2.24277,
           "S_K": 0.19811,
-          "speedup": 1.04152
+          "speedup": 0.94045
         },
         "jsonex": {
           "E_a_K": 2.6102,
           "S_K": 0.25804,
-          "speedup": 1.13763
+          "speedup": 1.02912
         }
       }
     }
@@ -128,7 +127,14 @@
   "model_constants": {
     "decode_ms": 26.0,
     "draft_ms": 10.0,
-    "verify_ms_k4": 65.8,
+    "verify_ms": {
+      "1": 26.0,
+      "2": 43.6,
+      "3": 59.7,
+      "4": 65.8,
+      "5": 74.5,
+      "6": 79.6
+    },
     "note": "optimized/anchor-reuse verifier cost: draft+verify+decode*S(K); speedup=(E[a|K]+1)*decode/cost"
   }
 }

@@ -141,15 +141,19 @@ Create a trustworthy active dossier that makes it easy to:
   overhead, and a powered K=4 non-inferiority bound. The −0.9% edge stays the optimistic
   edge of the band, now with the acceptance-axis risk downgraded from 'unverified /
   load-bearing' to 'no large collapse seen, non-inferiority not yet established.'
-- **Speculative speedup is acceptance-limited; the current drafter is ~2 pp from
-  beating baseline at K=4 with an optimized verifier.** Corrected cycle model
-  (`summaries/spec_speedup_model.md`): the verify forward produces the next anchor,
-  so a fresh decode is needed only on full-block acceptance (cost =
-  draft+verify+decode·S(K)). With the current drafter K=4 is at **break-even
-  (−0.9%)**, and beating baseline needs only ~79% per-position acceptance (current
-  ~77%); the +20% gate needs ~89-94% (K=5/K=4). The shipped `--mtp` implementation
-  pays a redundant anchor decode every cycle (~−18 pp at K=4) — a verifier that
-  reuses the verify-produced anchor is a real lever. A 4-node draft tree still
+- **Speculative speedup is acceptance-limited; with the realistic-trajectory (Lead 03)
+  acceptance, the current drafter does NOT beat baseline at any K (~0.98× at K=4/5).**
+  Corrected cycle model (`summaries/spec_speedup_model.md`, holistically integrated with
+  Leads 01+03): the verify forward produces the next anchor, so a fresh decode is needed
+  only on full-block acceptance (cost = draft+verify+decode·S(K)). Two acceptance
+  estimators on the 300-prompt powered corpus: sliding (optimistic) E[a|4]=2.337 -> K=4
+  +1.2%; **cycle-jump (realistic per-cycle trajectory) E[a|4]=2.198, S(4)=0.340 -> K=4
+  0.982× (−1.8%), CI [0.971,0.993], P(speed<1)=0.999** — significantly below baseline;
+  dynamic break-even E[a|4]=2.256 (deficit 0.058). Corpus-dependent (cycle-jump K=4:
+  jsonex +2.3%, codealpaca −1.9%, dolly −5.6%). The shipped `--mtp` pays a redundant
+  anchor decode every cycle (~−18 pp at K=4) — anchor reuse (acceptance-axis de-risked
+  by Lead 01, verifier economics untested = Lead 05) is the largest lever, but it would
+  feed a ~0.98× realistic edge, not the old sliding −0.9%. A 4-node draft tree still
   cannot help (ceiling +2.2%, dominated by a linear chain; hedging is doubly
   penalized). Levers: verifier-anchor reuse + a materially better drafter (training,
   not quantization) or server-side batching. **The headline is conditional on the

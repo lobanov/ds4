@@ -26,7 +26,9 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE / "dspark_oracle"))
 BLOCK = 5
 # model cost constants (spec_speedup_model, optimized/anchor-reuse verifier)
-DECODE_MS, DRAFT_MS, VERIFY_MS = 26.0, 10.0, 65.8
+DECODE_MS, DRAFT_MS = 26.0, 10.0
+# verify_ms(K): cross-prompt median of mtp_verifier_bench_long (must match model_spec_speedup.py)
+VERIFY_MS = {1: 26.0, 2: 43.6, 3: 59.7, 4: 65.8, 5: 74.5, 6: 79.6}
 
 
 def prefix_k(draft, tgt, k):
@@ -51,7 +53,7 @@ def simulate_prompt(drafts, tt, K):
 
 
 def speedup_of(Ea, SK, K):
-    cost = DRAFT_MS + VERIFY_MS + DECODE_MS * SK
+    cost = DRAFT_MS + VERIFY_MS[K] + DECODE_MS * SK
     return (Ea + 1) * DECODE_MS / cost
 
 
@@ -67,7 +69,7 @@ def main() -> int:
     store = Stage2CaptureStore(args.shards)
     rows = [json.loads(f.read_text()) for f in sorted(Path(args.per_prompt_dir).glob("*.json"))]
 
-    out = {"K_values": {}, "model_constants": {"decode_ms": DECODE_MS, "draft_ms": DRAFT_MS, "verify_ms_k4": VERIFY_MS,
+    out = {"K_values": {}, "model_constants": {"decode_ms": DECODE_MS, "draft_ms": DRAFT_MS, "verify_ms": VERIFY_MS,
             "note": "optimized/anchor-reuse verifier cost: draft+verify+decode*S(K); speedup=(E[a|K]+1)*decode/cost"}}
     for K in (2, 3, 4, 5):
         per_prompt_ea = []; all_accept = []; per_source = {}
