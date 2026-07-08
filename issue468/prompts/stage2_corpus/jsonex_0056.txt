@@ -1,0 +1,3 @@
+Extract the key information about the artwork from the provided technical specification into a JSON format.
+
+The "Starlight Sonata" is a contemporary oil painting created by the renowned artist Eliana Rosewood. Featuring a captivating night sky filled with swirling, luminous stars, the painting showcases Rosewood's signature style of vibrant, expressive brushstrokes. Executed on a large canvas, the work is an embodiment of the artist's interpretation of the natural world's ethereal beauty. The "Starlight Sonata" is a stunning example of the Impressionist movement, capturing the fleeting, atmospheric qualities of the night sky in a visually striking manner.

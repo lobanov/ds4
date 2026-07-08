@@ -1,0 +1,3 @@
+Given a reference text about Margot Robbie, tell me when they were born and what they are famous for.
+
+Margot Elise Robbie (/ˈmɑːrɡoʊ ˈrɒbi/; born 2 July 1990) is an Australian actress and producer. Known for her work in both blockbuster and independent films, she has received various awards and nominations, including nominations for two Academy Awards, four Golden Globe Awards, and five British Academy Film Awards. Time magazine named her one of the 100 most influential people in the world in 2017 and she was ranked as one of the world's highest-paid actresses by Forbes in 2019.

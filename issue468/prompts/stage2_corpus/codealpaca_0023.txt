@@ -1,0 +1,3 @@
+Visualize the following dataset using a bar chart in matplotlib.
+labels = ['A', 'B', 'C', 'D', 'E', 'F']
+values = [8, 5, 7, 12, 4, 10]

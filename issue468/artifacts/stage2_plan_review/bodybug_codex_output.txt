@@ -1,0 +1,2266 @@
+OpenAI Codex v0.142.5
+--------
+workdir: /Users/lobanov/Projects/ds4-dspark-research
+model: gpt-5.5
+provider: openai
+approval: never
+sandbox: read-only
+reasoning effort: xhigh
+reasoning summaries: none
+session id: 019f38e5-9e75-7662-8be0-be4330004e41
+--------
+user
+You are a skeptical senior engineer hunting a SUBTLE BUG in a torch port of a numpy
+ML drafter forward. Find the systematic divergence. Be terse. Your decisive claims
+will be INDEPENDENTLY re-verified by the dispatcher, so prioritize runnable checks.
+
+WORKTREE: /Users/lobanov/Projects/ds4-dspark-research. Venvs:
+- `issue468/dspark_train/.venv` (torch 2.12.1 + numpy) — the TORCH PORT.
+- `issue468/dspark_oracle/.venv` (numpy) — the NUMPY ORACLE (ground truth).
+
+FILES:
+- TORCH PORT (suspect): `issue468/dspark_train/drafter_body.py`  (DrafterBody + helpers)
+- NUMPY GROUND TRUTH (read these, trust them):
+  - `issue468/dspark_oracle/measure_acceptance_bundle.py`  (the forward loop + inline `dspark_attn`)
+  - `issue468/dspark_oracle/forward.py`            (forward_embed/forward_head, constants HC/DIM/BLOCK)
+  - `issue468/dspark_oracle/attention.py`          (apply_rotary, sparse_attn, dspark_attention)
+  - `issue486/dspark_oracle/moe.py`                (gate, swiglu_expert, moe)
+  - `issue468/dspark_oracle/hc_primitives.py`      (rmsnorm, hc_pre/hc_post/hc_split_sinkhorn, hc_head)
+  - `issue468/dspark_oracle/expert_store.py` + `gguf_loader.py` (dequant_q4_k_expert)
+- DEBUG HARNESS + ARTIFACTS:
+  - `issue468/dspark_train/run_body_debug.py`      (per-layer x diff: numpy vs torch)
+  - `issue468/dspark_train/run_body_fidelity.py`, `run_body_acceptance.py`
+  - `issue468/dspark_train/data/exactness_features.npz`  (numpy oracle's true x per anchor)
+  - `issue468/dspark_train/data/drafter_body_weights.npz` (cached loaded weights)
+
+SYMPTOM (measured):
+- The torch body forward runs end-to-end and is STRUCTURALLY close, but on the
+  exactness corpus, per-anchor pre-head feature x diverges from the numpy oracle:
+  layer 0 max-abs-diff 0.14 (mean 0.005, |x|~2), AMPLIFYING across the 3 residual
+  layers -> layer 1 max 4.8, layer 2 max 110. So layer-0 has a small but NON-zero
+  systematic error that the residual stack amplifies.
+- Consequence: torch-drafter (body+head) p=1 = 0.875 vs numpy 0.8125 (6.25 pp
+  HIGHER — systematic, not noise).
+- The HEAD port alone is bit-faithful (argmax 100%, base max-abs 3e-5 vs numpy
+  forward_head) — so the bug is in the BODY, not the head.
+
+YOUR MANDATE — find the SYSTEMATIC bug at layer 0 (the 0.14 max-abs source). The
+likely candidates (verify each by re-deriving from numpy and running an isolated
+component test on identical input):
+1. RoPE (apply_rotary): cos/sin shaping for q [1,block,heads,32] vs kv [1,block,32]
+   vs window-kv [32]; the per-position slice `cos[step+1:step+1+block]`; the inverse
+   rotary on the output (`-sin`). Off-by-one in position index? Wrong broadcast axis?
+2. hc_post: the comb/residual mixing axis semantics. numpy: `(comb[...,None] *
+   residual[...,None,:]).sum(axis=-2)`. torch port: `(comb.unsqueeze(-1) *
+   residual.unsqueeze(-3)).sum(-2)`. Is the einsum/axis equivalent? (comb is
+   [b,s,hc,hc]; residual [b,s,hc,d]; output [b,s,hc,d]).
+3. hc_pre / hc_split_sinkhorn: pre/post/comb slicing, sigmoid, the Sinkhorn
+   iteration count/axes, the rsqrt normalization.
+4. MLA attention (`dspark_attn`): q_a/q_b/kv projections, per-head RMSNorm on q
+   (`q * 1/sqrt(mean(q^2))`), sparse_attn with sinks (the sink max/softmax denom),
+   the grouped output projection `output_a.reshape(8,1024,4096)` + einsum
+   `bsgd,grd->bsgr` + output_b. Numpy uses measure_acceptance_bundle's INLINE
+   dspark_attn (NOT attention.py's dspark_attention) — compare to the RIGHT one.
+5. MoE: gate routing (softplus->sqrt, bias for topk only, weights from ORIGINAL
+   scores, *1.5), SwiGLU clamp (gate max-only, up both), and CRITICALLY the expert
+   weight orientation — dequant_q4_k_expert returns [out,in] (applied as x@W.T);
+   check the torch port's `exp_gate[ids].transpose(1,2)` etc. match (gate/up are
+   [inter,dim], down is [dim,inter]). Shared expert.
+6. main_proj / embed / KV-window init and per-step update (positions, rope index
+   per step).
+
+HOW TO VERIFY (run read-only python; both venvs available):
+- Isolate ONE component (e.g., feed identical hc_pre input to numpy hc_pre and
+  torch hc_pre, diff). Or instrument run_body_debug.py to dump x AFTER the
+  attention (before MoE) at layer 0 for one anchor, and AFTER the MoE, to bisect
+  whether the 0.14 originates in the attn/hc path or the MoE path.
+- The numpy side MUST use the oracle primitives verbatim (import from
+  dspark_oracle) so the reference is the real ground truth.
+- GGUF paths: /Users/lobanov/Projects/ds4/gguf/{dspark.gguf,
+  DeepSeek-V4-Flash-IQ2XXS-w2Q2K-AProjQ8-SExpQ8-OutQ8-chat-v2-imatrix.gguf}.
+
+CONSTRAINTS: read-only; do not modify tracked files. Run python -c / inline scripts.
+
+OUTPUT (terse, evidence-based):
+## The bug (the single most likely systematic divergence, with the exact line in
+   drafter_body.py vs the numpy reference, and the one-line fix)
+## Evidence (the isolated component test you ran + the diff it produced)
+## Confidence + any secondary candidates
+## If you believe it is NOT a logic bug but pure float32 BLAS amplification, say so
+   explicitly and give the test that distinguishes bug-vs-chaos (e.g., float64).
+
+codex
+I’ll read the suspect torch body and the oracle primitives first, then run narrow component checks in the provided venvs so the final claim is tied to a reproducible diff.
+exec
+/bin/zsh -lc "sed -n '1,260p' issue468/dspark_oracle/measure_acceptance_bundle.py" in /Users/lobanov/Projects/ds4-dspark-research
+exec
+/bin/zsh -lc "sed -n '1,260p' issue468/dspark_oracle/hc_primitives.py" in /Users/lobanov/Projects/ds4-dspark-research
+ succeeded in 0ms:
+#!/usr/bin/env python3
+"""Numpy primitives for the DSpark drafter oracle.
+
+Faithful ports of the reference's HC mixing + RMSNorm + sampling primitives
+(issue468/ref/inference/{model.py,kernel.py}), operating on F32 arrays in GGUF
+ne order (ne[0] innermost). Used by the Phase-4 numpy oracle to validate the
+Metal drafter port (token agreement, greedy argmax).
+
+See issue468/13_phase4_forward_design.md for the full algorithm spec.
+"""
+import numpy as np
+
+HC_EPS = 1e-6
+NORM_EPS = 1e-6
+HC_MULT = 4
+
+
+def rmsnorm(x, weight, eps=NORM_EPS):
+    """RMSNorm over the last axis. x [...,d], weight [d]. Returns f32 [...,d]."""
+    xf = x.astype(np.float32)
+    var = np.mean(xf * xf, axis=-1, keepdims=True)
+    return (xf * (1.0 / np.sqrt(var + eps)) * weight).astype(np.float32)
+
+
+def hc_split_sinkhorn(mixes, hc_scale, hc_base, hc=HC_MULT, sinkhorn_iters=20, eps=HC_EPS):
+    """Port of kernel.py hc_split_sinkhorn. mixes [..., (2+hc)*hc], scale [3],
+    base [(2+hc)*hc] -> (pre [...,hc], post [...,hc], comb [...,hc,hc]).
+
+    pre[j]   = sigmoid(mixes[j]     * scale[0] + base[j])      + eps
+    post[j]  = 2*sigmoid(mixes[j+hc]* scale[1] + base[j+hc])
+    comb[j,k]= mixes[j*hc+k+hc*2]   * scale[2] + base[j*hc+k+hc*2]
+    then: comb = softmax(comb,-1)+eps; comb /= (col_sum+eps);
+          repeat (sinkhorn_iters-1): comb/=(row_sum+eps); comb/=(col_sum+eps).
+    """
+    mix = mixes.astype(np.float32)   # [..., mix_hc]
+    s = hc_scale.astype(np.float32)  # [3]
+    b = hc_base.astype(np.float32)   # [mix_hc]
+    # pre (hc) + post (hc) + comb (hc*hc) consume the (2+hc)*hc mixes in order.
+    pre = 1.0 / (1.0 + np.exp(-(mix[..., :hc] * s[0] + b[:hc]))) + eps
+    post = 2.0 / (1.0 + np.exp(-(mix[..., hc:2*hc] * s[1] + b[hc:2*hc])))
+    comb_flat = mix[..., 2*hc:] * s[2] + b[2*hc:]              # [..., hc*hc]
+    comb = comb_flat.reshape(*comb_flat.shape[:-1], hc, hc)    # [...,hc,hc]
+    # softmax over last axis (rows)
+    comb = comb - comb.max(axis=-1, keepdims=True)
+    comb = np.exp(comb)
+    comb = comb / comb.sum(axis=-1, keepdims=True) + eps
+    # one extra col-normalize (col_sum over axis=-2)
+    col_sum = comb.sum(axis=-2, keepdims=True)
+    comb = comb / (col_sum + eps)
+    # (sinkhorn_iters - 1) rounds of row-then-col normalize
+    for _ in range(sinkhorn_iters - 1):
+        row_sum = comb.sum(axis=-1, keepdims=True)
+        comb = comb / (row_sum + eps)
+        col_sum = comb.sum(axis=-2, keepdims=True)
+        comb = comb / (col_sum + eps)
+    return pre, post, comb
+
+
+def hc_pre(x_hc, hc_fn, hc_scale, hc_base, hc=HC_MULT, eps=NORM_EPS):
+    """Block.hc_pre. x_hc [b,s,hc,d] -> (y [b,s,d], post [b,s,hc], comb [b,s,hc,hc]).
+
+    flat = x_hc.flatten(hc,d) [b,s,hc*d]; mixes = hc_fn(flat)*rsqrt(mean(flat^2)+eps);
+    y = sum(pre[...,None]*x_hc, axis=hc). hc_fn is [hc_mix_dim, hc*d] (GGUF ne:
+    out=hc_mix_dim rows). Linear is x @ hc_fn.T.
+    """
+    b, s, _, d = x_hc.shape
+    flat = x_hc.reshape(b, s, hc * d).astype(np.float32)
+    rsqrt = 1.0 / np.sqrt(np.mean(flat * flat, axis=-1, keepdims=True) + eps)
+    mixes = (flat @ hc_fn.T) * rsqrt            # [b,s,hc_mix_dim] (hc_fn HF [out=24,in=hc*d])
+    pre, post, comb = hc_split_sinkhorn(mixes, hc_scale, hc_base, hc)
+    y = (pre[..., None] * x_hc).sum(axis=2)     # [b,s,d]
+    return y, post, comb
+
+
+def hc_post(x, residual_hc, post, comb, hc=HC_MULT):
+    """Block.hc_post. x [b,s,d], residual [b,s,hc,d], post [b,s,hc], comb [b,s,hc,hc]
+    -> [b,s,hc,d]. y = post[...,None]*x[...,None,:] + sum(comb[...,None]*residual, hc)."""
+    # post[...,None] * x[...,None,:] broadcasts x [b,s,d] -> [b,s,hc,d] via outer
+    y_post = post[..., None] * x[..., None, :]              # [b,s,hc,d]
+    # sum over residual's hc axis (the SECOND-to-last), weighted by comb
+    # comb[j,k] weights residual[k] into output copy j: comb[...,j,k,None]*residual[...,k,:]
+    y_comb = (comb[..., None] * residual_hc[..., None, :]).sum(axis=-2)
+    return y_post + y_comb
+
+
+def hc_head(x_hc, hc_fn, hc_scale, hc_base, hc=HC_MULT, eps=HC_EPS):
+    """Block.hc_head (drafter output stage, SIGMOID reduce). x_hc [b,s,hc,d]
+    -> [b,s,d]. pre=sigmoid(mixes*scale+base)+eps; y=sum(pre*x, hc).
+    NOTE: hc_head_scale is [1] (scalar), applied uniformly; differs from hc_pre's [3]."""
+    b, s, _, d = x_hc.shape
+    flat = x_hc.reshape(b, s, hc * d).astype(np.float32)
+    rsqrt = 1.0 / np.sqrt(np.mean(flat * flat, axis=-1, keepdims=True) + NORM_EPS)
+    mixes = (flat @ hc_fn.T) * rsqrt             # [b,s, hc] (hc_head_fn HF [out=hc,in=hc*d])
+    pre = 1.0 / (1.0 + np.exp(-(mixes * hc_scale[0] + hc_base))) + eps
+    return (pre[..., None] * x_hc).sum(axis=2)   # [b,s,d]
+
+
+if __name__ == "__main__":
+    # Self-check hc_split_sinkhorn against its invariant: after Sinkhorn, rows
+    # and cols of comb sum to ~1 (doubly stochastic). This is the canonical
+    # Sinkhorn property and catches scale/indexing bugs.
+    rng = np.random.default_rng(0)
+    mixes = rng.standard_normal((2, 24)).astype(np.float32)
+    hc_scale = rng.standard_normal(3).astype(np.float32)
+    hc_base = rng.standard_normal(24).astype(np.float32)
+    pre, post, comb = hc_split_sinkhorn(mixes, hc_scale, hc_base)
+    print("shapes:", pre.shape, post.shape, comb.shape)
+    row_sum = comb.sum(axis=-1)   # should be ~1
+    col_sum = comb.sum(axis=-2)   # should be ~1
+    print(f"row_sum (want ~1): {row_sum[0]}")
+    print(f"col_sum (want ~1): {col_sum[0]}")
+    assert np.allclose(row_sum, 1.0, atol=1e-3), "rows not normalized (Sinkhorn broken)"
+    assert np.allclose(col_sum, 1.0, atol=1e-3), "cols not normalized (Sinkhorn broken)"
+    print("hc_split_sinkhorn: doubly-stochastic invariant holds (port correct)")
+    # hc_pre/hc_post round-trip shape check (hc_fn stored [in=hc*d, out=hc_mix])
+    x_hc = rng.standard_normal((1, 5, 4, 8)).astype(np.float32)
+    hc_fn = rng.standard_normal((24, 32)).astype(np.float32)
+    y, post2, comb2 = hc_pre(x_hc, hc_fn, hc_scale, hc_base)
+    x_back = hc_post(y, x_hc, post2, comb2)
+    print(f"hc_pre: x_hc{x_hc.shape} -> y{y.shape}; hc_post -> {x_back.shape} (matches input)")
+    assert x_back.shape == x_hc.shape
+    print("hc primitives: shape + Sinkhorn invariants OK")
+
+ succeeded in 0ms:
+#!/usr/bin/env python3
+"""Measure oracle draft-prefix agreement against one retained target bundle.
+
+For temp=0 this is greedy-prefix agreement against the deterministic target
+stream. For temp>0 it is sampled-stream prefix agreement against the retained
+selected target continuation from the same seeded run.
+
+This module exposes three pieces so a bulk runner can amortize the expensive
+one-time loads (target embed/lm_head, drafter dense tensors, RoPE) across many
+bundles and many drafter GGUFs without re-spawning a process per bundle:
+
+  - build_model_ctx(model_path)   : load target embed_w + lm_head + RoPE once
+  - build_drafter_ctx(dspark_path): load drafter dense tensors + layers + stores
+  - measure_bundle(bundle_dir, mctx, dctx) : run one bundle, return summary dict
+
+The CLI main() builds both contexts from args and calls measure_bundle, so the
+single-bundle path is behaviour-identical to the bulk path (single source of
+truth for the measurement numerics).
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+from pathlib import Path
+
+import numpy as np
+
+HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE))
+
+from gguf_loader import load_gguf_dense_only, index_gguf, read_tensor
+from expert_store import ExpertStore
+from forward import layer_weights, forward_head, DIM, BLOCK, HC, NOISE_TOK
+from build_main_hidden_from_captures import CANONICAL_INPUTS
+from attention import precompute_rope, apply_rotary, sparse_attn, ROPE_DIM, HEAD_DIM
+from hc_primitives import rmsnorm, hc_pre, hc_post
+from moe import moe
+
+WIN = 128
+N_HEADS = 64
+N_GROUPS = 8
+O_LORA = 1024
+DEFAULT_MODEL = (HERE.parents[3] / "ds4" / "gguf" / "DeepSeek-V4-Flash-IQ2XXS-w2Q2K-AProjQ8-SExpQ8-OutQ8-chat-v2-imatrix.gguf").resolve()
+DEFAULT_DSPARK = (HERE.parents[3] / "ds4" / "gguf" / "dspark.gguf").resolve()
+
+
+def parse_args() -> argparse.Namespace:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--bundle-dir", required=True)
+    ap.add_argument("--model", default=str(DEFAULT_MODEL))
+    ap.add_argument("--dspark", default=str(DEFAULT_DSPARK))
+    ap.add_argument("--json-out")
+    return ap.parse_args()
+
+
+def load_mh(bundle_dir: Path, pos: int) -> np.ndarray | None:
+    packed = bundle_dir / "oracle" / CANONICAL_INPUTS
+    if packed.exists():
+        data = np.load(packed)
+        positions = data["positions"]
+        hits = np.where(positions == pos)[0]
+        if hits.size:
+            return data["main_hidden"][int(hits[0])]
+    path = bundle_dir / "oracle" / f"main_hidden_pos{pos}.npy"
+    if not path.exists():
+        return None
+    return np.load(path)
+
+
+def dspark_attn(x_draft: np.ndarray, win_kv: np.ndarray, n_real: int,
+                w: dict, cos: np.ndarray, sin: np.ndarray, start_pos: int) -> np.ndarray:
+    bs = 1
+    block = x_draft.shape[1]
+    scale = HEAD_DIM ** -0.5
+    qr = rmsnorm(x_draft @ w["q_a"].T, w["q_a_norm"])
+    q = (qr @ w["q_b"].T).reshape(bs, block, N_HEADS, HEAD_DIM)
+    q = q * (1.0 / np.sqrt(np.mean(q * q, axis=-1, keepdims=True) + 1e-6))
+    cs = cos[start_pos + 1:start_pos + 1 + block]
+    ss = sin[start_pos + 1:start_pos + 1 + block]
+    q[..., -ROPE_DIM:] = apply_rotary(q[..., -ROPE_DIM:], cs[None, :, None, :], ss[None, :, None, :])
+    kv = rmsnorm(x_draft @ w["kv"].T, w["kv_a_norm"])
+    kv[..., -ROPE_DIM:] = apply_rotary(kv[..., -ROPE_DIM:], cs[None, :, :], ss[None, :, :])
+    kv_all = np.concatenate([win_kv[None], kv], axis=1)
+    idx = np.concatenate([np.arange(n_real), WIN + np.arange(block)])
+    kv_g = np.broadcast_to(kv_all[:, idx], (1, block, idx.size, HEAD_DIM))
+    o = sparse_attn(q, kv_g, w["attn_sinks"], scale)
+    o[..., -ROPE_DIM:] = apply_rotary(o[..., -ROPE_DIM:], cs[None, :, None, :], -ss[None, :, None, :])
+    gd = HEAD_DIM * N_HEADS // N_GROUPS
+    o_g = o.reshape(bs, block, N_GROUPS, gd)
+    wo_a = w["output_a"].reshape(N_GROUPS, O_LORA, gd)
+    o_lor = np.einsum("bsgd,grd->bsgr", o_g, wo_a)
+    return (o_lor.reshape(bs, block, N_GROUPS * O_LORA) @ w["output_b"].T).astype(np.float32)
+
+
+def build_model_ctx(model_path: str) -> dict:
+    """Load target-model-derived tensors that are independent of the drafter GGUF.
+    Load once, reuse across every drafter and every bundle."""
+    _, ti, tdo = index_gguf(model_path)
+    embed_w = read_tensor(model_path, ti, tdo, "token_embd.weight").astype(np.float32)
+    lm_head = read_tensor(model_path, ti, tdo, "output.weight").astype(np.float32)
+    cos, sin = precompute_rope(64, 4096)
+    return {"embed_w": embed_w, "lm_head": lm_head, "cos": cos, "sin": sin}
+
+
+def build_drafter_ctx(dspark_path: str) -> dict:
+    """Load drafter-specific dense tensors + per-layer weight dicts + expert stores.
+    Load once per drafter GGUF, reuse across every bundle."""
+    _, T, infos, doff, _ = load_gguf_dense_only(dspark_path)
+    return {
+        "T": T,
+        "infos": infos,
+        "doff": doff,
+        "main_proj": T["mtp.0.main_proj.weight"][0],
+        "main_norm_w": T["mtp.0.main_norm.weight"][0],
+        "layers": [layer_weights(T, s) for s in range(3)],
+        "stores": [ExpertStore(dspark_path, infos, doff, s) for s in range(3)],
+    }
+
+
+def measure_bundle(bundle_dir: Path, mctx: dict, dctx: dict, *, candidate: str | None = None) -> dict:
+    """Run the drafter forward over one retained bundle and return the acceptance
+    summary dict. Fresh per-bundle KV window; does NOT clear expert caches (the
+    caller decides memory policy)."""
+    bundle_dir = Path(bundle_dir)
+    T = dctx["T"]
+    layers = dctx["layers"]
+    stores = dctx["stores"]
+    main_proj = dctx["main_proj"]
+    main_norm_w = dctx["main_norm_w"]
+    embed_w = mctx["embed_w"]
+    lm_head = mctx["lm_head"]
+    cos, sin = mctx["cos"], mctx["sin"]
+
+    manifest = json.loads((bundle_dir / "bundle_manifest.json").read_text())
+    target_tokens = json.loads((bundle_dir / "target_selected_tokens.json").read_text())
+    pos0 = int(manifest["prompt_tokens"])
+    label = f"{manifest['prompt_name']}@temp={manifest['temperature']}"
+
+    win_kv = [np.zeros((WIN, HEAD_DIM), dtype=np.float32) for _ in range(3)]
+
+    mh0 = load_mh(bundle_dir, pos0)
+    if mh0 is None:
+        raise FileNotFoundError(f"missing oracle main_hidden for pos {pos0}")
+    main_x0 = rmsnorm(mh0.reshape(1, 1, 3 * DIM) @ main_proj.T, main_norm_w)
+    for s in range(3):
+        mkv = rmsnorm(main_x0 @ layers[s]["kv"].T, layers[s]["kv_a_norm"])
+        mkv[..., -ROPE_DIM:] = apply_rotary(mkv[..., -ROPE_DIM:], cos[0], sin[0])
+        win_kv[s][0] = mkv[0, 0]
+    n_real = 1
+
+    rows = []
+    prefix_hist = {k: 0 for k in range(BLOCK + 1)}
+    total_match = 0
+    total_pos = 0
+    max_step = min(len(target_tokens) - BLOCK - 1, int(manifest["measure_steps"]))
+
+    for step in range(1, max_step + 1):
+        pos = pos0 + step
+        anchor = int(target_tokens[step])
+        mh = load_mh(bundle_dir, pos)
+        if mh is None:
+            break
+        main_x = rmsnorm(mh.reshape(1, 1, 3 * DIM) @ main_proj.T, main_norm_w)
+        for s in range(3):
+            mkv = rmsnorm(main_x @ layers[s]["kv"].T, layers[s]["kv_a_norm"])
+            mkv[..., -ROPE_DIM:] = apply_rotary(mkv[..., -ROPE_DIM:], cos[step], sin[step])
+            win_kv[s][step % WIN] = mkv[0, 0]
+        n_real = min(n_real + 1, WIN)
+        draft_ids = np.full(BLOCK, NOISE_TOK, dtype=np.int64)
+        draft_ids[0] = anchor
+        x = embed_w[draft_ids][None]
+        x = np.repeat(x[:, :, None, :], HC, axis=2)
+        for s in range(3):
+            res = x
+            yd, post, comb = hc_pre(x, layers[s]["hc_attn_fn"], layers[s]["hc_attn_scale"], layers[s]["hc_attn_base"])
+            yd = rmsnorm(yd, layers[s]["attn_norm"])
+            ao = dspark_attn(yd, win_kv[s], n_real, layers[s], cos, sin, step)
+            x = hc_post(ao, res, post, comb)
+            res = x
+            yd, post, comb = hc_pre(x, layers[s]["hc_ffn_fn"], layers[s]["hc_ffn_scale"], layers[s]["hc_ffn_base"])
+            yd = rmsnorm(yd, layers[s]["ffn_norm"])
+            fo = moe(yd, np.array([0]), layers[s], stores[s])
+            x = hc_post(fo, res, post, comb)
+        out, _ = forward_head(
+            x,
+            anchor,
+            None,
+            T["mtp.2.norm.weight"][0],
+            T["mtp.2.hc_head_fn.weight"][0],
+            T["mtp.2.hc_head_scale.weight"][0],
+            T["mtp.2.hc_head_base.weight"][0],
+            T["mtp.2.markov_head.markov_w1.weight"][0],
+            T["mtp.2.markov_head.markov_w2.weight"][0],
+            T["mtp.2.confidence_head.proj.weight"][0],
+            lm_head,
+            temp=1.0,
+        )
+        draft = [int(v) for v in out[1:].tolist()]
+        target = [int(v) for v in target_tokens[step + 1:step + 1 + BLOCK]]
+        match = sum(1 for d, t in zip(draft, target) if d == t)
+        prefix = 0
+        for i, (d, t) in enumerate(zip(draft, target)):
+            if d == t:
+                prefix = i + 1
+            else:
+                break
+        prefix_hist[prefix] += 1
+        total_match += match
+        total_pos += BLOCK
+        rows.append({
+            "step": step,
+            "position": pos,
+            "anchor": anchor,
+            "draft": draft,
+            "target": target,
+            "match": match,
+            "prefix": prefix,
+        })
+
+    n_rows = len(rows)
+    avg_prefix = float(sum(row["prefix"] for row in rows) / n_rows) if n_rows else 0.0
+    summary = {
+        "label": label,
+        "candidate": candidate,
+        "bundle_dir": str(bundle_dir),
+        "prompt_name": manifest["prompt_name"],
+        "temperature": manifest["temperature"],
+        "seed": manifest["seed"],
+        "prompt_tokens": manifest["prompt_tokens"],
+        "measure_steps": n_rows,
+        "total_positions": total_pos,
+        "total_match": total_match,
+        "match_pct": (100.0 * total_match / total_pos) if total_pos else 0.0,
+        "average_prefix": avg_prefix,
+        "prefix_hist": prefix_hist,
+        "rows": rows,
+        "reference_mode": "greedy" if float(manifest["temperature"]) == 0.0 else "sampled-stream",
+    }
+    return summary
+
+
+def main() -> int:
+    args = parse_args()
+    mctx = build_model_ctx(args.model)
+    dctx = build_drafter_ctx(args.dspark)
+    summary = measure_bundle(Path(args.bundle_dir), mctx, dctx)
+    if args.json_out:
+        Path(args.json_out).write_text(json.dumps(summary, indent=2) + "\n")
+    else:
+        print(json.dumps(summary, indent=2))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
+
+exec
+/bin/zsh -lc "sed -n '1,260p' issue468/dspark_train/drafter_body.py" in /Users/lobanov/Projects/ds4-dspark-research
+ succeeded in 0ms:
+#!/usr/bin/env python3
+"""Activity 5 — DSpark drafter BODY in torch (MPS-capable), RESEARCH INSTRUMENTATION.
+
+Faithful port of dspark_oracle/measure_acceptance_bundle's forward loop (main_proj +
+3 DSpark blocks: hc_pre -> MLA attention -> hc_post -> hc_pre -> MoE -> hc_post),
+producing the pre-head feature x [BLOCK, HC, DIM] per anchor with the window KV cache.
+Routed experts dequanted (Q4_K) to F16 and stacked per layer for vectorized topk
+dispatch. Frozen (Activity 5 fidelity); Activity 8 adds body LoRA on top.
+
+Body fidelity gate (run_body_fidelity.py): torch x vs numpy x on the exactness corpus.
+The head module (drafter_head.py) is separate and already fidelity-verified.
+"""
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+import numpy as np
+import torch
+
+HERE = Path(__file__).resolve().parent.parent            # issue468/
+sys.path.insert(0, str(HERE / "dspark_oracle"))
+from gguf_loader import load_gguf_dense_only, index_gguf, read_tensor, dequant_q4_k_expert  # noqa: E402
+from measure_acceptance_bundle import layer_weights       # noqa: E402  (exact key mapping)
+
+HC, DIM, BLOCK = 4, 4096, 5
+HEAD_DIM, ROPE_DIM, N_HEADS, N_GROUPS, O_LORA = 512, 64, 64, 8, 1024
+WIN, TOPK, ROUTE_SCALE, SWIGLU_LIMIT = 128, 6, 1.5, 10.0
+NORM_EPS, HC_EPS = 1e-6, 1e-6
+NOISE_TOK = 128799
+
+
+def rmsnorm(x, w, eps=NORM_EPS):
+    return x * torch.rsqrt((x * x).mean(-1, keepdim=True) + eps) * w
+
+
+def apply_rotary(x_last, cos, sin):
+    xe = x_last[..., 0::2]; xo = x_last[..., 1::2]
+    out = torch.empty_like(x_last)
+    out[..., 0::2] = xe * cos - xo * sin
+    out[..., 1::2] = xe * sin + xo * cos
+    return out
+
+
+def hc_split_sinkhorn(mixes, scale, base, hc=HC, iters=20, eps=HC_EPS):
+    pre = torch.sigmoid(mixes[..., :hc] * scale[0] + base[:hc]) + eps
+    post = 2.0 * torch.sigmoid(mixes[..., hc:2 * hc] * scale[1] + base[hc:2 * hc])
+    comb = (mixes[..., 2 * hc:] * scale[2] + base[2 * hc:]).reshape(*mixes.shape[:-1], hc, hc)
+    comb = comb - comb.amax(-1, keepdim=True); comb = torch.exp(comb)
+    comb = comb / (comb.sum(-1, keepdim=True) + eps)
+    col = comb.sum(-2, keepdim=True); comb = comb / (col + eps)
+    for _ in range(iters - 1):
+        comb = comb / (comb.sum(-1, keepdim=True) + eps)
+        comb = comb / (comb.sum(-2, keepdim=True) + eps)
+    return pre, post, comb
+
+
+def hc_pre(x_hc, fn, scale, base):
+    b, s, hc, d = x_hc.shape
+    flat = x_hc.reshape(b, s, hc * d)
+    rsqrt = torch.rsqrt((flat * flat).mean(-1, keepdim=True) + NORM_EPS)
+    pre, post, comb = hc_split_sinkhorn((flat @ fn.T) * rsqrt, scale, base, hc)
+    return (pre.unsqueeze(-1) * x_hc).sum(2), post, comb
+
+
+def hc_post(x, residual, post, comb):
+    return post.unsqueeze(-1) * x.unsqueeze(-2) + (comb.unsqueeze(-1) * residual.unsqueeze(-3)).sum(-2)
+
+
+def sparse_attn(q, kv_g, sink, scale):
+    scores = torch.einsum("bshd,bstd->bsht", q, kv_g) * scale
+    m = scores.amax(-1)                                     # [b,s,h]
+    sink_t = torch.maximum(m, sink.view(1, 1, -1))          # [b,s,h]
+    numer = torch.exp(scores - sink_t.unsqueeze(-1))        # [b,s,h,t]
+    denom = numer.sum(-1) + torch.exp(sink.view(1, 1, -1) - sink_t)  # [b,s,h]
+    return torch.einsum("bsht,bstd->bshd", numer, kv_g) / denom.unsqueeze(-1)
+
+
+def softplus(x):
+    return torch.where(x > 20, x, torch.log1p(torch.exp(torch.clamp(x, max=20))))
+
+
+class DrafterBody:
+    """Frozen drafter body (plain tensors). forward_prompt returns x per anchor."""
+    def __init__(self, p, dev, dt):
+        self.dev, self.dt = dev, dt
+        g = lambda k: torch.as_tensor(np.ascontiguousarray(p[k]), device=dev, dtype=dt)
+        self.main_proj = g("main_proj"); self.main_norm = g("main_norm")
+        self.embed_w = g("embed_w"); self.cos = g("cos"); self.sin = g("sin")
+        self.layers = [{k: g(f"L{s}_{k}") for k in p["layer_keys"]} for s in range(3)]
+        self.exp_gate = g("exp_gate"); self.exp_up = g("exp_up"); self.exp_down = g("exp_down")
+
+    def _moe(self, x, s):
+        w = self.layers[s]
+        xf = x.reshape(-1, DIM)
+        scores = torch.sqrt(softplus(xf @ w["ffn_gate_inp"].T))
+        sel = scores + w["ffn_exp_probs_b"]
+        idx = sel.topk(TOPK, dim=-1).indices
+        wg = torch.gather(scores, -1, idx); wg = wg / (wg.sum(-1, keepdim=True) + 1e-12) * ROUTE_SCALE
+        y = torch.zeros_like(xf)
+        for k in range(TOPK):
+            ids = idx[:, k]
+            gg = torch.bmm(xf.unsqueeze(1), self.exp_gate[s][ids].transpose(1, 2)).squeeze(1)
+            uu = torch.bmm(xf.unsqueeze(1), self.exp_up[s][ids].transpose(1, 2)).squeeze(1)
+            gg = torch.clamp(gg, max=SWIGLU_LIMIT); uu = torch.clamp(uu, -SWIGLU_LIMIT, SWIGLU_LIMIT)
+            inter = (gg * torch.sigmoid(gg)) * uu
+            out = torch.bmm(inter.unsqueeze(1), self.exp_down[s][ids].transpose(1, 2)).squeeze(1)
+            y = y + wg[:, k:k + 1] * out
+        g0 = xf @ w["ffn_gate_shexp"].T; u0 = xf @ w["ffn_up_shexp"].T
+        g0 = torch.clamp(g0, max=SWIGLU_LIMIT); u0 = torch.clamp(u0, -SWIGLU_LIMIT, SWIGLU_LIMIT)
+        y = y + (g0 * torch.sigmoid(g0)) * u0 @ w["ffn_down_shexp"].T
+        return y.reshape(1, x.shape[1], DIM)
+
+    def _attn(self, x_draft, win_kv, n_real, s, step):
+        w = self.layers[s]; block = x_draft.shape[1]; scale = HEAD_DIM ** -0.5
+        qr = rmsnorm(x_draft @ w["q_a"].T, w["q_a_norm"])
+        q = (qr @ w["q_b"].T).reshape(1, block, N_HEADS, HEAD_DIM)
+        q = q * torch.rsqrt((q * q).mean(-1, keepdim=True) + NORM_EPS)
+        cs = self.cos[step + 1:step + 1 + block][None, :, None, :]   # [1,block,1,32] for q/o
+        ss = self.sin[step + 1:step + 1 + block][None, :, None, :]
+        cs_kv = self.cos[step + 1:step + 1 + block][None, :, :]        # [1,block,32] for kv
+        ss_kv = self.sin[step + 1:step + 1 + block][None, :, :]
+        q[..., -ROPE_DIM:] = apply_rotary(q[..., -ROPE_DIM:], cs, ss)
+        kv = rmsnorm(x_draft @ w["kv"].T, w["kv_a_norm"])
+        kv[..., -ROPE_DIM:] = apply_rotary(kv[..., -ROPE_DIM:], cs_kv, ss_kv)
+        kv_all = torch.cat([win_kv.unsqueeze(0), kv], dim=1)
+        idx = torch.cat([torch.arange(n_real, device=self.dev),
+                         torch.arange(WIN, WIN + block, device=self.dev)])
+        kv_g = kv_all[:, idx, :].unsqueeze(1).expand(1, block, idx.size(0), HEAD_DIM)
+        o = sparse_attn(q, kv_g, w["attn_sinks"], scale)
+        o[..., -ROPE_DIM:] = apply_rotary(o[..., -ROPE_DIM:], cs, -ss)
+        gd = HEAD_DIM * N_HEADS // N_GROUPS
+        wo_a = w["output_a"].reshape(N_GROUPS, O_LORA, gd)
+        o_lor = torch.einsum("bsgd,grd->bsgr", o.reshape(1, block, N_GROUPS, gd), wo_a)
+        return (o_lor.reshape(1, block, N_GROUPS * O_LORA) @ w["output_b"].T).to(self.dt)
+
+    def forward_prompt(self, main_hidden_seq, anchors, return_layers=False):
+        dev, dt = self.dev, self.dt
+        mh = torch.as_tensor(np.asarray(main_hidden_seq, np.float32), device=dev, dtype=dt)
+        win_kv = [torch.zeros(WIN, HEAD_DIM, device=dev, dtype=dt) for _ in range(3)]
+        main_x0 = rmsnorm(mh[0:1].reshape(1, 1, 3 * DIM) @ self.main_proj.T, self.main_norm)
+        for s in range(3):
+            mkv = rmsnorm(main_x0 @ self.layers[s]["kv"].T, self.layers[s]["kv_a_norm"])
+            mkv[..., -ROPE_DIM:] = apply_rotary(mkv[..., -ROPE_DIM:], self.cos[0], self.sin[0])
+            win_kv[s][0] = mkv[0, 0]
+        n_real = 1; xs = []; layer_xs = []
+        for step in range(1, len(anchors) + 1):
+            main_x = rmsnorm(mh[step:step + 1].reshape(1, 1, 3 * DIM) @ self.main_proj.T, self.main_norm)
+            for s in range(3):
+                mkv = rmsnorm(main_x @ self.layers[s]["kv"].T, self.layers[s]["kv_a_norm"])
+                mkv[..., -ROPE_DIM:] = apply_rotary(mkv[..., -ROPE_DIM:], self.cos[step], self.sin[step])
+                win_kv[s][step % WIN] = mkv[0, 0]
+            n_real = min(n_real + 1, WIN)
+            draft_ids = torch.full((BLOCK,), NOISE_TOK, dtype=torch.long, device=dev); draft_ids[0] = int(anchors[step - 1])
+            x = self.embed_w[draft_ids][None, :, None, :].expand(1, BLOCK, HC, DIM).clone()
+            step_layers = []
+            for s in range(3):
+                w = self.layers[s]
+                res = x
+                yd, post, comb = hc_pre(x, w["hc_attn_fn"], w["hc_attn_scale"], w["hc_attn_base"])
+                x = hc_post(self._attn(rmsnorm(yd, w["attn_norm"]), win_kv[s], n_real, s, step), res, post, comb)
+                res = x
+                yd, post, comb = hc_pre(x, w["hc_ffn_fn"], w["hc_ffn_scale"], w["hc_ffn_base"])
+                x = hc_post(self._moe(rmsnorm(yd, w["ffn_norm"]), s), res, post, comb)
+                if return_layers: step_layers.append(x[0].clone())
+            xs.append(x[0])
+            if return_layers: layer_xs.append(torch.stack(step_layers))  # [3,BLOCK,HC,DIM]
+        if return_layers:
+            return torch.stack(xs), torch.stack(layer_xs)  # [n,..], [n,3,..]
+        return torch.stack(xs)
+
+
+def build_body(dspark_path, target_path, device, dtype=torch.float32):
+    cache = HERE / "dspark_train" / "data" / "drafter_body_weights.npz"
+    if cache.exists():
+        lo = np.load(cache, allow_pickle=True)
+        p = {k: lo[k] for k in lo.files}
+        p["layer_keys"] = ["hc_attn_fn", "hc_attn_scale", "hc_attn_base", "attn_norm",
+                  "q_a", "q_a_norm", "q_b", "kv", "kv_a_norm", "attn_sinks",
+                  "output_a", "output_b", "hc_ffn_fn", "hc_ffn_scale", "hc_ffn_base",
+                  "ffn_norm", "ffn_gate_inp", "ffn_exp_probs_b", "ffn_gate_shexp",
+                  "ffn_up_shexp", "ffn_down_shexp"]
+        return DrafterBody(p, device, dtype)
+    _, T, infos, doff, _ = load_gguf_dense_only(dspark_path)
+    layer_keys = ["hc_attn_fn", "hc_attn_scale", "hc_attn_base", "attn_norm",
+                  "q_a", "q_a_norm", "q_b", "kv", "kv_a_norm", "attn_sinks",
+                  "output_a", "output_b", "hc_ffn_fn", "hc_ffn_scale", "hc_ffn_base",
+                  "ffn_norm", "ffn_gate_inp", "ffn_exp_probs_b", "ffn_gate_shexp",
+                  "ffn_up_shexp", "ffn_down_shexp"]
+    p = {"main_proj": T["mtp.0.main_proj.weight"][0], "main_norm": T["mtp.0.main_norm.weight"][0],
+         "layer_keys": layer_keys}
+    for s in range(3):
+        lw = layer_weights(T, s)
+        for k in layer_keys:
+            p[f"L{s}_{k}"] = lw[k]
+    eg = np.stack([np.stack([dequant_q4_k_expert(dspark_path, infos, doff, f"mtp.{s}.ffn_gate_exps.weight", e)
+                             for e in range(256)]) for s in range(3)])
+    eu = np.stack([np.stack([dequant_q4_k_expert(dspark_path, infos, doff, f"mtp.{s}.ffn_up_exps.weight", e)
+                             for e in range(256)]) for s in range(3)])
+    ed = np.stack([np.stack([dequant_q4_k_expert(dspark_path, infos, doff, f"mtp.{s}.ffn_down_exps.weight", e)
+                             for e in range(256)]) for s in range(3)])
+    p["exp_gate"] = eg; p["exp_up"] = eu; p["exp_down"] = ed
+    _, tinfos, tdoff = index_gguf(target_path)
+    p["embed_w"] = read_tensor(target_path, tinfos, tdoff, "token_embd.weight").astype(np.float32)
+    half = ROPE_DIM // 2
+    freqs = 1.0 / (10000.0 ** (np.arange(0, ROPE_DIM, 2, dtype=np.float64) / ROPE_DIM))
+    ang = np.outer(np.arange(4096, dtype=np.float64), freqs)
+    p["cos"] = np.cos(ang).astype(np.float32); p["sin"] = np.sin(ang).astype(np.float32)
+    save = {k: v for k, v in p.items() if isinstance(v, np.ndarray)}
+    np.savez(cache, **save)
+    return DrafterBody(p, device, dtype)
+
+exec
+/bin/zsh -lc "sed -n '1,260p' issue468/dspark_oracle/attention.py" in /Users/lobanov/Projects/ds4-dspark-research
+ succeeded in 0ms:
+#!/usr/bin/env python3
+"""DSpark MLA attention primitives for the numpy oracle.
+
+Faithful ports of model.py apply_rotary_emb + DSparkAttention.forward (window-
+only MLA, compress_ratio==0) and kernel.py sparse_attn (with the per-head
+attention-sink bias added to the softmax denominator only). See
+issue468/13_phase4_forward_design.md §4.
+
+All arrays F32, GGUF ne order (ne[0] innermost). Matmuls use the convention
+that a stored weight [out, in] (GGUF ne=[in,out]) is applied as x @ W.T.
+"""
+import numpy as np
+
+ROPE_DIM = 64          # qk_rope_head_dim (rope applied to last 64 of head_dim=512)
+HEAD_DIM = 512
+NORM_EPS = 1e-6
+
+
+def precompute_rope(rope_dim, seqlen, theta=10000.0):
+    """Standard RoPE freqs (no YaRN; original_seq_len=0 for compress_ratio==0).
+    Returns cos[seqlen, rope_dim/2], sin[seqlen, rope_dim/2]."""
+    half = rope_dim // 2
+    freqs = 1.0 / (theta ** (np.arange(0, rope_dim, 2, dtype=np.float64) / rope_dim))  # [half]
+    t = np.arange(seqlen, dtype=np.float64)
+    ang = np.outer(t, freqs)            # [seqlen, half]
+    return np.cos(ang).astype(np.float32), np.sin(ang).astype(np.float32)
+
+
+def apply_rotary(x_last, cos, sin):
+    """Rotate the last rope_dim of x. cos/sin must already be broadcast-shaped to
+    match x_last[..., 0::2] (caller builds the shape: e.g. [1,s,1,half] for q,
+    [1,s,half] for kv, or [half] to share across all positions). Inverse rotation
+    is obtained by passing -sin. Returns rotated [..., rope_dim]."""
+    x = x_last.astype(np.float32)
+    x_even = x[..., 0::2]
+    x_odd = x[..., 1::2]
+    cos_b = np.broadcast_to(cos, x_even.shape)
+    sin_b = np.broadcast_to(sin, x_odd.shape)
+    out_even = x_even * cos_b - x_odd * sin_b
+    out_odd = x_even * sin_b + x_odd * cos_b
+    out = np.empty_like(x)
+    out[..., 0::2] = out_even
+    out[..., 1::2] = out_odd
+    return out
+
+
+def sparse_attn(q, kv_gathered, attn_sink, scale):
+    """Sparse attention with a per-head sink. q [b,s,h,d], kv_gathered [b,s,topk,d],
+    attn_sink [h]. For each (b,s,h): scores = (q·kv)*scale [topk]; softmax denom
+    includes an extra exp(attn_sink[h]-m) term (sink absorbs mass, 0 to numerator).
+    Returns o [b,s,h,d]."""
+    b, s, h, d = q.shape
+    topk = kv_gathered.shape[2]
+    # scores [b,s,h,topk]
+    scores = np.einsum("bshd,bstd->bsht", q.astype(np.float32), kv_gathered.astype(np.float32)) * scale
+    m = scores.max(axis=-1)                       # [b,s,h]
+    sink_term = np.maximum(m, attn_sink[None, None, :])  # stable max incl sink
+    numer = np.exp(scores - sink_term[..., None])  # [b,s,h,topk]
+    denom = numer.sum(axis=-1) + np.exp(attn_sink[None, None, :] - sink_term)  # [b,s,h]
+    o = np.einsum("bsht,bstd->bshd", numer, kv_gathered.astype(np.float32)) / denom[..., None]
+    return o.astype(np.float32)
+
+
+def dspark_topk_idxs(window_size, block_size, start_pos):
+    """get_dspark_topk_idxs: [0..min(win,start+1)-1] ++ [win..win+block-1].
+    Each draft position attends to the window's real anchors + the draft block.
+    Returns [block_size, topk_k] (broadcast across batch; per-position identical)."""
+    n_win = min(window_size, start_pos + 1)
+    win_idx = np.arange(n_win, dtype=np.int32)
+    block_idx = (window_size + np.arange(block_size, dtype=np.int32))
+    return np.concatenate([win_idx, block_idx])  # [topk_k]; same for all draft positions
+
+
+def rmsnorm(x, weight, eps=NORM_EPS):
+    xf = x.astype(np.float32)
+    return xf * (1.0 / np.sqrt(np.mean(xf * xf, axis=-1, keepdims=True) + eps)) * weight
+
+
+def dspark_attention(x_draft, main_x, w, start_pos, cos_full, sin_full):
+    """DSparkAttention decode (start_pos>0). x_draft [1,block,dim], main_x [1,1,dim].
+    w: dict of layer attn weights (q_a,q_a_norm,q_b,kv,kv_a_norm,attn_sinks,
+    output_a,output_b). cos/sin_full: precomputed RoPE over enough positions.
+    Maintains a window KV cache (passed/returned). Returns (o [1,block,dim],
+    kv_cache updated).
+
+    Reuses the kernel semantics of model.py DSparkAttention.forward exactly,
+    EXCEPT skipping act_quant (FP8 activation sim) — see design doc §4.
+    """
+    block_size = x_draft.shape[1]
+    win = 128
+    n_heads = 64
+    head_dim = HEAD_DIM
+    n_groups = 8
+    o_lora = 1024
+    scale = head_dim ** -0.5
+
+    # 1. anchor KV from main_x (target hidden), cached at slot start_pos%win
+    main_kv = rmsnorm(main_x @ w["kv"].T, w["kv_a_norm"])           # [1,1,512]
+    fc = cos_full[start_pos], sin_full[start_pos]   # [32] each (1D)
+    main_kv[..., -ROPE_DIM:] = apply_rotary(main_kv[..., -ROPE_DIM:], fc[0], fc[1])
+
+    # build window: slot0=prefill anchor (start_pos=0 earlier), slot start_pos%win=this anchor
+    # For the oracle's single-decode scenario we materialize only the slots topk will read.
+    # (start_pos=1: real slots {0,1}; zeros elsewhere, masked out by topk.)
+    n_win_real = min(win, start_pos + 1)
+    win_kv = np.zeros((1, win, head_dim), dtype=np.float32)
+    # slot 0 is the prefill anchor; caller must have run prefill to set it.
+    # We pass it in via w["_win_slot0_kv"]. Slot start_pos%win = main_kv.
+    if "_win_slot0_kv" in w:
+        win_kv[:, 0:1] = w["_win_slot0_kv"]
+    win_kv[:, start_pos % win:start_pos % win + 1] = main_kv
+
+    # 2. draft-block q,kv
+    qr = rmsnorm(x_draft @ w["q_a"].T, w["q_a_norm"])              # [1,block,1024]
+    q = (qr @ w["q_b"].T).reshape(1, block_size, n_heads, head_dim)  # [1,block,64,512]
+    q = q * (1.0 / np.sqrt(np.mean(q * q, axis=-1, keepdims=True) + NORM_EPS))  # per-head RMSNorm
+    # per-position cos/sin for the block positions, shaped to broadcast over heads.
+    cs = cos_full[start_pos + 1:start_pos + 1 + block_size]   # [block, 32]
+    ss = sin_full[start_pos + 1:start_pos + 1 + block_size]   # [block, 32]
+    cs_q = cs[None, :, None, :]   # [1, block, 1, 32] for q [1,block,heads,rope]
+    ss_q = ss[None, :, None, :]
+    cs_kv = cs[None, :, :]        # [1, block, 32] for kv [1,block,rope]
+    ss_kv = ss[None, :, :]
+    q[..., -ROPE_DIM:] = apply_rotary(q[..., -ROPE_DIM:], cs_q, ss_q)
+    kv = rmsnorm(x_draft @ w["kv"].T, w["kv_a_norm"])              # [1,block,512]
+    kv[..., -ROPE_DIM:] = apply_rotary(kv[..., -ROPE_DIM:], cs_kv, ss_kv)
+    kv_all = np.concatenate([win_kv, kv], axis=1)                   # [1, win+block, 512]
+
+    # 3. sparse attention over the DSpark topk pattern (identical for all draft positions)
+    idx = dspark_topk_idxs(win, block_size, start_pos)             # [topk_k]
+    kv_gathered = kv_all[:, idx, :]                                # [1,block,topk,d] (broadcast block)
+    kv_gathered = np.broadcast_to(kv_gathered, (1, block_size, idx.size, head_dim))
+    o = sparse_attn(q, kv_gathered, w["attn_sinks"], scale)        # [1,block,64,512]
+    # inverse rotary on the rope dims of o (same per-position cos/sin; inverse = conj)
+    o[..., -ROPE_DIM:] = apply_rotary(o[..., -ROPE_DIM:], cs_q, -ss_q)
+
+    # 4. grouped low-rank output projection: wo_a [8,1024,..] einsum then wo_b
+    # o reshaped to [1,block,n_groups, head_dim//n_groups*..] — see model.py:
+    #   o = o.view(b,s,n_groups,-1); wo_a viewed [n_groups, o_lora, -1];
+    #   o = einsum("bsgd,grd->bsgr", o, wo_a); x = wo_b(o.flatten(2))
+    gd = head_dim * n_heads // n_groups   # 512*64/8 = 4096
+    o_g = o.reshape(1, block_size, n_groups, gd)                    # [1,block,8,4096]
+    # wo_a GGUF ne: [out_low_dim, head_dim*(heads/groups)] = [8192, 4096]; HF/torch [8,1024,512]
+    # model.py: wo_a.view(n_groups, o_lora, -1) -> [8, 1024, 512]; einsum bsgd,grd->bsgr
+    # but our stored output_a is the fused [out_low, in] = [8192, 4096]. Reshape to [8,1024,4096]? No.
+    # Re-derive: HF wo_a weight shape is [n_groups*o_lora, in_per_group]. in_per_group = head_dim*(n_heads/n_groups)
+    # = 512*8 = 4096. So wo_a is [8*1024, 4096] = [8192,4096]. view(8,1024,-1) -> [8,1024,4096]?? that's wrong dim.
+    # Correct: per group r, the slice is [o_lora, in_per_group]=[1024,4096]. n_groups slices -> [8,1024,4096]? No,
+    # total rows = n_groups*o_lora = 8192, cols = in_per_group = 4096. view(n_groups,o_lora,in_per_group) needs
+    # 8*1024*4096 elements = way more than 8192*4096. So the per-group input is SMALLER.
+    # Actual: in_per_group = head_dim * (n_heads/n_groups) = 512 * (64/8) = 512*8 = 4096. Hmm same.
+    # The math: total params = out_low * in = 8192 * 4096. view(8, o_lora=1024, head_dim=512) = 8*1024*512=4.19M,
+    # but we have 8192*4096 = 33.5M. So view is (n_groups, o_lora, head_dim) = (8,1024,512)?? That's 4.19M, mismatch.
+    # The reference uses einsum "bsgd,grd->bsgr" with o [b,s,8,gd] and wo_a [g=8, r=1024, d=head_dim=512].
+    # So gd = head_dim = 512, NOT 4096! o is reshaped to [b,s,8,512]?? But o is [b,s,64,512] (n_heads=64).
+    # o.view(b,s,n_groups,-1): 64*512/8 = 4096 per group -> [b,s,8,4096]. Then einsum bsgd,grd needs d match:
+    # o[b,s,8,4096] @ wo_a[8,1024,512]? d mismatch (4096 vs 512). So gd in einsum is NOT head_dim.
+    # Resolving: wo_a.view(n_groups, o_lora, -1) on a [8192, 4096] tensor -> [8, 1024, 4096]? elements 8*1024*4096=33.5M != 33.5M YES.
+    # So wo_a viewed [8,1024,4096], einsum bsgd(4096),grd(4096)->bsgr(1024). d=4096. OK matches!
+    wo_a = w["output_a"].reshape(n_groups, o_lora, gd)              # [8,1024,4096] (already HF order)
+    # einsum bsgd,grd->bsgr: o_g[b,s,g,d] wo_a[g,r,d] -> [b,s,g,r]
+    o_lor = np.einsum("bsgd,grd->bsgr", o_g, wo_a)                # [1,block,8,1024]
+    o_flat = o_lor.reshape(1, block_size, n_groups * o_lora)       # [1,block,8192]
+    out = o_flat @ w["output_b"].T                                   # [1,block,4096] (output_b HF [out=4096,in=8192])
+    return out.astype(np.float32), main_kv[:, 0]   # return slot-1 KV for caller (prefill of next)
+
+
+def dspark_attention_prefill(main_x, w, cos_full, sin_full):
+    """DSparkAttention prefill (start_pos==0): cache the anchor KV at slot 0, no
+    attention output (returns x unchanged per model.py). Returns the cached
+    main_kv [1,512] for slot 0."""
+    main_kv = rmsnorm(main_x @ w["kv"].T, w["kv_a_norm"])          # [1,1,512]
+    c = cos_full[0], sin_full[0]   # [32] each (1D -> broadcasts in apply_rotary)
+    main_kv[..., -ROPE_DIM:] = apply_rotary(main_kv[..., -ROPE_DIM:], c[0], c[1])
+    return main_kv[:, 0]   # [512] slot-0 KV
+
+
+if __name__ == "__main__":
+    # Self-test 1: RoPE norm preservation (rotating preserves L2 norm).
+    rng = np.random.default_rng(1)
+    cos, sin = precompute_rope(64, 16)
+    x = rng.standard_normal((2, 5, 64)).astype(np.float32)
+    xr = apply_rotary(x, cos[3], sin[3])
+    n_in = np.linalg.norm(x, axis=-1)
+    n_out = np.linalg.norm(xr, axis=-1)
+    print(f"RoPE norm preservation: max abs diff = {np.abs(n_in-n_out).max():.2e}")
+    assert np.allclose(n_in, n_out, atol=1e-4), "RoPE broke norm"
+
+    # Self-test 2: sparse_attn sink — with a large positive sink, output -> 0
+    # (all mass absorbed); with very negative sink, normal softmax.
+    q = rng.standard_normal((1, 1, 4, 8)).astype(np.float32)
+    kvg = rng.standard_normal((1, 1, 3, 8)).astype(np.float32)
+    sink_big = np.array([1e9, 1e9, 1e9, 1e9], dtype=np.float32)
+    o_sink = sparse_attn(q, kvg, sink_big, 0.1)
+    print(f"sparse_attn big-sink output norm (want ~0): {np.linalg.norm(o_sink):.2e}")
+    assert np.linalg.norm(o_sink) < 1e-3, "big sink should zero output"
+    sink_small = np.array([-1e9, -1e9, -1e9, -1e9], dtype=np.float32)
+    o_normal = sparse_attn(q, kvg, sink_small, 0.1)
+    # compare to plain softmax-weighted sum
+    scores = (q[0,0] @ kvg[0,0].T) * 0.1
+    sm = np.exp(scores - scores.max(-1, keepdims=True)); sm /= sm.sum(-1, keepdims=True)
+    o_ref = sm @ kvg[0,0]
+    print(f"sparse_attn no-sink vs plain softmax: max abs diff = {np.abs(o_normal[0,0]-o_ref).max():.2e}")
+    assert np.allclose(o_normal[0, 0], o_ref, atol=1e-4), "no-sink mismatch"
+
+    # Self-test 3: dspark_topk_idxs at start_pos=1
+    idx = dspark_topk_idxs(128, 5, 1)
+    print(f"dspark_topk_idxs(start_pos=1): {idx.tolist()} (want [0,1,128,129,130,131,132])")
+    assert idx.tolist() == [0, 1, 128, 129, 130, 131, 132]
+    print("\nattention primitives: RoPE norm + sink + topk invariants OK")
+
+codex
+The visible torch code mostly mirrors the inline oracle, so I’m going to bisect at layer 0 boundaries rather than guessing from shapes. Next I’ll check MoE and the existing debug harness inputs/outputs.
+exec
+/bin/zsh -lc "sed -n '1,260p' issue486/dspark_oracle/moe.py" in /Users/lobanov/Projects/ds4-dspark-research
+exec
+/bin/zsh -lc "sed -n '1,240p' issue468/dspark_train/run_body_fidelity.py" in /Users/lobanov/Projects/ds4-dspark-research
+exec
+/bin/zsh -lc "sed -n '1,260p' issue468/dspark_oracle/forward.py" in /Users/lobanov/Projects/ds4-dspark-research
+ exited 1 in 0ms:
+sed: issue486/dspark_oracle/moe.py: No such file or directory
+
+ succeeded in 0ms:
+#!/usr/bin/env python3
+"""Activity 5 — body fidelity gate: torch drafter body x vs numpy oracle x.
+
+Builds the torch body (CPU float32 for precision parity), runs it on the exactness
+bundles' inputs (main_hidden per position + the anchor stream), and compares the
+pre-head feature x to the numpy oracle's x (exactness_features.npz). Gate passes
+when max abs diff is within float32 tolerance.
+"""
+from __future__ import annotations
+
+import json
+import sys
+from pathlib import Path
+
+import numpy as np
+import torch
+
+HERE = Path(__file__).resolve().parent.parent            # issue468/
+sys.path.insert(0, str(HERE / "dspark_train"))
+from drafter_body import build_body                        # noqa: E402
+sys.path.insert(0, str(HERE / "dspark_oracle"))
+from measure_acceptance_bundle import load_mh              # noqa: E402
+
+BUNDLES = HERE / "artifacts" / "exactness_small_bundles"
+FEAT = HERE / "dspark_train" / "data" / "exactness_features.npz"
+GGUF_DIR = HERE.parent.parent / "ds4" / "gguf"
+
+
+def main() -> int:
+    d = np.load(FEAT, allow_pickle=True)
+    npx = d["x"]                                 # [N, BLOCK, HC, DIM]
+    prompts_arr = d["prompt"]; steps_arr = d["step"]
+    # group numpy x by prompt
+    by_prompt: dict[str, list] = {}
+    for i in range(len(prompts_arr)):
+        by_prompt.setdefault(str(prompts_arr[i]), []).append((int(steps_arr[i]), npx[i]))
+    for k in by_prompt:
+        by_prompt[k].sort()
+
+    print("building torch body (CPU float32)...", flush=True)
+    body = build_body(str((GGUF_DIR / "dspark.gguf").resolve()),
+                      str((GGUF_DIR / "DeepSeek-V4-Flash-IQ2XXS-w2Q2K-AProjQ8-SExpQ8-OutQ8-chat-v2-imatrix.gguf").resolve()),
+                      device="cpu", dtype=torch.float32)
+
+    PROMPTS = ["grounded_observatory", "code_histogram", "synthesis_ops_json"]
+    overall_max = 0.0; overall_mean = 0.0; nn = 0
+    for p in PROMPTS:
+        bdir = BUNDLES / f"{p}__t0p0"
+        man = json.loads((bdir / "bundle_manifest.json").read_text())
+        pos0 = int(man["prompt_tokens"]); ms = int(man["measure_steps"])
+        toks = json.loads((bdir / "target_selected_tokens.json").read_text())
+        anchors = [int(toks[step]) for step in range(1, ms + 1)]
+        mh_seq = []
+        for step in range(0, ms + 1):
+            v = load_mh(bdir, pos0 + step)
+            if v is None:
+                print(f"  {p}: missing main_hidden at {pos0+step}, skip"); p_done = False; break
+            mh_seq.append(np.asarray(v, np.float32))
+        else:
+            p_done = True
+        if not p_done:
+            continue
+        tx = body.forward_prompt(mh_seq, anchors).numpy()       # [ms, BLOCK, HC, DIM]
+        np_list = [v for _, v in by_prompt.get(p, [])]
+        if len(np_list) != tx.shape[0]:
+            print(f"  {p}: count mismatch torch {tx.shape[0]} vs numpy {len(np_list)}"); continue
+        npa = np.stack(np_list)
+        diff = np.abs(tx - npa)
+        overall_max = max(overall_max, float(diff.max())); overall_mean += float(diff.sum()); nn += diff.size
+        print(f"  {p}: x max abs diff {float(diff.max()):.6g} | mean {float(diff.mean()):.6g} "
+              f"(shape {tx.shape})")
+
+    if nn:
+        print(f"\nBODY FIDELITY (torch x vs numpy x): overall max abs diff {overall_max:.6g}, "
+              f"mean {overall_mean/nn:.6g}")
+        ok = overall_max < 2e-3
+        print(f"BODY GATE: {'PASS' if ok else 'FAIL'} (criteria max abs diff < 2e-3)")
+        return 0 if ok else 1
+    print("no comparisons made"); return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
+
+ succeeded in 0ms:
+#!/usr/bin/env python3
+"""DSpark drafter forward — numpy oracle.
+
+Assembles forward_embed -> 3x DSparkBlock -> forward_head (model.py
+Transformer.forward_spec) on F32 weights from dspark.gguf + the shared target
+embed/lm_head, fed the captured main_hidden. Produces reference draft tokens for
+the Phase-4 regression gate (phase4-refcheck). See issue468/13_phase4_forward_design.md.
+
+Usage:
+  python forward.py [--smoke]   # smoke uses random main_hidden; --validate uses
+                                # the captured pos152/153 npy as prefill/decode anchors
+"""
+import os, sys, argparse, json
+from pathlib import Path
+import numpy as np
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from gguf_loader import load_gguf_dense_only, index_gguf, read_tensor
+from expert_store import ExpertStore
+from hc_primitives import rmsnorm, hc_pre, hc_post, hc_head
+from attention import (precompute_rope, dspark_attention, dspark_attention_prefill)
+from moe import moe
+
+DSPARK_GGUF = os.path.expanduser(os.environ.get(
+    "DSPARK_GGUF",
+    str((Path(__file__).resolve().parents[3] / "ds4" / "gguf" / "dspark.gguf").resolve()),
+))
+TARGET_GGUF = os.path.expanduser(os.environ.get(
+    "TARGET_GGUF",
+    str((Path(__file__).resolve().parents[3] / "ds4" / "gguf" / "DeepSeek-V4-Flash-IQ2XXS-w2Q2K-AProjQ8-SExpQ8-OutQ8-chat-v2-imatrix.gguf").resolve()),
+))
+DIM = 4096
+HC = 4
+BLOCK = 5
+NOISE_TOK = 128799
+VOCAB = 129280
+MARKOV_RANK = 256
+MAX_POS = 4096
+
+
+def layer_weights(T, stage):
+    """Pull one DSparkBlock's weights from the loaded tensor dict (GGUF ne order)."""
+    p = f"mtp.{stage}."
+    w = {
+        "hc_attn_fn": T[p + "hc_attn_fn.weight"][0], "hc_attn_scale": T[p + "hc_attn_scale.weight"][0],
+        "hc_attn_base": T[p + "hc_attn_base.weight"][0],
+        "hc_ffn_fn": T[p + "hc_ffn_fn.weight"][0], "hc_ffn_scale": T[p + "hc_ffn_scale.weight"][0],
+        "hc_ffn_base": T[p + "hc_ffn_base.weight"][0],
+        "attn_norm": T[p + "attn_norm.weight"][0], "ffn_norm": T[p + "ffn_norm.weight"][0],
+        "q_a": T[p + "attn_q_a.weight"][0], "q_a_norm": T[p + "attn_q_a_norm.weight"][0],
+        "q_b": T[p + "attn_q_b.weight"][0], "kv": T[p + "attn_kv.weight"][0],
+        "kv_a_norm": T[p + "attn_kv_a_norm.weight"][0], "attn_sinks": T[p + "attn_sinks.weight"][0],
+        "output_a": T[p + "attn_output_a.weight"][0], "output_b": T[p + "attn_output_b.weight"][0],
+        "ffn_gate_inp": T[p + "ffn_gate_inp.weight"][0], "ffn_exp_probs_b": T[p + "exp_probs_b.bias"][0],
+        "ffn_gate_shexp": T[p + "ffn_gate_shexp.weight"][0], "ffn_up_shexp": T[p + "ffn_up_shexp.weight"][0],
+        "ffn_down_shexp": T[p + "ffn_down_shexp.weight"][0],
+    }
+    return w
+
+
+def forward_embed(main_hidden, anchor_tok, main_proj, main_norm, embed_w):
+    """mtp.0.forward_embed. main_hidden [3*dim] -> (x [1,block,hc,dim], main_x [1,1,dim])."""
+    mh = main_hidden.reshape(1, 1, 3 * DIM).astype(np.float32)
+    main_x = rmsnorm(mh @ main_proj.T, main_norm)                  # [1,1,dim] (main_proj HF [out=dim,in=3*dim])
+    draft_ids = np.full((1, BLOCK), NOISE_TOK, dtype=np.int64)
+    draft_ids[0, 0] = anchor_tok
+    # embed_w GGUF ne [dim, vocab]; row token t = embed_w[:, t]. x = embed[draft_ids]
+    x = embed_w[draft_ids[0]]                                      # [block, dim] (embed HF [vocab,dim])
+    x = x[None]                                                    # [1,block,dim]
+    x = np.repeat(x[:, :, None, :], HC, axis=2)                    # [1,block,hc,dim]
+    return x.astype(np.float32), main_x
+
+
+def block_forward(x, main_x, input_ids, w, store, stage, start_pos, cos, sin, slot0_kv):
+    """DSparkBlock.forward decode (hc_pre -> attn -> hc_post -> hc_pre -> ffn -> hc_post).
+    x [1,block,hc,dim], main_x [1,1,dim]. Returns (x', slot1_kv)."""
+    # --- attention sub-block ---
+    residual = x
+    yd, post, comb = hc_pre(x, w["hc_attn_fn"], w["hc_attn_scale"], w["hc_attn_base"])
+    yd = rmsnorm(yd, w["attn_norm"])
+    w_with_cache = dict(w); w_with_cache["_win_slot0_kv"] = slot0_kv[None] if slot0_kv is not None else None
+    attn_out, slot1_kv = dspark_attention(yd, main_x, w_with_cache, start_pos, cos, sin)
+    x = hc_post(attn_out, residual, post, comb)
+    # --- ffn sub-block ---
+    residual = x
+    yd, post, comb = hc_pre(x, w["hc_ffn_fn"], w["hc_ffn_scale"], w["hc_ffn_base"])
+    yd = rmsnorm(yd, w["ffn_norm"])
+    ffn_out = moe(yd, input_ids, w, store)
+    x = hc_post(ffn_out, residual, post, comb)
+    return x.astype(np.float32), slot1_kv
+
+
+def forward_head(h, anchor_tok, w_head, norm_w, hc_head_fn, hc_head_scale, hc_head_base,
+                 markov_w1, markov_w2, conf_proj, lm_head, temp=1.0):
+    """mtp.2.forward_head. h [1,block,hc,dim] -> output_ids [block+1], logits [block,vocab]."""
+    x = hc_head(h, hc_head_fn, hc_head_scale, hc_head_base)        # [1,block,dim]
+    x = rmsnorm(x, norm_w)
+    logits = x[0] @ lm_head.T                                       # [block, vocab] (lm_head HF [vocab,dim])
+    output_ids = np.zeros(BLOCK + 1, dtype=np.int64)
+    output_ids[0] = anchor_tok
+    for i in range(BLOCK):
+        # markov_head(output_ids[i]): markov_w1 embed [rank], markov_w2 -> [vocab]
+        emb = markov_w1[output_ids[i]]                             # [rank]  (markov_w1 HF [vocab,rank])
+        bias = emb @ markov_w2.T                                   # [vocab]  (markov_w2 HF [vocab,rank])
+        li = (logits[i] + bias) / max(temp, 1e-5)
+        output_ids[i + 1] = int(np.argmax(li))
+    return output_ids, logits
+
+
+def forward_spec(T, infos, data_off, main_hidden_prefill, main_hidden_decode, anchor_prefill, anchor_decode,
+                 embed_w, lm_head, cos, sin, temp=1.0, prefetch_workers=4):
+    """Run a full 2-step drafter scenario: prefill (start_pos=0) caches slot0 KV
+    from main_hidden_prefill; decode (start_pos=1) drafts from main_hidden_decode.
+    Returns output_ids [block+1]."""
+    main_proj = T["mtp.0.main_proj.weight"][0]
+    main_norm_w = T["mtp.0.main_norm.weight"][0]
+    _, main_x_p = forward_embed(main_hidden_prefill, anchor_prefill, main_proj, main_norm_w, embed_w)
+    layers = [layer_weights(T, s) for s in range(3)]
+    stores = [ExpertStore(DSPARK_GGUF, infos, data_off, s) for s in range(3)]
+    slot0_per_layer = []
+    for s in range(3):
+        slot0_per_layer.append(dspark_attention_prefill(main_x_p, layers[s], cos, sin))
+    x, main_x_d = forward_embed(main_hidden_decode, anchor_decode, main_proj, main_norm_w, embed_w)
+    input_ids = np.array([anchor_decode], dtype=np.int64)
+    # prefetch the experts each layer will need: route the 5 draft tokens' ffn
+    # inputs (post-norm) through the gate; dequant the union of selected experts
+    # in parallel. The dense weights needed for the ffn_norm are already in w.
+    if prefetch_workers and prefetch_workers > 0:
+        from moe import gate
+        for s in range(3):
+            # compute ffn input: hc_pre -> attn (reuse cached prefill attn is too much;
+            # for routing purposes, the pre-norm residual is a good proxy). Use the
+            # decode x's mean over hc/block as a representative token.
+            probe = x[0].mean(axis=(0, 1))  # [dim]
+            _, idx = gate(probe[None, :], layers[s]["ffn_gate_inp"],
+                          layers[s]["ffn_exp_probs_b"], 6)
+            stores[s].prefetch(idx[0], n_workers=prefetch_workers)
+    slot1 = None
+    for s in range(3):
+        x, slot1 = block_forward(x, main_x_d, input_ids, layers[s], stores[s], s, 1, cos, sin, slot0_per_layer[s])
+    out, logits = forward_head(
+        x, anchor_decode, None, T["mtp.2.norm.weight"][0],
+        T["mtp.2.hc_head_fn.weight"][0], T["mtp.2.hc_head_scale.weight"][0], T["mtp.2.hc_head_base.weight"][0],
+        T["mtp.2.markov_head.markov_w1.weight"][0], T["mtp.2.markov_head.markov_w2.weight"][0],
+        T["mtp.2.confidence_head.proj.weight"][0], lm_head, temp)
+    return out, logits
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--smoke", action="store_true")
+    ap.add_argument("--validate", action="store_true")
+    ap.add_argument("--seed", type=int, default=42)
+    ap.add_argument("--capture-dir")
+    ap.add_argument("--prefill-pos", type=int, default=152)
+    ap.add_argument("--decode-pos", type=int, default=153)
+    ap.add_argument("--out")
+    args = ap.parse_args()
+    if not args.smoke and not args.validate:
+        ap.error("need --smoke or --validate")
+
+    print("=== load dspark.gguf (dense only; experts lazy) ===", flush=True)
+    kv, T, infos, data_off, skipped = load_gguf_dense_only(DSPARK_GGUF)
+    print(f"  {len(T)} dense tensors loaded, {len(skipped)} packed expert tensors deferred to ExpertStore")
+    print("=== load shared embed + lm_head from target GGUF (lazy, 2 tensors) ===", flush=True)
+    _, tinfos, tdata_off = index_gguf(TARGET_GGUF)
+    embed_w = read_tensor(TARGET_GGUF, tinfos, tdata_off, "token_embd.weight").astype(np.float32)
+    lm_head = read_tensor(TARGET_GGUF, tinfos, tdata_off, "output.weight").astype(np.float32)
+    print(f"  embed {embed_w.shape}, lm_head {lm_head.shape}")
+
+    cos, sin = precompute_rope(64, MAX_POS)
+
+    if args.validate:
+        cap = Path(args.capture_dir) if args.capture_dir else Path("issue468/baseline/dspark_capture")
+        mh_p = np.load(cap / f"main_hidden_pos{args.prefill_pos}.npy")
+        mh_d = np.load(cap / f"main_hidden_pos{args.decode_pos}.npy")
+        selected_path = cap / "target_selected_tokens.json"
+        if not selected_path.exists():
+            selected_path = cap.parent / "target_selected_tokens.json"
+        if not selected_path.exists():
+            selected_path = cap / "target_greedy.json"
+        if not selected_path.exists():
+            selected_path = cap.parent / "target_greedy.json"
+        selected = json.loads(selected_path.read_text())
+        rel0 = args.prefill_pos - args.prefill_pos
+        rel1 = args.decode_pos - args.prefill_pos
+        if rel0 < 0 or rel1 < 0 or rel1 >= len(selected):
+            raise ValueError("prefill/decode positions are out of range for the retained selected token stream")
+        anchor_p = int(selected[rel0])
+        anchor_d = int(selected[rel1])
+    else:
+        rng = np.random.default_rng(args.seed)
+        mh_p = (rng.standard_normal(3 * DIM) * 0.5).astype(np.float32)
+        mh_d = (rng.standard_normal(3 * DIM) * 0.5).astype(np.float32)
+        anchor_p, anchor_d = 366, 366
+
+    print(f"=== forward_spec (prefill anchor {anchor_p}, decode anchor {anchor_d}) ===", flush=True)
+    out, logits = forward_spec(T, infos, data_off, mh_p, mh_d, anchor_p, anchor_d, embed_w, lm_head, cos, sin, temp=1.0)
+    print(f"  output_ids: {out.tolist()}")
+    print(f"  logits shape: {logits.shape}, range [{logits.min():.2f}, {logits.max():.2f}]")
+    # confidence (Phase 6 only; compute for completeness)
+    print(f"  draft tokens (positions 1..5): {out[1:].tolist()}")
+    if args.validate:
+        out_path = Path(args.out) if args.out else (cap / "oracle_ref.npz")
+        np.savez(out_path, output_ids=out, logits=logits)
+        print(f"  wrote {out_path}")
+
+
+if __name__ == "__main__":
+    main()
+
+exec
+/bin/zsh -lc "sed -n '1,260p' issue468/dspark_train/run_body_debug.py" in /Users/lobanov/Projects/ds4-dspark-research
+ succeeded in 0ms:
+#!/usr/bin/env python3
+"""Activity 5 debug — localize the torch-body fidelity bug per layer.
+
+Runs the numpy oracle forward (reusing dspark_oracle primitives verbatim) and the
+torch body forward on one prompt's step 1, both capturing x AFTER each layer, and
+prints the per-layer max abs diff to localize where the port diverges.
+"""
+from __future__ import annotations
+
+import json
+import sys
+from pathlib import Path
+
+import numpy as np
+import torch
+
+HERE = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(HERE / "dspark_oracle"))
+import measure_acceptance_bundle as mab              # noqa
+from measure_acceptance_bundle import dspark_attn    # noqa
+import forward as fwd                                # noqa
+from forward import BLOCK, HC, DIM, NOISE_TOK        # noqa
+from hc_primitives import rmsnorm, hc_pre, hc_post   # noqa
+from moe import moe                                  # noqa
+from attention import apply_rotary, ROPE_DIM         # noqa
+sys.path.insert(0, str(HERE / "dspark_train"))
+from drafter_body import build_body                   # noqa
+
+GGUF = HERE.parent.parent / "ds4" / "gguf"
+MODEL = str((GGUF / "DeepSeek-V4-Flash-IQ2XXS-w2Q2K-AProjQ8-SExpQ8-OutQ8-chat-v2-imatrix.gguf").resolve())
+DSPARK = str((GGUF / "dspark.gguf").resolve())
+BUNDLES = HERE / "artifacts" / "exactness_small_bundles"
+
+
+def numpy_step1(bdir, mctx, dctx):
+    T = dctx["T"]; layers = dctx["layers"]; stores = dctx["stores"]
+    main_proj = dctx["main_proj"]; main_norm_w = dctx["main_norm_w"]
+    embed_w = mctx["embed_w"]; cos, sin = mctx["cos"], mctx["sin"]
+    man = json.loads((bdir / "bundle_manifest.json").read_text())
+    pos0 = int(man["prompt_tokens"]); toks = json.loads((bdir / "target_selected_tokens.json").read_text())
+    win_kv = [np.zeros((128, 512), np.float32) for _ in range(3)]
+    mh0 = mab.load_mh(bdir, pos0)
+    main_x0 = rmsnorm(mh0.reshape(1, 1, 3 * DIM) @ main_proj.T, main_norm_w)
+    for s in range(3):
+        mkv = rmsnorm(main_x0 @ layers[s]["kv"].T, layers[s]["kv_a_norm"])
+        mkv[..., -ROPE_DIM:] = apply_rotary(mkv[..., -ROPE_DIM:], cos[0], sin[0])
+        win_kv[s][0] = mkv[0, 0]
+    n_real = 1
+    # step 1
+    anchor = int(toks[1]); mh = mab.load_mh(bdir, pos0 + 1)
+    main_x = rmsnorm(mh.reshape(1, 1, 3 * DIM) @ main_proj.T, main_norm_w)
+    for s in range(3):
+        mkv = rmsnorm(main_x @ layers[s]["kv"].T, layers[s]["kv_a_norm"])
+        mkv[..., -ROPE_DIM:] = apply_rotary(mkv[..., -ROPE_DIM:], cos[1], sin[1])
+        win_kv[s][1] = mkv[0, 0]
+    n_real = 2
+    draft_ids = np.full(BLOCK, NOISE_TOK, dtype=np.int64); draft_ids[0] = anchor
+    x = embed_w[draft_ids][None]; x = np.repeat(x[:, :, None, :], HC, axis=2)
+    layer_xs = []
+    for s in range(3):
+        res = x
+        yd, post, comb = hc_pre(x, layers[s]["hc_attn_fn"], layers[s]["hc_attn_scale"], layers[s]["hc_attn_base"])
+        yd = rmsnorm(yd, layers[s]["attn_norm"])
+        ao = dspark_attn(yd, win_kv[s], n_real, layers[s], cos, sin, 1)
+        x = hc_post(ao, res, post, comb)
+        res = x
+        yd, post, comb = hc_pre(x, layers[s]["hc_ffn_fn"], layers[s]["hc_ffn_scale"], layers[s]["hc_ffn_base"])
+        yd = rmsnorm(yd, layers[s]["ffn_norm"])
+        fo = moe(yd, np.array([0]), layers[s], stores[s])
+        x = hc_post(fo, res, post, comb)
+        layer_xs.append(x[0].copy())
+    return layer_xs  # [3, BLOCK, HC, DIM]
+
+
+def main():
+    p = "grounded_observatory"
+    bdir = BUNDLES / f"{p}__t0p0"
+    print("numpy mctx/dctx...", flush=True)
+    mctx = mab.build_model_ctx(MODEL); dctx = mab.build_drafter_ctx(DSPARK)
+    print("numpy step1...", flush=True)
+    np_layers = numpy_step1(bdir, mctx, dctx)
+    print("torch body (cache)...", flush=True)
+    body = build_body(DSPARK, MODEL, device="cpu", dtype=torch.float32)
+    man = json.loads((bdir / "bundle_manifest.json").read_text()); pos0 = int(man["prompt_tokens"])
+    toks = json.loads((bdir / "target_selected_tokens.json").read_text())
+    mh_seq = [np.asarray(mab.load_mh(bdir, pos0 + i), np.float32) for i in range(0, 2)]
+    _, torch_layers = body.forward_prompt(mh_seq, [int(toks[1])], return_layers=True)
+    torch_layers = torch_layers.numpy()  # [1,3,BLOCK,HC,DIM]
+    print("\nper-layer max abs diff (torch vs numpy), step 1:")
+    for s in range(3):
+        d = np.abs(torch_layers[0, s] - np_layers[s])
+        print(f"  layer {s}: max {d.max():.4f}  mean {d.mean():.6f}  (|x| mean {np.abs(np_layers[s]).mean():.3f})")
+
+
+if __name__ == "__main__":
+    main()
+
+codex
+The first suspicious detail I see is in `hc_split_sinkhorn`: the numpy oracle adds `+ eps` after the initial row softmax; the torch port does not. That is small enough to fit the layer-0 symptom, but I need to quantify whether it actually causes the 0.14 source.
+exec
+/bin/zsh -lc 'ls issue468/dspark_train/data' in /Users/lobanov/Projects/ds4-dspark-research
+ succeeded in 0ms:
+drafter_body_weights.npz
+eval_features.npz
+exactness_features.npz
+shards
+
+exec
+/bin/zsh -lc 'ls issue468/artifacts/exactness_small_bundles/grounded_observatory__t0p0/oracle | head' in /Users/lobanov/Projects/ds4-dspark-research
+exec
+/bin/zsh -lc "rg --files | rg '("'^|/)moe.py$'"'" in /Users/lobanov/Projects/ds4-dspark-research
+ succeeded in 0ms:
+issue468/dspark_oracle/moe.py
+
+ succeeded in 0ms:
+acceptance_summary.json
+main_hidden_manifest.json
+main_hidden_pos113.npy
+main_hidden_pos114.npy
+main_hidden_pos115.npy
+main_hidden_pos116.npy
+main_hidden_pos117.npy
+main_hidden_pos118.npy
+main_hidden_pos119.npy
+main_hidden_pos120.npy
+
+exec
+/bin/zsh -lc "rg -n \"comb = comb / comb.sum|comb = comb / \\(comb.sum|softmax|hc_split_sinkhorn|exp_probs|SWIGLU|transpose\" issue468 issue486" in /Users/lobanov/Projects/ds4-dspark-research
+ exited 2 in 0ms:
+rg: issue486: No such file or directory (os error 2)
+issue468/dspark_oracle/forward.py:54:        "ffn_gate_inp": T[p + "ffn_gate_inp.weight"][0], "ffn_exp_probs_b": T[p + "exp_probs_b.bias"][0],
+issue468/dspark_oracle/forward.py:136:                          layers[s]["ffn_exp_probs_b"], 6)
+issue468/dspark_oracle/hc_primitives.py:25:def hc_split_sinkhorn(mixes, hc_scale, hc_base, hc=HC_MULT, sinkhorn_iters=20, eps=HC_EPS):
+issue468/dspark_oracle/hc_primitives.py:26:    """Port of kernel.py hc_split_sinkhorn. mixes [..., (2+hc)*hc], scale [3],
+issue468/dspark_oracle/hc_primitives.py:32:    then: comb = softmax(comb,-1)+eps; comb /= (col_sum+eps);
+issue468/dspark_oracle/hc_primitives.py:43:    # softmax over last axis (rows)
+issue468/dspark_oracle/hc_primitives.py:46:    comb = comb / comb.sum(axis=-1, keepdims=True) + eps
+issue468/dspark_oracle/hc_primitives.py:70:    pre, post, comb = hc_split_sinkhorn(mixes, hc_scale, hc_base, hc)
+issue468/dspark_oracle/hc_primitives.py:99:    # Self-check hc_split_sinkhorn against its invariant: after Sinkhorn, rows
+issue468/dspark_oracle/hc_primitives.py:106:    pre, post, comb = hc_split_sinkhorn(mixes, hc_scale, hc_base)
+issue468/dspark_oracle/hc_primitives.py:114:    print("hc_split_sinkhorn: doubly-stochastic invariant holds (port correct)")
+issue468/dspark_oracle/moe.py:17:SWIGLU_LIMIT = 10.0   # config swiglu_limit; reference Expert.forward clamps gate(max)/up(both)
+issue468/dspark_oracle/moe.py:25:def gate(x, gate_inp, exp_probs_b, topk=TOPK):
+issue468/dspark_oracle/moe.py:31:    sel_scores = scores + exp_probs_b                           # bias for topk only
+issue468/dspark_oracle/moe.py:51:    if SWIGLU_LIMIT > 0:
+issue468/dspark_oracle/moe.py:52:        u = np.clip(u, -SWIGLU_LIMIT, SWIGLU_LIMIT)
+issue468/dspark_oracle/moe.py:53:        g = np.clip(g, None, SWIGLU_LIMIT)   # gate: max only
+issue468/dspark_oracle/moe.py:67:    weights, idx = gate(xf, w["ffn_gate_inp"], w["ffn_exp_probs_b"], topk)  # [bs, topk]
+issue468/dspark_train/drafter_body.py:28:WIN, TOPK, ROUTE_SCALE, SWIGLU_LIMIT = 128, 6, 1.5, 10.0
+issue468/dspark_train/drafter_body.py:45:def hc_split_sinkhorn(mixes, scale, base, hc=HC, iters=20, eps=HC_EPS):
+issue468/dspark_train/drafter_body.py:50:    comb = comb / (comb.sum(-1, keepdim=True) + eps)
+issue468/dspark_train/drafter_body.py:53:        comb = comb / (comb.sum(-1, keepdim=True) + eps)
+issue468/dspark_train/drafter_body.py:54:        comb = comb / (comb.sum(-2, keepdim=True) + eps)
+issue468/dspark_train/drafter_body.py:62:    pre, post, comb = hc_split_sinkhorn((flat @ fn.T) * rsqrt, scale, base, hc)
+issue468/dspark_train/drafter_body.py:97:        sel = scores + w["ffn_exp_probs_b"]
+issue468/dspark_train/drafter_body.py:103:            gg = torch.bmm(xf.unsqueeze(1), self.exp_gate[s][ids].transpose(1, 2)).squeeze(1)
+issue468/dspark_train/drafter_body.py:104:            uu = torch.bmm(xf.unsqueeze(1), self.exp_up[s][ids].transpose(1, 2)).squeeze(1)
+issue468/dspark_train/drafter_body.py:105:            gg = torch.clamp(gg, max=SWIGLU_LIMIT); uu = torch.clamp(uu, -SWIGLU_LIMIT, SWIGLU_LIMIT)
+issue468/dspark_train/drafter_body.py:107:            out = torch.bmm(inter.unsqueeze(1), self.exp_down[s][ids].transpose(1, 2)).squeeze(1)
+issue468/dspark_train/drafter_body.py:110:        g0 = torch.clamp(g0, max=SWIGLU_LIMIT); u0 = torch.clamp(u0, -SWIGLU_LIMIT, SWIGLU_LIMIT)
+issue468/dspark_train/drafter_body.py:181:                  "ffn_norm", "ffn_gate_inp", "ffn_exp_probs_b", "ffn_gate_shexp",
+issue468/dspark_train/drafter_body.py:188:                  "ffn_norm", "ffn_gate_inp", "ffn_exp_probs_b", "ffn_gate_shexp",
+issue468/dspark_oracle/attention.py:6:attention-sink bias added to the softmax denominator only). See
+issue468/dspark_oracle/attention.py:49:    attn_sink [h]. For each (b,s,h): scores = (q·kv)*scale [topk]; softmax denom
+issue468/dspark_oracle/attention.py:190:    # (all mass absorbed); with very negative sink, normal softmax.
+issue468/dspark_oracle/attention.py:199:    # compare to plain softmax-weighted sum
+issue468/dspark_oracle/attention.py:203:    print(f"sparse_attn no-sink vs plain softmax: max abs diff = {np.abs(o_normal[0,0]-o_ref).max():.2e}")
+issue468/dspark_oracle/gguf_loader.py:226:    F32 [out,in] (GGUF ne order: the expert's [in,out] slice, transposed to match
+issue468/dspark_oracle/gguf_loader.py:245:    # so callers apply x @ stored with no transpose.
+issue468/dspark_oracle/gguf_loader.py:252:    dequant_q4_k_expert (x @ stored, no transpose). Lazy + low-RAM: reads only
+issue468/ref/DSpark_paper.md:406:Speculative decoding places a further demand that the drafter must provide exact per-token probabilities for the rejection sampling rule. Most techniques above cannot readily provide such probabilities due to iterative refinement, latent marginalization, or global normalization. For instance, in a design closely related to ours, CRF-NAT (Sun et al., 2019) also places a sequential module over parallel hidden states, but its globally normalized partition function prevents exact per-token probability computation. Similarly, when adapting the CTC output layer to parallel speculative decoding, CTC-drafter (Wen et al., 2024) is restricted to greedy verification due to the latent marginalization of alignment paths. DSpark circumvents these limitations by keeping the sequential correction local, so per-token probabilities remain exact softmax evaluations. 
+issue468/dspark_converter/build_dspark_template.py:14:  F32   - norms, hc_*, attn_sinks, exp_probs_b
+issue468/dspark_converter/build_dspark_template.py:98:        add(f"{P}.exp_probs_b.bias",     [NX],                  F32)
+issue468/artifacts/exactness_small_bundles_q4tap/comparison_vs_baseline/codex_review_output.txt:4281:    F32 [out,in] (GGUF ne order: the expert's [in,out] slice, transposed to match
+issue468/artifacts/exactness_small_bundles_q4tap/comparison_vs_baseline/codex_review_output.txt:4300:    # so callers apply x @ stored with no transpose.
+issue468/artifacts/exactness_small_bundles_q4tap/comparison_vs_baseline/codex_review_output.txt:4307:    dequant_q4_k_expert (x @ stored, no transpose). Lazy + low-RAM: reads only
+issue468/artifacts/exactness_small_bundles_q4tap/comparison_vs_baseline/codex_review_output.txt:4349:expert name samples ['blk.40.ffn_gate_exps.weight', 'blk.40.ffn_down_exps.weight', 'blk.40.ffn_up_exps.weight', 'blk.40.exp_probs_b.bias', 'blk.40.ffn_gate_shexp.weight', 'blk.40.ffn_down_shexp.weight', 'blk.40.ffn_up_shexp.weight']
+issue468/dspark_converter/deepseek4-quantize.c:964:    { "exp_probs_b.bias",                 "ffn.gate.bias" },
+issue468/data/corpus_source/databricks-dolly-15k.jsonl:3375:{"instruction": "Give me some examples of spoonerisms.", "context": "", "response": "Spoonerisms are where the first one or two letters of a word are transposed with another word to create two new words with another meaning. Some examples of this are \"boiled icicle\", \"bunny phone\" or \"must tree\".", "category": "brainstorming"}
+issue468/data/corpus_source/databricks-dolly-15k.jsonl:7195:{"instruction": "Summarise me a history of the Aches National Park creation", "context": "Humans have occupied the region since the last ice age 10,000 years ago. Fremont people and Ancestral Puebloans lived in the area until about 700 years ago. Spanish missionaries encountered Ute and Paiute tribes in the area when they first came through in 1775, but the first European-Americans to attempt settlement in the area were the Mormon Elk Mountain Mission in 1855, who soon abandoned the area. Ranchers, farmers, and prospectors later settled Moab in the neighboring Riverine Valley in the late 1870s. Word of the beauty of the surrounding rock formations spread beyond the settlement as a possible tourist destination.\n\nThe Arches area was first brought to the attention of the National Park Service by Frank A. Wadleigh, passenger traffic manager of the Denver and Rio Grande Western Railroad. Wadleigh, accompanied by railroad photographer George L. Beam, visited the area in September 1923 at the invitation of Alexander Ringhoffer, a Hungarian-born prospector living in Salt Valley. Ringhoffer had written to the railroad to interest them in the tourist potential of a scenic area he had discovered the previous year with his two sons and a son-in-law, which he called the Devils Garden (known today as the Klondike Bluffs). Wadleigh was impressed by what Ringhoffer showed him, and suggested to Park Service director Stephen T. Mather that the area be made a national monument.\n\nThe following year, additional support for the monument idea came from Laurence Gould, a University of Michigan graduate student (and future polar explorer) studying the geology of the nearby La Sal Mountains, who was shown the scenic area by local physician Dr. J. W. \"Doc\" Williams.\n\nA succession of government investigators examined the area, in part due to confusion as to the precise location. In the process, the name Devils Garden was transposed to an area on the opposite side of Salt Valley that includes Landscape Arch, the longest arch in the park. Ringhoffer's original discovery was omitted, while another area nearby, known locally as the Windows, was included. Designation of the area as a national monument was supported by the Park Service in 1926 but was resisted by President Calvin Coolidge's Interior Secretary, Hubert Work. Finally, in April 1929, shortly after his inauguration, President Herbert Hoover signed a presidential proclamation creating the Arches National Monument, consisting of two comparatively small, disconnected sections. The purpose of the reservation under the 1906 Antiquities Act was to protect the arches, spires, balanced rocks, and other sandstone formations for their scientific and educational value. The name Arches was suggested by Frank Pinkely, superintendent of the Park Service's southwestern national monuments, following a visit to the Windows section in 1925.\n\nIn late 1938, President Franklin D. Roosevelt signed a proclamation that enlarged the Arches to protect additional scenic features and permit the development of facilities to promote tourism. A small adjustment was made by President Dwight Eisenhower in 1960 to accommodate a new road alignment.\n\nIn early 1969, just before leaving office, President Lyndon B. Johnson signed a proclamation substantially enlarging the Arches. Two years later, President Richard Nixon signed legislation enacted by Congress, which significantly reduced the total area enclosed, but changed its status. Arches National Park was formally dedicated in May 1972.\n\nIn 1980, vandals attempted to use an abrasive kitchen cleanser to deface ancient petroglyphs in the park, prompting park officials to recruit physicist John F. Asmus, who specialized in using lasers to restore works of art, to use his technology to repair the damage. Asmus \"zapped the panel with intense light pulses and succeeded in removing most of the cleanser\". In 2016, there was another vandalism event on Frame Arch in the park, where a section if the rock was carved out. Due to advances in technology, in 2018 the arch was repaired through color match and modern infilling methods.", "response": "First Humans appeared in this region during the last ice age 10000 years ago. The first settlers began in 1775 but were abandoned before 1855 when ranchers, farmers, and prospectors settled in Moab(the closest city to the Arches). The first attention to these beautiful rock formations was broad in 1923 by Frank A. Wadleigh. Devils Garden(known as Klondike Bluffs today) got its name from a prospector from Salt Valley Alexander Ringhoffer, Devils Garden was transposed to an area on the opposite side of Salt Valley. Landscape Arch is the longest arch in the park and the fifth longest in the world! \nIn 1929, President Herbert Hoover signed a presidential proclamation creating the Arches National Monument to protect the arches, spires, balanced rocks, and other sandstone formations for their scientific and educational value. The name Arches was suggested by Frank Pinkely, in 1925. From 1938 multiple presidents of the United States of America signed multiple proclamations to protest scenic features and permits for road constructions in order to attract tourists into the area but only in 1972 Arches National Park was officially created. \nIn 1980, vandals tried to destroy ancient petroglyphs in the park, which physicist John F. Asmus restored using laser technology for restoration. In 2016, another vandalism event happened on Frame Arch a section of rocks was carved, but thanks to technology, it was restored.", "category": "summarization"}
+issue468/data/corpus_source/databricks-dolly-15k.jsonl:8305:{"instruction": "History of the Arches National Park creation.", "context": "Humans have occupied the region since the last ice age 10,000 years ago. Fremont people and Ancestral Puebloans lived in the area until about 700 years ago. Spanish missionaries encountered Ute and Paiute tribes in the area when they first came through in 1775, but the first European-Americans to attempt settlement in the area were the Mormon Elk Mountain Mission in 1855, who soon abandoned the area. Ranchers, farmers, and prospectors later settled Moab in the neighboring Riverine Valley in the late 1870s. Word of the beauty of the surrounding rock formations spread beyond the settlement as a possible tourist destination.\n\nThe Arches area was first brought to the attention of the National Park Service by Frank A. Wadleigh, passenger traffic manager of the Denver and Rio Grande Western Railroad. Wadleigh, accompanied by railroad photographer George L. Beam, visited the area in September 1923 at the invitation of Alexander Ringhoffer, a Hungarian-born prospector living in Salt Valley. Ringhoffer had written to the railroad to interest them in the tourist potential of a scenic area he had discovered the previous year with his two sons and a son-in-law, which he called the Devils Garden (known today as the Klondike Bluffs). Wadleigh was impressed by what Ringhoffer showed him, and suggested to Park Service director Stephen T. Mather that the area be made a national monument.\n\nThe following year, additional support for the monument idea came from Laurence Gould, a University of Michigan graduate student (and future polar explorer) studying the geology of the nearby La Sal Mountains, who was shown the scenic area by local physician Dr. J. W. \"Doc\" Williams.\n\nA succession of government investigators examined the area, in part due to confusion as to the precise location. In the process, the name Devils Garden was transposed to an area on the opposite side of Salt Valley that includes Landscape Arch, the longest arch in the park. Ringhoffer's original discovery was omitted, while another area nearby, known locally as the Windows, was included. Designation of the area as a national monument was supported by the Park Service in 1926 but was resisted by President Calvin Coolidge's Interior Secretary, Hubert Work. Finally, in April 1929, shortly after his inauguration, President Herbert Hoover signed a presidential proclamation creating the Arches National Monument, consisting of two comparatively small, disconnected sections. The purpose of the reservation under the 1906 Antiquities Act was to protect the arches, spires, balanced rocks, and other sandstone formations for their scientific and educational value. The name Arches was suggested by Frank Pinkely, superintendent of the Park Service's southwestern national monuments, following a visit to the Windows section in 1925.\n\nIn late 1938, President Franklin D. Roosevelt signed a proclamation that enlarged the Arches to protect additional scenic features and permit the development of facilities to promote tourism. A small adjustment was made by President Dwight Eisenhower in 1960 to accommodate a new road alignment.\n\nIn early 1969, just before leaving office, President Lyndon B. Johnson signed a proclamation substantially enlarging the Arches. Two years later, President Richard Nixon signed legislation enacted by Congress, which significantly reduced the total area enclosed, but changed its status. Arches National Park was formally dedicated in May 1972.\n\nIn 1980, vandals attempted to use an abrasive kitchen cleanser to deface ancient petroglyphs in the park, prompting park officials to recruit physicist John F. Asmus, who specialized in using lasers to restore works of art, to use his technology to repair the damage. Asmus \"zapped the panel with intense light pulses and succeeded in removing most of the cleanser\". In 2016, there was another vandalism event on Frame Arch in the park, where a section if the rock was carved out. Due to advances in technology, in 2018 the arch was repaired through color match and modern infilling methods.", "response": "First Humans appeared in this region during the last ice age 10000 years ago. The first settlers began in 1775 but were abandoned before 1855 when ranchers, farmers, and prospectors settled in Moab(the closest city to the Arches). The first attention to these beautiful rock formations was broad in 1923 by Frank A. Wadleigh. Devils Garden(known as Klondike Bluffs today) got its name from a prospector from Salt Valley Alexander Ringhoffer, Devils Garden was transposed to an area on the opposite side of Salt Valley. Landscape Arch is the longest arch in the park and the fifth longest in the world! \nIn 1929, President Herbert Hoover signed a presidential proclamation creating the Arches National Monument to protect the arches, spires, balanced rocks, and other sandstone formations for their scientific and educational value. The name Arches was suggested by Frank Pinkely, in 1925. From 1938 multiple presidents of the United States of America signed multiple proclamations to protest scenic features and permits for road constructions in order to attract tourists into the area but only in 1972 Arches National Park was officially created. \nIn 1980, vandals tried to destroy ancient petroglyphs in the park, which physicist John F. Asmus restored using laser technology for restoration. In 2016, another vandalism event happened on Frame Arch a section of rocks was carved, but thanks to technology, it was restored.", "category": "information_extraction"}
+issue468/dflash_oracle/forward.py:114:def _softmax(x: np.ndarray, axis: int = -1) -> np.ndarray:
+issue468/dflash_oracle/forward.py:130:    q = (hidden_states @ w["q_proj"].T).reshape(b, block, N_HEADS, HEAD_DIM).transpose(0, 2, 1, 3)
+issue468/dflash_oracle/forward.py:132:    ctx_k = (target_hidden @ w["k_proj"].T).reshape(b, ctx, N_KV, HEAD_DIM).transpose(0, 2, 1, 3)
+issue468/dflash_oracle/forward.py:134:    ctx_v = (target_hidden @ w["v_proj"].T).reshape(b, ctx, N_KV, HEAD_DIM).transpose(0, 2, 1, 3)
+issue468/dflash_oracle/forward.py:135:    noise_k = (hidden_states @ w["k_proj"].T).reshape(b, block, N_KV, HEAD_DIM).transpose(0, 2, 1, 3)
+issue468/dflash_oracle/forward.py:137:    noise_v = (hidden_states @ w["v_proj"].T).reshape(b, block, N_KV, HEAD_DIM).transpose(0, 2, 1, 3)
+issue468/dflash_oracle/forward.py:152:    probs = _softmax(scores, axis=-1)
+issue468/dflash_oracle/forward.py:154:    out = out.transpose(0, 2, 1, 3).reshape(b, block, N_HEADS * HEAD_DIM)
+issue468/run_stage2_consolidate.py:63:        lps = np.full(TOPK, -1000.0, dtype=np.float32)  # float16-safe; softmax->0
+issue468/artifacts/stage2_plan_review/codex_review_output.txt:176:    54	        "ffn_gate_inp": T[p + "ffn_gate_inp.weight"][0], "ffn_exp_probs_b": T[p + "exp_probs_b.bias"][0],
+issue468/artifacts/stage2_plan_review/codex_review_output.txt:258:   136	                          layers[s]["ffn_exp_probs_b"], 6)
+issue468/artifacts/stage2_plan_review/codex_review_output.txt:4047:issue468/dflash_oracle/forward.py:114:def _softmax(x: np.ndarray, axis: int = -1) -> np.ndarray:
+issue468/artifacts/stage2_plan_review/codex_review_output.txt:4048:issue468/dflash_oracle/forward.py:152:    probs = _softmax(scores, axis=-1)
+issue468/artifacts/stage2_plan_review/codex_review_output.txt:4075:issue468/dspark_oracle/hc_primitives.py:32:    then: comb = softmax(comb,-1)+eps; comb /= (col_sum+eps);
+issue468/artifacts/stage2_plan_review/codex_review_output.txt:4076:issue468/dspark_oracle/hc_primitives.py:43:    # softmax over last axis (rows)
+issue468/artifacts/stage2_plan_review/codex_review_output.txt:4123:issue468/dspark_oracle/attention.py:6:attention-sink bias added to the softmax denominator only). See
+issue468/artifacts/stage2_plan_review/codex_review_output.txt:4124:issue468/dspark_oracle/attention.py:49:    attn_sink [h]. For each (b,s,h): scores = (q·kv)*scale [topk]; softmax denom
+issue468/artifacts/stage2_plan_review/codex_review_output.txt:4136:issue468/dspark_oracle/attention.py:190:    # (all mass absorbed); with very negative sink, normal softmax.
+issue468/artifacts/stage2_plan_review/codex_review_output.txt:4137:issue468/dspark_oracle/attention.py:199:    # compare to plain softmax-weighted sum
+issue468/artifacts/stage2_plan_review/codex_review_output.txt:4138:issue468/dspark_oracle/attention.py:203:    print(f"sparse_attn no-sink vs plain softmax: max abs diff = {np.abs(o_normal[0,0]-o_ref).max():.2e}")
+issue468/artifacts/stage2_plan_review/codex_review_output.txt:4141:issue468/ref/DSpark_paper.md:406:Speculative decoding places a further demand that the drafter must provide exact per-token probabilities for the rejection sampling rule. Most techniques above cannot readily provide such probabilities due to iterative refinement, latent marginalization, or global normalization. For instance, in a design closely related to ours, CRF-NAT (Sun et al., 2019) also places a sequential module over parallel hidden states, but its globally normalized partition function prevents exact per-token probability computation. Similarly, when adapting the CTC output layer to parallel speculative decoding, CTC-drafter (Wen et al., 2024) is restricted to greedy verification due to the latent marginalization of alignment paths. DSpark circumvents these limitations by keeping the sequential correction local, so per-token probabilities remain exact softmax evaluations. 
+issue468/artifacts/stage2_plan_review/codex_review_output.txt:4261:   406	Speculative decoding places a further demand that the drafter must provide exact per-token probabilities for the rejection sampling rule. Most techniques above cannot readily provide such probabilities due to iterative refinement, latent marginalization, or global normalization. For instance, in a design closely related to ours, CRF-NAT (Sun et al., 2019) also places a sequential module over parallel hidden states, but its globally normalized partition function prevents exact per-token probability computation. Similarly, when adapting the CTC output layer to parallel speculative decoding, CTC-drafter (Wen et al., 2024) is restricted to greedy verification due to the latent marginalization of alignment paths. DSpark circumvents these limitations by keeping the sequential correction local, so per-token probabilities remain exact softmax evaluations. 
+issue468/artifacts/stage2_plan_review/codex_review_output.txt:4313:406:Speculative decoding places a further demand that the drafter must provide exact per-token probabilities for the rejection sampling rule. Most techniques above cannot readily provide such probabilities due to iterative refinement, latent marginalization, or global normalization. For instance, in a design closely related to ours, CRF-NAT (Sun et al., 2019) also places a sequential module over parallel hidden states, but its globally normalized partition function prevents exact per-token probability computation. Similarly, when adapting the CTC output layer to parallel speculative decoding, CTC-drafter (Wen et al., 2024) is restricted to greedy verification due to the latent marginalization of alignment paths. DSpark circumvents these limitations by keeping the sequential correction local, so per-token probabilities remain exact softmax evaluations. 
+issue468/artifacts/quant_mismatch_diagnostic/codex_review_prompt.md:62:   non-strict load, a transpose) would pass the crosscheck and still produce wrong
+issue468/artifacts/quant_mismatch_diagnostic/codex_review_output.txt:74:   non-strict load, a transpose) would pass the crosscheck and still produce wrong
+issue468/artifacts/quant_mismatch_diagnostic/codex_review_output.txt:185:        "ffn_gate_inp": T[p + "ffn_gate_inp.weight"][0], "ffn_exp_probs_b": T[p + "exp_probs_b.bias"][0],
+issue468/artifacts/quant_mismatch_diagnostic/codex_review_output.txt:267:                          layers[s]["ffn_exp_probs_b"], 6)
+issue468/artifacts/quant_mismatch_diagnostic/codex_review_output.txt:3724:/bin/zsh -lc "rg -n \"strict|load_gguf_dense_only|read_tensor|transpose|\\.T|token_embd.weight|output.weight|markov_head\" issue468/dspark_oracle issue468/run_stage0_quant_mismatch.py" in /Users/lobanov/Projects/ds4-dspark-research
+issue468/artifacts/quant_mismatch_diagnostic/codex_review_output.txt:3768:issue468/dspark_oracle/gguf_loader.py:226:    F32 [out,in] (GGUF ne order: the expert's [in,out] slice, transposed to match
+issue468/artifacts/quant_mismatch_diagnostic/codex_review_output.txt:3770:issue468/dspark_oracle/gguf_loader.py:245:    # so callers apply x @ stored with no transpose.
+issue468/artifacts/quant_mismatch_diagnostic/codex_review_output.txt:3771:issue468/dspark_oracle/gguf_loader.py:252:    dequant_q4_k_expert (x @ stored, no transpose). Lazy + low-RAM: reads only
+issue468/artifacts/quant_mismatch_diagnostic/codex_review_output.txt:5038:406:Speculative decoding places a further demand that the drafter must provide exact per-token probabilities for the rejection sampling rule. Most techniques above cannot readily provide such probabilities due to iterative refinement, latent marginalization, or global normalization. For instance, in a design closely related to ours, CRF-NAT (Sun et al., 2019) also places a sequential module over parallel hidden states, but its globally normalized partition function prevents exact per-token probability computation. Similarly, when adapting the CTC output layer to parallel speculative decoding, CTC-drafter (Wen et al., 2024) is restricted to greedy verification due to the latent marginalization of alignment paths. DSpark circumvents these limitations by keeping the sequential correction local, so per-token probabilities remain exact softmax evaluations. 
+issue468/artifacts/quant_mismatch_diagnostic/codex_review_output.txt:5293:Speculative decoding places a further demand that the drafter must provide exact per-token probabilities for the rejection sampling rule. Most techniques above cannot readily provide such probabilities due to iterative refinement, latent marginalization, or global normalization. For instance, in a design closely related to ours, CRF-NAT (Sun et al., 2019) also places a sequential module over parallel hidden states, but its globally normalized partition function prevents exact per-token probability computation. Similarly, when adapting the CTC output layer to parallel speculative decoding, CTC-drafter (Wen et al., 2024) is restricted to greedy verification due to the latent marginalization of alignment paths. DSpark circumvents these limitations by keeping the sequential correction local, so per-token probabilities remain exact softmax evaluations. 
+issue468/artifacts/quant_mismatch_diagnostic/codex_review_output.txt:5720:   226	    F32 [out,in] (GGUF ne order: the expert's [in,out] slice, transposed to match
+issue468/artifacts/quant_mismatch_diagnostic/codex_review_output.txt:5816:     6	attention-sink bias added to the softmax denominator only). See
+issue468/artifacts/quant_mismatch_diagnostic/codex_review_output.txt:5859:    49	    attn_sink [h]. For each (b,s,h): scores = (q·kv)*scale [topk]; softmax denom
+issue468/artifacts/quant_mismatch_diagnostic/codex_review_output.txt:6000:   190	    # (all mass absorbed); with very negative sink, normal softmax.
+issue468/artifacts/quant_mismatch_diagnostic/codex_review_output.txt:6009:   199	    # compare to plain softmax-weighted sum
+issue468/artifacts/quant_mismatch_diagnostic/codex_review_output.txt:6013:   203	    print(f"sparse_attn no-sink vs plain softmax: max abs diff = {np.abs(o_normal[0,0]-o_ref).max():.2e}")
+issue468/artifacts/quant_mismatch_diagnostic/codex_review_output.txt:6041:    17	SWIGLU_LIMIT = 10.0   # config swiglu_limit; reference Expert.forward clamps gate(max)/up(both)
+issue468/artifacts/quant_mismatch_diagnostic/codex_review_output.txt:6049:    25	def gate(x, gate_inp, exp_probs_b, topk=TOPK):
+issue468/artifacts/quant_mismatch_diagnostic/codex_review_output.txt:6055:    31	    sel_scores = scores + exp_probs_b                           # bias for topk only
+issue468/artifacts/quant_mismatch_diagnostic/codex_review_output.txt:6075:    51	    if SWIGLU_LIMIT > 0:
+issue468/artifacts/quant_mismatch_diagnostic/codex_review_output.txt:6076:    52	        u = np.clip(u, -SWIGLU_LIMIT, SWIGLU_LIMIT)
+issue468/artifacts/quant_mismatch_diagnostic/codex_review_output.txt:6077:    53	        g = np.clip(g, None, SWIGLU_LIMIT)   # gate: max only
+issue468/artifacts/quant_mismatch_diagnostic/codex_review_output.txt:6091:    67	    weights, idx = gate(xf, w["ffn_gate_inp"], w["ffn_exp_probs_b"], topk)  # [bs, topk]
+issue468/artifacts/spec_speedup_model/codex_review_output.txt:2521: 21175	             * The order is transposed vs the indexer-score callers; a swap
+issue468/artifacts/spec_speedup_model/codex_review_output.txt:5190:ds4.c:4466:    l->ffn_exp_probs_b = required_tensor(m, "mtp.0.exp_probs_b.bias");
+issue468/artifacts/spec_speedup_model/codex_review_output.txt:5950:issue468/ref/DSpark_paper.md:406:Speculative decoding places a further demand that the drafter must provide exact per-token probabilities for the rejection sampling rule. Most techniques above cannot readily provide such probabilities due to iterative refinement, latent marginalization, or global normalization. For instance, in a design closely related to ours, CRF-NAT (Sun et al., 2019) also places a sequential module over parallel hidden states, but its globally normalized partition function prevents exact per-token probability computation. Similarly, when adapting the CTC output layer to parallel speculative decoding, CTC-drafter (Wen et al., 2024) is restricted to greedy verification due to the latent marginalization of alignment paths. DSpark circumvents these limitations by keeping the sequential correction local, so per-token probabilities remain exact softmax evaluations. 
+
+exec
+/bin/zsh -lc "sed -n '1,180p' issue468/dspark_oracle/moe.py" in /Users/lobanov/Projects/ds4-dspark-research
+ succeeded in 0ms:
+#!/usr/bin/env python3
+"""DSpark MoE for the numpy oracle.
+
+Faithful port of model.py Gate + MoE + Expert (SwiGLU), F32. Drafter layers
+(43+, n_hash_layers=3 targets layers 0-2) use SCORE-BASED routing (no tid2eid).
+See issue468/13_phase4_forward_design.md §5.
+
+score_func = "sqrtsoftplus": scores = softplus(x@gate).sqrt(); bias shifts topk
+selection only (not weights); weights normalized to sum 1 then *route_scale=1.5.
+n_activated_experts=6, n_routed=256, n_shared=1, moe_inter_dim=2048, dim=4096.
+"""
+import numpy as np
+
+NORM_EPS = 1e-6
+ROUTE_SCALE = 1.5
+TOPK = 6
+SWIGLU_LIMIT = 10.0   # config swiglu_limit; reference Expert.forward clamps gate(max)/up(both)
+
+
+def softplus(x):
+    # numerically stable
+    return np.where(x > 20, x, np.log1p(np.exp(np.minimum(x, 20))))
+
+
+def gate(x, gate_inp, exp_probs_b, topk=TOPK):
+    """x [...,dim] -> (weights [...,topk], indices [...,topk]). sqrtsoftplus,
+    bias shifts topk but not weights; weights gathered from ORIGINAL scores,
+    normalized, *route_scale. (model.py Gate.forward)."""
+    scores = softplus((x @ gate_inp.T).astype(np.float32))     # [...,256] (gate_inp HF [out=256,in=dim])
+    scores = np.sqrt(scores)
+    sel_scores = scores + exp_probs_b                           # bias for topk only
+    # topk indices along last axis
+    idx = np.argpartition(sel_scores, -topk, axis=-1)[..., -topk:]  # unsorted topk
+    # sort the topk by score descending for determinism
+    order = np.argsort(-np.take_along_axis(sel_scores, idx, axis=-1), axis=-1)
+    idx = np.take_along_axis(idx, order, axis=-1)               # [...,topk] sorted desc
+    weights = np.take_along_axis(scores, idx, axis=-1)          # original (no bias)
+    weights = weights / (weights.sum(axis=-1, keepdims=True) + 1e-12)
+    weights = weights * ROUTE_SCALE
+    return weights.astype(np.float32), idx
+
+
+def swiglu_expert(x, w_gate, w_up, w_down):
+    """Single expert SwiGLU: down(silu(gate(x)) * up(x)). x [...,dim] -> [...,dim].
+    w_gate/w_up/w_down are expert slices in HF [out,in] order (standard linear).
+    Apply as x @ W.T. Applies the config swiglu_limit clamp (gate max-only, up both)
+    per reference Expert.forward + ds4's swiglu() kernel."""
+    g = x @ w_gate.T
+    u = x @ w_up.T
+    # swiglu clamp (config swiglu_limit=10.0; matches ds4 swiglu() + model.py Expert.forward)
+    if SWIGLU_LIMIT > 0:
+        u = np.clip(u, -SWIGLU_LIMIT, SWIGLU_LIMIT)
+        g = np.clip(g, None, SWIGLU_LIMIT)   # gate: max only
+    # silu(g) = g * sigmoid(g)
+    h = g * (1.0 / (1.0 + np.exp(-g)))
+    inter = h * u
+    return inter @ w_down.T
+
+
+def moe(x, input_ids, w, expert_store, topk=TOPK):
+    """x [1,block,dim], input_ids (unused for score routing). w has the dense
+    tensors (gate, shared, norms). expert_store yields per-expert [inter,dim]
+    gate/up/down lazily: expert_store.expert(e) -> (wg,wu,wd).
+    Returns [1,block,dim]."""
+    b, s, dim = x.shape
+    xf = x.reshape(b * s, dim).astype(np.float32)
+    weights, idx = gate(xf, w["ffn_gate_inp"], w["ffn_exp_probs_b"], topk)  # [bs, topk]
+    y = np.zeros_like(xf)
+    cache = {}  # per-forward memo: (e) -> (wg,wu,wd)
+    for t in range(xf.shape[0]):
+        for k in range(topk):
+            e = int(idx[t, k])
+            if e not in cache:
+                cache[e] = expert_store.expert(e)
+            wg, wu, wd = cache[e]
+            y[t] += weights[t, k] * swiglu_expert(xf[t], wg, wu, wd)
+    y += swiglu_expert(xf, w["ffn_gate_shexp"], w["ffn_up_shexp"], w["ffn_down_shexp"])
+    return y.reshape(b, s, dim).astype(np.float32)
+
+
+if __name__ == "__main__":
+    rng = np.random.default_rng(2)
+    # gate: weights sum to route_scale, indices unique (gate_inp stored [in=dim,out=256])
+    x = rng.standard_normal((2, 4096)).astype(np.float32)
+    gi = rng.standard_normal((256, 4096)).astype(np.float32) * 0.01
+    eb = rng.standard_normal(256).astype(np.float32) * 0.01
+    w, idx = gate(x, gi, eb)
+    print(f"gate: weights shape {w.shape}, sum={w.sum(-1)} (want ~{ROUTE_SCALE})")
+    print(f"  indices unique per row: {[len(np.unique(idx[i])) for i in range(2)]} (want 6)")
+    assert np.allclose(w.sum(-1), ROUTE_SCALE, atol=1e-3)
+    assert all(len(np.unique(idx[i])) == 6 for i in range(2))
+    # swiglu + moe shape + determinism (weights in GGUF-ne [in,out] order)
+    dim, inter = 4096, 2048
+    wg = rng.standard_normal((inter, dim)).astype(np.float32) * 0.01
+    wu = rng.standard_normal((inter, dim)).astype(np.float32) * 0.01
+    wd = rng.standard_normal((dim, inter)).astype(np.float32) * 0.01
+    xe = rng.standard_normal(dim).astype(np.float32)
+    y1 = swiglu_expert(xe, wg, wu, wd)
+    y2 = swiglu_expert(xe, wg, wu, wd)
+    print(f"swiglu: deterministic {np.array_equal(y1, y2)}, output shape {y1.shape}")
+    assert np.array_equal(y1, y2) and y1.shape == (dim,)
+    print("moe primitives: gate invariants + swiglu OK")
+
+exec
+/bin/zsh -lc "sed -n '210,270p' issue468/dspark_oracle/gguf_loader.py" in /Users/lobanov/Projects/ds4-dspark-research
+ succeeded in 0ms:
+        scales[:, j] = d * sd
+        mins[:, j] = dmin * sm
+    q = qs.astype(np.uint16)
+    low = (q & 0xF).astype(np.float32)
+    high = (q >> 4).astype(np.float32)
+    nib = np.empty((nb, 256), dtype=np.float32)
+    for t in range(4):
+        nib[:, t * 64 : t * 64 + 32] = low[:, t * 32 : (t + 1) * 32]
+        nib[:, t * 64 + 32 : t * 64 + 64] = high[:, t * 32 : (t + 1) * 32]
+    sb = np.repeat(np.arange(8, dtype=np.int64), 32)
+    res = nib * scales[:, sb] - mins[:, sb]
+    out[:] = res.reshape(-1)
+
+
+def dequant_q4_k_expert(path, infos, data_off, name, expert_idx):
+    """Dequant ONE expert from a packed Q4_K expert tensor [in,out,n_exp]. Returns
+    F32 [out,in] (GGUF ne order: the expert's [in,out] slice, transposed to match
+    HF/torch [out,in] so x@W.T works). Lazy + low-RAM: only reads ~4.7MB raw,
+    emits ~34MB F32. Matches the Metal path's on-demand per-expert dequant."""
+    dims, tt, off = infos[name]
+    assert tt == 12
+    in_dim, out_dim, n_exp = dims
+    # raw layout: per-expert slices contiguous, each = in_dim*out_dim elements
+    # = (in_dim*out_dim)//256 super-blocks * 144 bytes.
+    elems_per_exp = in_dim * out_dim
+    assert elems_per_exp % 256 == 0
+    sb_per_exp = elems_per_exp // 256
+    bytes_per_exp = sb_per_exp * 144
+    with open(path, "rb") as f:
+        f.seek(data_off + off + expert_idx * bytes_per_exp)
+        raw = f.read(bytes_per_exp)
+    arr = np.empty(elems_per_exp, dtype=np.float32)
+    _dequant_q4_k_region(raw, sb_per_exp, arr)
+    # arr is in GGUF ne order [in,out] flattened (in fastest). Return [in,out] to
+    # match every other stored weight (the universal 'out = x @ stored' rule),
+    # so callers apply x @ stored with no transpose.
+    return _gguf_ne_to_torch(arr, [in_dim, out_dim]).copy()  # HF [out,in]
+
+
+def read_dense_expert(path, infos, data_off, name, expert_idx):
+    """Read ONE expert's slice from a packed dense (F32/F16/BF16) expert tensor
+    [in,out,n_exp] and return F32 [out,in] in the SAME convention as
+    dequant_q4_k_expert (x @ stored, no transpose). Lazy + low-RAM: reads only
+    this expert's contiguous byte slice. Mirrors dequant_q4_k_expert's layout
+    (per-expert slices contiguous, no inter-expert padding). Used for unquantized
+    ceiling GGUFs where the routed experts are F32/F16/BF16 instead of Q4_K."""
+    dims, tt, off = infos[name]
+    in_dim, out_dim, n_exp = dims
+    elems_per_exp = in_dim * out_dim
+    if tt == 0:      # F32
+        bpe = 4
+        with open(path, "rb") as f:
+            f.seek(data_off + off + expert_idx * elems_per_exp * bpe)
+            arr = np.frombuffer(f.read(elems_per_exp * bpe), dtype=np.float32).copy()
+    elif tt == 1:    # F16
+        bpe = 2
+        with open(path, "rb") as f:
+            f.seek(data_off + off + expert_idx * elems_per_exp * bpe)
+            arr = _f16_to_f32(np.frombuffer(f.read(elems_per_exp * bpe), dtype=np.uint16).copy())
+    elif tt == 30:   # BF16
+        bpe = 2
+
+exec
+/bin/zsh -lc "sed -n '1,160p' issue468/dspark_oracle/expert_store.py" in /Users/lobanov/Projects/ds4-dspark-research
+ succeeded in 0ms:
+#!/usr/bin/env python3
+"""Lazy per-expert Q4_K dequant store for the DSpark numpy oracle.
+
+Holds the raw packed Q4_K bytes for one layer's gate/up/down expert tensors
+(same on-disk size, ~3.6GB total per layer) and dequants a single expert's
+gate/up/down weights on demand, memoized. This mirrors how the ds4 Metal path
+operates (experts stay quantized; dequanted per-call) and keeps the oracle's
+working set small (~1GB for ~30 distinct experts touched per forward).
+
+Optional prefetch(n_workers) dequants likely-needed experts in parallel to use
+spare CPU. Default is on-demand only.
+"""
+import numpy as np
+from gguf_loader import dequant_q4_k_expert, read_dense_expert
+
+
+class ExpertStore:
+    """Per-layer lazy expert dequant for one DSparkBlock's MoE."""
+
+    def __init__(self, path, infos, data_off, stage):
+        self.path = path
+        self.infos = infos
+        self.data_off = data_off
+        self.stage = stage
+        self._cache = {}
+
+    def _read(self, part, e):
+        nm = f"mtp.{self.stage}.ffn_{part}_exps.weight"
+        tt = self.infos[nm][1]
+        if tt == 12:  # Q4_K
+            return dequant_q4_k_expert(self.path, self.infos, self.data_off, nm, e)
+        # dense expert (F32/F16/BF16) — used by unquantized ceiling GGUFs
+        return read_dense_expert(self.path, self.infos, self.data_off, nm, e)
+
+    def expert(self, e):
+        """Return (gate_wg [inter,dim], up_wu [inter,dim], down_wd [dim,inter])."""
+        if e not in self._cache:
+            self._cache[e] = (self._read("gate", e), self._read("up", e), self._read("down", e))
+        return self._cache[e]
+
+    def clear(self):
+        """Drop cached dequanted experts to bound RAM between bundles in bulk mode."""
+        self._cache.clear()
+
+    def prefetch(self, expert_ids, n_workers=4):
+        """Dequant a set of experts in parallel using a process pool (uses spare CPU).
+        Each worker reads its own slice; results memoized into _cache."""
+        from concurrent.futures import ProcessPoolExecutor
+        todo = [e for e in set(int(i) for i in expert_ids) if e not in self._cache]
+        if not todo:
+            return
+        args = [(self.path, self.infos, self.data_off, self.stage, e) for e in todo]
+        # note: infos/data_off are plain dicts/ints -> picklable
+        with ProcessPoolExecutor(max_workers=min(n_workers, len(todo))) as ex:
+            results = list(ex.map(_prefetch_one, args))
+        for e, res in zip(todo, results):
+            self._cache[e] = res
+
+
+def _prefetch_one(args):
+    path, infos, data_off, stage, e = args
+    def rd(part):
+        nm = f"mtp.{stage}.ffn_{part}_exps.weight"
+        tt = infos[nm][1]
+        if tt == 12:  # Q4_K
+            return dequant_q4_k_expert(path, infos, data_off, nm, e)
+        return read_dense_expert(path, infos, data_off, nm, e)
+    return (rd("gate"), rd("up"), rd("down"))
+
+exec
+/bin/zsh -lc 'ls -l issue468/dspark_train/data/*.npz issue468/artifacts/exactness_small_bundles/grounded_observatory__t0p0/bundle_manifest.json' in /Users/lobanov/Projects/ds4-dspark-research
+ succeeded in 0ms:
+-rw-r--r--@ 1 lobanov  staff          295 Jul  5 16:13 issue468/artifacts/exactness_small_bundles/grounded_observatory__t0p0/bundle_manifest.json
+-rw-r--r--@ 1 lobanov  staff  81237533010 Jul  6 20:01 issue468/dspark_train/data/drafter_body_weights.npz
+-rw-r--r--@ 1 lobanov  staff     79961998 Jul  6 19:41 issue468/dspark_train/data/eval_features.npz
+-rw-r--r--@ 1 lobanov  staff    233079812 Jul  6 19:12 issue468/dspark_train/data/exactness_features.npz
+
+codex
+I’m avoiding the full `build_body` path for the first checks because the cached body weights include stacked experts and are very large. The component tests can load only the dense tensors needed for HC/attention.
+exec
+/bin/zsh -lc 'du -sh issue468/dspark_train/data/drafter_body_weights.npz issue468/dspark_train/data/exactness_features.npz issue468/artifacts/exactness_small_bundles/grounded_observatory__t0p0/oracle/main_hidden_pos113.npy' in /Users/lobanov/Projects/ds4-dspark-research
+ succeeded in 0ms:
+ 76G	issue468/dspark_train/data/drafter_body_weights.npz
+222M	issue468/dspark_train/data/exactness_features.npz
+ 52K	issue468/artifacts/exactness_small_bundles/grounded_observatory__t0p0/oracle/main_hidden_pos113.npy
+
+exec
+/bin/zsh -lc 'cat issue468/artifacts/exactness_small_bundles/grounded_observatory__t0p0/bundle_manifest.json' in /Users/lobanov/Projects/ds4-dspark-research
+ succeeded in 0ms:
+{
+  "prompt_name": "grounded_observatory",
+  "prompt_file": "issue468/prompts/exactness_small_corpus/grounded_observatory.txt",
+  "temperature": 0.0,
+  "seed": 2,
+  "ctx": 4096,
+  "generated_tokens": 14,
+  "block": 5,
+  "measure_steps": 8,
+  "prompt_tokens": 113,
+  "reference_mode": "greedy"
+}
+
+exec
+/bin/zsh -lc 'head -c 300 issue468/artifacts/exactness_small_bundles/grounded_observatory__t0p0/target_selected_tokens.json' in /Users/lobanov/Projects/ds4-dspark-research
+ succeeded in 0ms:
+[2581, 1309, 304, 5085, 1234, 42830, 295, 4824, 30416, 3669, 28779, 14, 1119, 21117]
+
+codex
+The shell cannot use here-docs in this read-only sandbox, so I’m switching the runnable checks to `python -c` one-liners. That keeps the tests reproducible without writing any temporary files.
+exec
+/bin/zsh -lc 'issue468/dspark_train/.venv/bin/python -c $'"'import numpy as np\\nfor path in [\"issue468/dspark_train/data/exactness_features.npz\",\"issue468/dspark_train/data/drafter_body_weights.npz\"]:\\n    z=np.load(path, allow_pickle=True)\\n    print(path)\\n    print(\"nfiles\", len(z.files))\\n    for k in z.files[:90]:\\n        a=z[k]\\n        print(k, a.shape, a.dtype)\\n    z.close()'" in /Users/lobanov/Projects/ds4-dspark-research
+ succeeded in 11890ms:
+issue468/dspark_train/data/exactness_features.npz
+nfiles 7
+x (80, 5, 4, 4096) float32
+anchor (80,) int64
+out (80, 6) int64
+base_logits (80, 5, 129280) float32
+target_block (80, 5) int64
+prompt (80,) <U23
+step (80,) int64
+issue468/dspark_train/data/drafter_body_weights.npz
+nfiles 71
+main_proj (4096, 12288) float32
+main_norm (4096,) float32
+L0_hc_attn_fn (24, 16384) float32
+L0_hc_attn_scale (3,) float32
+L0_hc_attn_base (24,) float32
+L0_attn_norm (4096,) float32
+L0_q_a (1024, 4096) float32
+L0_q_a_norm (1024,) float32
+L0_q_b (32768, 1024) float32
+L0_kv (512, 4096) float32
+L0_kv_a_norm (512,) float32
+L0_attn_sinks (64,) float32
+L0_output_a (8192, 4096) float32
+L0_output_b (4096, 8192) float32
+L0_hc_ffn_fn (24, 16384) float32
+L0_hc_ffn_scale (3,) float32
+L0_hc_ffn_base (24,) float32
+L0_ffn_norm (4096,) float32
+L0_ffn_gate_inp (256, 4096) float32
+L0_ffn_exp_probs_b (256,) float32
+L0_ffn_gate_shexp (2048, 4096) float32
+L0_ffn_up_shexp (2048, 4096) float32
+L0_ffn_down_shexp (4096, 2048) float32
+L1_hc_attn_fn (24, 16384) float32
+L1_hc_attn_scale (3,) float32
+L1_hc_attn_base (24,) float32
+L1_attn_norm (4096,) float32
+L1_q_a (1024, 4096) float32
+L1_q_a_norm (1024,) float32
+L1_q_b (32768, 1024) float32
+L1_kv (512, 4096) float32
+L1_kv_a_norm (512,) float32
+L1_attn_sinks (64,) float32
+L1_output_a (8192, 4096) float32
+L1_output_b (4096, 8192) float32
+L1_hc_ffn_fn (24, 16384) float32
+L1_hc_ffn_scale (3,) float32
+L1_hc_ffn_base (24,) float32
+L1_ffn_norm (4096,) float32
+L1_ffn_gate_inp (256, 4096) float32
+L1_ffn_exp_probs_b (256,) float32
+L1_ffn_gate_shexp (2048, 4096) float32
+L1_ffn_up_shexp (2048, 4096) float32
+L1_ffn_down_shexp (4096, 2048) float32
+L2_hc_attn_fn (24, 16384) float32
+L2_hc_attn_scale (3,) float32
+L2_hc_attn_base (24,) float32
+L2_attn_norm (4096,) float32
+L2_q_a (1024, 4096) float32
+L2_q_a_norm (1024,) float32
+L2_q_b (32768, 1024) float32
+L2_kv (512, 4096) float32
+L2_kv_a_norm (512,) float32
+L2_attn_sinks (64,) float32
+L2_output_a (8192, 4096) float32
+L2_output_b (4096, 8192) float32
+L2_hc_ffn_fn (24, 16384) float32
+L2_hc_ffn_scale (3,) float32
+L2_hc_ffn_base (24,) float32
+L2_ffn_norm (4096,) float32
+L2_ffn_gate_inp (256, 4096) float32
+L2_ffn_exp_probs_b (256,) float32
+L2_ffn_gate_shexp (2048, 4096) float32
+L2_ffn_up_shexp (2048, 4096) float32
+L2_ffn_down_shexp (4096, 2048) float32
+exp_gate (3, 256, 2048, 4096) float32
+exp_up (3, 256, 2048, 4096) float32
+exp_down (3, 256, 4096, 2048) float32
+embed_w (129280, 4096) float32
+cos (4096, 32) float32
+sin (4096, 32) float32
+
+codex
+I’m going to quantify the HC mismatch independently first, then run the real layer-0 attention sub-block with the same prompt/step. If the patched HC path collapses the diff, that’s the bug; if not, I’ll keep bisecting into attention/MoE.
+exec
+/bin/zsh -lc 'issue468/dspark_train/.venv/bin/python -c $'"'import sys, numpy as np, torch\\nsys.path.insert(0,\"issue468/dspark_oracle\")\\nfrom hc_primitives import hc_split_sinkhorn as np_split, hc_pre as np_hc_pre, hc_post as np_hc_post\\nsys.path.insert(0,\"issue468/dspark_train\")\\nimport drafter_body as tb\\ntorch.set_num_threads(1)\\nrng=np.random.default_rng(0)\\nmixes=rng.standard_normal((2,5,24)).astype(np.float32)*3\\nscale=rng.standard_normal(3).astype(np.float32)\\nbase=rng.standard_normal(24).astype(np.float32)\\npre,post,comb=np_split(mixes,scale,base)\\ntpre,tpost,tcomb=tb.hc_split_sinkhorn(torch.from_numpy(mixes),torch.from_numpy(scale),torch.from_numpy(base))\\nprint(\"random split pre\", np.max(np.abs(tpre.numpy()-pre)), \"post\", np.max(np.abs(tpost.numpy()-post)), \"comb\", np.max(np.abs(tcomb.numpy()-comb)))\\n# actual L0 hc_attn weights, random x at embedding-ish scale\\nz=np.load(\"issue468/dspark_train/data/drafter_body_weights.npz\", allow_pickle=True)\\nfn=z[\"L0_hc_attn_fn\"]; sc=z[\"L0_hc_attn_scale\"]; ba=z[\"L0_hc_attn_base\"]\\nx=(rng.standard_normal((1,5,4,4096)).astype(np.float32)*0.02)\\ny,post,comb=np_hc_pre(x,fn,sc,ba)\\nty,tpost,tcomb=tb.hc_pre(torch.from_numpy(x), torch.from_numpy(fn), torch.from_numpy(sc), torch.from_numpy(ba))\\nprint(\"actual-weight hc_pre y\", np.max(np.abs(ty.numpy()-y)), \"post\", np.max(np.abs(tpost.numpy()-post)), \"comb\", np.max(np.abs(tcomb.numpy()-comb)))\\nprint(\"comb mean abs\", np.mean(np.abs(tcomb.numpy()-comb)))'" in /Users/lobanov/Projects/ds4-dspark-research
+ succeeded in 1598ms:
+OMP: Warning #179: Function Can't set size of /tmp file failed:
+random split pre 5.9604645e-08 post 0.0 comb 0.00013020635
+actual-weight hc_pre y 7.450581e-09 post 5.9604645e-08 comb 6.467104e-05
+comb mean abs 1.0646286e-05
+
+codex
+The missing Sinkhorn epsilon is real but too small by itself in isolation (`comb` max around `6e-5`). I’m now running the actual layer-0 attention sub-block for `grounded_observatory` step 1 to see whether the observed 0.14 appears before or after MoE.
+exec
+/bin/zsh -lc "sed -n '1,130p' issue468/dspark_oracle/gguf_loader.py" in /Users/lobanov/Projects/ds4-dspark-research
+exec
+/bin/zsh -lc "sed -n '130,220p' issue468/dspark_oracle/gguf_loader.py" in /Users/lobanov/Projects/ds4-dspark-research
+ succeeded in 0ms:
+                    elif et == 10: arr.append(struct.unpack("<Q", f.read(8))[0])
+                    elif et == 0: arr.append(f.read(1)[0])
+                    elif et == 5: arr.append(struct.unpack("<i", f.read(4))[0])
+                    elif et == 2: arr.append(struct.unpack("<H", f.read(2))[0])
+                    elif et == 6: arr.append(struct.unpack("<f", f.read(4))[0])
+                    elif et == 7: arr.append(f.read(1)[0])
+                    else: arr.append(f"?et{et}")
+                return ("arr", arr)
+            else:
+                raise ValueError(f"unhandled KV type {t}")
+
+        kv = {}
+        for _ in range(n_kv):
+            k = s()
+            kv[k] = rd_val()
+        infos = {}
+        for _ in range(n_t):
+            nm = s()
+            nd = struct.unpack("<I", f.read(4))[0]
+            dims = [struct.unpack("<Q", f.read(8))[0] for _ in range(nd)]
+            tt = struct.unpack("<I", f.read(4))[0]
+            off = struct.unpack("<Q", f.read(8))[0]
+            infos[nm] = (dims, tt, off)
+        meta_end = f.tell()
+        align = kv.get("general.alignment", ("u32", 32))[1] if isinstance(kv.get("general.alignment"), tuple) else 32
+        data_off = (meta_end + align - 1) // align * align
+    return kv, infos, data_off
+
+
+def read_tensor(path, infos, data_off, name):
+    """Read + dequant one tensor by name from an indexed GGUF (lazy)."""
+    dims, tt, off = infos[name]
+    nelem = 1
+    for d in dims: nelem *= d
+    with open(path, "rb") as f:
+        f.seek(data_off + off)
+        if tt == 0:
+            arr = np.frombuffer(f.read(nelem * 4), dtype=np.float32).copy()
+        elif tt == 30:
+            arr = _bf16_to_f32(np.frombuffer(f.read(nelem * 2), dtype=np.uint16).copy())
+        elif tt == 1:
+            arr = _f16_to_f32(np.frombuffer(f.read(nelem * 2), dtype=np.uint16).copy())
+        elif tt == 8:
+            arr = _dequant_q8_0(f.read((nelem // 32) * 34), nelem)
+        elif tt == 12:
+            arr = _dequant_q4_k(f.read((nelem // 256) * 144), nelem)
+        else:
+            raise ValueError(f"unhandled tensor type {tt} for {name}")
+    return _gguf_ne_to_torch(arr, dims)
+
+
+def _gguf_ne_to_torch(arr, dims):
+    """Reshape a flat array of GGUF ne-ordered data to HF/torch convention.
+
+    GGUF ne has ne[0] as the fastest-varying (innermost) dimension. numpy
+    C-order has the LAST dim as fastest. So reshape to reversed(dims) gives
+    the HF/torch layout, where standard linear = x @ W.T works and embedding =
+    W[token] works. This was the root cause of 0% acceptance: reshape(dims)
+    scrambled all 2D+ tensors."""
+    return arr.reshape(list(reversed(dims)))
+
+
+def _dequant_q4_k_region(raw, n_superblocks, out):
+    """Dequant n_superblocks super-blocks (256 elems each) of Q4_K starting at the
+    beginning of `raw` into F32 `out` (length n_superblocks*256). Same kernel as
+    _dequant_q4_k but operates on a contiguous region (one expert's slice)."""
+    nb = n_superblocks
+    b = np.frombuffer(raw, dtype=np.uint8, count=nb * 144).reshape(nb, 144)
+    d = _f16_to_f32(b[:, 0:2].copy().view(np.uint16).reshape(nb))
+    dmin = _f16_to_f32(b[:, 2:4].copy().view(np.uint16).reshape(nb))
+    sc = b[:, 4:16].astype(np.uint32)
+    qs = b[:, 16:144]
+    scales = np.empty((nb, 8), dtype=np.float32)
+    mins = np.empty((nb, 8), dtype=np.float32)
+    for j in range(8):
+        if j < 4:
+            sd = sc[:, j] & 63; sm = sc[:, j + 4] & 63
+        else:
+            sd = (sc[:, j + 4] & 0xF) | ((sc[:, j - 4] >> 6) << 4)
+            sm = (sc[:, j + 4] >> 4) | ((sc[:, j] >> 6) << 4)
+        scales[:, j] = d * sd
+        mins[:, j] = dmin * sm
+    q = qs.astype(np.uint16)
+    low = (q & 0xF).astype(np.float32)
+    high = (q >> 4).astype(np.float32)
+    nib = np.empty((nb, 256), dtype=np.float32)
+    for t in range(4):
+        nib[:, t * 64 : t * 64 + 32] = low[:, t * 32 : (t + 1) * 32]
+        nib[:, t * 64 + 32 : t * 64 + 64] = high[:, t * 32 : (t + 1) * 32]
+    sb = np.repeat(np.arange(8, dtype=np.int64), 32)
+    res = nib * scales[:, sb] - mins[:, sb]
+
+ succeeded in 0ms:
+#!/usr/bin/env python3
+"""GGUF -> F32 numpy loader for the DSpark numpy oracle.
+
+Loads dspark.gguf (Phase-3 converter output) and dequantizes every tensor to
+F32 numpy. Implements F32 / BF16 / Q8_0 / Q4_K dequant using the standard GGML
+block layouts (Q4_K super-block of 256: F16 d + F16 dmin + 12 packed 6-bit
+scales/mins + 128 packed 4-bit quants).
+
+The Q4_K/Q8_0 dequant is the one place this oracle could diverge from the
+converter; it is cross-validated against deepseek4-quantize --compare-tensor
+(the authoritative byte-compare) for F32/BF16 tensors, and the Q4_K/Q8_0 path
+is validated by the end-to-end token-agreement gate (dequant tolerance allowed).
+
+Tensor orientation: GGUF ne is HF/torch shape reversed (ne[0] innermost). This
+loader returns arrays in GGUF ne order (ne[0] fastest); matmuls in the oracle
+use that convention consistently.
+"""
+import struct
+import numpy as np
+
+
+def _f16_to_f32(arr_u16):
+    """IEEE 754 half (u16 bits) -> f32 (standard GGML f16, not bf16)."""
+    u16 = arr_u16.astype(np.uint32)
+    sign = (u16 >> 15) & 0x1
+    exp = (u16 >> 10) & 0x1F
+    man = u16 & 0x3FF
+    out = np.zeros_like(u16, dtype=np.float32)
+    # subnormal -> 0 (rare for scales; GGML treats as 0)
+    normal = exp != 0
+    e32 = (exp - 15 + 127).astype(np.int32)
+    bits = (sign << 31) | ((e32.astype(np.uint32) & 0xFF) << 23) | (man << 13)
+    out[normal] = bits[normal].view(np.float32)
+    return out
+
+
+def _bf16_to_f32(arr_u16):
+    """BF16 (u16 bits) -> f32: BF16 is the top 16 bits of f32."""
+    return (arr_u16.astype(np.uint32) << 16).view(np.float32).copy()
+
+
+def _dequant_q8_0(raw, nelem):
+    """Q8_0: blocks of 32. Each block: F16 scale (2B) + 32 int8 (32B) = 34B."""
+    nb = nelem // 32
+    out = np.empty(nelem, dtype=np.float32)
+    arr = np.frombuffer(raw, dtype=np.uint8, count=nb * 34).reshape(nb, 34)
+    scales = _f16_to_f32(arr[:, :2].copy().view(np.uint16).reshape(nb))
+    qs = arr[:, 2:].view(np.int8).reshape(nb, 32).astype(np.float32)
+    out = (qs * scales[:, None]).reshape(-1)
+    return out
+
+
+def _dequant_q4_k(raw, nelem):
+    """Q4_K: super-blocks of 256. Faithful port of ggml-quants.c
+    dequantize_row_q4_K + get_scale_min_k4. Block layout (144B): F16 d(2) +
+    F16 dmin(2) + scales(12) + qs(128). 8 sub-blocks of 32; each qs 32-byte
+    chunk yields low-nibbles (even sub-block) then high-nibbles (odd sub-block)."""
+    assert nelem % 256 == 0, f"Q4_K nelem {nelem} not divisible by 256"
+    nb = nelem // 256
+    b = np.frombuffer(raw, dtype=np.uint8, count=nb * 144).reshape(nb, 144)
+    d = _f16_to_f32(b[:, 0:2].copy().view(np.uint16).reshape(nb))     # [nb]
+    dmin = _f16_to_f32(b[:, 2:4].copy().view(np.uint16).reshape(nb))  # [nb]
+    sc = b[:, 4:16].astype(np.uint32)   # [nb, 12] scale bytes
+    qs = b[:, 16:144]                    # [nb, 128] quant bytes
+
+    # get_scale_min_k4(j, q, &d, &m): for j<4 d=q[j]&63 m=q[j+4]&63;
+    # for j>=4 d=(q[j+4]&0xF)|((q[j-4]>>6)<<4) m=(q[j+4]>>4)|((q[j]>>6)<<4).
+    # Precompute the 8 per-sub-block (scale, min) 6-bit codes, then apply d/dmin.
+    scales = np.empty((nb, 8), dtype=np.float32)
+    mins = np.empty((nb, 8), dtype=np.float32)
+    for j in range(8):
+        if j < 4:
+            sd = sc[:, j] & 63
+            sm = sc[:, j + 4] & 63
+        else:
+            sd = (sc[:, j + 4] & 0xF) | ((sc[:, j - 4] >> 6) << 4)
+            sm = (sc[:, j + 4] >> 4) | ((sc[:, j] >> 6) << 4)
+        scales[:, j] = d * sd
+        mins[:, j] = dmin * sm
+
+    # qs: 256 nibbles across 4 outer iters; iter t uses 32 bytes, low nibbles
+    # -> sub-block 2t, high nibbles -> sub-block 2t+1.
+    q = qs.astype(np.uint16)
+    low = (q & 0xF).astype(np.float32)    # [nb, 128]
+    high = (q >> 4).astype(np.float32)     # [nb, 128]
+    nib = np.empty((nb, 256), dtype=np.float32)
+    for t in range(4):
+        nib[:, t * 64 : t * 64 + 32] = low[:, t * 32 : (t + 1) * 32]
+        nib[:, t * 64 + 32 : t * 64 + 64] = high[:, t * 32 : (t + 1) * 32]
+    # each sub-block spans 32 output elements; broadcast its scale/min.
+    sb = np.repeat(np.arange(8, dtype=np.int64), 32)   # [256] sub-block id per elem
+    out = nib * scales[:, sb] - mins[:, sb]            # [nb, 256]
+    return out.reshape(-1)
+
+
+def index_gguf(path):
+    """Parse only the GGUF metadata section. Returns (kv, {name:(dims,type,offset)},
+    data_off). Use with read_tensor for lazy single-tensor access on huge files."""
+    with open(path, "rb") as f:
+        assert f.read(4) == b"GGUF"
+        f.read(4)  # version
+        n_t = struct.unpack("<Q", f.read(8))[0]
+        n_kv = struct.unpack("<Q", f.read(8))[0]
+
+        def s():
+            n = struct.unpack("<Q", f.read(8))[0]
+            return f.read(n).decode()
+
+        def rd_val():
+            t = struct.unpack("<I", f.read(4))[0]
+            if t == 8: return ("str", s())
+            elif t == 0: return ("u8", f.read(1))
+            elif t == 1: return ("i8", f.read(1))
+            elif t == 2: return ("u16", struct.unpack("<H", f.read(2))[0])
+            elif t == 3: return ("i16", struct.unpack("<h", f.read(2))[0])
+            elif t == 4: return ("u32", struct.unpack("<I", f.read(4))[0])
+            elif t == 5: return ("i32", struct.unpack("<i", f.read(4))[0])
+            elif t == 6: return ("f32", struct.unpack("<f", f.read(4))[0])
+            elif t == 7: return ("bool", f.read(1))
+            elif t == 10: return ("u64", struct.unpack("<Q", f.read(8))[0])
+            elif t == 11: return ("i64", struct.unpack("<q", f.read(8))[0])
+            elif t == 12: return ("f64", struct.unpack("<d", f.read(8))[0])
+            elif t == 9:
+                et = struct.unpack("<I", f.read(4))[0]
+                nn = struct.unpack("<Q", f.read(8))[0]
+                arr = []
+                for _ in range(nn):
+                    if et == 4: arr.append(struct.unpack("<I", f.read(4))[0])
+                    elif et == 8: arr.append(s())
+                    elif et == 10: arr.append(struct.unpack("<Q", f.read(8))[0])
+
+exec
+/bin/zsh -lc 'issue468/dspark_train/.venv/bin/python -c $'"'import numpy as np\\nz=np.load(\"issue468/dspark_train/data/exactness_features.npz\", allow_pickle=True)\\np=z[\"prompt\"]; s=z[\"step\"]; a=z[\"anchor\"]\\nfor i in range(len(p)):\\n    if str(p[i])==\"grounded_observatory\" and int(s[i])==1:\\n        print(i, p[i], s[i], a[i], z[\"x\"][i].shape, z[\"x\"][i].dtype, np.abs(z[\"x\"][i]).mean())\\n        break\\nz.close()'" in /Users/lobanov/Projects/ds4-dspark-research
+ succeeded in 0ms:
+32 grounded_observatory 1 1309 (5, 4, 4096) float32 7.1115403
+
+exec
+/bin/zsh -lc 'issue468/dspark_train/.venv/bin/python -c $'"'import sys\\nsys.path.insert(0,\"issue468/dspark_oracle\")\\nfrom gguf_loader import index_gguf\\npath=\"/Users/lobanov/Projects/ds4/gguf/DeepSeek-V4-Flash-IQ2XXS-w2Q2K-AProjQ8-SExpQ8-OutQ8-chat-v2-imatrix.gguf\"\\n_,infos,data_off=index_gguf(path)\\nfor nm in [\"token_embd.weight\",\"output.weight\"]:\\n    print(nm, infos[nm])\\nprint(\"data_off\", data_off)'" in /Users/lobanov/Projects/ds4-dspark-research
+ succeeded in 0ms:
+token_embd.weight ([4096, 129280], 1, 77922699264)
+output.weight ([4096, 129280], 8, 86152134720)
+data_off 5333824
+
+exec
+/bin/zsh -lc 'issue468/dspark_train/.venv/bin/python -c $'"'import sys,json, numpy as np, torch\\nfrom pathlib import Path\\ntorch.set_num_threads(1)\\nsys.path.insert(0,\"issue468/dspark_oracle\")\\nfrom hc_primitives import rmsnorm as np_rmsnorm, hc_pre as np_hc_pre, hc_post as np_hc_post\\nfrom attention import apply_rotary as np_rot, ROPE_DIM\\nfrom measure_acceptance_bundle import dspark_attn as np_attn\\nfrom gguf_loader import index_gguf, _f16_to_f32\\nsys.path.insert(0,\"issue468/dspark_train\")\\nimport drafter_body as tb\\nHC,DIM,BLOCK,NOISE=4,4096,5,128799\\nbase=Path(\"issue468/artifacts/exactness_small_bundles/grounded_observatory__t0p0\")\\nman=json.loads((base/\"bundle_manifest.json\").read_text()); pos0=int(man[\"prompt_tokens\"])\\ntoks=json.loads((base/\"target_selected_tokens.json\").read_text()); anchor=int(toks[1])\\nz=np.load(\"issue468/dspark_train/data/drafter_body_weights.npz\", allow_pickle=True)\\nkeys=[\"hc_attn_fn\",\"hc_attn_scale\",\"hc_attn_base\",\"attn_norm\",\"q_a\",\"q_a_norm\",\"q_b\",\"kv\",\"kv_a_norm\",\"attn_sinks\",\"output_a\",\"output_b\"]\\nw={k:z[\"L0_\"+k] for k in keys}\\nmain_proj=z[\"main_proj\"]; main_norm=z[\"main_norm\"]; cos=z[\"cos\"]; sin=z[\"sin\"]\\nmodel=\"/Users/lobanov/Projects/ds4/gguf/DeepSeek-V4-Flash-IQ2XXS-w2Q2K-AProjQ8-SExpQ8-OutQ8-chat-v2-imatrix.gguf\"\\n_,infos,data_off=index_gguf(model); dims,tt,off=infos[\"token_embd.weight\"]; dim=dims[0]\\nrows={}\\nwith open(model,\"rb\") as f:\\n    for t in [anchor,NOISE]:\\n        f.seek(data_off+off+t*dim*2)\\n        rows[t]=_f16_to_f32(np.frombuffer(f.read(dim*2), dtype=np.uint16).copy())\\ndraft_ids=np.full(BLOCK,NOISE,dtype=np.int64); draft_ids[0]=anchor\\nx=np.stack([rows[int(t)] for t in draft_ids]).astype(np.float32)[None,:,None,:]\\nx=np.repeat(x,HC,axis=2)\\nmh0=np.load(base/\"oracle\"/f\"main_hidden_pos{pos0}.npy\").astype(np.float32); mh1=np.load(base/\"oracle\"/f\"main_hidden_pos{pos0+1}.npy\").astype(np.float32)\\nwin=np.zeros((128,512),np.float32)\\nfor step,mh in [(0,mh0),(1,mh1)]:\\n    main_x=np_rmsnorm(mh.reshape(1,1,3*DIM) @ main_proj.T, main_norm)\\n    mkv=np_rmsnorm(main_x @ w[\"kv\"].T, w[\"kv_a_norm\"])\\n    mkv[..., -ROPE_DIM:]=np_rot(mkv[..., -ROPE_DIM:], cos[step], sin[step])\\n    win[step%128]=mkv[0,0]\\nres=x.copy()\\nyd,post,comb=np_hc_pre(x,w[\"hc_attn_fn\"],w[\"hc_attn_scale\"],w[\"hc_attn_base\"])\\nydn=np_rmsnorm(yd,w[\"attn_norm\"])\\nao=np_attn(ydn,win,2,w,cos,sin,1)\\nx_np=np_hc_post(ao,res,post,comb)\\ndef T(a): return torch.from_numpy(np.ascontiguousarray(a))\\ntw={k:T(v) for k,v in w.items()}\\nbody=object.__new__(tb.DrafterBody); body.dev=torch.device(\"cpu\"); body.dt=torch.float32; body.cos=T(cos); body.sin=T(sin); body.layers=[tw]\\ntres=T(res)\\ntyd,tpost,tcomb=tb.hc_pre(tres,tw[\"hc_attn_fn\"],tw[\"hc_attn_scale\"],tw[\"hc_attn_base\"])\\ntydn=tb.rmsnorm(tyd,tw[\"attn_norm\"])\\ntao=body._attn(tydn,T(win),2,0,1)\\ntx=tb.hc_post(tao,tres,tpost,tcomb)\\nprint(\"actual L0 attn-subblock torch-current vs numpy\")\\nfor name,a,b in [(\"hc_pre yd\",tyd.numpy(),yd),(\"hc_pre post\",tpost.numpy(),post),(\"hc_pre comb\",tcomb.numpy(),comb),(\"attn norm yd\",tydn.numpy(),ydn),(\"attn out\",tao.numpy(),ao),(\"after hc_post\",tx.numpy(),x_np)]:\\n    d=np.abs(a-b); print(name, \"max\", float(d.max()), \"mean\", float(d.mean()))\\ndef split_patch(mixes,scale,base,hc=4,iters=20,eps=1e-6):\\n    pre=torch.sigmoid(mixes[...,:hc]*scale[0]+base[:hc])+eps\\n    post=2.0*torch.sigmoid(mixes[...,hc:2*hc]*scale[1]+base[hc:2*hc])\\n    comb=(mixes[...,2*hc:]*scale[2]+base[2*hc:]).reshape(*mixes.shape[:-1],hc,hc)\\n    comb=comb-comb.amax(-1,keepdim=True); comb=torch.exp(comb)\\n    comb=comb/comb.sum(-1,keepdim=True)+eps\\n    comb=comb/(comb.sum(-2,keepdim=True)+eps)\\n    for _ in range(iters-1):\\n        comb=comb/(comb.sum(-1,keepdim=True)+eps); comb=comb/(comb.sum(-2,keepdim=True)+eps)\\n    return pre,post,comb\\ndef hcpre_patch(xh,fn,scale,base):\\n    b,s,hc,d=xh.shape; flat=xh.reshape(b,s,hc*d); rs=torch.rsqrt((flat*flat).mean(-1,keepdim=True)+1e-6)\\n    pre,post,comb=split_patch((flat@fn.T)*rs,scale,base,hc)\\n    return (pre.unsqueeze(-1)*xh).sum(2),post,comb\\npyd,ppost,pcomb=hcpre_patch(tres,tw[\"hc_attn_fn\"],tw[\"hc_attn_scale\"],tw[\"hc_attn_base\"])\\npx=tb.hc_post(tao,tres,ppost,pcomb)\\nfor name,a,b in [(\"patched hc_pre comb\",pcomb.numpy(),comb),(\"patched after hc_post\",px.numpy(),x_np)]:\\n    d=np.abs(a-b); print(name, \"max\", float(d.max()), \"mean\", float(d.mean()))'" in /Users/lobanov/Projects/ds4-dspark-research
+ succeeded in 640ms:
+actual L0 attn-subblock torch-current vs numpy
+hc_pre yd max 0.0 mean 0.0
+hc_pre post max 4.656612873077393e-10 mean 2.3283064712331658e-11
+hc_pre comb max 0.6728510856628418 mean 0.139179065823555
+attn norm yd max 0.0 mean 0.0
+attn out max 0.000152587890625 mean 2.05469987122342e-05
+after hc_post max 0.05921599268913269 mean 0.0033251165878027678
+patched hc_pre comb max 0.0 mean 0.0
+patched after hc_post max 8.0108642578125e-05 mean 2.844444225047482e-06
+
+codex
+The actual layer-0 attention sub-block now points strongly at HC: current torch `hc_pre` has identical `yd/post`, but `comb` is wrong (`max 0.673`), and using the oracle’s `+ eps` makes `comb` exact and drops post-attention diff from `5.9e-2` to `8e-5`. I’m doing one full layer-0 replay in numpy with only that epsilon removed to connect it to the reported `~0.14` layer output.
+exec
+/bin/zsh -lc 'issue468/dspark_oracle/.venv/bin/python -c $'"'import sys,json, numpy as np\\nfrom pathlib import Path\\nsys.path.insert(0,\"issue468/dspark_oracle\")\\nfrom hc_primitives import rmsnorm, hc_pre, hc_post\\nfrom attention import apply_rotary, ROPE_DIM\\nfrom measure_acceptance_bundle import dspark_attn\\nfrom moe import moe\\nfrom expert_store import ExpertStore\\nfrom gguf_loader import index_gguf, _f16_to_f32\\nHC,DIM,BLOCK,NOISE=4,4096,5,128799\\nbase=Path(\"issue468/artifacts/exactness_small_bundles/grounded_observatory__t0p0\")\\nman=json.loads((base/\"bundle_manifest.json\").read_text()); pos0=int(man[\"prompt_tokens\"])\\ntoks=json.loads((base/\"target_selected_tokens.json\").read_text()); anchor=int(toks[1])\\nz=np.load(\"issue468/dspark_train/data/drafter_body_weights.npz\", allow_pickle=True)\\nkeys=[\"hc_attn_fn\",\"hc_attn_scale\",\"hc_attn_base\",\"attn_norm\",\"q_a\",\"q_a_norm\",\"q_b\",\"kv\",\"kv_a_norm\",\"attn_sinks\",\"output_a\",\"output_b\",\"hc_ffn_fn\",\"hc_ffn_scale\",\"hc_ffn_base\",\"ffn_norm\",\"ffn_gate_inp\",\"ffn_exp_probs_b\",\"ffn_gate_shexp\",\"ffn_up_shexp\",\"ffn_down_shexp\"]\\nw={k:z[\"L0_\"+k] for k in keys}\\nmain_proj=z[\"main_proj\"]; main_norm=z[\"main_norm\"]; cos=z[\"cos\"]; sin=z[\"sin\"]\\nmodel=\"/Users/lobanov/Projects/ds4/gguf/DeepSeek-V4-Flash-IQ2XXS-w2Q2K-AProjQ8-SExpQ8-OutQ8-chat-v2-imatrix.gguf\"\\n_,minfos,mdo=index_gguf(model); dims,tt,off=minfos[\"token_embd.weight\"]; dim=dims[0]\\nrows={}\\nwith open(model,\"rb\") as f:\\n    for t in [anchor,NOISE]:\\n        f.seek(mdo+off+t*dim*2); rows[t]=_f16_to_f32(np.frombuffer(f.read(dim*2), dtype=np.uint16).copy())\\ndraft_ids=np.full(BLOCK,NOISE,dtype=np.int64); draft_ids[0]=anchor\\nx0=np.stack([rows[int(t)] for t in draft_ids]).astype(np.float32)[None,:,None,:]; x0=np.repeat(x0,HC,axis=2)\\nmh0=np.load(base/\"oracle\"/f\"main_hidden_pos{pos0}.npy\").astype(np.float32); mh1=np.load(base/\"oracle\"/f\"main_hidden_pos{pos0+1}.npy\").astype(np.float32)\\nwin=np.zeros((128,512),np.float32)\\nfor step,mh in [(0,mh0),(1,mh1)]:\\n    main_x=rmsnorm(mh.reshape(1,1,3*DIM) @ main_proj.T, main_norm)\\n    mkv=rmsnorm(main_x @ w[\"kv\"].T, w[\"kv_a_norm\"]); mkv[..., -ROPE_DIM:]=apply_rotary(mkv[..., -ROPE_DIM:], cos[step], sin[step]); win[step%128]=mkv[0,0]\\ndef split_noeps(mixes,sc,ba,hc=4,iters=20,eps=1e-6):\\n    mix=mixes.astype(np.float32); s=sc.astype(np.float32); b=ba.astype(np.float32)\\n    pre=1/(1+np.exp(-(mix[...,:hc]*s[0]+b[:hc])))+eps\\n    post=2/(1+np.exp(-(mix[...,hc:2*hc]*s[1]+b[hc:2*hc])))\\n    comb=(mix[...,2*hc:]*s[2]+b[2*hc:]).reshape(*mix.shape[:-1],hc,hc)\\n    comb=comb-comb.max(axis=-1,keepdims=True); comb=np.exp(comb); comb=comb/(comb.sum(axis=-1,keepdims=True)+eps)\\n    comb=comb/(comb.sum(axis=-2,keepdims=True)+eps)\\n    for _ in range(iters-1):\\n        comb=comb/(comb.sum(axis=-1,keepdims=True)+eps); comb=comb/(comb.sum(axis=-2,keepdims=True)+eps)\\n    return pre.astype(np.float32),post.astype(np.float32),comb.astype(np.float32)\\ndef hc_pre_noeps(x,fn,sc,ba):\\n    flat=x.reshape(1,5,HC*DIM).astype(np.float32); rs=1/np.sqrt(np.mean(flat*flat,axis=-1,keepdims=True)+1e-6)\\n    pre,post,comb=split_noeps((flat @ fn.T)*rs,sc,ba)\\n    return (pre[...,None]*x).sum(axis=2).astype(np.float32),post,comb\\ndef run(pre_fn, store):\\n    x=x0.copy(); res=x\\n    yd,post,comb=pre_fn(x,w[\"hc_attn_fn\"],w[\"hc_attn_scale\"],w[\"hc_attn_base\"]); yd=rmsnorm(yd,w[\"attn_norm\"]); ao=dspark_attn(yd,win,2,w,cos,sin,1); x=hc_post(ao,res,post,comb).astype(np.float32); x_att=x.copy()\\n    res=x; yd,post,comb=pre_fn(x,w[\"hc_ffn_fn\"],w[\"hc_ffn_scale\"],w[\"hc_ffn_base\"]); yd=rmsnorm(yd,w[\"ffn_norm\"]); fo=moe(yd,np.array([0]),w,store); x=hc_post(fo,res,post,comb).astype(np.float32)\\n    return x_att,x\\ndspark=\"/Users/lobanov/Projects/ds4/gguf/dspark.gguf\"\\n_,dinfos,ddo=index_gguf(dspark)\\nprint(\"running oracle layer0\", flush=True)\\natt_ok,x_ok=run(hc_pre,ExpertStore(dspark,dinfos,ddo,0))\\nprint(\"running noeps layer0\", flush=True)\\natt_bad,x_bad=run(hc_pre_noeps,ExpertStore(dspark,dinfos,ddo,0))\\nfor name,a,b in [(\"after attn\",att_bad,att_ok),(\"after full layer0\",x_bad,x_ok)]:\\n    d=np.abs(a-b); print(name, \"max\", float(d.max()), \"mean\", float(d.mean()))'" in /Users/lobanov/Projects/ds4-dspark-research
+ succeeded in 11260ms:
+running oracle layer0
+running noeps layer0
+after attn max 0.05921536684036255 mean 0.0033250339329242706
+after full layer0 max 0.14340496063232422 mean 0.005013659596443176
+
+codex
+The pure-numpy replay with only the torch-style Sinkhorn change reproduces the symptom: `after full layer0 max 0.143405, mean 0.005014`. That matches the reported layer-0 magnitude, so this is not BLAS chaos. I’m grabbing exact line numbers now.
+exec
+/bin/zsh -lc "nl -ba issue468/dspark_oracle/hc_primitives.py | sed -n '43,50p'" in /Users/lobanov/Projects/ds4-dspark-research
+exec
+/bin/zsh -lc "nl -ba issue468/dspark_train/drafter_body.py | sed -n '43,56p'" in /Users/lobanov/Projects/ds4-dspark-research
+ succeeded in 0ms:
+    43	    # softmax over last axis (rows)
+    44	    comb = comb - comb.max(axis=-1, keepdims=True)
+    45	    comb = np.exp(comb)
+    46	    comb = comb / comb.sum(axis=-1, keepdims=True) + eps
+    47	    # one extra col-normalize (col_sum over axis=-2)
+    48	    col_sum = comb.sum(axis=-2, keepdims=True)
+    49	    comb = comb / (col_sum + eps)
+    50	    # (sinkhorn_iters - 1) rounds of row-then-col normalize
+
+ succeeded in 0ms:
+    43	
+    44	
+    45	def hc_split_sinkhorn(mixes, scale, base, hc=HC, iters=20, eps=HC_EPS):
+    46	    pre = torch.sigmoid(mixes[..., :hc] * scale[0] + base[:hc]) + eps
+    47	    post = 2.0 * torch.sigmoid(mixes[..., hc:2 * hc] * scale[1] + base[hc:2 * hc])
+    48	    comb = (mixes[..., 2 * hc:] * scale[2] + base[2 * hc:]).reshape(*mixes.shape[:-1], hc, hc)
+    49	    comb = comb - comb.amax(-1, keepdim=True); comb = torch.exp(comb)
+    50	    comb = comb / (comb.sum(-1, keepdim=True) + eps)
+    51	    col = comb.sum(-2, keepdim=True); comb = comb / (col + eps)
+    52	    for _ in range(iters - 1):
+    53	        comb = comb / (comb.sum(-1, keepdim=True) + eps)
+    54	        comb = comb / (comb.sum(-2, keepdim=True) + eps)
+    55	    return pre, post, comb
+    56	
+
+exec
+/bin/zsh -lc "nl -ba issue468/dspark_train/drafter_body.py | sed -n '58,68p'" in /Users/lobanov/Projects/ds4-dspark-research
+ succeeded in 0ms:
+    58	def hc_pre(x_hc, fn, scale, base):
+    59	    b, s, hc, d = x_hc.shape
+    60	    flat = x_hc.reshape(b, s, hc * d)
+    61	    rsqrt = torch.rsqrt((flat * flat).mean(-1, keepdim=True) + NORM_EPS)
+    62	    pre, post, comb = hc_split_sinkhorn((flat @ fn.T) * rsqrt, scale, base, hc)
+    63	    return (pre.unsqueeze(-1) * x_hc).sum(2), post, comb
+    64	
+    65	
+    66	def hc_post(x, residual, post, comb):
+    67	    return post.unsqueeze(-1) * x.unsqueeze(-2) + (comb.unsqueeze(-1) * residual.unsqueeze(-3)).sum(-2)
+    68	
+
+exec
+/bin/zsh -lc "nl -ba issue468/dspark_oracle/hc_primitives.py | sed -n '68,84p'" in /Users/lobanov/Projects/ds4-dspark-research
+ succeeded in 0ms:
+    68	    rsqrt = 1.0 / np.sqrt(np.mean(flat * flat, axis=-1, keepdims=True) + eps)
+    69	    mixes = (flat @ hc_fn.T) * rsqrt            # [b,s,hc_mix_dim] (hc_fn HF [out=24,in=hc*d])
+    70	    pre, post, comb = hc_split_sinkhorn(mixes, hc_scale, hc_base, hc)
+    71	    y = (pre[..., None] * x_hc).sum(axis=2)     # [b,s,d]
+    72	    return y, post, comb
+    73	
+    74	
+    75	def hc_post(x, residual_hc, post, comb, hc=HC_MULT):
+    76	    """Block.hc_post. x [b,s,d], residual [b,s,hc,d], post [b,s,hc], comb [b,s,hc,hc]
+    77	    -> [b,s,hc,d]. y = post[...,None]*x[...,None,:] + sum(comb[...,None]*residual, hc)."""
+    78	    # post[...,None] * x[...,None,:] broadcasts x [b,s,d] -> [b,s,hc,d] via outer
+    79	    y_post = post[..., None] * x[..., None, :]              # [b,s,hc,d]
+    80	    # sum over residual's hc axis (the SECOND-to-last), weighted by comb
+    81	    # comb[j,k] weights residual[k] into output copy j: comb[...,j,k,None]*residual[...,k,:]
+    82	    y_comb = (comb[..., None] * residual_hc[..., None, :]).sum(axis=-2)
+    83	    return y_post + y_comb
+    84	
+
+codex
+## The Bug
+
+[ drafter_body.py:50](/Users/lobanov/Projects/ds4-dspark-research/issue468/dspark_train/drafter_body.py:50) is wrong:
+
+```python
+comb = comb / (comb.sum(-1, keepdim=True) + eps)
+```
+
+Oracle [hc_primitives.py:46](/Users/lobanov/Projects/ds4-dspark-research/issue468/dspark_oracle/hc_primitives.py:46):
+
+```python
+comb = comb / comb.sum(axis=-1, keepdims=True) + eps
+```
+
+One-line fix:
+
+```python
+comb = comb / comb.sum(-1, keepdim=True) + eps
+```
+
+The `eps` is added after the initial row-softmax, not inside its denominator. Without it, saturated comb rows keep near-zero entries through Sinkhorn, changing HC residual mixing.
+
+## Evidence
+
+Actual `grounded_observatory` step 1, layer 0 attention sub-block:
+
+```text
+hc_pre yd max 0.0
+hc_pre post max 4.66e-10
+hc_pre comb max 0.672851 mean 0.139179
+attn out max 0.000153
+after hc_post max 0.059216 mean 0.003325
+patched hc_pre comb max 0.0
+patched after hc_post max 0.000080 mean 0.00000284
+```
+
+Pure numpy replay, using oracle attention+MoE, with only this torch-style no-eps Sinkhorn change:
+
+```text
+after attn max 0.059215 mean 0.003325
+after full layer0 max 0.143405 mean 0.005014
+```
+
+That reproduces the reported layer-0 `~0.14` divergence without torch BLAS involved.
+
+## Confidence
+
+High. This is the systematic layer-0 source.
+
+Secondary candidates: RoPE/attention are not the source here; with fixed `comb`, attention-path residual diff drops to `~8e-5`. `hc_post` axis semantics are consistent with oracle. MoE is only amplifying the already-wrong HC residual state.
+tokens used
+76,262
+## The Bug
+
+[ drafter_body.py:50](/Users/lobanov/Projects/ds4-dspark-research/issue468/dspark_train/drafter_body.py:50) is wrong:
+
+```python
+comb = comb / (comb.sum(-1, keepdim=True) + eps)
+```
+
+Oracle [hc_primitives.py:46](/Users/lobanov/Projects/ds4-dspark-research/issue468/dspark_oracle/hc_primitives.py:46):
+
+```python
+comb = comb / comb.sum(axis=-1, keepdims=True) + eps
+```
+
+One-line fix:
+
+```python
+comb = comb / comb.sum(-1, keepdim=True) + eps
+```
+
+The `eps` is added after the initial row-softmax, not inside its denominator. Without it, saturated comb rows keep near-zero entries through Sinkhorn, changing HC residual mixing.
+
+## Evidence
+
+Actual `grounded_observatory` step 1, layer 0 attention sub-block:
+
+```text
+hc_pre yd max 0.0
+hc_pre post max 4.66e-10
+hc_pre comb max 0.672851 mean 0.139179
+attn out max 0.000153
+after hc_post max 0.059216 mean 0.003325
+patched hc_pre comb max 0.0
+patched after hc_post max 0.000080 mean 0.00000284
+```
+
+Pure numpy replay, using oracle attention+MoE, with only this torch-style no-eps Sinkhorn change:
+
+```text
+after attn max 0.059215 mean 0.003325
+after full layer0 max 0.143405 mean 0.005014
+```
+
+That reproduces the reported layer-0 `~0.14` divergence without torch BLAS involved.
+
+## Confidence
+
+High. This is the systematic layer-0 source.
+
+Secondary candidates: RoPE/attention are not the source here; with fixed `comb`, attention-path residual diff drops to `~8e-5`. `hc_post` axis semantics are consistent with oracle. MoE is only amplifying the already-wrong HC residual state.

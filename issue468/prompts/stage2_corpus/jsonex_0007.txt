@@ -1,0 +1,3 @@
+Extract the train trip details from the form response.
+
+Traveling from Emeryville to Seattle on the express service. Departs at 6:30 PM.

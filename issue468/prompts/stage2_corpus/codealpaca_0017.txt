@@ -1,0 +1,2 @@
+Create a program to display all prime numbers between a given range.
+a, b = 2, 8

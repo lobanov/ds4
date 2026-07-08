@@ -1,0 +1,1 @@
+Given a string of text, print the count of all the words.

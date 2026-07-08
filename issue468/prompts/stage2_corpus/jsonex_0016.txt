@@ -1,0 +1,10 @@
+Please extract the medical procedure risk assessment information from the provided email.
+
+Hi there, I wanted to provide you with a detailed assessment of the risks associated with the upcoming endoscopy procedure. As you know, this procedure involves inserting a flexible tube with a camera on the end into the digestive tract to examine the area for any abnormalities. While generally considered a safe and routine procedure, there are a few potential risks to be aware of.
+
+The most common risks include bleeding, infection, and reactions to the sedation or anesthesia used during the procedure. There is also a small chance of tearing or perforating the esophagus, stomach, or intestines, which could require emergency surgery. Additionally, there is a very low risk of the camera getting stuck or the procedure needing to be stopped early for any reason.
+
+Overall, the risks are quite low, but it's important to be fully informed. Please let me know if you have any other questions or concerns. I'm happy to discuss this further.
+
+Best,
+Olivia

@@ -1,0 +1,2438 @@
+{
+  "description": "Stage 2 fine-tune PoC prompt corpus (Activity 1).",
+  "seed": 42,
+  "generation_length_tokens": 128,
+  "per_source_target": 80,
+  "train_frac": 0.75,
+  "prompt_formation": {
+    "dolly": "instruction (+ context if present)",
+    "codealpaca": "prompt",
+    "jsonex": "instruction + text"
+  },
+  "legacy_benchmark": {
+    "dir": "prompts/exactness_small_corpus/",
+    "manifest": "prompts/exactness_small_corpus/manifest.json",
+    "note": "10 exactness prompts; locked legacy benchmark (unchanged)."
+  },
+  "counts": {
+    "total": 240,
+    "train": 180,
+    "eval": 60,
+    "by_source": {
+      "dolly": {
+        "train": 60,
+        "eval": 20
+      },
+      "codealpaca": {
+        "train": 60,
+        "eval": 20
+      },
+      "jsonex": {
+        "train": 60,
+        "eval": 20
+      }
+    }
+  },
+  "prompts": [
+    {
+      "prompt_id": "dolly_0000",
+      "source": "dolly",
+      "split": "train",
+      "file": "prompts/stage2_corpus/dolly_0000.txt",
+      "source_idx": 1192,
+      "stratum": "classification",
+      "chars": 103,
+      "tok_est": 25
+    },
+    {
+      "prompt_id": "dolly_0001",
+      "source": "dolly",
+      "split": "train",
+      "file": "prompts/stage2_corpus/dolly_0001.txt",
+      "source_idx": 10487,
+      "stratum": "summarization",
+      "chars": 499,
+      "tok_est": 124
+    },
+    {
+      "prompt_id": "dolly_0002",
+      "source": "dolly",
+      "split": "train",
+      "file": "prompts/stage2_corpus/dolly_0002.txt",
+      "source_idx": 4853,
+      "stratum": "general_qa",
+      "chars": 59,
+      "tok_est": 14
+    },
+    {
+      "prompt_id": "dolly_0003",
+      "source": "dolly",
+      "split": "train",
+      "file": "prompts/stage2_corpus/dolly_0003.txt",
+      "source_idx": 7788,
+      "stratum": "general_qa",
+      "chars": 70,
+      "tok_est": 17
+    },
+    {
+      "prompt_id": "dolly_0004",
+      "source": "dolly",
+      "split": "train",
+      "file": "prompts/stage2_corpus/dolly_0004.txt",
+      "source_idx": 3106,
+      "stratum": "closed_qa",
+      "chars": 723,
+      "tok_est": 180
+    },
+    {
+      "prompt_id": "dolly_0005",
+      "source": "dolly",
+      "split": "train",
+      "file": "prompts/stage2_corpus/dolly_0005.txt",
+      "source_idx": 7571,
+      "stratum": "closed_qa",
+      "chars": 377,
+      "tok_est": 94
+    },
+    {
+      "prompt_id": "dolly_0006",
+      "source": "dolly",
+      "split": "train",
+      "file": "prompts/stage2_corpus/dolly_0006.txt",
+      "source_idx": 6013,
+      "stratum": "closed_qa",
+      "chars": 1516,
+      "tok_est": 379
+    },
+    {
+      "prompt_id": "dolly_0007",
+      "source": "dolly",
+      "split": "train",
+      "file": "prompts/stage2_corpus/dolly_0007.txt",
+      "source_idx": 2697,
+      "stratum": "information_extraction",
+      "chars": 843,
+      "tok_est": 210
+    },
+    {
+      "prompt_id": "dolly_0008",
+      "source": "dolly",
+      "split": "train",
+      "file": "prompts/stage2_corpus/dolly_0008.txt",
+      "source_idx": 3853,
+      "stratum": "brainstorming",
+      "chars": 39,
+      "tok_est": 9
+    },
+    {
+      "prompt_id": "dolly_0009",
+      "source": "dolly",
+      "split": "train",
+      "file": "prompts/stage2_corpus/dolly_0009.txt",
+      "source_idx": 3669,
+      "stratum": "creative_writing",
+      "chars": 100,
+      "tok_est": 25
+    },
+    {
+      "prompt_id": "dolly_0010",
+      "source": "dolly",
+      "split": "train",
+      "file": "prompts/stage2_corpus/dolly_0010.txt",
+      "source_idx": 8651,
+      "stratum": "closed_qa",
+      "chars": 586,
+      "tok_est": 146
+    },
+    {
+      "prompt_id": "dolly_0011",
+      "source": "dolly",
+      "split": "train",
+      "file": "prompts/stage2_corpus/dolly_0011.txt",
+      "source_idx": 4303,
+      "stratum": "creative_writing",
+      "chars": 298,
+      "tok_est": 74
+    },
+    {
+      "prompt_id": "dolly_0012",
+      "source": "dolly",
+      "split": "train",
+      "file": "prompts/stage2_corpus/dolly_0012.txt",
+      "source_idx": 9000,
+      "stratum": "information_extraction",
+      "chars": 432,
+      "tok_est": 108
+    },
+    {
+      "prompt_id": "dolly_0013",
+      "source": "dolly",
+      "split": "train",
+      "file": "prompts/stage2_corpus/dolly_0013.txt",
+      "source_idx": 8666,
+      "stratum": "open_qa",
+      "chars": 59,
+      "tok_est": 14
+    },
+    {
+      "prompt_id": "dolly_0014",
+      "source": "dolly",
+      "split": "train",
+      "file": "prompts/stage2_corpus/dolly_0014.txt",
+      "source_idx": 4350,
+      "stratum": "summarization",
+      "chars": 1878,
+      "tok_est": 469
+    },
+    {
+      "prompt_id": "dolly_0015",
+      "source": "dolly",
+      "split": "train",
+      "file": "prompts/stage2_corpus/dolly_0015.txt",
+      "source_idx": 13997,
+      "stratum": "general_qa",
+      "chars": 38,
+      "tok_est": 9
+    },
+    {
+      "prompt_id": "dolly_0016",
+      "source": "dolly",
+      "split": "train",
+      "file": "prompts/stage2_corpus/dolly_0016.txt",
+      "source_idx": 14659,
+      "stratum": "general_qa",
+      "chars": 141,
+      "tok_est": 35
+    },
+    {
+      "prompt_id": "dolly_0017",
+      "source": "dolly",
+      "split": "train",
+      "file": "prompts/stage2_corpus/dolly_0017.txt",
+      "source_idx": 10620,
+      "stratum": "general_qa",
+      "chars": 165,
+      "tok_est": 41
+    },
+    {
+      "prompt_id": "dolly_0018",
+      "source": "dolly",
+      "split": "train",
+      "file": "prompts/stage2_corpus/dolly_0018.txt",
+      "source_idx": 5941,
+      "stratum": "information_extraction",
+      "chars": 331,
+      "tok_est": 82
+    },
+    {
+      "prompt_id": "dolly_0019",
+      "source": "dolly",
+      "split": "train",
+      "file": "prompts/stage2_corpus/dolly_0019.txt",
+      "source_idx": 8683,
+      "stratum": "open_qa",
+      "chars": 51,
+      "tok_est": 12
+    },
+    {
+      "prompt_id": "dolly_0020",
+      "source": "dolly",
+      "split": "train",
+      "file": "prompts/stage2_corpus/dolly_0020.txt",
+      "source_idx": 3309,
+      "stratum": "open_qa",
+      "chars": 32,
+      "tok_est": 8
+    },
+    {
+      "prompt_id": "dolly_0021",
+      "source": "dolly",
+      "split": "train",
+      "file": "prompts/stage2_corpus/dolly_0021.txt",
+      "source_idx": 10528,
+      "stratum": "closed_qa",
+      "chars": 1084,
+      "tok_est": 271
+    },
+    {
+      "prompt_id": "dolly_0022",
+      "source": "dolly",
+      "split": "train",
+      "file": "prompts/stage2_corpus/dolly_0022.txt",
+      "source_idx": 12437,
+      "stratum": "closed_qa",
+      "chars": 548,
+      "tok_est": 137
+    },
+    {
+      "prompt_id": "dolly_0023",
+      "source": "dolly",
+      "split": "train",
+      "file": "prompts/stage2_corpus/dolly_0023.txt",
+      "source_idx": 4158,
+      "stratum": "classification",
+      "chars": 69,
+      "tok_est": 17
+    },
+    {
+      "prompt_id": "dolly_0024",
+      "source": "dolly",
+      "split": "train",
+      "file": "prompts/stage2_corpus/dolly_0024.txt",
+      "source_idx": 14191,
+      "stratum": "classification",
+      "chars": 75,
+      "tok_est": 18
+    },
+    {
+      "prompt_id": "dolly_0025",
+      "source": "dolly",
+      "split": "train",
+      "file": "prompts/stage2_corpus/dolly_0025.txt",
+      "source_idx": 9552,
+      "stratum": "summarization",
+      "chars": 1222,
+      "tok_est": 305
+    },
+    {
+      "prompt_id": "dolly_0026",
+      "source": "dolly",
+      "split": "train",
+      "file": "prompts/stage2_corpus/dolly_0026.txt",
+      "source_idx": 11631,
+      "stratum": "information_extraction",
+      "chars": 352,
+      "tok_est": 88
+    },
+    {
+      "prompt_id": "dolly_0027",
+      "source": "dolly",
+      "split": "train",
+      "file": "prompts/stage2_corpus/dolly_0027.txt",
+      "source_idx": 4018,
+      "stratum": "creative_writing",
+      "chars": 209,
+      "tok_est": 52
+    },
+    {
+      "prompt_id": "dolly_0028",
+      "source": "dolly",
+      "split": "train",
+      "file": "prompts/stage2_corpus/dolly_0028.txt",
+      "source_idx": 10224,
+      "stratum": "information_extraction",
+      "chars": 675,
+      "tok_est": 168
+    },
+    {
+      "prompt_id": "dolly_0029",
+      "source": "dolly",
+      "split": "train",
+      "file": "prompts/stage2_corpus/dolly_0029.txt",
+      "source_idx": 8227,
+      "stratum": "summarization",
+      "chars": 646,
+      "tok_est": 161
+    },
+    {
+      "prompt_id": "dolly_0030",
+      "source": "dolly",
+      "split": "train",
+      "file": "prompts/stage2_corpus/dolly_0030.txt",
+      "source_idx": 3158,
+      "stratum": "creative_writing",
+      "chars": 67,
+      "tok_est": 16
+    },
+    {
+      "prompt_id": "dolly_0031",
+      "source": "dolly",
+      "split": "train",
+      "file": "prompts/stage2_corpus/dolly_0031.txt",
+      "source_idx": 632,
+      "stratum": "general_qa",
+      "chars": 1787,
+      "tok_est": 446
+    },
+    {
+      "prompt_id": "dolly_0032",
+      "source": "dolly",
+      "split": "train",
+      "file": "prompts/stage2_corpus/dolly_0032.txt",
+      "source_idx": 1195,
+      "stratum": "classification",
+      "chars": 200,
+      "tok_est": 50
+    },
+    {
+      "prompt_id": "dolly_0033",
+      "source": "dolly",
+      "split": "train",
+      "file": "prompts/stage2_corpus/dolly_0033.txt",
+      "source_idx": 10689,
+      "stratum": "summarization",
+      "chars": 692,
+      "tok_est": 173
+    },
+    {
+      "prompt_id": "dolly_0034",
+      "source": "dolly",
+      "split": "train",
+      "file": "prompts/stage2_corpus/dolly_0034.txt",
+      "source_idx": 4832,
+      "stratum": "classification",
+      "chars": 186,
+      "tok_est": 46
+    },
+    {
+      "prompt_id": "dolly_0035",
+      "source": "dolly",
+      "split": "train",
+      "file": "prompts/stage2_corpus/dolly_0035.txt",
+      "source_idx": 10677,
+      "stratum": "brainstorming",
+      "chars": 71,
+      "tok_est": 17
+    },
+    {
+      "prompt_id": "dolly_0036",
+      "source": "dolly",
+      "split": "train",
+      "file": "prompts/stage2_corpus/dolly_0036.txt",
+      "source_idx": 7213,
+      "stratum": "brainstorming",
+      "chars": 93,
+      "tok_est": 23
+    },
+    {
+      "prompt_id": "dolly_0037",
+      "source": "dolly",
+      "split": "train",
+      "file": "prompts/stage2_corpus/dolly_0037.txt",
+      "source_idx": 5020,
+      "stratum": "creative_writing",
+      "chars": 190,
+      "tok_est": 47
+    },
+    {
+      "prompt_id": "dolly_0038",
+      "source": "dolly",
+      "split": "train",
+      "file": "prompts/stage2_corpus/dolly_0038.txt",
+      "source_idx": 8017,
+      "stratum": "creative_writing",
+      "chars": 103,
+      "tok_est": 25
+    },
+    {
+      "prompt_id": "dolly_0039",
+      "source": "dolly",
+      "split": "train",
+      "file": "prompts/stage2_corpus/dolly_0039.txt",
+      "source_idx": 4897,
+      "stratum": "summarization",
+      "chars": 3708,
+      "tok_est": 927
+    },
+    {
+      "prompt_id": "dolly_0040",
+      "source": "dolly",
+      "split": "train",
+      "file": "prompts/stage2_corpus/dolly_0040.txt",
+      "source_idx": 13091,
+      "stratum": "general_qa",
+      "chars": 38,
+      "tok_est": 9
+    },
+    {
+      "prompt_id": "dolly_0041",
+      "source": "dolly",
+      "split": "train",
+      "file": "prompts/stage2_corpus/dolly_0041.txt",
+      "source_idx": 12696,
+      "stratum": "brainstorming",
+      "chars": 47,
+      "tok_est": 11
+    },
+    {
+      "prompt_id": "dolly_0042",
+      "source": "dolly",
+      "split": "train",
+      "file": "prompts/stage2_corpus/dolly_0042.txt",
+      "source_idx": 5351,
+      "stratum": "classification",
+      "chars": 74,
+      "tok_est": 18
+    },
+    {
+      "prompt_id": "dolly_0043",
+      "source": "dolly",
+      "split": "train",
+      "file": "prompts/stage2_corpus/dolly_0043.txt",
+      "source_idx": 12165,
+      "stratum": "open_qa",
+      "chars": 30,
+      "tok_est": 7
+    },
+    {
+      "prompt_id": "dolly_0044",
+      "source": "dolly",
+      "split": "train",
+      "file": "prompts/stage2_corpus/dolly_0044.txt",
+      "source_idx": 2377,
+      "stratum": "general_qa",
+      "chars": 37,
+      "tok_est": 9
+    },
+    {
+      "prompt_id": "dolly_0045",
+      "source": "dolly",
+      "split": "train",
+      "file": "prompts/stage2_corpus/dolly_0045.txt",
+      "source_idx": 12406,
+      "stratum": "general_qa",
+      "chars": 41,
+      "tok_est": 10
+    },
+    {
+      "prompt_id": "dolly_0046",
+      "source": "dolly",
+      "split": "train",
+      "file": "prompts/stage2_corpus/dolly_0046.txt",
+      "source_idx": 10259,
+      "stratum": "closed_qa",
+      "chars": 792,
+      "tok_est": 198
+    },
+    {
+      "prompt_id": "dolly_0047",
+      "source": "dolly",
+      "split": "train",
+      "file": "prompts/stage2_corpus/dolly_0047.txt",
+      "source_idx": 1919,
+      "stratum": "closed_qa",
+      "chars": 428,
+      "tok_est": 107
+    },
+    {
+      "prompt_id": "dolly_0048",
+      "source": "dolly",
+      "split": "train",
+      "file": "prompts/stage2_corpus/dolly_0048.txt",
+      "source_idx": 496,
+      "stratum": "summarization",
+      "chars": 434,
+      "tok_est": 108
+    },
+    {
+      "prompt_id": "dolly_0049",
+      "source": "dolly",
+      "split": "train",
+      "file": "prompts/stage2_corpus/dolly_0049.txt",
+      "source_idx": 14085,
+      "stratum": "open_qa",
+      "chars": 46,
+      "tok_est": 11
+    },
+    {
+      "prompt_id": "dolly_0050",
+      "source": "dolly",
+      "split": "train",
+      "file": "prompts/stage2_corpus/dolly_0050.txt",
+      "source_idx": 13453,
+      "stratum": "creative_writing",
+      "chars": 95,
+      "tok_est": 23
+    },
+    {
+      "prompt_id": "dolly_0051",
+      "source": "dolly",
+      "split": "train",
+      "file": "prompts/stage2_corpus/dolly_0051.txt",
+      "source_idx": 10080,
+      "stratum": "brainstorming",
+      "chars": 48,
+      "tok_est": 12
+    },
+    {
+      "prompt_id": "dolly_0052",
+      "source": "dolly",
+      "split": "train",
+      "file": "prompts/stage2_corpus/dolly_0052.txt",
+      "source_idx": 11938,
+      "stratum": "brainstorming",
+      "chars": 41,
+      "tok_est": 10
+    },
+    {
+      "prompt_id": "dolly_0053",
+      "source": "dolly",
+      "split": "train",
+      "file": "prompts/stage2_corpus/dolly_0053.txt",
+      "source_idx": 3750,
+      "stratum": "open_qa",
+      "chars": 61,
+      "tok_est": 15
+    },
+    {
+      "prompt_id": "dolly_0054",
+      "source": "dolly",
+      "split": "train",
+      "file": "prompts/stage2_corpus/dolly_0054.txt",
+      "source_idx": 3459,
+      "stratum": "information_extraction",
+      "chars": 1057,
+      "tok_est": 264
+    },
+    {
+      "prompt_id": "dolly_0055",
+      "source": "dolly",
+      "split": "train",
+      "file": "prompts/stage2_corpus/dolly_0055.txt",
+      "source_idx": 147,
+      "stratum": "open_qa",
+      "chars": 33,
+      "tok_est": 8
+    },
+    {
+      "prompt_id": "dolly_0056",
+      "source": "dolly",
+      "split": "train",
+      "file": "prompts/stage2_corpus/dolly_0056.txt",
+      "source_idx": 5770,
+      "stratum": "classification",
+      "chars": 136,
+      "tok_est": 34
+    },
+    {
+      "prompt_id": "dolly_0057",
+      "source": "dolly",
+      "split": "train",
+      "file": "prompts/stage2_corpus/dolly_0057.txt",
+      "source_idx": 14406,
+      "stratum": "brainstorming",
+      "chars": 90,
+      "tok_est": 22
+    },
+    {
+      "prompt_id": "dolly_0058",
+      "source": "dolly",
+      "split": "train",
+      "file": "prompts/stage2_corpus/dolly_0058.txt",
+      "source_idx": 2000,
+      "stratum": "closed_qa",
+      "chars": 1663,
+      "tok_est": 415
+    },
+    {
+      "prompt_id": "dolly_0059",
+      "source": "dolly",
+      "split": "train",
+      "file": "prompts/stage2_corpus/dolly_0059.txt",
+      "source_idx": 6297,
+      "stratum": "brainstorming",
+      "chars": 68,
+      "tok_est": 17
+    },
+    {
+      "prompt_id": "dolly_0060",
+      "source": "dolly",
+      "split": "eval",
+      "file": "prompts/stage2_corpus/dolly_0060.txt",
+      "source_idx": 12154,
+      "stratum": "summarization",
+      "chars": 760,
+      "tok_est": 190
+    },
+    {
+      "prompt_id": "dolly_0061",
+      "source": "dolly",
+      "split": "eval",
+      "file": "prompts/stage2_corpus/dolly_0061.txt",
+      "source_idx": 5504,
+      "stratum": "information_extraction",
+      "chars": 573,
+      "tok_est": 143
+    },
+    {
+      "prompt_id": "dolly_0062",
+      "source": "dolly",
+      "split": "eval",
+      "file": "prompts/stage2_corpus/dolly_0062.txt",
+      "source_idx": 5065,
+      "stratum": "brainstorming",
+      "chars": 84,
+      "tok_est": 21
+    },
+    {
+      "prompt_id": "dolly_0063",
+      "source": "dolly",
+      "split": "eval",
+      "file": "prompts/stage2_corpus/dolly_0063.txt",
+      "source_idx": 4486,
+      "stratum": "summarization",
+      "chars": 226,
+      "tok_est": 56
+    },
+    {
+      "prompt_id": "dolly_0064",
+      "source": "dolly",
+      "split": "eval",
+      "file": "prompts/stage2_corpus/dolly_0064.txt",
+      "source_idx": 7185,
+      "stratum": "open_qa",
+      "chars": 58,
+      "tok_est": 14
+    },
+    {
+      "prompt_id": "dolly_0065",
+      "source": "dolly",
+      "split": "eval",
+      "file": "prompts/stage2_corpus/dolly_0065.txt",
+      "source_idx": 9371,
+      "stratum": "creative_writing",
+      "chars": 163,
+      "tok_est": 40
+    },
+    {
+      "prompt_id": "dolly_0066",
+      "source": "dolly",
+      "split": "eval",
+      "file": "prompts/stage2_corpus/dolly_0066.txt",
+      "source_idx": 13609,
+      "stratum": "closed_qa",
+      "chars": 2054,
+      "tok_est": 513
+    },
+    {
+      "prompt_id": "dolly_0067",
+      "source": "dolly",
+      "split": "eval",
+      "file": "prompts/stage2_corpus/dolly_0067.txt",
+      "source_idx": 8563,
+      "stratum": "creative_writing",
+      "chars": 92,
+      "tok_est": 23
+    },
+    {
+      "prompt_id": "dolly_0068",
+      "source": "dolly",
+      "split": "eval",
+      "file": "prompts/stage2_corpus/dolly_0068.txt",
+      "source_idx": 14609,
+      "stratum": "open_qa",
+      "chars": 54,
+      "tok_est": 13
+    },
+    {
+      "prompt_id": "dolly_0069",
+      "source": "dolly",
+      "split": "eval",
+      "file": "prompts/stage2_corpus/dolly_0069.txt",
+      "source_idx": 1402,
+      "stratum": "classification",
+      "chars": 63,
+      "tok_est": 15
+    },
+    {
+      "prompt_id": "dolly_0070",
+      "source": "dolly",
+      "split": "eval",
+      "file": "prompts/stage2_corpus/dolly_0070.txt",
+      "source_idx": 9826,
+      "stratum": "information_extraction",
+      "chars": 1026,
+      "tok_est": 256
+    },
+    {
+      "prompt_id": "dolly_0071",
+      "source": "dolly",
+      "split": "eval",
+      "file": "prompts/stage2_corpus/dolly_0071.txt",
+      "source_idx": 13897,
+      "stratum": "classification",
+      "chars": 69,
+      "tok_est": 17
+    },
+    {
+      "prompt_id": "dolly_0072",
+      "source": "dolly",
+      "split": "eval",
+      "file": "prompts/stage2_corpus/dolly_0072.txt",
+      "source_idx": 2493,
+      "stratum": "open_qa",
+      "chars": 77,
+      "tok_est": 19
+    },
+    {
+      "prompt_id": "dolly_0073",
+      "source": "dolly",
+      "split": "eval",
+      "file": "prompts/stage2_corpus/dolly_0073.txt",
+      "source_idx": 1655,
+      "stratum": "brainstorming",
+      "chars": 40,
+      "tok_est": 10
+    },
+    {
+      "prompt_id": "dolly_0074",
+      "source": "dolly",
+      "split": "eval",
+      "file": "prompts/stage2_corpus/dolly_0074.txt",
+      "source_idx": 11512,
+      "stratum": "classification",
+      "chars": 133,
+      "tok_est": 33
+    },
+    {
+      "prompt_id": "dolly_0075",
+      "source": "dolly",
+      "split": "eval",
+      "file": "prompts/stage2_corpus/dolly_0075.txt",
+      "source_idx": 8891,
+      "stratum": "creative_writing",
+      "chars": 65,
+      "tok_est": 16
+    },
+    {
+      "prompt_id": "dolly_0076",
+      "source": "dolly",
+      "split": "eval",
+      "file": "prompts/stage2_corpus/dolly_0076.txt",
+      "source_idx": 3691,
+      "stratum": "general_qa",
+      "chars": 51,
+      "tok_est": 12
+    },
+    {
+      "prompt_id": "dolly_0077",
+      "source": "dolly",
+      "split": "eval",
+      "file": "prompts/stage2_corpus/dolly_0077.txt",
+      "source_idx": 597,
+      "stratum": "summarization",
+      "chars": 1588,
+      "tok_est": 397
+    },
+    {
+      "prompt_id": "dolly_0078",
+      "source": "dolly",
+      "split": "eval",
+      "file": "prompts/stage2_corpus/dolly_0078.txt",
+      "source_idx": 2759,
+      "stratum": "information_extraction",
+      "chars": 1478,
+      "tok_est": 369
+    },
+    {
+      "prompt_id": "dolly_0079",
+      "source": "dolly",
+      "split": "eval",
+      "file": "prompts/stage2_corpus/dolly_0079.txt",
+      "source_idx": 1502,
+      "stratum": "information_extraction",
+      "chars": 996,
+      "tok_est": 249
+    },
+    {
+      "prompt_id": "codealpaca_0000",
+      "source": "codealpaca",
+      "split": "train",
+      "file": "prompts/stage2_corpus/codealpaca_0000.txt",
+      "source_idx": 2434,
+      "stratum": null,
+      "chars": 118,
+      "tok_est": 29
+    },
+    {
+      "prompt_id": "codealpaca_0001",
+      "source": "codealpaca",
+      "split": "train",
+      "file": "prompts/stage2_corpus/codealpaca_0001.txt",
+      "source_idx": 2672,
+      "stratum": null,
+      "chars": 83,
+      "tok_est": 20
+    },
+    {
+      "prompt_id": "codealpaca_0002",
+      "source": "codealpaca",
+      "split": "train",
+      "file": "prompts/stage2_corpus/codealpaca_0002.txt",
+      "source_idx": 3161,
+      "stratum": null,
+      "chars": 47,
+      "tok_est": 11
+    },
+    {
+      "prompt_id": "codealpaca_0003",
+      "source": "codealpaca",
+      "split": "train",
+      "file": "prompts/stage2_corpus/codealpaca_0003.txt",
+      "source_idx": 15,
+      "stratum": null,
+      "chars": 153,
+      "tok_est": 38
+    },
+    {
+      "prompt_id": "codealpaca_0004",
+      "source": "codealpaca",
+      "split": "train",
+      "file": "prompts/stage2_corpus/codealpaca_0004.txt",
+      "source_idx": 3280,
+      "stratum": null,
+      "chars": 103,
+      "tok_est": 25
+    },
+    {
+      "prompt_id": "codealpaca_0005",
+      "source": "codealpaca",
+      "split": "train",
+      "file": "prompts/stage2_corpus/codealpaca_0005.txt",
+      "source_idx": 1244,
+      "stratum": null,
+      "chars": 125,
+      "tok_est": 31
+    },
+    {
+      "prompt_id": "codealpaca_0006",
+      "source": "codealpaca",
+      "split": "train",
+      "file": "prompts/stage2_corpus/codealpaca_0006.txt",
+      "source_idx": 1891,
+      "stratum": null,
+      "chars": 103,
+      "tok_est": 25
+    },
+    {
+      "prompt_id": "codealpaca_0007",
+      "source": "codealpaca",
+      "split": "train",
+      "file": "prompts/stage2_corpus/codealpaca_0007.txt",
+      "source_idx": 3466,
+      "stratum": null,
+      "chars": 210,
+      "tok_est": 52
+    },
+    {
+      "prompt_id": "codealpaca_0008",
+      "source": "codealpaca",
+      "split": "train",
+      "file": "prompts/stage2_corpus/codealpaca_0008.txt",
+      "source_idx": 1032,
+      "stratum": null,
+      "chars": 63,
+      "tok_est": 15
+    },
+    {
+      "prompt_id": "codealpaca_0009",
+      "source": "codealpaca",
+      "split": "train",
+      "file": "prompts/stage2_corpus/codealpaca_0009.txt",
+      "source_idx": 420,
+      "stratum": null,
+      "chars": 58,
+      "tok_est": 14
+    },
+    {
+      "prompt_id": "codealpaca_0010",
+      "source": "codealpaca",
+      "split": "train",
+      "file": "prompts/stage2_corpus/codealpaca_0010.txt",
+      "source_idx": 4210,
+      "stratum": null,
+      "chars": 78,
+      "tok_est": 19
+    },
+    {
+      "prompt_id": "codealpaca_0011",
+      "source": "codealpaca",
+      "split": "train",
+      "file": "prompts/stage2_corpus/codealpaca_0011.txt",
+      "source_idx": 523,
+      "stratum": null,
+      "chars": 94,
+      "tok_est": 23
+    },
+    {
+      "prompt_id": "codealpaca_0012",
+      "source": "codealpaca",
+      "split": "train",
+      "file": "prompts/stage2_corpus/codealpaca_0012.txt",
+      "source_idx": 4470,
+      "stratum": null,
+      "chars": 93,
+      "tok_est": 23
+    },
+    {
+      "prompt_id": "codealpaca_0013",
+      "source": "codealpaca",
+      "split": "train",
+      "file": "prompts/stage2_corpus/codealpaca_0013.txt",
+      "source_idx": 3130,
+      "stratum": null,
+      "chars": 91,
+      "tok_est": 22
+    },
+    {
+      "prompt_id": "codealpaca_0014",
+      "source": "codealpaca",
+      "split": "train",
+      "file": "prompts/stage2_corpus/codealpaca_0014.txt",
+      "source_idx": 2402,
+      "stratum": null,
+      "chars": 63,
+      "tok_est": 15
+    },
+    {
+      "prompt_id": "codealpaca_0015",
+      "source": "codealpaca",
+      "split": "train",
+      "file": "prompts/stage2_corpus/codealpaca_0015.txt",
+      "source_idx": 1688,
+      "stratum": null,
+      "chars": 47,
+      "tok_est": 11
+    },
+    {
+      "prompt_id": "codealpaca_0016",
+      "source": "codealpaca",
+      "split": "train",
+      "file": "prompts/stage2_corpus/codealpaca_0016.txt",
+      "source_idx": 1589,
+      "stratum": null,
+      "chars": 53,
+      "tok_est": 13
+    },
+    {
+      "prompt_id": "codealpaca_0017",
+      "source": "codealpaca",
+      "split": "train",
+      "file": "prompts/stage2_corpus/codealpaca_0017.txt",
+      "source_idx": 3039,
+      "stratum": null,
+      "chars": 80,
+      "tok_est": 20
+    },
+    {
+      "prompt_id": "codealpaca_0018",
+      "source": "codealpaca",
+      "split": "train",
+      "file": "prompts/stage2_corpus/codealpaca_0018.txt",
+      "source_idx": 336,
+      "stratum": null,
+      "chars": 65,
+      "tok_est": 16
+    },
+    {
+      "prompt_id": "codealpaca_0019",
+      "source": "codealpaca",
+      "split": "train",
+      "file": "prompts/stage2_corpus/codealpaca_0019.txt",
+      "source_idx": 593,
+      "stratum": null,
+      "chars": 56,
+      "tok_est": 14
+    },
+    {
+      "prompt_id": "codealpaca_0020",
+      "source": "codealpaca",
+      "split": "train",
+      "file": "prompts/stage2_corpus/codealpaca_0020.txt",
+      "source_idx": 1346,
+      "stratum": null,
+      "chars": 93,
+      "tok_est": 23
+    },
+    {
+      "prompt_id": "codealpaca_0021",
+      "source": "codealpaca",
+      "split": "train",
+      "file": "prompts/stage2_corpus/codealpaca_0021.txt",
+      "source_idx": 2483,
+      "stratum": null,
+      "chars": 115,
+      "tok_est": 28
+    },
+    {
+      "prompt_id": "codealpaca_0022",
+      "source": "codealpaca",
+      "split": "train",
+      "file": "prompts/stage2_corpus/codealpaca_0022.txt",
+      "source_idx": 1488,
+      "stratum": null,
+      "chars": 89,
+      "tok_est": 22
+    },
+    {
+      "prompt_id": "codealpaca_0023",
+      "source": "codealpaca",
+      "split": "train",
+      "file": "prompts/stage2_corpus/codealpaca_0023.txt",
+      "source_idx": 3376,
+      "stratum": null,
+      "chars": 134,
+      "tok_est": 33
+    },
+    {
+      "prompt_id": "codealpaca_0024",
+      "source": "codealpaca",
+      "split": "train",
+      "file": "prompts/stage2_corpus/codealpaca_0024.txt",
+      "source_idx": 4254,
+      "stratum": null,
+      "chars": 42,
+      "tok_est": 10
+    },
+    {
+      "prompt_id": "codealpaca_0025",
+      "source": "codealpaca",
+      "split": "train",
+      "file": "prompts/stage2_corpus/codealpaca_0025.txt",
+      "source_idx": 2200,
+      "stratum": null,
+      "chars": 116,
+      "tok_est": 29
+    },
+    {
+      "prompt_id": "codealpaca_0026",
+      "source": "codealpaca",
+      "split": "train",
+      "file": "prompts/stage2_corpus/codealpaca_0026.txt",
+      "source_idx": 1114,
+      "stratum": null,
+      "chars": 65,
+      "tok_est": 16
+    },
+    {
+      "prompt_id": "codealpaca_0027",
+      "source": "codealpaca",
+      "split": "train",
+      "file": "prompts/stage2_corpus/codealpaca_0027.txt",
+      "source_idx": 1220,
+      "stratum": null,
+      "chars": 116,
+      "tok_est": 29
+    },
+    {
+      "prompt_id": "codealpaca_0028",
+      "source": "codealpaca",
+      "split": "train",
+      "file": "prompts/stage2_corpus/codealpaca_0028.txt",
+      "source_idx": 219,
+      "stratum": null,
+      "chars": 269,
+      "tok_est": 67
+    },
+    {
+      "prompt_id": "codealpaca_0029",
+      "source": "codealpaca",
+      "split": "train",
+      "file": "prompts/stage2_corpus/codealpaca_0029.txt",
+      "source_idx": 2798,
+      "stratum": null,
+      "chars": 139,
+      "tok_est": 34
+    },
+    {
+      "prompt_id": "codealpaca_0030",
+      "source": "codealpaca",
+      "split": "train",
+      "file": "prompts/stage2_corpus/codealpaca_0030.txt",
+      "source_idx": 3724,
+      "stratum": null,
+      "chars": 56,
+      "tok_est": 14
+    },
+    {
+      "prompt_id": "codealpaca_0031",
+      "source": "codealpaca",
+      "split": "train",
+      "file": "prompts/stage2_corpus/codealpaca_0031.txt",
+      "source_idx": 3829,
+      "stratum": null,
+      "chars": 112,
+      "tok_est": 28
+    },
+    {
+      "prompt_id": "codealpaca_0032",
+      "source": "codealpaca",
+      "split": "train",
+      "file": "prompts/stage2_corpus/codealpaca_0032.txt",
+      "source_idx": 4513,
+      "stratum": null,
+      "chars": 64,
+      "tok_est": 16
+    },
+    {
+      "prompt_id": "codealpaca_0033",
+      "source": "codealpaca",
+      "split": "train",
+      "file": "prompts/stage2_corpus/codealpaca_0033.txt",
+      "source_idx": 4104,
+      "stratum": null,
+      "chars": 157,
+      "tok_est": 39
+    },
+    {
+      "prompt_id": "codealpaca_0034",
+      "source": "codealpaca",
+      "split": "train",
+      "file": "prompts/stage2_corpus/codealpaca_0034.txt",
+      "source_idx": 4373,
+      "stratum": null,
+      "chars": 143,
+      "tok_est": 35
+    },
+    {
+      "prompt_id": "codealpaca_0035",
+      "source": "codealpaca",
+      "split": "train",
+      "file": "prompts/stage2_corpus/codealpaca_0035.txt",
+      "source_idx": 2297,
+      "stratum": null,
+      "chars": 69,
+      "tok_est": 17
+    },
+    {
+      "prompt_id": "codealpaca_0036",
+      "source": "codealpaca",
+      "split": "train",
+      "file": "prompts/stage2_corpus/codealpaca_0036.txt",
+      "source_idx": 814,
+      "stratum": null,
+      "chars": 53,
+      "tok_est": 13
+    },
+    {
+      "prompt_id": "codealpaca_0037",
+      "source": "codealpaca",
+      "split": "train",
+      "file": "prompts/stage2_corpus/codealpaca_0037.txt",
+      "source_idx": 2812,
+      "stratum": null,
+      "chars": 45,
+      "tok_est": 11
+    },
+    {
+      "prompt_id": "codealpaca_0038",
+      "source": "codealpaca",
+      "split": "train",
+      "file": "prompts/stage2_corpus/codealpaca_0038.txt",
+      "source_idx": 3071,
+      "stratum": null,
+      "chars": 57,
+      "tok_est": 14
+    },
+    {
+      "prompt_id": "codealpaca_0039",
+      "source": "codealpaca",
+      "split": "train",
+      "file": "prompts/stage2_corpus/codealpaca_0039.txt",
+      "source_idx": 2354,
+      "stratum": null,
+      "chars": 121,
+      "tok_est": 30
+    },
+    {
+      "prompt_id": "codealpaca_0040",
+      "source": "codealpaca",
+      "split": "train",
+      "file": "prompts/stage2_corpus/codealpaca_0040.txt",
+      "source_idx": 123,
+      "stratum": null,
+      "chars": 81,
+      "tok_est": 20
+    },
+    {
+      "prompt_id": "codealpaca_0041",
+      "source": "codealpaca",
+      "split": "train",
+      "file": "prompts/stage2_corpus/codealpaca_0041.txt",
+      "source_idx": 3010,
+      "stratum": null,
+      "chars": 65,
+      "tok_est": 16
+    },
+    {
+      "prompt_id": "codealpaca_0042",
+      "source": "codealpaca",
+      "split": "train",
+      "file": "prompts/stage2_corpus/codealpaca_0042.txt",
+      "source_idx": 4212,
+      "stratum": null,
+      "chars": 53,
+      "tok_est": 13
+    },
+    {
+      "prompt_id": "codealpaca_0043",
+      "source": "codealpaca",
+      "split": "train",
+      "file": "prompts/stage2_corpus/codealpaca_0043.txt",
+      "source_idx": 2510,
+      "stratum": null,
+      "chars": 133,
+      "tok_est": 33
+    },
+    {
+      "prompt_id": "codealpaca_0044",
+      "source": "codealpaca",
+      "split": "train",
+      "file": "prompts/stage2_corpus/codealpaca_0044.txt",
+      "source_idx": 555,
+      "stratum": null,
+      "chars": 85,
+      "tok_est": 21
+    },
+    {
+      "prompt_id": "codealpaca_0045",
+      "source": "codealpaca",
+      "split": "train",
+      "file": "prompts/stage2_corpus/codealpaca_0045.txt",
+      "source_idx": 873,
+      "stratum": null,
+      "chars": 99,
+      "tok_est": 24
+    },
+    {
+      "prompt_id": "codealpaca_0046",
+      "source": "codealpaca",
+      "split": "train",
+      "file": "prompts/stage2_corpus/codealpaca_0046.txt",
+      "source_idx": 38,
+      "stratum": null,
+      "chars": 76,
+      "tok_est": 19
+    },
+    {
+      "prompt_id": "codealpaca_0047",
+      "source": "codealpaca",
+      "split": "train",
+      "file": "prompts/stage2_corpus/codealpaca_0047.txt",
+      "source_idx": 1897,
+      "stratum": null,
+      "chars": 107,
+      "tok_est": 26
+    },
+    {
+      "prompt_id": "codealpaca_0048",
+      "source": "codealpaca",
+      "split": "train",
+      "file": "prompts/stage2_corpus/codealpaca_0048.txt",
+      "source_idx": 2398,
+      "stratum": null,
+      "chars": 57,
+      "tok_est": 14
+    },
+    {
+      "prompt_id": "codealpaca_0049",
+      "source": "codealpaca",
+      "split": "train",
+      "file": "prompts/stage2_corpus/codealpaca_0049.txt",
+      "source_idx": 1713,
+      "stratum": null,
+      "chars": 51,
+      "tok_est": 12
+    },
+    {
+      "prompt_id": "codealpaca_0050",
+      "source": "codealpaca",
+      "split": "train",
+      "file": "prompts/stage2_corpus/codealpaca_0050.txt",
+      "source_idx": 821,
+      "stratum": null,
+      "chars": 153,
+      "tok_est": 38
+    },
+    {
+      "prompt_id": "codealpaca_0051",
+      "source": "codealpaca",
+      "split": "train",
+      "file": "prompts/stage2_corpus/codealpaca_0051.txt",
+      "source_idx": 334,
+      "stratum": null,
+      "chars": 80,
+      "tok_est": 20
+    },
+    {
+      "prompt_id": "codealpaca_0052",
+      "source": "codealpaca",
+      "split": "train",
+      "file": "prompts/stage2_corpus/codealpaca_0052.txt",
+      "source_idx": 2099,
+      "stratum": null,
+      "chars": 71,
+      "tok_est": 17
+    },
+    {
+      "prompt_id": "codealpaca_0053",
+      "source": "codealpaca",
+      "split": "train",
+      "file": "prompts/stage2_corpus/codealpaca_0053.txt",
+      "source_idx": 4124,
+      "stratum": null,
+      "chars": 85,
+      "tok_est": 21
+    },
+    {
+      "prompt_id": "codealpaca_0054",
+      "source": "codealpaca",
+      "split": "train",
+      "file": "prompts/stage2_corpus/codealpaca_0054.txt",
+      "source_idx": 1375,
+      "stratum": null,
+      "chars": 123,
+      "tok_est": 30
+    },
+    {
+      "prompt_id": "codealpaca_0055",
+      "source": "codealpaca",
+      "split": "train",
+      "file": "prompts/stage2_corpus/codealpaca_0055.txt",
+      "source_idx": 2369,
+      "stratum": null,
+      "chars": 52,
+      "tok_est": 13
+    },
+    {
+      "prompt_id": "codealpaca_0056",
+      "source": "codealpaca",
+      "split": "train",
+      "file": "prompts/stage2_corpus/codealpaca_0056.txt",
+      "source_idx": 3414,
+      "stratum": null,
+      "chars": 94,
+      "tok_est": 23
+    },
+    {
+      "prompt_id": "codealpaca_0057",
+      "source": "codealpaca",
+      "split": "train",
+      "file": "prompts/stage2_corpus/codealpaca_0057.txt",
+      "source_idx": 3244,
+      "stratum": null,
+      "chars": 87,
+      "tok_est": 21
+    },
+    {
+      "prompt_id": "codealpaca_0058",
+      "source": "codealpaca",
+      "split": "train",
+      "file": "prompts/stage2_corpus/codealpaca_0058.txt",
+      "source_idx": 4654,
+      "stratum": null,
+      "chars": 56,
+      "tok_est": 14
+    },
+    {
+      "prompt_id": "codealpaca_0059",
+      "source": "codealpaca",
+      "split": "train",
+      "file": "prompts/stage2_corpus/codealpaca_0059.txt",
+      "source_idx": 1924,
+      "stratum": null,
+      "chars": 147,
+      "tok_est": 36
+    },
+    {
+      "prompt_id": "codealpaca_0060",
+      "source": "codealpaca",
+      "split": "eval",
+      "file": "prompts/stage2_corpus/codealpaca_0060.txt",
+      "source_idx": 3520,
+      "stratum": null,
+      "chars": 106,
+      "tok_est": 26
+    },
+    {
+      "prompt_id": "codealpaca_0061",
+      "source": "codealpaca",
+      "split": "eval",
+      "file": "prompts/stage2_corpus/codealpaca_0061.txt",
+      "source_idx": 4332,
+      "stratum": null,
+      "chars": 54,
+      "tok_est": 13
+    },
+    {
+      "prompt_id": "codealpaca_0062",
+      "source": "codealpaca",
+      "split": "eval",
+      "file": "prompts/stage2_corpus/codealpaca_0062.txt",
+      "source_idx": 2098,
+      "stratum": null,
+      "chars": 101,
+      "tok_est": 25
+    },
+    {
+      "prompt_id": "codealpaca_0063",
+      "source": "codealpaca",
+      "split": "eval",
+      "file": "prompts/stage2_corpus/codealpaca_0063.txt",
+      "source_idx": 539,
+      "stratum": null,
+      "chars": 95,
+      "tok_est": 23
+    },
+    {
+      "prompt_id": "codealpaca_0064",
+      "source": "codealpaca",
+      "split": "eval",
+      "file": "prompts/stage2_corpus/codealpaca_0064.txt",
+      "source_idx": 33,
+      "stratum": null,
+      "chars": 96,
+      "tok_est": 24
+    },
+    {
+      "prompt_id": "codealpaca_0065",
+      "source": "codealpaca",
+      "split": "eval",
+      "file": "prompts/stage2_corpus/codealpaca_0065.txt",
+      "source_idx": 3518,
+      "stratum": null,
+      "chars": 71,
+      "tok_est": 17
+    },
+    {
+      "prompt_id": "codealpaca_0066",
+      "source": "codealpaca",
+      "split": "eval",
+      "file": "prompts/stage2_corpus/codealpaca_0066.txt",
+      "source_idx": 2696,
+      "stratum": null,
+      "chars": 72,
+      "tok_est": 18
+    },
+    {
+      "prompt_id": "codealpaca_0067",
+      "source": "codealpaca",
+      "split": "eval",
+      "file": "prompts/stage2_corpus/codealpaca_0067.txt",
+      "source_idx": 11,
+      "stratum": null,
+      "chars": 98,
+      "tok_est": 24
+    },
+    {
+      "prompt_id": "codealpaca_0068",
+      "source": "codealpaca",
+      "split": "eval",
+      "file": "prompts/stage2_corpus/codealpaca_0068.txt",
+      "source_idx": 4735,
+      "stratum": null,
+      "chars": 129,
+      "tok_est": 32
+    },
+    {
+      "prompt_id": "codealpaca_0069",
+      "source": "codealpaca",
+      "split": "eval",
+      "file": "prompts/stage2_corpus/codealpaca_0069.txt",
+      "source_idx": 4461,
+      "stratum": null,
+      "chars": 97,
+      "tok_est": 24
+    },
+    {
+      "prompt_id": "codealpaca_0070",
+      "source": "codealpaca",
+      "split": "eval",
+      "file": "prompts/stage2_corpus/codealpaca_0070.txt",
+      "source_idx": 3984,
+      "stratum": null,
+      "chars": 117,
+      "tok_est": 29
+    },
+    {
+      "prompt_id": "codealpaca_0071",
+      "source": "codealpaca",
+      "split": "eval",
+      "file": "prompts/stage2_corpus/codealpaca_0071.txt",
+      "source_idx": 3232,
+      "stratum": null,
+      "chars": 239,
+      "tok_est": 59
+    },
+    {
+      "prompt_id": "codealpaca_0072",
+      "source": "codealpaca",
+      "split": "eval",
+      "file": "prompts/stage2_corpus/codealpaca_0072.txt",
+      "source_idx": 206,
+      "stratum": null,
+      "chars": 75,
+      "tok_est": 18
+    },
+    {
+      "prompt_id": "codealpaca_0073",
+      "source": "codealpaca",
+      "split": "eval",
+      "file": "prompts/stage2_corpus/codealpaca_0073.txt",
+      "source_idx": 208,
+      "stratum": null,
+      "chars": 116,
+      "tok_est": 29
+    },
+    {
+      "prompt_id": "codealpaca_0074",
+      "source": "codealpaca",
+      "split": "eval",
+      "file": "prompts/stage2_corpus/codealpaca_0074.txt",
+      "source_idx": 3224,
+      "stratum": null,
+      "chars": 69,
+      "tok_est": 17
+    },
+    {
+      "prompt_id": "codealpaca_0075",
+      "source": "codealpaca",
+      "split": "eval",
+      "file": "prompts/stage2_corpus/codealpaca_0075.txt",
+      "source_idx": 217,
+      "stratum": null,
+      "chars": 42,
+      "tok_est": 10
+    },
+    {
+      "prompt_id": "codealpaca_0076",
+      "source": "codealpaca",
+      "split": "eval",
+      "file": "prompts/stage2_corpus/codealpaca_0076.txt",
+      "source_idx": 4580,
+      "stratum": null,
+      "chars": 111,
+      "tok_est": 27
+    },
+    {
+      "prompt_id": "codealpaca_0077",
+      "source": "codealpaca",
+      "split": "eval",
+      "file": "prompts/stage2_corpus/codealpaca_0077.txt",
+      "source_idx": 3206,
+      "stratum": null,
+      "chars": 105,
+      "tok_est": 26
+    },
+    {
+      "prompt_id": "codealpaca_0078",
+      "source": "codealpaca",
+      "split": "eval",
+      "file": "prompts/stage2_corpus/codealpaca_0078.txt",
+      "source_idx": 2263,
+      "stratum": null,
+      "chars": 73,
+      "tok_est": 18
+    },
+    {
+      "prompt_id": "codealpaca_0079",
+      "source": "codealpaca",
+      "split": "eval",
+      "file": "prompts/stage2_corpus/codealpaca_0079.txt",
+      "source_idx": 237,
+      "stratum": null,
+      "chars": 76,
+      "tok_est": 19
+    },
+    {
+      "prompt_id": "jsonex_0000",
+      "source": "jsonex",
+      "split": "train",
+      "file": "prompts/stage2_corpus/jsonex_0000.txt",
+      "source_idx": 33440,
+      "stratum": "manufacturing",
+      "chars": 795,
+      "tok_est": 198
+    },
+    {
+      "prompt_id": "jsonex_0001",
+      "source": "jsonex",
+      "split": "train",
+      "file": "prompts/stage2_corpus/jsonex_0001.txt",
+      "source_idx": 42219,
+      "stratum": "simple",
+      "chars": 202,
+      "tok_est": 50
+    },
+    {
+      "prompt_id": "jsonex_0002",
+      "source": "jsonex",
+      "split": "train",
+      "file": "prompts/stage2_corpus/jsonex_0002.txt",
+      "source_idx": 21260,
+      "stratum": "media",
+      "chars": 382,
+      "tok_est": 95
+    },
+    {
+      "prompt_id": "jsonex_0003",
+      "source": "jsonex",
+      "split": "train",
+      "file": "prompts/stage2_corpus/jsonex_0003.txt",
+      "source_idx": 42266,
+      "stratum": "ecommerce",
+      "chars": 692,
+      "tok_est": 173
+    },
+    {
+      "prompt_id": "jsonex_0004",
+      "source": "jsonex",
+      "split": "train",
+      "file": "prompts/stage2_corpus/jsonex_0004.txt",
+      "source_idx": 9879,
+      "stratum": "ecommerce",
+      "chars": 492,
+      "tok_est": 123
+    },
+    {
+      "prompt_id": "jsonex_0005",
+      "source": "jsonex",
+      "split": "train",
+      "file": "prompts/stage2_corpus/jsonex_0005.txt",
+      "source_idx": 23192,
+      "stratum": "medical",
+      "chars": 1124,
+      "tok_est": 281
+    },
+    {
+      "prompt_id": "jsonex_0006",
+      "source": "jsonex",
+      "split": "train",
+      "file": "prompts/stage2_corpus/jsonex_0006.txt",
+      "source_idx": 9376,
+      "stratum": "manufacturing",
+      "chars": 451,
+      "tok_est": 112
+    },
+    {
+      "prompt_id": "jsonex_0007",
+      "source": "jsonex",
+      "split": "train",
+      "file": "prompts/stage2_corpus/jsonex_0007.txt",
+      "source_idx": 25770,
+      "stratum": "travel",
+      "chars": 136,
+      "tok_est": 34
+    },
+    {
+      "prompt_id": "jsonex_0008",
+      "source": "jsonex",
+      "split": "train",
+      "file": "prompts/stage2_corpus/jsonex_0008.txt",
+      "source_idx": 20605,
+      "stratum": "manufacturing",
+      "chars": 748,
+      "tok_est": 187
+    },
+    {
+      "prompt_id": "jsonex_0009",
+      "source": "jsonex",
+      "split": "train",
+      "file": "prompts/stage2_corpus/jsonex_0009.txt",
+      "source_idx": 13217,
+      "stratum": "technology",
+      "chars": 359,
+      "tok_est": 89
+    },
+    {
+      "prompt_id": "jsonex_0010",
+      "source": "jsonex",
+      "split": "train",
+      "file": "prompts/stage2_corpus/jsonex_0010.txt",
+      "source_idx": 33973,
+      "stratum": "ecommerce",
+      "chars": 723,
+      "tok_est": 180
+    },
+    {
+      "prompt_id": "jsonex_0011",
+      "source": "jsonex",
+      "split": "train",
+      "file": "prompts/stage2_corpus/jsonex_0011.txt",
+      "source_idx": 8075,
+      "stratum": "ecommerce",
+      "chars": 802,
+      "tok_est": 200
+    },
+    {
+      "prompt_id": "jsonex_0012",
+      "source": "jsonex",
+      "split": "train",
+      "file": "prompts/stage2_corpus/jsonex_0012.txt",
+      "source_idx": 426,
+      "stratum": "simple",
+      "chars": 766,
+      "tok_est": 191
+    },
+    {
+      "prompt_id": "jsonex_0013",
+      "source": "jsonex",
+      "split": "train",
+      "file": "prompts/stage2_corpus/jsonex_0013.txt",
+      "source_idx": 24732,
+      "stratum": "manufacturing",
+      "chars": 451,
+      "tok_est": 112
+    },
+    {
+      "prompt_id": "jsonex_0014",
+      "source": "jsonex",
+      "split": "train",
+      "file": "prompts/stage2_corpus/jsonex_0014.txt",
+      "source_idx": 28111,
+      "stratum": "media",
+      "chars": 1105,
+      "tok_est": 276
+    },
+    {
+      "prompt_id": "jsonex_0015",
+      "source": "jsonex",
+      "split": "train",
+      "file": "prompts/stage2_corpus/jsonex_0015.txt",
+      "source_idx": 39972,
+      "stratum": "business",
+      "chars": 544,
+      "tok_est": 136
+    },
+    {
+      "prompt_id": "jsonex_0016",
+      "source": "jsonex",
+      "split": "train",
+      "file": "prompts/stage2_corpus/jsonex_0016.txt",
+      "source_idx": 17417,
+      "stratum": "medical",
+      "chars": 1048,
+      "tok_est": 262
+    },
+    {
+      "prompt_id": "jsonex_0017",
+      "source": "jsonex",
+      "split": "train",
+      "file": "prompts/stage2_corpus/jsonex_0017.txt",
+      "source_idx": 10672,
+      "stratum": "simple",
+      "chars": 813,
+      "tok_est": 203
+    },
+    {
+      "prompt_id": "jsonex_0018",
+      "source": "jsonex",
+      "split": "train",
+      "file": "prompts/stage2_corpus/jsonex_0018.txt",
+      "source_idx": 32166,
+      "stratum": "business",
+      "chars": 588,
+      "tok_est": 147
+    },
+    {
+      "prompt_id": "jsonex_0019",
+      "source": "jsonex",
+      "split": "train",
+      "file": "prompts/stage2_corpus/jsonex_0019.txt",
+      "source_idx": 2852,
+      "stratum": "media",
+      "chars": 774,
+      "tok_est": 193
+    },
+    {
+      "prompt_id": "jsonex_0020",
+      "source": "jsonex",
+      "split": "train",
+      "file": "prompts/stage2_corpus/jsonex_0020.txt",
+      "source_idx": 18112,
+      "stratum": "media",
+      "chars": 472,
+      "tok_est": 118
+    },
+    {
+      "prompt_id": "jsonex_0021",
+      "source": "jsonex",
+      "split": "train",
+      "file": "prompts/stage2_corpus/jsonex_0021.txt",
+      "source_idx": 28413,
+      "stratum": "medical",
+      "chars": 397,
+      "tok_est": 99
+    },
+    {
+      "prompt_id": "jsonex_0022",
+      "source": "jsonex",
+      "split": "train",
+      "file": "prompts/stage2_corpus/jsonex_0022.txt",
+      "source_idx": 5862,
+      "stratum": "manufacturing",
+      "chars": 758,
+      "tok_est": 189
+    },
+    {
+      "prompt_id": "jsonex_0023",
+      "source": "jsonex",
+      "split": "train",
+      "file": "prompts/stage2_corpus/jsonex_0023.txt",
+      "source_idx": 30073,
+      "stratum": "ecommerce",
+      "chars": 540,
+      "tok_est": 135
+    },
+    {
+      "prompt_id": "jsonex_0024",
+      "source": "jsonex",
+      "split": "train",
+      "file": "prompts/stage2_corpus/jsonex_0024.txt",
+      "source_idx": 10531,
+      "stratum": "simple",
+      "chars": 587,
+      "tok_est": 146
+    },
+    {
+      "prompt_id": "jsonex_0025",
+      "source": "jsonex",
+      "split": "train",
+      "file": "prompts/stage2_corpus/jsonex_0025.txt",
+      "source_idx": 11357,
+      "stratum": "business",
+      "chars": 642,
+      "tok_est": 160
+    },
+    {
+      "prompt_id": "jsonex_0026",
+      "source": "jsonex",
+      "split": "train",
+      "file": "prompts/stage2_corpus/jsonex_0026.txt",
+      "source_idx": 24457,
+      "stratum": "simple",
+      "chars": 265,
+      "tok_est": 66
+    },
+    {
+      "prompt_id": "jsonex_0027",
+      "source": "jsonex",
+      "split": "train",
+      "file": "prompts/stage2_corpus/jsonex_0027.txt",
+      "source_idx": 15938,
+      "stratum": "business",
+      "chars": 235,
+      "tok_est": 58
+    },
+    {
+      "prompt_id": "jsonex_0028",
+      "source": "jsonex",
+      "split": "train",
+      "file": "prompts/stage2_corpus/jsonex_0028.txt",
+      "source_idx": 14288,
+      "stratum": "business",
+      "chars": 792,
+      "tok_est": 198
+    },
+    {
+      "prompt_id": "jsonex_0029",
+      "source": "jsonex",
+      "split": "train",
+      "file": "prompts/stage2_corpus/jsonex_0029.txt",
+      "source_idx": 13503,
+      "stratum": "travel",
+      "chars": 981,
+      "tok_est": 245
+    },
+    {
+      "prompt_id": "jsonex_0030",
+      "source": "jsonex",
+      "split": "train",
+      "file": "prompts/stage2_corpus/jsonex_0030.txt",
+      "source_idx": 35465,
+      "stratum": "technology",
+      "chars": 757,
+      "tok_est": 189
+    },
+    {
+      "prompt_id": "jsonex_0031",
+      "source": "jsonex",
+      "split": "train",
+      "file": "prompts/stage2_corpus/jsonex_0031.txt",
+      "source_idx": 39820,
+      "stratum": "travel",
+      "chars": 290,
+      "tok_est": 72
+    },
+    {
+      "prompt_id": "jsonex_0032",
+      "source": "jsonex",
+      "split": "train",
+      "file": "prompts/stage2_corpus/jsonex_0032.txt",
+      "source_idx": 11477,
+      "stratum": "simple",
+      "chars": 190,
+      "tok_est": 47
+    },
+    {
+      "prompt_id": "jsonex_0033",
+      "source": "jsonex",
+      "split": "train",
+      "file": "prompts/stage2_corpus/jsonex_0033.txt",
+      "source_idx": 2245,
+      "stratum": "medical",
+      "chars": 492,
+      "tok_est": 123
+    },
+    {
+      "prompt_id": "jsonex_0034",
+      "source": "jsonex",
+      "split": "train",
+      "file": "prompts/stage2_corpus/jsonex_0034.txt",
+      "source_idx": 22459,
+      "stratum": "media",
+      "chars": 924,
+      "tok_est": 231
+    },
+    {
+      "prompt_id": "jsonex_0035",
+      "source": "jsonex",
+      "split": "train",
+      "file": "prompts/stage2_corpus/jsonex_0035.txt",
+      "source_idx": 31829,
+      "stratum": "medical",
+      "chars": 1004,
+      "tok_est": 251
+    },
+    {
+      "prompt_id": "jsonex_0036",
+      "source": "jsonex",
+      "split": "train",
+      "file": "prompts/stage2_corpus/jsonex_0036.txt",
+      "source_idx": 5614,
+      "stratum": "business",
+      "chars": 898,
+      "tok_est": 224
+    },
+    {
+      "prompt_id": "jsonex_0037",
+      "source": "jsonex",
+      "split": "train",
+      "file": "prompts/stage2_corpus/jsonex_0037.txt",
+      "source_idx": 16175,
+      "stratum": "travel",
+      "chars": 457,
+      "tok_est": 114
+    },
+    {
+      "prompt_id": "jsonex_0038",
+      "source": "jsonex",
+      "split": "train",
+      "file": "prompts/stage2_corpus/jsonex_0038.txt",
+      "source_idx": 4815,
+      "stratum": "travel",
+      "chars": 178,
+      "tok_est": 44
+    },
+    {
+      "prompt_id": "jsonex_0039",
+      "source": "jsonex",
+      "split": "train",
+      "file": "prompts/stage2_corpus/jsonex_0039.txt",
+      "source_idx": 31296,
+      "stratum": "medical",
+      "chars": 752,
+      "tok_est": 188
+    },
+    {
+      "prompt_id": "jsonex_0040",
+      "source": "jsonex",
+      "split": "train",
+      "file": "prompts/stage2_corpus/jsonex_0040.txt",
+      "source_idx": 21461,
+      "stratum": "ecommerce",
+      "chars": 372,
+      "tok_est": 93
+    },
+    {
+      "prompt_id": "jsonex_0041",
+      "source": "jsonex",
+      "split": "train",
+      "file": "prompts/stage2_corpus/jsonex_0041.txt",
+      "source_idx": 18031,
+      "stratum": "media",
+      "chars": 628,
+      "tok_est": 157
+    },
+    {
+      "prompt_id": "jsonex_0042",
+      "source": "jsonex",
+      "split": "train",
+      "file": "prompts/stage2_corpus/jsonex_0042.txt",
+      "source_idx": 38302,
+      "stratum": "technology",
+      "chars": 773,
+      "tok_est": 193
+    },
+    {
+      "prompt_id": "jsonex_0043",
+      "source": "jsonex",
+      "split": "train",
+      "file": "prompts/stage2_corpus/jsonex_0043.txt",
+      "source_idx": 14854,
+      "stratum": "technology",
+      "chars": 700,
+      "tok_est": 175
+    },
+    {
+      "prompt_id": "jsonex_0044",
+      "source": "jsonex",
+      "split": "train",
+      "file": "prompts/stage2_corpus/jsonex_0044.txt",
+      "source_idx": 24211,
+      "stratum": "business",
+      "chars": 753,
+      "tok_est": 188
+    },
+    {
+      "prompt_id": "jsonex_0045",
+      "source": "jsonex",
+      "split": "train",
+      "file": "prompts/stage2_corpus/jsonex_0045.txt",
+      "source_idx": 11115,
+      "stratum": "manufacturing",
+      "chars": 264,
+      "tok_est": 66
+    },
+    {
+      "prompt_id": "jsonex_0046",
+      "source": "jsonex",
+      "split": "train",
+      "file": "prompts/stage2_corpus/jsonex_0046.txt",
+      "source_idx": 1831,
+      "stratum": "medical",
+      "chars": 703,
+      "tok_est": 175
+    },
+    {
+      "prompt_id": "jsonex_0047",
+      "source": "jsonex",
+      "split": "train",
+      "file": "prompts/stage2_corpus/jsonex_0047.txt",
+      "source_idx": 21085,
+      "stratum": "technology",
+      "chars": 570,
+      "tok_est": 142
+    },
+    {
+      "prompt_id": "jsonex_0048",
+      "source": "jsonex",
+      "split": "train",
+      "file": "prompts/stage2_corpus/jsonex_0048.txt",
+      "source_idx": 7906,
+      "stratum": "ecommerce",
+      "chars": 638,
+      "tok_est": 159
+    },
+    {
+      "prompt_id": "jsonex_0049",
+      "source": "jsonex",
+      "split": "train",
+      "file": "prompts/stage2_corpus/jsonex_0049.txt",
+      "source_idx": 26878,
+      "stratum": "manufacturing",
+      "chars": 889,
+      "tok_est": 222
+    },
+    {
+      "prompt_id": "jsonex_0050",
+      "source": "jsonex",
+      "split": "train",
+      "file": "prompts/stage2_corpus/jsonex_0050.txt",
+      "source_idx": 37125,
+      "stratum": "media",
+      "chars": 470,
+      "tok_est": 117
+    },
+    {
+      "prompt_id": "jsonex_0051",
+      "source": "jsonex",
+      "split": "train",
+      "file": "prompts/stage2_corpus/jsonex_0051.txt",
+      "source_idx": 6160,
+      "stratum": "technology",
+      "chars": 428,
+      "tok_est": 107
+    },
+    {
+      "prompt_id": "jsonex_0052",
+      "source": "jsonex",
+      "split": "train",
+      "file": "prompts/stage2_corpus/jsonex_0052.txt",
+      "source_idx": 23052,
+      "stratum": "travel",
+      "chars": 1000,
+      "tok_est": 250
+    },
+    {
+      "prompt_id": "jsonex_0053",
+      "source": "jsonex",
+      "split": "train",
+      "file": "prompts/stage2_corpus/jsonex_0053.txt",
+      "source_idx": 3295,
+      "stratum": "simple",
+      "chars": 972,
+      "tok_est": 243
+    },
+    {
+      "prompt_id": "jsonex_0054",
+      "source": "jsonex",
+      "split": "train",
+      "file": "prompts/stage2_corpus/jsonex_0054.txt",
+      "source_idx": 13028,
+      "stratum": "medical",
+      "chars": 449,
+      "tok_est": 112
+    },
+    {
+      "prompt_id": "jsonex_0055",
+      "source": "jsonex",
+      "split": "train",
+      "file": "prompts/stage2_corpus/jsonex_0055.txt",
+      "source_idx": 10716,
+      "stratum": "travel",
+      "chars": 487,
+      "tok_est": 121
+    },
+    {
+      "prompt_id": "jsonex_0056",
+      "source": "jsonex",
+      "split": "train",
+      "file": "prompts/stage2_corpus/jsonex_0056.txt",
+      "source_idx": 23420,
+      "stratum": "media",
+      "chars": 664,
+      "tok_est": 166
+    },
+    {
+      "prompt_id": "jsonex_0057",
+      "source": "jsonex",
+      "split": "train",
+      "file": "prompts/stage2_corpus/jsonex_0057.txt",
+      "source_idx": 20839,
+      "stratum": "ecommerce",
+      "chars": 596,
+      "tok_est": 149
+    },
+    {
+      "prompt_id": "jsonex_0058",
+      "source": "jsonex",
+      "split": "train",
+      "file": "prompts/stage2_corpus/jsonex_0058.txt",
+      "source_idx": 39607,
+      "stratum": "media",
+      "chars": 331,
+      "tok_est": 82
+    },
+    {
+      "prompt_id": "jsonex_0059",
+      "source": "jsonex",
+      "split": "train",
+      "file": "prompts/stage2_corpus/jsonex_0059.txt",
+      "source_idx": 34890,
+      "stratum": "business",
+      "chars": 293,
+      "tok_est": 73
+    },
+    {
+      "prompt_id": "jsonex_0060",
+      "source": "jsonex",
+      "split": "eval",
+      "file": "prompts/stage2_corpus/jsonex_0060.txt",
+      "source_idx": 18999,
+      "stratum": "technology",
+      "chars": 949,
+      "tok_est": 237
+    },
+    {
+      "prompt_id": "jsonex_0061",
+      "source": "jsonex",
+      "split": "eval",
+      "file": "prompts/stage2_corpus/jsonex_0061.txt",
+      "source_idx": 8562,
+      "stratum": "manufacturing",
+      "chars": 966,
+      "tok_est": 241
+    },
+    {
+      "prompt_id": "jsonex_0062",
+      "source": "jsonex",
+      "split": "eval",
+      "file": "prompts/stage2_corpus/jsonex_0062.txt",
+      "source_idx": 29452,
+      "stratum": "travel",
+      "chars": 302,
+      "tok_est": 75
+    },
+    {
+      "prompt_id": "jsonex_0063",
+      "source": "jsonex",
+      "split": "eval",
+      "file": "prompts/stage2_corpus/jsonex_0063.txt",
+      "source_idx": 487,
+      "stratum": "technology",
+      "chars": 1092,
+      "tok_est": 273
+    },
+    {
+      "prompt_id": "jsonex_0064",
+      "source": "jsonex",
+      "split": "eval",
+      "file": "prompts/stage2_corpus/jsonex_0064.txt",
+      "source_idx": 14951,
+      "stratum": "simple",
+      "chars": 735,
+      "tok_est": 183
+    },
+    {
+      "prompt_id": "jsonex_0065",
+      "source": "jsonex",
+      "split": "eval",
+      "file": "prompts/stage2_corpus/jsonex_0065.txt",
+      "source_idx": 14316,
+      "stratum": "medical",
+      "chars": 587,
+      "tok_est": 146
+    },
+    {
+      "prompt_id": "jsonex_0066",
+      "source": "jsonex",
+      "split": "eval",
+      "file": "prompts/stage2_corpus/jsonex_0066.txt",
+      "source_idx": 14716,
+      "stratum": "travel",
+      "chars": 541,
+      "tok_est": 135
+    },
+    {
+      "prompt_id": "jsonex_0067",
+      "source": "jsonex",
+      "split": "eval",
+      "file": "prompts/stage2_corpus/jsonex_0067.txt",
+      "source_idx": 29024,
+      "stratum": "medical",
+      "chars": 592,
+      "tok_est": 148
+    },
+    {
+      "prompt_id": "jsonex_0068",
+      "source": "jsonex",
+      "split": "eval",
+      "file": "prompts/stage2_corpus/jsonex_0068.txt",
+      "source_idx": 10088,
+      "stratum": "business",
+      "chars": 738,
+      "tok_est": 184
+    },
+    {
+      "prompt_id": "jsonex_0069",
+      "source": "jsonex",
+      "split": "eval",
+      "file": "prompts/stage2_corpus/jsonex_0069.txt",
+      "source_idx": 8813,
+      "stratum": "ecommerce",
+      "chars": 927,
+      "tok_est": 231
+    },
+    {
+      "prompt_id": "jsonex_0070",
+      "source": "jsonex",
+      "split": "eval",
+      "file": "prompts/stage2_corpus/jsonex_0070.txt",
+      "source_idx": 12496,
+      "stratum": "media",
+      "chars": 659,
+      "tok_est": 164
+    },
+    {
+      "prompt_id": "jsonex_0071",
+      "source": "jsonex",
+      "split": "eval",
+      "file": "prompts/stage2_corpus/jsonex_0071.txt",
+      "source_idx": 24191,
+      "stratum": "simple",
+      "chars": 1020,
+      "tok_est": 255
+    },
+    {
+      "prompt_id": "jsonex_0072",
+      "source": "jsonex",
+      "split": "eval",
+      "file": "prompts/stage2_corpus/jsonex_0072.txt",
+      "source_idx": 40812,
+      "stratum": "manufacturing",
+      "chars": 914,
+      "tok_est": 228
+    },
+    {
+      "prompt_id": "jsonex_0073",
+      "source": "jsonex",
+      "split": "eval",
+      "file": "prompts/stage2_corpus/jsonex_0073.txt",
+      "source_idx": 31419,
+      "stratum": "travel",
+      "chars": 1030,
+      "tok_est": 257
+    },
+    {
+      "prompt_id": "jsonex_0074",
+      "source": "jsonex",
+      "split": "eval",
+      "file": "prompts/stage2_corpus/jsonex_0074.txt",
+      "source_idx": 26465,
+      "stratum": "technology",
+      "chars": 1142,
+      "tok_est": 285
+    },
+    {
+      "prompt_id": "jsonex_0075",
+      "source": "jsonex",
+      "split": "eval",
+      "file": "prompts/stage2_corpus/jsonex_0075.txt",
+      "source_idx": 31320,
+      "stratum": "business",
+      "chars": 203,
+      "tok_est": 50
+    },
+    {
+      "prompt_id": "jsonex_0076",
+      "source": "jsonex",
+      "split": "eval",
+      "file": "prompts/stage2_corpus/jsonex_0076.txt",
+      "source_idx": 30161,
+      "stratum": "ecommerce",
+      "chars": 584,
+      "tok_est": 146
+    },
+    {
+      "prompt_id": "jsonex_0077",
+      "source": "jsonex",
+      "split": "eval",
+      "file": "prompts/stage2_corpus/jsonex_0077.txt",
+      "source_idx": 16203,
+      "stratum": "manufacturing",
+      "chars": 882,
+      "tok_est": 220
+    },
+    {
+      "prompt_id": "jsonex_0078",
+      "source": "jsonex",
+      "split": "eval",
+      "file": "prompts/stage2_corpus/jsonex_0078.txt",
+      "source_idx": 4915,
+      "stratum": "technology",
+      "chars": 651,
+      "tok_est": 162
+    },
+    {
+      "prompt_id": "jsonex_0079",
+      "source": "jsonex",
+      "split": "eval",
+      "file": "prompts/stage2_corpus/jsonex_0079.txt",
+      "source_idx": 6305,
+      "stratum": "simple",
+      "chars": 674,
+      "tok_est": 168
+    }
+  ]
+}

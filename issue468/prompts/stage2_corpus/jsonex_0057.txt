@@ -1,0 +1,10 @@
+Extract the relevant information from the provided business letter into a JSON format.
+
+Greetings esteemed customers,
+
+We are delighted to announce a limited-time offer on our online shopping experience. For a brief period, enjoy a remarkable 15% discount on your entire purchase. This promotion is valid from April 1st, 2023, to May 15th, 2023. The maximum savings you can obtain is $50.
+
+We hope this opportunity will enhance your shopping journey with us. Should you have any inquiries, please do not hesitate to reach out to our dedicated customer service team.
+
+Best regards,
+Retail Emporium

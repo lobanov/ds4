@@ -1,0 +1,6 @@
+{
+  "no_lora_baseline_p1": 0.8118256970715987,
+  "head_only_ceiling_p1": 0.7479333053103545,
+  "overfit_to_eval_p1": 0.9946756340198963,
+  "gate": "h lacks info -> consider 8"
+}

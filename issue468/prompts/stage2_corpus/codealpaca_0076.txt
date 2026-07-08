@@ -1,0 +1,2 @@
+Create a function in Python that adds a new item to the beginning of a list.
+my_list = ["Cats", "Dogs", "Fish"]

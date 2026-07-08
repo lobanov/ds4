@@ -1,0 +1,2 @@
+Write a Python function to remove the characters which have odd index values of a given string.
+string = "Hello World"

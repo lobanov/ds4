@@ -1,0 +1,2 @@
+Write a Python program to sort a list of tuples using Lambda.
+list = [(3, 4), (5, 1), (2, 0)]

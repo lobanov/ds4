@@ -1,0 +1,1 @@
+Create a class called Vehicle in Python with attributes for type (car, truck, motorcycle etc.), make, model, year, and speed.

@@ -1,0 +1,12 @@
+Extract key medical details from the provided internal memo.
+
+Nursing Care Plan for Patient #7291
+Diagnosis: Acute Respiratory Distress Syndrome
+Goals: Maintain oxygenation, Reduce inflammation, Prevent complications
+Interventions: 
+- Administer supplemental oxygen
+- Monitor vital signs hourly
+- Provide respiratory therapy 2x daily
+- Encourage coughing/deep breathing exercises
+- Ensure adequate fluid intake
+Evaluation: Patient stabilized, symptoms improving. Transition to step-down care.

@@ -1,0 +1,14 @@
+Extract key information from the provided business letter into a concise JSON format.
+
+Dear Sir or Madam,
+
+We are pleased to submit this proposal for the design and construction of a new comprehensive healthcare facility for your organization. Springfield General Hospital is a renowned institution committed to providing world-class medical services to the community. 
+
+Our team of experienced architects and engineers have developed a detailed floor plan that maximizes efficiency and patient comfort. The facility will feature a state-of-the-art emergency department, advanced diagnostic imaging suites, and a modern surgical wing. Additionally, we have incorporated dedicated spaces for outpatient clinics, rehabilitation services, and patient education.
+
+We welcome the opportunity to discuss this proposal in greater detail and address any questions you may have. Please feel free to contact us at your earliest convenience.
+
+Sincerely,
+Dr. Elizabeth Sinclair
+Chief Architect
+Acme Healthcare Design

@@ -1,0 +1,2 @@
+Print the longest substring of a string that does not have any repeated characters.
+string = "abcaabccbad"

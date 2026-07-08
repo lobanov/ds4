@@ -1,0 +1,1 @@
+Create a string of length 100 using a Python loop and save it into a variable named 'string_100'.

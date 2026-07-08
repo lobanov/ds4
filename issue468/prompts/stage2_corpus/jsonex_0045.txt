@@ -1,0 +1,7 @@
+Extract the key information from the bullet-point notes into a structured JSON format.
+
+- Agreement Type: Procurement Contract
+- Start Date: 2024-04-01
+- End Date: 2026-03-31
+- Scope: Supply of raw materials and components
+- Delivery Terms: FCA Supplier's Facility

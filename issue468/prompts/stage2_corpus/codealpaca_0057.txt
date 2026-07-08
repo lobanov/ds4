@@ -1,0 +1,1 @@
+Create a function in Python to add two numbers, which may take any number of arguments.

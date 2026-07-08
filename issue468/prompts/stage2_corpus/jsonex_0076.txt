@@ -1,0 +1,3 @@
+Please review the shipping details for my recent order and extract the relevant information into a JSON format.
+
+Hey there, just wanted to give a quick review of my latest order. The shipping process was super smooth - they got my package out fast and it arrived right on time. The address they had on file was spot on, 123 Elm Street in Sunnyvale, CA. I'm always a little nervous about shipping to my home when I'm not there, but the driver was great and left it safe on my porch. Overall, a really seamless experience from start to finish. Let me know if you need any other details!

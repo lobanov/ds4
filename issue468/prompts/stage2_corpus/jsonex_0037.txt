@@ -1,0 +1,3 @@
+Hey, could you please help me extract the key details from this bus reservation confirmation? I need the reservation number, the departure city, and the arrival city.
+
+Alright, here's the latest on my bus trip to visit my cousin in the city. I just got the reservation confirmation for bus number BUS-987654. It looks like I'll be departing from Sunnyvale and arriving in Los Angeles on Friday at 6pm. Can't wait to see the sights and catch up with the fam!

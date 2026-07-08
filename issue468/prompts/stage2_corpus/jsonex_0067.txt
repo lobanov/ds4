@@ -1,0 +1,10 @@
+Extract the medical credentials information from the provided form response into a JSON format.
+
+Dear Healthcare Credentials Verification Office,
+
+I am submitting my updated medical credentials for review. My name is Samantha Wilkins and my credential number is VXR789012. My scope of practice is Board Certified Family Nurse Practitioner. I have been practicing in this role for the past 8 years at various healthcare facilities in the local area. 
+
+Please let me know if you require any additional information. I appreciate your prompt attention to this matter.
+
+Sincerely,
+Samantha Wilkins

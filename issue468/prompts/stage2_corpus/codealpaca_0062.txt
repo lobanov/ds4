@@ -1,0 +1,2 @@
+Construct a for loop to print out each character of a given string in a new line.
+String: Hello world

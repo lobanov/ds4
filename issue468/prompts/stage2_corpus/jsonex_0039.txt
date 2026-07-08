@@ -1,0 +1,12 @@
+Extract the patient consent information from the email into a JSON object with fields for the patient's name and the procedure they are consenting to.
+
+Hi there, 
+
+I wanted to follow up on our conversation earlier about scheduling my upcoming procedure. As you requested, I've reviewed the patient consent form and I'm ready to provide my authorization. 
+
+The procedure I'm consenting to is a colonoscopy to screen for any potential issues. My name is Jasmine Rodriguez and I live at 426 Oak Lane, Tampa, FL 33602. I understand the risks involved and I'm prepared to move forward with the colonoscopy next week. 
+
+Please let me know if you need any additional information from me. I'm happy to provide whatever details are required.
+
+Thank you,
+Jasmine

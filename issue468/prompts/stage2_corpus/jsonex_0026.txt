@@ -1,0 +1,3 @@
+Extract the key information about the restaurant from the provided internal memo.
+
+Memo from Dining Division. Restaurant ID 2. Location 11 Oak St, Oaktown, OR 97654. Serving traditional American fare with a focus on fresh, seasonal ingredients. Owner is J. Ramirez.

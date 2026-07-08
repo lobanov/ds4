@@ -1,0 +1,3 @@
+Extract the key business and vendor details from the provided contract into a structured JSON format.
+
+Thank you for your interest in our professional business partnership. This 3-year vendor contract outlines the terms of our agreement to provide IT infrastructure support services. The vendor, Acme Tech Solutions, will deliver 24/7 monitoring, maintenance, and on-site support for our company's technology systems. In exchange, we agree to pay a monthly fee of $5,000 USD. The contract is effective from January 1, 2023 to December 31, 2025.

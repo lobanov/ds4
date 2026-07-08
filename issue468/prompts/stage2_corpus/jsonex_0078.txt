@@ -1,0 +1,3 @@
+Can you help me extract the domain name from this tech article about network configuration? I need it in a nice JSON format.
+
+In a recent development, the tech giant Acme Corp has announced a major update to their network infrastructure. The company's Chief Technology Officer, Jane Doe, stated that the new system will optimize performance and security across their global data centers. "By upgrading our core routers and deploying the latest software, we're able to better manage traffic flow and protect against cyber threats," Doe explained. The changes are expected to go live on the company's primary domain, acme.com, within the next few weeks.

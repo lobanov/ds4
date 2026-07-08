@@ -1,0 +1,2 @@
+Parse a JSON string and transform it into an array.
+'{"name": "John Doe", "age": 30, "city": "New York"}'

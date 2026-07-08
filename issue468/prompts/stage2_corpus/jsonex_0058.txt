@@ -1,0 +1,3 @@
+Extract key details about the TV show pilot episode script.
+
+Title: "Superheroes vs Villains" | Characters: Captain Thunder, Dr. Diabolical, Sidekick | Plot Summary: Captain Thunder must stop Dr. Diabolical's latest scheme to take over the city. Sidekick provides crucial assistance. | Genre: Action/Adventure | Runtime: 45 minutes

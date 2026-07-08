@@ -1,0 +1,3 @@
+Extract the key information about the movie review into a concise JSON format.
+
+I just watched the new sci-fi thriller "Quantum Leap" and was blown away! The story was so gripping and the special effects were mind-blowing. The lead actor, Sam Beckett, gave an incredible performance - he really drew you into the character's emotional journey. I'd definitely recommend this movie to anyone who loves thought-provoking sci-fi. It's one of the best films I've seen all year.

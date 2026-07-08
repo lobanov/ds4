@@ -1,0 +1,3 @@
+Extract the relevant information from the technical specification document into a JSON format.
+
+The Media Production Invoice for the recent Artwork Sales campaign. The artwork was delivered on March 15th, 2023 to the following address: 123 Main Street, Anytown USA 12345. The total production cost for the artwork was $2,500, and the client has agreed to a 15% commission fee. Please process the payment and provide the tracking number once the artwork has been shipped.

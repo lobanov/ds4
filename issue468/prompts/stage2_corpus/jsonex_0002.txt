@@ -1,0 +1,3 @@
+Extract the book's page count information.
+
+The technical specifications for the latest publication in the popular science fiction series provide key details about the book's length and format. This volume, the 8th in the acclaimed trilogy, contains 192 pages of compelling narrative and world-building that will captivate readers from the first chapter to the thrilling conclusion.

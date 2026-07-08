@@ -1,0 +1,2 @@
+Write code to delete all elements in a given Python list which are NOT integer type.
+lst = [1, "a", 2.3, False, 4, "abc"]

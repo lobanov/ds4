@@ -1,0 +1,2 @@
+Create a Python function to print out the last n items from a given list.
+list = [1, 2, 3, 4, 5], n = 3

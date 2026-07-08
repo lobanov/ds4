@@ -1,0 +1,12 @@
+Extract the relevant information from the provided business letter into a JSON object.
+
+Dear Valued Customer,
+
+We are writing to inform you of an important update regarding your recent interactions with our company. After a thorough review of our records, we have identified an error in the processing of your CompanyID. 
+
+Please accept our sincere apologies for any inconvenience this may have caused. We have taken immediate steps to rectify the issue and ensure that your CompanyID, XYZ456, is correctly associated with your account.
+
+If you have any further questions or concerns, please do not hesitate to contact our customer service team. We value your business and are committed to providing you with the highest level of service.
+
+Sincerely,
+The ABC Company

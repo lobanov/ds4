@@ -1,0 +1,2 @@
+Write a function in Python to generate all permutations of the given list of letters.
+['a','b','c','d']

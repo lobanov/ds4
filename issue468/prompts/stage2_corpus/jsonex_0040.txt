@@ -1,0 +1,8 @@
+Extract the product image information from the provided technical specification.
+
+Product Specifications for SKU: 0b1a2c3d-4e5f-6g7h-8i9j-0k1l2m3n4o5p
+ProductID: 0b1a2c3d-4e5f-6g7h-8i9j-0k1l2m3n4o5p
+ImageSrc: https://cdn.example.com/images/product_0b1a2c3d.jpg
+ImageCaption: High-resolution product image showing all sides
+Position: 3
+LastUpdated: 2023-04-15T09:30:00.000Z

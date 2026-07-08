@@ -1,0 +1,2 @@
+You are given a list of numbers. Construct a for loop to filter out the odd numbers from the list.
+arr = [1,2,3,4,5]

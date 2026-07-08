@@ -1,0 +1,10 @@
+Extract the sensor data from the email and format it into a JSON object with fields for sensor type, timestamp, and device ID.
+
+Hey there, 
+
+I wanted to share some interesting sensor data I just collected from our new weather monitoring station. The sensor is tracking temperature and recorded a reading of 72.5 degrees Fahrenheit at the site. The timestamp for this measurement is 2023-04-15T12:45:00.000Z and the device ID is sensor-alpha-2. 
+
+Let me know if you need any other details! I'm really excited to see what insights we can gain from this data.
+
+Cheers,
+Alex

@@ -1,0 +1,2 @@
+Print the third item of the list.
+my_list = ["apple","banana","cherry"]

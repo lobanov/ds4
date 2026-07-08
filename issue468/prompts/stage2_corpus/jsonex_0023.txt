@@ -1,0 +1,3 @@
+Hey there! Can you help me out by extracting the customer's email address from this paragraph into a nice JSON format for me?
+
+Yo, so I just got this sweet deal on a limited edition gaming mouse that's back in stock. The folks over at Acme Gaming are offering a special product availability alert to all their customers. If you're interested in snagging one of these bad boys, just shoot them an email at sales@acmegaming.com and they'll let you know as soon as it's ready to ship. Don't sleep on this one, these things fly off the shelves!

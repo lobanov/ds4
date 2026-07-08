@@ -1,0 +1,3 @@
+Extract the relevant medical information from the provided narrative text into a JSON object.
+
+The patient, a 35-year-old female, has been experiencing persistent headaches and vision changes over the past few weeks. She reports a history of migraines, but this feels different. Physical examination reveals elevated blood pressure and pupillary light reflex abnormalities. Magnetic resonance imaging (MRI) of the brain shows a small mass in the pituitary gland. Based on the clinical presentation and imaging findings, the patient is diagnosed with a pituitary adenoma. She is started on medication to manage her symptoms and is scheduled for follow-up with a neurosurgeon to discuss treatment options.

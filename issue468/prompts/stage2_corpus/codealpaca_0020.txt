@@ -1,0 +1,2 @@
+Extract the unique elements from a given list of numbers
+list_of_nums = [5, 2, 5, 3, 7, 8, 2]

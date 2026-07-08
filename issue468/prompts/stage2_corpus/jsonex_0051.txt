@@ -1,0 +1,3 @@
+Extract the key information from the internal memo into a JSON object.
+
+The IT team has created a new Virtual Machine Snapshot for the Engineering department. This snapshot captures the current state of the virtual machine, including all running processes, installed software, and configuration settings. The snapshot can be used to quickly restore the virtual machine to this known good state if any issues arise in the future.

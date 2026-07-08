@@ -1,0 +1,1 @@
+Create a class named 'Shape' which has a method 'getArea' which returns the area of the shape.

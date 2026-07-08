@@ -1,0 +1,12 @@
+Extract the relevant information from the email into a JSON object with fields for the hotel booking details, including the check-in and check-out dates, the number of guests, and any special requests.
+
+Dear Alex,
+
+I hope this email finds you well! I wanted to provide you with the details for my upcoming hotel booking for our family vacation. I've reserved a room at the Beachside Resort for a 5-night stay from June 15th to June 20th. There will be 2 adults and 3 children in our party, so please make sure to accommodate us accordingly.
+
+For our special requests, I'd love to have a room with a balcony overlooking the ocean, if possible. Our kids are quite excited about the pool and the complimentary breakfast, so those amenities will be a big plus. Please let me know if you need any additional information from me.
+
+I look forward to a wonderful stay and can't wait to enjoy some much-needed rest and relaxation. Thanks in advance for your assistance!
+
+Best regards,
+Sarah

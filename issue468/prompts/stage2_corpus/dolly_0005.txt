@@ -1,0 +1,3 @@
+Given this paragraph about stainless steel, which of the two series contains the most nickel content?
+
+There are two subgroups of austenitic stainless steel. 300 series stainless steels achieve their austenitic structure primarily by a nickel addition while 200 series stainless steels substitute manganese and nitrogen for nickel, though there is still a small nickel content.

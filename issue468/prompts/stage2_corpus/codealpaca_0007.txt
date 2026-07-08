@@ -1,0 +1,3 @@
+Pre-process the following dataset and convert it into a tabular format using Pandas.
+data = [{"name": "john", "age": 20, "location": "New York"},
+        {"name": "sarah", "age": 30, "location": "Los Angeles"}]

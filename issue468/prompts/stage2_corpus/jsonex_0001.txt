@@ -1,0 +1,6 @@
+Extract the key details from the bullet-point notes into a JSON structure.
+
+- Book Title: The Quantum Mechanic's Guide to Gardening
+- Author: Esther Quark
+- Genre: Sci-Fi Comedy
+- Publication Date: 2023

@@ -1,0 +1,3 @@
+Hey, could you help me out with this IT disaster recovery plan thing? I need to extract some key details into a JSON format. Can you send me over a transcript or something with the relevant info?
+
+Sure, no problem! I was just chatting with my buddy Tyler about his company's IT disaster recovery plan. Apparently, they've got this whole team set up to handle it. There's the IT manager, who's in charge of the overall plan and makes sure it's tested and updated regularly. Then they've got the system admin who maintains the IT infrastructure and implements the disaster recovery procedures. And they've also got a business continuity manager who develops the actual continuity plans and coordinates the response during a disaster. Sounds like a pretty comprehensive setup!

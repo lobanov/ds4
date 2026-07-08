@@ -1,0 +1,2 @@
+Write a function that given a string of character, returns the number of vowels in it.
+Example string: "hello world"

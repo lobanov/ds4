@@ -63,6 +63,12 @@ Create a trustworthy active dossier that makes it easy to:
   - Stage 0 summary: `issue468/summaries/quant_mismatch_diagnostic.md`; harness `issue468/run_stage0_quant_mismatch.py`; artifacts `issue468/artifacts/quant_mismatch_diagnostic/` (incl. `drafter_top64_scores.npz` for rank re-derivation, `codex_review.md`)
   - Stage 1 summary: `issue468/summaries/stage1_tap_precision.md`; capture `issue468/run_exactness_small_bundles.py` (Q4-tap variant); compare `issue468/run_stage1_q4tap_compare.py`; artifacts `issue468/artifacts/exactness_small_bundles_q4tap/` (incl. `comparison_vs_baseline/` + `codex_review.md`)
   - headline: drafter p=1 misses are **shallow / right neighborhood** (median target-rank 1.0; top-2 coverage 0.8125→0.9125) — recoverable shape, but causal link to quant unproven. Raising tap-layer (layers 37–42) precision to Q4 did **not** materially help p=1 (underpowered; CI straddles 0) — the original FP-vs-Q2 mismatch framing is partially falsified. Recommendation: bounded Stage 2 fine-tune PoC (not a full pipeline), targeting the secondary gate.
+- Stage 2 bounded fine-tune PoC (Activities 1–9, doubly codex-reviewed; **complete → verdict: NOT-JUSTIFIED**):
+  - result: `issue468/summaries/stage2_finetune_result.md`; protocol `issue468/summaries/stage2_finetune_protocol.md`
+  - corpus/capture: `prompts/stage2_corpus/` (240 prompts); `run_stage2_capture.py` + ds4 `--capture-dataset` engine mode; shards `dspark_train/data/shards/`
+  - torch MPS drafter (self-consistent): `dspark_train/{drafter_body,drafter_head}.py`; features `dspark_train/data/{train,eval}_torch_features.safetensors`; results `dspark_train/data/activity{6,7,9}*.json`
+  - codex reviews: `artifacts/stage2_plan_review/{codex_review,bodybug_codex_review,verdict_codex_review}.md`
+  - headline: **non-expert head LoRA does NOT improve acceptance** — live LoRA rank 32 −0.13 pp (McNemar p=0.79, n.s.), negative at higher rank (overfits train); from-scratch ceiling 0.7479 < pretrained 0.8118; drafter input-invariant (Activity 4). Body LoRA (Activity 8) gated out (contract + Activity 4); expert tuning out of scope. Two codex reviews were load-bearing (found a Sinkhorn-eps body bug + a dead-LoRA-init bug). Local single-request speculative decode on this target/drafter has now exhausted drafter precision, tap precision, tree structure, and non-expert fine-tuning without clearing baseline.
 
 ## Current conclusions
 

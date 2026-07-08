@@ -1,0 +1,6 @@
+Extract key information from the provided travel visa renewal request form.
+
+TravelVisaRenewalRequest
+RequestorName: Samantha Wilkins
+VisaType: Tourist
+ExpirationDate: 2023-06-30

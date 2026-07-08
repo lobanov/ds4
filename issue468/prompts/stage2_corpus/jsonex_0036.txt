@@ -1,0 +1,15 @@
+Extract the key details from the message about the business merger proposal, including the proposed merger terms and any approval requirements, and format the information as a JSON object.
+
+Hey Alex, just wanted to give you an update on the proposed merger between our company and Acme Corp. The key details are:
+
+The merger proposal includes the following terms:
+- Acme Corp will acquire 100% ownership of our company
+- The acquisition price is $50 million in cash
+- The merger is contingent on approval by a majority shareholder vote
+
+The proposal also outlines the following approval requirements:
+- The merger must be approved by at least 60% of our company's shareholders 
+- The board of directors must also unanimously approve the merger terms
+- Regulatory approval is required from the antitrust commission
+
+Let me know if you have any other questions! I'm happy to provide more information.

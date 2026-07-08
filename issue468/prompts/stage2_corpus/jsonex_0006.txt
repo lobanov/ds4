@@ -1,0 +1,3 @@
+Extract the relevant information from the given technical specification into a concise JSON format.
+
+Quarterly Preventive Maintenance Checklist for Industrial Welding Machines. Inspect power cables for fraying or damage. Check coolant level and refill as needed. Lubricate moving parts according to manufacturer's recommendations. Clean and calibrate sensors. Test emergency shut-off functions. Document any issues found and schedule repairs promptly.

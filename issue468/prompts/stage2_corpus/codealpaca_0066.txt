@@ -1,0 +1,1 @@
+Create an array of length 15 containing numbers divisible by 3 up to 45.

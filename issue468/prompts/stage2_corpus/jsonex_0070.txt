@@ -1,0 +1,4 @@
+Extract the details of the Bookstore Membership Program from the provided technical specification.
+
+Bookstore Membership Program
+The Bookstore Membership Program offers tiered discounts to loyal customers. Members are categorized into three tiers based on their annual spending: Bronze, Silver, and Gold. Bronze members receive a 10% discount, Silver members receive a 15% discount, and Gold members receive a 20% discount on all purchases. Customers can sign up for the program by providing their name, email, and annual spending estimate. The membership is renewed automatically each year based on the customer's actual annual spending in the previous year.

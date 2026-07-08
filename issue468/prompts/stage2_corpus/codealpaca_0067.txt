@@ -1,0 +1,1 @@
+Write a Python script to create a webserver that can respond to "GET" requests from a web browser.

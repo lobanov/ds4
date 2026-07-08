@@ -1,0 +1,1 @@
+Can I copy my Delta Lake table to another location?

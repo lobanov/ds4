@@ -1,0 +1,2 @@
+Write a code to generate a random password using random library of Python.
+length = 8

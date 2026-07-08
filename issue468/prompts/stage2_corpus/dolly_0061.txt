@@ -1,0 +1,3 @@
+Extract from the text who invented the Optophone.
+
+The optophone is a device, used by the blind, that scans text and generates time-varying chords of tones to identify letters. It is one of the earliest known applications of sonification. Dr. Edmund Fournier d'Albe of Birmingham University invented the optophone in 1913, which used selenium photosensors to detect black print and convert it into an audible output which could be interpreted by a blind person. The Glasgow company, Barr and Stroud, participated in improving the resolution and usability of the instrument.

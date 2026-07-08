@@ -1,0 +1,8 @@
+Extract relevant information from the document into a JSON object.
+
+- Supplier Quality Assurance Agreement
+- Term: 12 months
+- Renewal: Automatic, unless terminated
+- Standards: ISO 9001 certification required
+- Audits: Quarterly on-site audits
+- Reporting: Monthly quality performance reports

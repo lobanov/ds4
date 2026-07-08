@@ -1,0 +1,1 @@
+Write a code for sorting the given array of numbers in ascending order.

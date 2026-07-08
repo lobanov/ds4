@@ -1,0 +1,2 @@
+Sort an array of strings based on their length.
+["a", "abc", "ab", "abcd", "abcde"]

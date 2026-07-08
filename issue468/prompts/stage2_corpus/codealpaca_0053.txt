@@ -1,0 +1,2 @@
+Construct a binary search tree from a list of given items
+Items: [1, 5, 7, 9, 11, 16]

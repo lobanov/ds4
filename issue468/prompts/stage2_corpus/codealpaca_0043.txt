@@ -1,0 +1,2 @@
+Create a for loop in Python that will iterate through a given list and add the square of each element to a new list.
+nums = [2, 3, 4]

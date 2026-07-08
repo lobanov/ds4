@@ -1,0 +1,2 @@
+Explore the data_df dataframe and build a visualization that answers the following question: what is the correlation between number of tweets sent and positive sentiment?
+data_df: DataFrame containing columns such as n_tweets,pos_sentiment

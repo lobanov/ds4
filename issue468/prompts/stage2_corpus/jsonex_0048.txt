@@ -1,0 +1,3 @@
+Hey there! Can you help me out and extract the key details about this order return label from the text below? I need to get the order ID, return shipment ID, and any other important info.
+
+Alright, looks like I need to return this sweater I bought last week. No worries, the process is pretty straightforward. I just placed a return request on the company's website and they emailed me a return label with the tracking number RTN-2468135790. The order I'm returning is ORD-5432189076, so I'll make sure to include that on the package when I drop it off at the UPS store. Shouldn't take too long to get this taken care of and get a refund!

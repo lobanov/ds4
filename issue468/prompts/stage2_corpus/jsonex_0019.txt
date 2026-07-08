@@ -1,0 +1,3 @@
+Carefully analyze the provided narrative paragraph and extract the relevant information about the comic book cover art into a JSON format, following the specified constraints.
+
+The cover art for the latest issue of "Cosmic Crusaders" is truly a sight to behold. Featuring a stunning depiction of the team's heroic leader, Solarion, soaring through a swirling cosmic backdrop, the image is a masterpiece of dynamic composition and vibrant color. The attention to detail is remarkable, with every nuance of Solarion's powerful physique and determined expression captured with precision. The cover art serves as a tantalizing preview of the thrilling adventures that await readers within the issue, promising an epic clash between the Cosmic Crusaders and their nefarious foes.

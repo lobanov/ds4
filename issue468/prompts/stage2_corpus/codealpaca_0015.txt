@@ -1,0 +1,1 @@
+Generate all combinations of the string "abcd".

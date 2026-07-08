@@ -1,0 +1,3 @@
+Can you help me extract the key details about this new hardware driver into a concise JSON format? I'm trying to build up a dataset of these types of tech news excerpts.
+
+The latest NVIDIA GeForce RTX 4090 graphics card has just been announced, and it's a beast! This top-of-the-line GPU promises incredible performance for the most demanding PC games and creative applications. With 16,384 CUDA cores, 24GB of ultra-fast GDDR6X memory, and support for cutting-edge ray tracing and DLSS 3.0 technology, the RTX 4090 is set to redefine the boundaries of what's possible on the desktop. Gamers and content creators alike are eagerly awaiting the chance to get their hands on this powerful new hardware.

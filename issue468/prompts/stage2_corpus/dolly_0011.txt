@@ -1,0 +1,1 @@
+Make me a menu for a dinner party which will use up potatoes, cherry tomatoes, salmon and heavy cream I have that is about to expire. The menu should have three courses and a dessert, and shouldn't include eggs due to the current egg shortage. Describe the order in which each food would be served.

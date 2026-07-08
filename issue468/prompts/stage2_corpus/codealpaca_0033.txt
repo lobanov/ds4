@@ -1,0 +1,2 @@
+Design a function in Python which takes a list of characters and returns the frequency of each character as a dictionary.
+["a", "b", "c", "a", "a", "b", "d"]

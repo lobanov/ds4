@@ -1,0 +1,2 @@
+Create a function that removes duplicates from an array and returns an array of the unique values.
+array = [5,5,5,10,10,15]

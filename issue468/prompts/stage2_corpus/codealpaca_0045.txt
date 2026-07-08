@@ -1,0 +1,2 @@
+Find all the possible permutations in a string without using any built-in functions.
+string = "ABC"

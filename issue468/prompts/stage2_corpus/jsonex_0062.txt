@@ -1,0 +1,3 @@
+Extract the hotel checkout information from the provided technical specification.
+
+Hotel Check-Out Report for Travelers Inn. Guest ID: GS-98765. Reservation ID: RVN-54321. Checkout Date: 2023-06-15. Room Rate: $150.00 per night. Total Nights Stayed: 2. Incidentals Charges: $50.00. Total Bill: $350.00.

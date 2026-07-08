@@ -1,0 +1,1 @@
+In Python, how could you print a list from the last element to the first element?

@@ -1,0 +1,11 @@
+Extract the key details about the upcoming weather forecast from the internal memo below.
+
+Memo to all employees,
+
+I hope this message finds you well. I am writing to provide an update on the weather forecast for the coming week. According to the latest meteorological reports, we can expect mostly sunny conditions with a temperature range of 18-22 degrees Celsius. The wind speeds are anticipated to be moderate, averaging around 15 km/h. There is a 30% chance of precipitation, primarily in the form of light showers, on Thursday afternoon. 
+
+Please let me know if you have any other questions or concerns. I will be sure to keep you informed of any significant changes to the forecast.
+
+Best regards,
+[Your Name]
+Facilities Manager

@@ -1,0 +1,18 @@
+Extract the key quality control calibration information from the internal memo into a JSON format.
+
+Memorandum
+Date: April 15, 2023
+To: Quality Assurance Team
+From: Sara Johnson, Facilities Manager
+
+Subject: Annual Calibration Procedures
+
+I am writing to provide an update on the annual calibration of our manufacturing equipment. As per our standard operating procedures, all critical instruments were recently inspected and recalibrated to ensure compliance with industry standards.
+
+The calibration work was completed on April 10, 2023 by our certified technicians. The calibration procedures followed the guidelines outlined in ISO 17034. The next scheduled calibration date is April 9, 2024.
+
+The organizational ID for our facility is MANUF-12345. Please let me know if you have any other questions regarding the calibration records.
+
+Thank you,
+Sara Johnson
+Facilities Manager

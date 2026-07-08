@@ -1,0 +1,6 @@
+Edit the given Python code to compute the mean of the given list of numbers.
+my_list = [10, 20, 30, 40, 50]
+sum = 0.0
+
+for x in my_list:
+  sum += x

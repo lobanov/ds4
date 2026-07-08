@@ -1,0 +1,2 @@
+Write a function to sort a stack in ascending order.
+stack = [4, 7, 2, 1]

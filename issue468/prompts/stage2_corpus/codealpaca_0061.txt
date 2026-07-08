@@ -1,0 +1,1 @@
+Create a list in Python of all integers from -5 to 10.

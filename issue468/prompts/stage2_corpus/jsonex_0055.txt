@@ -1,0 +1,15 @@
+Please review the provided travel expense reimbursement form and extract the relevant details into a structured JSON format.
+
+Dear Accounts Payable,
+
+I am submitting my travel expense reimbursement for the recent business trip to San Francisco. The details are as follows:
+
+Total Expenses: $1,542.76
+Airfare: $487.32
+Hotel: $824.15
+Meals: $231.29
+
+Please process this reimbursement at your earliest convenience. Let me know if you require any additional information.
+
+Sincerely,
+Jane Doe

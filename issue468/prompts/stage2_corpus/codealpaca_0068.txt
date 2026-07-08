@@ -1,0 +1,2 @@
+Solve the following problem. Given an array of integers, return an array with the elements multiplied by two.
+arr = [2, 8, 10, 9]

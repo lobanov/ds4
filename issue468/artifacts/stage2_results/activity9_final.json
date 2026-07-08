@@ -1,0 +1,38 @@
+{
+  "verdict": "NOT-JUSTIFIED",
+  "loss": "Lce+Ltv (exp position weights, gamma=5), teacher-forced K=5 (DSpark \u00a73.3)",
+  "no_lora_baseline_p1": 0.8125271857329274,
+  "rank_seed_sweep": {
+    "32": {
+      "p1_mean": 0.7978831375960562,
+      "p1_std": 0.001739886907350996,
+      "delta_mean_pp": -1.4644048136871146,
+      "seeds": [
+        0.7961432506887053,
+        0.7996230245034073
+      ]
+    },
+    "64": {
+      "p1_mean": 0.7949833260838046,
+      "p1_std": 0.000579962302450332,
+      "delta_mean_pp": -1.754385964912275,
+      "seeds": [
+        0.7944033637813542,
+        0.7955632883862549
+      ]
+    },
+    "128": {
+      "p1_mean": 0.7817166884152531,
+      "p1_std": 0.0013774104683195731,
+      "delta_mean_pp": -3.081049731767427,
+      "seeds": [
+        0.7803392779469335,
+        0.7830940988835726
+      ]
+    }
+  },
+  "best_rank": 32,
+  "best_p1": 0.7978831375960562,
+  "best_delta_pp": -1.4644048136871146,
+  "interpretation": "head-LoRA with the specified Lce+Ltv loss gives -1.46/-1.75/-3.08 pp (rank 32/64/128, 2 seeds each, stable std ~0.0017) \u2014 all negative, overfitting at higher rank. Non-expert head LoRA does NOT improve acceptance. Body LoRA (Activity 8) skipped per contract (7>6ceiling) + Activity 4 (input-invariant). Expert tuning out of scope. Consistent with Stage 0/1."
+}

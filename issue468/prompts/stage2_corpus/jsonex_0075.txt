@@ -1,0 +1,4 @@
+Extract the key details from the provided business sales presentation.
+
+Business Sales Presentation
+Attendees: Jane Smith, john@example.com, +1-987-654-3210; Bob Johnson, bob@example.com, +1-876-543-2109

@@ -1,0 +1,2 @@
+Read the following array and print it in the same order using a for loop.
+list_int = [1,3,5,7,9]

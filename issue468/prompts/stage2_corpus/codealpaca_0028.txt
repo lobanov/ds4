@@ -1,0 +1,6 @@
+What type of optimization algorithm is used in the following snippet of code?
+weights = np.random.rand(2, 1)
+for epoch in range(50):
+     predictions = predict(x, weights)
+     gradients = calcluate_gradients(x, predictions, y)
+     weights -= gradients * learning_rate

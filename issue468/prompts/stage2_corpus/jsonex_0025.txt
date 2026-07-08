@@ -1,0 +1,3 @@
+Extract the termination clause from the provided business agreement document.
+
+This Business Sales and Marketing Agreement is entered into on January 1, 2023 between ABC Corporation ("Seller") and XYZ Inc. ("Buyer"). The parties hereby agree that the Seller shall sell and the Buyer shall purchase the Seller's business assets, including all inventory, equipment, intellectual property, and customer contracts. The purchase price shall be $500,000, payable in full upon closing. Either party may terminate this agreement with 60 days' written notice to the other party. This agreement shall be governed by the laws of the state of California.

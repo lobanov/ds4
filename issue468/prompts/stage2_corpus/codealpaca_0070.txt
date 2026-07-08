@@ -1,0 +1,2 @@
+Write a Python function to compute the maximum value for each key in a given dictionary.
+d = {'a':10, 'b':20, 'c':30}

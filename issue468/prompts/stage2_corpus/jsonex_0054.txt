@@ -1,0 +1,3 @@
+Extract the key policy coverage details from the internal memo.
+
+Greetings, team. We've updated our healthcare insurance policy to include the following coverages: Accident coverage with a $1,500 deductible, 15% coinsurance, and $25 copay; Maternity coverage with a $1,000 deductible, 10% coinsurance, and $20 copay; and Vision coverage with a $300 deductible, 50% coinsurance, and $10 copay. Please review and let me know if you have any questions.

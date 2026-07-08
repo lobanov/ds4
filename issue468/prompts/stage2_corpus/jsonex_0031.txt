@@ -1,0 +1,9 @@
+Extract the key information about the hotel reservation from the provided notes into a JSON format.
+
+- Guest Name: Samantha Perez
+- Reservation Number: 12345
+- Check-in Date: 2023-07-15
+- Check-out Date: 2023-07-22
+- Room Type: Deluxe Suite
+- Nightly Rate: $250.00
+- Total Amount: $1,750.00

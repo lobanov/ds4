@@ -1,0 +1,8 @@
+Extract the relevant information from the provided bullet-point notes into a JSON format.
+
+- Item: Bananas
+- Quantity: 4
+- Unit: bunch
+- Brand: Chiquita
+- Price: $1.79
+- Notes: Ripe, organic

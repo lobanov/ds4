@@ -1,0 +1,5 @@
+Extract the key business details from the provided bullet-point notes.
+
+- AnnualRevenue: 12000000
+- ProfitMargin: 0.25
+- NonDisclosureClause: All proprietary information shall be kept confidential and not shared with any third parties.

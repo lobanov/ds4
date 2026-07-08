@@ -1,0 +1,2 @@
+Read the following array and remove all the numbers divisible by 4.
+list_int = [2,4,6,10]

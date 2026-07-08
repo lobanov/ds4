@@ -1,0 +1,2 @@
+Create a list comprehension that takes all the elements of list_one and creates a new list where all the elements are doubled.
+list_one = [1, 2, 3, 4, 5]

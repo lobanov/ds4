@@ -1,0 +1,12 @@
+Extract the backup destination information from the internal memo.
+
+Backup Plan for Q4 Review
+Our system backup strategy for Q4 includes the following:
+BackupDestination: Cloud Storage Vault
+Retention: 90 days
+Frequency: Daily
+
+This plan will ensure critical data is protected and available for recovery if needed.
+
+BACKUP PLAN APPROVED
+- John Doe, IT Manager
