@@ -7,3 +7,11 @@ dflash_drafter/model.safetensors
 dflash_drafter/*.safetensors
 artifacts/dflash_capture/*/context.npz
 artifacts/dflash_capture/*/captures/
+
+# Stage 2 (dspark_train) — local venv + generated artifacts
+dspark_train/.venv/
+dspark_train/checkpoints/
+dspark_train/runs/
+dspark_train/data/
+
+data/corpus_source/

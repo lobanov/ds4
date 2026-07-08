@@ -1,0 +1,8 @@
+# Stage 2 — DSpark drafter fine-tune PoC training environment.
+# Target: Apple Silicon (M-series, MPS). Verified on CPython 3.14.3 / macOS arm64.
+# The PyPI torch cp314 wheel includes the MPS backend; no extra CUDA build needed.
+torch==2.12.1
+numpy==2.5.1
+pyarrow==24.0.0
+safetensors==0.8.0
+tqdm==4.68.3
