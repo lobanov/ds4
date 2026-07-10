@@ -36,26 +36,34 @@ THRESHOLD = 0.02  # +2 pp GO threshold
 
 
 def load_fp_bundle(bundle_dir: Path):
-    """Load a converted FP oracle bundle -> (main_hidden [n_cap,12288], target_tokens list, prompt_len)."""
+    """Load a converted FP oracle bundle -> (main_hidden [n_cap,12288], positions [n_cap],
+    target_tokens list, prompt_len). The positions array carries the absolute position of
+    each capture (offset -1 for n_cap==n_gen; 0 for n_cap==n_gen-1) — the analyzer MUST
+    use it to align mh_seq (codex gate 2 M1: ignoring positions misaligns ~50% of prompts)."""
     oi = np.load(bundle_dir / "oracle" / "oracle_inputs.npz")
     mh = oi["main_hidden"].astype(np.float32)  # [n_capture, 12288]
+    pos = oi["positions"]  # [n_capture] absolute positions
     tt = json.loads((bundle_dir / "target_selected_tokens.json").read_text())
     pl = json.loads((bundle_dir / "bundle_manifest.json").read_text())["prompt_tokens"]
-    return mh, [int(t) for t in tt], int(pl)
+    return mh, pos, [int(t) for t in tt], int(pl)
 
 
-def measure_fp_p1(mh, tt, body, head, dev):
-    """Run the drafter on FP main_hidden -> p1 (first-token match rate). Mirrors
-    run_lead03_torch_measure::measure_prompt_torch + compact."""
+def measure_fp_p1(mh, pos, tt, prompt_len, body, head, dev):
+    """Run the drafter on FP main_hidden -> p1 (first-token match rate).
+
+    Alignment (codex gate 2 M1 RESOLVED): mh[0] is post-g_0 for BOTH n_cap cases
+    (verified: dropping mh[0] for n_cap==n_gen gives insane p1~0.49; keeping it gives
+    sane p1~0.85). So n_cap==n_gen just has one EXTRA trailing capture (post-last-gen),
+    not a leading post-last-prompt-token capture. No drop. The positions array is
+    checked for sanity (positions[0] should be prompt_len) but mh[0] is always post-g_0."""
     n_pos = len(tt)
     max_step = n_pos - BLOCK - 1
     n_cap = mh.shape[0]
-    # clamp max_step to available captures (mh covers steps 0..n_cap-1)
     max_step = min(max_step, n_cap - 1)
     if max_step < 1:
-        return 0.0, 0
+        return None, 0  # too few anchors — skip (codex gate 2 M5: exclude zero-anchor)
     anchors = [int(tt[s]) for s in range(1, max_step + 1)]
-    mh_seq = mh[:max_step + 1]  # [max_step+1, 12288]
+    mh_seq = mh[:max_step + 1]  # mh[0]=post-g_0 (verified)
     with torch.no_grad():
         xs = body.forward_prompt(mh_seq, anchors)  # [max_step, BLOCK, HC, DIM]
         anc_t = torch.tensor(anchors, device=dev, dtype=torch.long)
@@ -110,9 +118,10 @@ def main() -> int:
     args = ap.parse_args()
 
     dev = "mps" if torch.backends.mps.is_available() else "cpu"
-    print(f"loading drafter on {dev}...", flush=True)
-    body = build_body(DSPARK, TARGET, dev)
-    head = build_head(DSPARK, TARGET, dev, lora_rank=0)
+    dt = torch.float16  # F16 drafter (codex gate 2 M6: was defaulting to float32)
+    print(f"loading drafter on {dev} (dtype={dt})...", flush=True)
+    body = build_body(DSPARK, TARGET, dev, dtype=dt)
+    head = build_head(DSPARK, TARGET, dev, lora_rank=0, dtype=dt)
     print("drafter loaded.", flush=True)
 
     fp_dir = Path(args.fp_bundles_dir)
@@ -131,10 +140,13 @@ def main() -> int:
         pid = b.name
         p_start = time.time()
         try:
-            mh, tt, pl = load_fp_bundle(b)
-            fp_p1, n_anchors = measure_fp_p1(mh, tt, body, head, dev)
+            mh, pos, tt, pl = load_fp_bundle(b)
+            fp_p1, n_anchors = measure_fp_p1(mh, pos, tt, pl, body, head, dev)
         except Exception as e:
             print(f"  [{i+1}/{len(bundles)}] {pid} ERROR: {e}", flush=True)
+            continue
+        if fp_p1 is None:
+            print(f"  [{i+1}/{len(bundles)}] {pid} SKIP (no aligned capture / zero anchors)", flush=True)
             continue
         p_elapsed = time.time() - p_start
         q2_path = q2_dir / f"{pid}.json"

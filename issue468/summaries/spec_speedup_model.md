@@ -273,7 +273,11 @@ top-128 logits) on Lead 03's 300-prompt corpus (dolly/codealpaca/jsonex × 100) 
 Modal H200:2 (`run_lead04_modal/capture_hc_modal.py`); ran the local F16 drafter on the FP
 hiddens; paired FP p1 against the retained Q2 p1 per prompt; prompt-clustered bootstrap CI.
 
-**Result (n=299; primary metric Δp1 = FP_p1 − Q2_p1):**
+**Result (n=299; primary metric Δp1 = float32-FP_p1 − float32-Q2_p1):**
+
+The Q2 reference is dtype-invariant (float32-Q2 == F16-Q2 exactly, verified on 240
+prompts, max|diff|=0.00000 — the drafter's argmax is robust to f16/f32 on Q2 hiddens).
+So the float32-FP-vs-f16-Q2 comparison IS the consistent-dtype comparison.
 
 | | FP (native) | Q2 (IQ2XXS) | Δ | CI95 |
 |---|---|---|---|---|
@@ -282,16 +286,25 @@ hiddens; paired FP p1 against the retained Q2 p1 per prompt; prompt-clustered bo
 | dolly | | | +2.73 pp | [+1.3, +4.1] |
 | jsonex | | | +6.15 pp | [+2.8, +8.8] |
 
-**Verdict: GO (preliminary).** The CI lower bound (+3.8 pp) clears the +2 pp threshold.
-IQ2XXS target-hidden quantization degrades the drafter's input by ~5 pp of acceptance —
-materially larger than the ~0.06 drafts/cycle local deficit. **Caveats (gate 2 must
-scrutinize):** (1) the CI lower bound (+3.8 pp) is ≈ the ~4 pp max_model_len
-kernel-selection systematic, so the GO's margin over systematic error is thin; (2) the
-mhc_post capture representation (C1) is empirically validated (sane p1) but not
-algebraically proven — a target-rank cross-check (lm_head logits, hidden-independent) is
-deferred; (3) the pilot (5 code/synthesis exactness prompts, max_model_len=512) showed
-−6 pp — the corpus + config matter, so this is corpus-dependent (dolly is the weakest at
-+2.7 pp).
+**Verdict: GO (at consistent float32 dtype; corrected — the earlier codex-gate-2
+"dtype confound" hypothesis was REFUTED by the float32-Q2 re-measurement).** The CI
+lower bound (+3.8 pp) clears the +2 pp threshold. IQ2XXS target-hidden quantization
+degrades the drafter's input by ~5 pp of acceptance — materially larger than the ~0.06
+drafts/cycle local deficit.
+
+**Critical caveat — the F16/deployment anomaly (C1 reopened):** the F16 drafter on FP
+hiddens gives p1≈0.62 vs F16-Q2≈0.79 (FP *worse*), while float32-FP≈0.85. The drafter
+is dtype-invariant on Q2 hiddens but NOT on FP hiddens. This strongly suggests the C1
+`mhc_post` representation error is exposed at F16 (float32's wider range masks it). At
+**deployment precision (F16/Q4_K drafter), FP hiddens HURT (−17 pp)** — opposite of the
+float32 GO. So: the +5.3 pp GO is real at float32, but the deployment-relevant F16 result
+is STOP, and this likely reflects a capture representation error (C1) rather than a true
+native-hiddens advantage. A future lead must resolve C1 with an algebraic
+vLLM-vs-ds4 hidden-equality proof before the GO is actionable. Other caveats: (1) the CI
+lower (+3.8 pp) ≈ the ~4 pp max_model_len kernel-selection systematic, so the GO margin
+over systematic error is thin; (2) the pilot (5 code/synthesis exactness prompts) showed
+−6 pp — the corpus matters (dolly is weakest at +2.7 pp); a balanced confirmation corpus
+(code/synthesis, longer prompts) is expected to shrink the +5 pp.
 
 **Implication for the speedup model:** the model's E[a|K] input (cycle-jump 2.198) is the
 IQ2XXS-degraded value; the FP ceiling is the *native* acceptance (~+5 pp on p1). This is
