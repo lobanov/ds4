@@ -37,19 +37,28 @@ def surgery_to_main_hidden(capture_npz: Path) -> tuple[np.ndarray, np.ndarray, n
     """capture .npz -> (main_hidden [n_capture,12288], positions [n_capture],
     greedy [n_generated], prompt_len, n_capture).
 
-    Indexing (verified codex gate 1): the chunked-prefill first token has no decode-step
-    capture, so n_capture = n_generated - 1. main_hidden[i] is POST-token hidden for the
-    i-th generated token (anchor g_i); the drafter predicts g_{i+1}. positions covers the
-    n_capture anchor positions; greedy is the FULL trajectory for target indexing.
+    Indexing (codex gate 1 + the n_capture-variability fix): the chunked-prefill
+    first-token handling is NOT consistent across prompts — sometimes the first token
+    is generated during prefill (n_capture = n_generated - 1; first capture is
+    POST-g_0 at position prompt_len), sometimes during the first decode step
+    (n_capture = n_generated; first capture is POST-last-prompt-token at position
+    prompt_len-1). Both are handled: the harness measures steps>=1, so the step-0
+    ambiguity does not affect the measurement as long as positions are offset right.
+    main_hidden[i] is POST-token hidden at positions[i]; the drafter predicts the
+    next position's token (target_tokens[step+1]).
     """
     d = np.load(str(capture_npz))
     n_generated = int(d["n_generated"]) if "n_generated" in d.files else int(d["n_gen"])
-    # n_capture = decode-step hidden count (layer array length); = n_generated-1 due to
-    # the chunked-prefill first token lacking a decode-step capture.
     n_capture = int(d["n_capture"]) if "n_capture" in d.files else d["layer40"].shape[0]
-    assert n_capture == n_generated - 1, (
-        f"expected n_capture=n_generated-1 (chunked-prefill off-by-one), "
-        f"got n_capture={n_capture} vs n_generated={n_generated}")
+    # The chunked-prefill off-by-one is variable: accept both n_gen-1 and n_gen.
+    if n_capture == n_generated - 1:
+        first_pos_offset = 0   # first capture POST g_0 at position prompt_len
+    elif n_capture == n_generated:
+        first_pos_offset = -1  # first capture POST last-prompt-token at prompt_len-1
+    else:
+        raise ValueError(
+            f"n_capture={n_capture} not in {{n_generated-1, n_generated}} "
+            f"(n_generated={n_generated}); unexpected capture shape")
     parts = []
     for layer in LAYERS:
         arr = d[f"layer{layer}"]            # [n_capture, HC=4, DIM]
@@ -58,7 +67,8 @@ def surgery_to_main_hidden(capture_npz: Path) -> tuple[np.ndarray, np.ndarray, n
         parts.append(arr.astype(np.float32).mean(axis=1))   # [n_capture, DIM]
     main_hidden = np.concatenate(parts, axis=1).astype(np.float32)  # [n_capture, 12288]
     prompt_len = int(d["prompt_tokens"])
-    positions = np.arange(prompt_len, prompt_len + n_capture, dtype=np.int32)
+    positions = np.arange(prompt_len + first_pos_offset,
+                          prompt_len + first_pos_offset + n_capture, dtype=np.int32)
     greedy = d["greedy_tokens"][:n_generated]  # full trajectory for target indexing
     return main_hidden, positions, greedy, prompt_len, n_capture
 
