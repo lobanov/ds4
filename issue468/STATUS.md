@@ -94,10 +94,12 @@ Create a trustworthy active dossier that makes it easy to:
     consistent-dtype float32 Δp1=+5.28pp CI[+3.8,+6.6] (technically GO; the earlier codex
     dtype-confound hypothesis was REFUTED — f32-Q2==f16-Q2 exactly on 240 prompts). BUT not
     deployment-actionable: the F16 drafter on FP hiddens gives p1≈0.62 vs F16-Q2 0.79
-    (deployment flips to STOP) — strong C1 evidence (mhc_post capture error exposed at F16,
+    (deployment flips to STOP) — strong evidence of a hidden-capture fidelity error
+    (mhc_post capture error exposed at F16,
     masked by float32). Plus CI lower ≈ kernel systematic (~4pp, thin), cross-engine
     confound (FP=vLLM vs Q2=ds4), easy corpus (dolly +2.7pp; exactness pilot −6pp). HOLD
-    pending an algebraic vLLM-vs-ds4 hidden-equality proof (C1). Don't kill the native-
+    pending an algebraic vLLM-vs-ds4 hidden-equality proof (the hidden-capture fidelity
+    question). Don't kill the native-
     hidden hypothesis (capture bug could explain F16) but STOP action on the F16 capture
     path. JIT caches (TileLang+DeepGEMM) wired to volume (526s→244s warm). (Phase A pilot
     HOLD superseded: that was n=5 underpowered; Phase B is the powered measurement.)

@@ -1,7 +1,7 @@
 # Lead 04 — Served-precision acceptance ceiling (drafter vs native FP4/FP8 target)
 
 Date: 2026-07-08. **Status: archived 2026-07-10 (HOLD verdict — Phase A pilot + Phase
-B-limited both complete; C1 follow-up open). Moved from issue468/pending/. Result: see
+B-limited both complete; hidden-capture fidelity follow-up open). Moved from issue468/pending/. Result: see
 issue468/summaries/spec_speedup_model.md ("Target hidden-state precision — the FP ceiling").**
 
 **Conditional purchase — trigger on lead 07's PoC landing flat or ambiguous**
@@ -233,7 +233,7 @@ the stronger representation test). No GPU spent yet; no leaked tokens.
 **Codex gate 1 could not run:** the codex CLI auth is invalidated
 (`refresh_token_invalidated` / "session has ended, log in again"). Needs `codex login`.
 
-**Self-verification of the crux (C1) — the mapping hypothesis is WRONG as stated.**
+**Self-verification of the crux (hidden-capture fidelity) — the mapping hypothesis is WRONG as stated.**
 Loaded a retained Q2 `captures.npz` and inspected `layer40 [n,4,4096]`: the HC=4
 components are **DISTINCT, not copies** — `mean|hc−mean|/|mean| = 0.71`, all
 pairwise `np.allclose` False, different means/stds per component. The ds4 registry
@@ -555,7 +555,7 @@ NOT p=1 (first-token match). The REAL p=1 from prefix_hist:
 - **Delta: +0.107 (+10.7 pp) — the FP ceiling is ABOVE Q2** (preliminary, 1 prompt/7 anchors).
 This is the lead's expected signal: the IQ2XXS quant-attributable headroom is real.
 Other codex findings: C4 (template 69 vs 70 = structural, not BPE — needs prompt_token_ids
-for exact D1); C2 (n_gen inconsistency); C1 (mhc_post semantics — sane p=1 is strong but
+for exact D1); C2 (n_gen inconsistency); hidden-capture fidelity (mhc_post semantics — sane p=1 is strong but
 not semantic proof). Fixes applied: real p=1 computed from prefix_hist (not match_pct);
 dead apply_patch noted for cleanup; template gap noted for pilot's D1.
 Gate-1 RESOLVED: the pipeline is READY for the 5-prompt pilot.
@@ -595,21 +595,21 @@ against the native served precision** (FP4/FP8) — per `inventories/dsv4_flash_
 pilot failing to beat Q2 would weaken the IQ2XXS-hidden-degradation hypothesis. **BUT** this
 pilot does not prove "deficit = native drafter quality": the `mhc_post` representation is
 plausible (sane p1) but NOT algebraically proven equivalent to the drafter's real native
-input (codex audit C1 unresolved). If that representation is subtly wrong, this test is
+input (codex audit hidden-capture fidelity unresolved). If that representation is subtly wrong, this test is
 invalid rather than negative. **Supported claim:** this pilot finds no robust evidence that
 native hiddens improve drafter p=1 enough to justify Phase B.
 
 **Remaining caveats:** (1) n=5 is too underpowered to rule out a small FP lift (the
 +10.7 pp prompts suggest prompt-dependent effects exist); (2) the mhc_post
 representation is validated by sane p1 but lacks an algebraic vLLM-vs-ds4 equality
-proof (codex audit C1); (3) the 1-token template offset (69→70) precludes exact D1.
+proof (codex audit hidden-capture fidelity); (3) the 1-token template offset (69→70) precludes exact D1.
 
 ### Go/no-go: **HOLD** (do NOT proceed to full Phase B capture now)
 
 **Rationale:** the pilot (n=5) shows the FP ceiling p1 ≈ Q2 (Δ=-0.06, CI includes 0).
 This is NOT the +4 pp green-trigger that would justify the $40-125 full Phase B
 capture. The pilot is underpowered, not same-anchor clean (FP 7 anchors vs Q2 8),
-and the `mhc_post` representation is not algebraically proven (C1 unresolved) — so
+and the `mhc_post` representation is not algebraically proven (hidden-capture fidelity unresolved) — so
 the negative result could reflect a representation gap rather than a true FP ceiling.
 Per codex gate 2 (APPROVED), HOLD is warranted **because the evidence is insufficient
 to justify the spend**, NOT because the pilot proves no FP headroom. The capture
@@ -713,9 +713,9 @@ Q2 re-capture: free (local). Total FP+Q2 ≈ $11-21. **Flag user before exceedin
 
 ### Known limitation carried forward
 
-**C1 (mhc_post representation):** not algebraically proven equivalent to ds4's
-`after_ffn_hc`. Empirically validated (sane p1 ≈ Q2). Proceed with C1 as a stated
-caveat; if the gap is small (likely), C1's residual representation error is a
+**hidden-capture fidelity (mhc_post representation):** not algebraically proven equivalent to ds4's
+`after_ffn_hc`. Empirically validated (sane p1 ≈ Q2). Proceed with hidden-capture fidelity as a stated
+caveat; if the gap is small (likely), hidden-capture fidelity's residual representation error is a
 confound — the target-rank analysis (target logits come from lm_head, not hiddens)
 is more robust and should carry the verdict if p1 is ambiguous.
 
@@ -755,26 +755,26 @@ both cases — dropping gave insane p1).
 **The F16 anomaly (the real blocker):** the drafter is dtype-invariant on Q2 hiddens but
 NOT on FP hiddens: float32-FP p1≈0.85 (sane) vs **F16-FP p1≈0.62** (insane). At
 **deployment precision (F16/Q4_K drafter), FP hiddens HURT (−17pp)** — opposite of the
-float32 GO. This strongly suggests **C1 (the mhc_post capture representation) is real**:
+float32 GO. This strongly suggests **hidden-capture fidelity (the mhc_post capture representation) is real**:
 float32's wider range masks the error; F16 exposes it. A drafter distilled on native
 hiddens should not crater on correct native hiddens while staying sane on Q2-degraded ones.
 
 **Verdict: HOLD** (codex gate 2 re-review). The float32 metric is technically GO (+5.3pp,
 CI clears +2pp), but it is NOT deployment-actionable because (a) the F16 deployment result
-is STOP (FP hiddens hurt −17pp), (b) C1 (capture representation) is unresolved + likely
+is STOP (FP hiddens hurt −17pp), (b) hidden-capture fidelity (capture representation) is unresolved + likely
 the cause of the F16 anomaly, (c) the CI lower (+3.8) ≈ kernel systematic (~4pp, thin),
 (d) cross-engine confound (FP=vLLM, Q2=ds4 — not a pure hidden-precision attribution),
 (e) corpus is the easy side (dolly +2.7pp; exactness pilot was −6pp). HOLD: do NOT kill
 the native-hidden hypothesis (a capture bug could explain the F16 result) but STOP any
-action on the current FP capture path at F16 until C1 is resolved.
+action on the current FP capture path at F16 until hidden-capture fidelity is resolved.
 
 **Resolution path (future lead):** algebraic vLLM-vs-ds4 hidden-equality proof (does
 mhc_post produce the same `after_ffn_hc` as ds4?); if equal, the F16 anomaly is a genuine
-F16 numerical issue (deploy a float32 drafter?); if not, C1 is a capture bug (fix the
+F16 numerical issue (deploy a float32 drafter?); if not, hidden-capture fidelity is a capture bug (fix the
 representation, re-measure). A balanced confirmation corpus (hard code/synthesis, longer
 prompts, common-prefix/crossed-oracle) is expected to shrink the +5pp.
 
 **Provenance:** captures at /tmp/phaseB_all/ (299 bundles); float32-Q2 at
 artifacts/acceptance_powered/combined300_float32/ (240); result JSON
 /tmp/phaseB_results/phaseB_gap_final.json; codex reviews 07 (gate1), 08 (gate2 re-review);
-spec_speedup_model.md FP section corrected (GO→HOLD, dtype-confound retracted, F16/C1 noted).
+spec_speedup_model.md FP section corrected (GO→HOLD, dtype-confound retracted, F16/hidden-capture fidelity noted).

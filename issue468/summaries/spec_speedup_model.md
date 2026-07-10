@@ -255,13 +255,16 @@ threshold at float32, so the float32 metric is technically GO — the dtype-conf
 hypothesis (an earlier codex gate) was refuted by the float32-Q2 re-measurement. BUT the
 GO is **not deployment-actionable**, for three reasons:
 
-1. **The F16/deployment anomaly (C1 reopened).** The F16 drafter on FP hiddens gives
-   p1≈0.62 vs F16-Q2≈0.79 (FP *worse*), while float32-FP≈0.85. The drafter is
-   dtype-invariant on Q2 hiddens but NOT on FP hiddens — strong evidence the
-   `mhc_post` capture representation is subtly wrong (C1), masked by float32's wider
-   range but exposed at F16. A drafter distilled on native hiddens should not crater on
-   correct native hiddens while staying sane on Q2-degraded ones. At **deployment
-   precision (F16/Q4_K), FP hiddens HURT (−17 pp)** — opposite of the float32 GO.
+1. **The F16/deployment anomaly (hidden-capture fidelity reopened).** The F16 drafter
+   on FP hiddens gives p1≈0.62 vs F16-Q2≈0.79 (FP *worse*), while float32-FP≈0.85. The
+   drafter is dtype-invariant on Q2 hiddens but NOT on FP hiddens — strong evidence of a
+   **hidden-capture fidelity error**: the vLLM `mhc_post` capture may not reconstruct the
+   same HC residual (`after_ffn_hc`) that ds4 feeds the drafter, and float32's wider
+   range masks the discrepancy while F16 exposes it. (Throughout this section,
+   "hidden-capture fidelity" = does the vLLM capture reproduce ds4's true drafter-input
+   hidden?) A drafter distilled on native hiddens should not crater on correct native
+   hiddens while staying sane on Q2-degraded ones. At **deployment precision (F16/Q4_K),
+   FP hiddens HURT (−17 pp)** — opposite of the float32 GO.
 2. **Thin systematic margin.** The CI lower (+3.8 pp) ≈ the ~4 pp max_model_len
    kernel-selection systematic, so the GO's margin over systematic error is thin.
 3. **Corpus + engine confounds.** The corpus is the easy side (dolly only +2.7 pp; the
@@ -273,9 +276,10 @@ IQ2XXS-degraded value; the FP ceiling is the *native* acceptance (~+5 pp on p1).
 NOT change the local IQ2XXS speedup verdict (the local target IS IQ2XXS), but it is an
 upper bound on what a higher-precision target (or a hidden-dequant path) could recover, and
 it reopens Lead 07's conditional fine-tune trigger. Treat target-hidden precision as a
-*live* lever, but HOLD action until C1 is resolved with an algebraic vLLM-vs-ds4
-hidden-equality proof: if the captures are correct, the F16 anomaly is a genuine numerical
-issue (deploy float32?); if not, C1 is a capture bug to fix + re-measure.
+*live* lever, but HOLD action until the hidden-capture fidelity question is resolved
+with an algebraic vLLM-vs-ds4 hidden-equality proof: if the captures are correct, the F16
+anomaly is a genuine numerical issue (deploy float32?); if not, the capture is a bug to
+fix + re-measure.
 
 ## Verdict, levers, and open scope
 
@@ -295,7 +299,8 @@ gains:
 2. **A materially better drafter** (Lead 07 upstream quality / training): the binding
    constraint is per-cycle acceptance; **drafter-weight** precision is exhausted (Q4_K≈F16),
    but **target hidden-state** precision is NOT closed — Lead 04 Phase B measured a ~+5 pp
-   native-vs-IQ2XXS gap at float32 but HOLDs on a deployment-dtype (F16) anomaly (C1); see
+   native-vs-IQ2XXS gap at float32 but HOLDs on a deployment-dtype (F16) anomaly (a likely
+   hidden-capture fidelity error); see
    "Target hidden-state precision" above.
 3. **Drafter-state pollution** (Lead 06): the cycle-jump measures anchor-token difficulty
    along a *linear* trajectory; it does NOT model the drafter's KV/state being polluted by
@@ -318,5 +323,5 @@ a genuinely cheap folded verifier, scheduling contributes a fragile extra few po
 The decision-grade open questions therefore move to Lead 06 (does a real folded verifier
 realize the anchor-reuse + low-overhead regime?) and Lead 07 (can the drafter's per-cycle
 acceptance rise enough to clear the ~0.06–0.10 drafts/cycle deficit — and is the Lead 04
-target-hidden-precision lever real once C1 is resolved?).
+target-hidden-precision lever real once the hidden-capture fidelity question is resolved?).
 
