@@ -146,7 +146,8 @@ class DecisiveSmoke:
                       for i, L in enumerate([40, 41, 42])}
             save_kwargs = dict(
                 **layers, layer_ids=np.array([40, 41, 42], dtype=np.int32),
-                n_gen=np.int32(len(greedy)), n_logprobs=np.int32(len(lp_raw)),
+                n_generated=np.int32(len(greedy)), n_capture=np.int32(n_dec),
+                n_logprobs=np.int32(len(lp_raw)),
                 prompt_tokens=np.int32(prompt_len),
                 greedy_tokens=np.array(greedy, dtype=np.int64))
             if topk_ids:

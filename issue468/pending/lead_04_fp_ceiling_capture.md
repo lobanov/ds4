@@ -631,19 +631,27 @@ data on Lead 03's 300-prompt corpus — **greedy paths + top-128 logits with
 weights + HC hidden states** — then run the local drafter on FP hiddens and pair
 against the already-measured Q2 reference (mean p1=0.7933, per-source available).
 
-### Decision rule (locked BEFORE measuring)
+### Decision rule (locked BEFORE measuring; tightened per codex gate 1)
 
 Primary metric: **per-prompt paired Δp1 = FP_p1 − Q2_p1** (drafter top-1 match,
 bootstrap CI resampling prompts not positions, n=300).
 Secondary metric: **target-rank shift** — drafter-proposal rank in target top-128,
 FP vs Q2 (distributional; “are FP misses shallower?”).
 
-- **GO (gap present):** Δp1 ≥ +2 pp AND paired CI lower bound > 0 (and/or target-rank
-  materially shallower on FP). → IQ2XXS degrades the hiddens → Lead 07 IQ2XXS-specific
-  fine-tune trigger met.
-- **STOP (gap absent):** Δp1 ≤ 0, CI upper bound < +2 pp, target-rank similar. →
-  deficit is native drafter quality, not quantization; IQ2XXS fine-tune deprioritized.
-- **HOLD (intermediate):** CI still straddles the +2 pp threshold at n=300.
+- **GO (gap present):** paired **CI lower bound > +2 pp** AND Δp1 point ≥ +2 pp;
+  secondary: median target-rank(FP) < median target-rank(Q2) by ≥ 1 rank (bootstrap
+  CI excludes 0). → IQ2XXS degrades the hiddens → Lead 07 trigger met.
+- **STOP (gap absent):** paired **CI upper bound < +2 pp** (regardless of point-estimate
+  sign); target-rank not shallower on FP. → deficit is native drafter quality.
+- **HOLD (intermediate):** CI straddles the +2 pp threshold (lower ≤ +2 ≤ upper).
+
+**Systematic-error note (codex C3):** max_model_len shifts p1 by ~4 pp via vLLM
+kernel selection (deterministic, NOT captured by the prompt bootstrap). Locked at
+2048 for the full run; report as a systematic-error bar. A GO call is credible only
+if the CI clears +2 pp beyond the kernel systematic. Compare per-prompt RATES (not
+raw counts) since Q2 n_steps varies (mean 115.5). Mask padded topk_ids==-1 in the
+rank analysis (codex C5). If Δp1 is small/ambiguous, run a common-prefix /
+crossed-oracle sensitivity (codex C2).
 
 ### Corpus
 

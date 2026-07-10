@@ -33,25 +33,39 @@ HC = 4
 MAIN_HIDDEN_DIM = len(LAYERS) * DIM  # 12288
 
 
-def surgery_to_main_hidden(capture_npz: Path) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """capture .npz -> (main_hidden [n_gen,12288], positions [n_gen], greedy [n_gen])."""
+def surgery_to_main_hidden(capture_npz: Path) -> tuple[np.ndarray, np.ndarray, np.ndarray, int, int]:
+    """capture .npz -> (main_hidden [n_capture,12288], positions [n_capture],
+    greedy [n_generated], prompt_len, n_capture).
+
+    Indexing (verified codex gate 1): the chunked-prefill first token has no decode-step
+    capture, so n_capture = n_generated - 1. main_hidden[i] is POST-token hidden for the
+    i-th generated token (anchor g_i); the drafter predicts g_{i+1}. positions covers the
+    n_capture anchor positions; greedy is the FULL trajectory for target indexing.
+    """
     d = np.load(str(capture_npz))
-    n_gen = int(d["n_gen"])
+    n_generated = int(d["n_generated"]) if "n_generated" in d.files else int(d["n_gen"])
+    # n_capture = decode-step hidden count (layer array length); = n_generated-1 due to
+    # the chunked-prefill first token lacking a decode-step capture.
+    n_capture = int(d["n_capture"]) if "n_capture" in d.files else d["layer40"].shape[0]
+    assert n_capture == n_generated - 1, (
+        f"expected n_capture=n_generated-1 (chunked-prefill off-by-one), "
+        f"got n_capture={n_capture} vs n_generated={n_generated}")
     parts = []
     for layer in LAYERS:
-        arr = d[f"layer{layer}"]            # [n_gen, HC=4, DIM]
+        arr = d[f"layer{layer}"]            # [n_capture, HC=4, DIM]
         assert arr.ndim == 3 and arr.shape[1:] == (HC, DIM), (
-            f"layer{layer} expected [n_gen,{HC},{DIM}], got {arr.shape}")
-        parts.append(arr.astype(np.float32).mean(axis=1))   # [n_gen, DIM]  (mean over hc_mult)
-    main_hidden = np.concatenate(parts, axis=1).astype(np.float32)  # [n_gen, 12288]
+            f"layer{layer} expected [n_capture,{HC},{DIM}], got {arr.shape}")
+        parts.append(arr.astype(np.float32).mean(axis=1))   # [n_capture, DIM]
+    main_hidden = np.concatenate(parts, axis=1).astype(np.float32)  # [n_capture, 12288]
     prompt_len = int(d["prompt_tokens"])
-    positions = np.arange(prompt_len, prompt_len + n_gen, dtype=np.int32)
-    greedy = d["greedy_tokens"][:n_gen] if "greedy_tokens" in d else np.zeros(n_gen, dtype=np.int64)
-    return main_hidden, positions, greedy
+    positions = np.arange(prompt_len, prompt_len + n_capture, dtype=np.int32)
+    greedy = d["greedy_tokens"][:n_generated]  # full trajectory for target indexing
+    return main_hidden, positions, greedy, prompt_len, n_capture
 
 
 def convert(capture_npz: Path, output_dir: Path, prompt_name: str = "") -> dict:
-    main_hidden, positions, greedy = surgery_to_main_hidden(capture_npz)
+    main_hidden, positions, greedy, prompt_len, n_capture = surgery_to_main_hidden(capture_npz)
+    n_generated = len(greedy)
     out = output_dir / "oracle"
     out.mkdir(parents=True, exist_ok=True)
     np.savez_compressed(str(out / "oracle_inputs.npz"),
@@ -59,20 +73,20 @@ def convert(capture_npz: Path, output_dir: Path, prompt_name: str = "") -> dict:
     # Write a full oracle bundle so measure_acceptance_bundle.py runs directly:
     #   bundle_manifest.json + target_selected_tokens.json (the greedy trajectory)
     #   + oracle/oracle_inputs.npz (main_hidden). prompt_tokens from the capture.
-    d = np.load(str(capture_npz))
-    prompt_len = int(d["prompt_tokens"])
-    n_gen = int(main_hidden.shape[0])
     (output_dir / "bundle_manifest.json").write_text(json.dumps({
         "prompt_name": prompt_name, "prompt_file": f"prompts/{prompt_name}.txt",
         "temperature": 0.0, "seed": 0, "ctx": 4096, "block": 5,
-        "generated_tokens": n_gen, "measure_steps": n_gen,
+        "generated_tokens": n_generated, "n_capture": n_capture,
+        "measure_steps": n_capture,
         "prompt_tokens": prompt_len, "reference_mode": "greedy",
     }, indent=2))
     (output_dir / "target_selected_tokens.json").write_text(
         json.dumps([int(t) for t in greedy.tolist()], indent=2))
+    d = np.load(str(capture_npz))
     return {
         "prompt_name": prompt_name,
-        "n_gen": n_gen,
+        "n_generated": n_generated,
+        "n_capture": n_capture,
         "main_hidden_shape": list(main_hidden.shape),
         "positions_head": positions[:3].tolist(),
         "oracle_inputs": str(out / "oracle_inputs.npz"),
