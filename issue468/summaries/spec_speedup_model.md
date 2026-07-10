@@ -24,9 +24,13 @@ conditional secondary material, not a path to the primary gate.
 Can a DSpark-style speculative path deliver a **material local decode speedup** on `ds4`
 with exact greedy output preserved? Primary gate ≥+20% vs baseline; secondary gate beat or
 match the shipped `--mtp` path. This document is the cycle-cost model plus the measured
-fixed-K acceptance and adaptive-scheduling evidence that feed it; the drafter-precision
-question is closed separately (`dspark_quantization_ceiling.md` — precision is exhausted,
-not the lever).
+fixed-K acceptance and adaptive-scheduling evidence that feed it; the **drafter-weight**
+precision question is closed separately (`dspark_quantization_ceiling.md` — drafter weight
+precision is exhausted, Q4_K≈F16, not the lever). **Update (Lead 04 Phase B, pending
+codex gate 2):** the **target hidden-state** precision is a *separate, open* lever — see
+"FP hidden-precision ceiling" below; native FP4/FP8 target hiddens lift drafter p1 by
++5.3 pp over the local IQ2XXS target (CI [+3.8, +6.6], n=299; verdict GO but under
+miscalculation scrutiny).
 
 ## Notation & definitions
 
@@ -230,7 +234,8 @@ gains:
    still only ~0.98×, and Lead 02 lifts that only to ~1.04× in the clean frozen-threshold
    result.
 2. **A materially better drafter** (Lead 07 upstream quality / training): the binding
-   constraint is per-cycle acceptance; precision is exhausted.
+   constraint is per-cycle acceptance; **drafter-weight** precision is exhausted (Q4_K≈F16),
+   but **target hidden-state** precision is NOT — see "FP hidden-precision ceiling" below.
 3. **Drafter-state pollution** (Lead 06): the cycle-jump measures anchor-token difficulty
    along a *linear* trajectory; it does NOT model the drafter's KV/state being polluted by
    rejected drafts, tree/branching, or adaptive policies — the realistic trajectory could
@@ -252,3 +257,46 @@ a genuinely cheap folded verifier, scheduling contributes a fragile extra few po
 The decision-grade open questions therefore move to Lead 06 (does a real folded verifier
 realize the anchor-reuse + low-overhead regime?) and Lead 07 (can the drafter's per-cycle
 acceptance rise enough to clear the ~0.06–0.10 drafts/cycle deficit?).
+
+---
+
+## FP hidden-precision ceiling (Lead 04 Phase B; **pending codex gate 2**)
+
+**The question:** is the local drafter-acceptance deficit (cycle-jump E[a|4]=2.198, ~0.06
+below break-even) attributable to IQ2XXS degrading the *target's hidden states* below
+their native (FP4/FP8) precision? The DSpark drafter was distilled against native served
+precision (`inventories/dsv4_flash_dspark_model.md`), so if native hiddens give higher
+acceptance than IQ2XXS hiddens, the target-hidden quantization is a lever.
+
+**Method:** captured native FP4/FP8 target data (HC hiddens at layers 40/41/42 + greedy +
+top-128 logits) on Lead 03's 300-prompt corpus (dolly/codealpaca/jsonex × 100) via vLLM on
+Modal H200:2 (`run_lead04_modal/capture_hc_modal.py`); ran the local F16 drafter on the FP
+hiddens; paired FP p1 against the retained Q2 p1 per prompt; prompt-clustered bootstrap CI.
+
+**Result (n=299; primary metric Δp1 = FP_p1 − Q2_p1):**
+
+| | FP (native) | Q2 (IQ2XXS) | Δ | CI95 |
+|---|---|---|---|---|
+| mean p1 | 0.846 | 0.793 | **+5.28 pp** | [+3.81, +6.56] |
+| codealpaca | | | +6.96 pp | [+4.3, +8.9] |
+| dolly | | | +2.73 pp | [+1.3, +4.1] |
+| jsonex | | | +6.15 pp | [+2.8, +8.8] |
+
+**Verdict: GO (preliminary).** The CI lower bound (+3.8 pp) clears the +2 pp threshold.
+IQ2XXS target-hidden quantization degrades the drafter's input by ~5 pp of acceptance —
+materially larger than the ~0.06 drafts/cycle local deficit. **Caveats (gate 2 must
+scrutinize):** (1) the CI lower bound (+3.8 pp) is ≈ the ~4 pp max_model_len
+kernel-selection systematic, so the GO's margin over systematic error is thin; (2) the
+mhc_post capture representation (C1) is empirically validated (sane p1) but not
+algebraically proven — a target-rank cross-check (lm_head logits, hidden-independent) is
+deferred; (3) the pilot (5 code/synthesis exactness prompts, max_model_len=512) showed
+−6 pp — the corpus + config matter, so this is corpus-dependent (dolly is the weakest at
++2.7 pp).
+
+**Implication for the speedup model:** the model's E[a|K] input (cycle-jump 2.198) is the
+IQ2XXS-degraded value; the FP ceiling is the *native* acceptance (~+5 pp on p1). This is
+an upper bound on what a higher-precision local target (or a hidden-dequantization path)
+could recover. It does NOT change the local IQ2XXS speedup verdict (the local target IS
+IQ2XXS), but it reopens Lead 07's conditional fine-tune trigger: an IQ2XXS-calibrated
+drafter (or a target-hidden-dequant) could close ~5 pp of the gap. Lead 06/07 should treat
+target-hidden precision as a *live* lever, not closed.
