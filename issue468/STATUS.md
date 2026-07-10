@@ -79,13 +79,28 @@ Create a trustworthy active dossier that makes it easy to:
   - Stage 0 summary: `issue468/summaries/quant_mismatch_diagnostic.md`; harness `issue468/run_stage0_quant_mismatch.py`; artifacts `issue468/artifacts/quant_mismatch_diagnostic/` (incl. `drafter_top64_scores.npz` for rank re-derivation, `codex_review.md`)
   - Stage 1 summary: `issue468/summaries/stage1_tap_precision.md`; capture `issue468/run_exactness_small_bundles.py` (Q4-tap variant); compare `issue468/run_stage1_q4tap_compare.py`; artifacts `issue468/artifacts/exactness_small_bundles_q4tap/` (incl. `comparison_vs_baseline/` + `codex_review.md`)
   - headline: drafter p=1 misses are **shallow / right neighborhood** (median target-rank 1.0; top-2 coverage 0.8125→0.9125) — recoverable shape, but causal link to quant unproven. Raising tap-layer (layers 37–42) precision to Q4 did **not** materially help p=1 (underpowered; CI straddles 0) — the original FP-vs-Q2 mismatch framing is partially falsified. Recommendation: bounded Stage 2 fine-tune PoC (not a full pipeline), targeting the secondary gate.
-- **Lead 04 — FP ceiling capture (in progress, Phase A on Modal):**
-  - capture script: `issue468/run_lead04_modal/capture.py` (Modal + vLLM >=0.18.0
-    `extract_hidden_states` for layers 40/41/42); conversion: `convert_vllm_to_oracle.py`
-  - pilot: `pilot.py` (5 exactness prompts); fidelity: `validate_fidelity.py`
-  - worklog: `issue468/pending/lead_04_fp_ceiling_capture.md`
-  - Modal credentials set up; HF token stored as Modal Secret
-  - Next: run pilot on 5 prompts (~$5-11 on H200:4); full capture after pilot passes
+- **Lead 04 — FP ceiling capture (Phase A COMPLETE → HOLD on full Phase B):**
+  - capture script: `issue468/run_lead04_modal/capture_hc_modal.py` (Modal TP=2 vLLM,
+    V1 post-load `apply_model` hooks on layers 40/41/42, `mhc_post` on clones,
+    `enforce_eager=True`, `enable_prefix_caching=False`); hook module: `dspark_hc_patch.py`
+  - conversion: `convert_vllm_to_oracle.py` (`[n,4,4096]` → mean+concat → `[n,12288]`);
+    fidelity: `validate_fidelity.py` (p1 from prefix_hist)
+  - pilot artifacts: `issue468/artifacts/lead04_fp_pilot/` (5 prompts × drafter.json +
+    oracle_inputs + bundle_manifest + target_tokens)
+  - codex reviews: `issue468/artifacts/lead04_codex_reviews/` (5 retained: patch-design,
+    path-review, smoke-diagnosis, gate-1, audit-review)
+  - worklog + go/no-go: `issue468/pending/lead_04_fp_ceiling_capture.md`
+  - **Verdict: HOLD.** Pilot (n=5) FP mean p=1 = 0.7143 (GREEN band), vs Q2 0.7750,
+    Δ=−0.06 (per-prompt paired 95% CI [−0.25, +0.13], includes 0 → gap absent /
+    underpowered). The drafter was distilled against native served precision (per
+    `inventories/dsv4_flash_dspark_model.md`); a native-trained drafter not beating Q2
+    weakens the IQ2XXS-degradation hypothesis, BUT the `mhc_post` representation is not
+    algebraically proven (C1 unresolved) and the pilot is underpowered — so the claim is
+    "no robust evidence native hiddens improve p=1 enough to justify Phase B," NOT a
+    proven exoneration of IQ2XXS. Full Phase B capture ($40–125) NOT justified;
+    deferred. Key bug found + fixed: vLLM `enable_prefix_caching=True` contaminated
+    subsequent prompts' KV cache (positional p1 degradation); prefix caching OFF resolves it.
+    Codex gate 2 APPROVED the HOLD.
 - Stage 2 bounded fine-tune PoC (Activities 1–9, doubly codex-reviewed; **complete → verdict: NOT-JUSTIFIED**):
   - result: `issue468/summaries/stage2_finetune_result.md`; protocol `issue468/summaries/stage2_finetune_protocol.md`
   - corpus/capture: `prompts/stage2_corpus/` (240 prompts); `run_stage2_capture.py` + ds4 `--capture-dataset` engine mode; shards `dspark_train/data/shards/`
@@ -232,11 +247,11 @@ Create a trustworthy active dossier that makes it easy to:
    - false leads / exhausted directions
    - current open questions
 3. Move bulky or superseded material to archive references rather than keeping it active.
-4. **Lead 04 — FP ceiling capture (Phase A on Modal):**
-   - Pilot: run on 5 exactness prompts via Modal (H200:4, ~$5-11)
-   - Fidelity gate: validate conversion, shapes, drafter sanity, D1 rate
-   - Full capture: 250 prompts label-only + hidden states (~$40-125)
-   - Analysis: FP-ceiling p=1 and E[a|5block] vs retained IQ2XXS values
+4. **Lead 04 — FP ceiling capture (Phase A COMPLETE → HOLD on full Phase B):**
+   - Pilot: 5 exactness prompts measured (FP mean p=1=0.7143 GREEN; Δ vs Q2=−0.06,
+     CI includes 0 → gap absent)
+   - Full capture: NOT justified — deferred (the deficit is native drafter quality,
+     not quantization; see go/no-go in the worklog)
 
 ## Canonicality rule
 

@@ -107,11 +107,12 @@ def run_drafter_sanity(bundle_dir: Path, json_out: Path) -> dict:
     if not json_out.exists():
         return {"status": "NO_OUTPUT"}
     res = json.loads(json_out.read_text())
-    # acceptance_summary schema: match_pct, total_match, total_positions, average_prefix
-    if "total_positions" in res and res["total_positions"]:
-        p1 = res["total_match"] / res["total_positions"]
-    else:
-        p1 = res.get("match_pct", 0.0) / 100.0
+    # p=1 = first-token match rate from prefix_hist (1 - prefix_hist["0"]/total_anchors).
+    # NOTE: total_match/total_positions is the ALL-SLOT match rate across the
+    # multi-layer draft tree, NOT the first-token (p=1) acceptance rate.
+    ph = res.get("prefix_hist", {})
+    total_anchors = sum(ph.values())
+    p1 = 1 - ph.get("0", 0) / total_anchors if total_anchors else 0.0
     ea = res.get("average_prefix", res.get("E_a", 0.0))
     green = (P1_BAND[0] <= p1 <= P1_BAND[1]) and (abs(p1 - RETAINED_Q2_P1) <= P1_TOL)
     return {

@@ -557,3 +557,64 @@ for exact D1); C2 (n_gen inconsistency); C1 (mhc_post semantics — sane p=1 is 
 not semantic proof). Fixes applied: real p=1 computed from prefix_hist (not match_pct);
 dead apply_patch noted for cleanup; template gap noted for pilot's D1.
 Gate-1 RESOLVED: the pipeline is READY for the 5-prompt pilot.
+
+### 2026-07-10 — PILOT MEASURED + prefix-caching bug found + go/no-go
+
+**Prefix-caching bug (the sequencing issue):** the first pilot run (original order)
+showed p1 degrading strictly by position: 0.857 → 0.500 → 0.125 → 0.000 → 0.000.
+Diagnostic: **randomized the prompt order** (user suggestion). grounded_archive
+FLIPPED from 0.000 (5th) → 0.714 (1st). Confirmed it was **positional, not
+prompt-specific** — vLLM's `enable_prefix_caching=True` reused the shared
+chat-template prefix KV blocks, contaminating subsequent prompts' hidden states.
+**Fix: `enable_prefix_caching=False`** → each prompt gets a clean, complete forward.
+
+**Pilot v3 (prefix caching OFF, original order, 5 exactness prompts):**
+```
+prompt                 | FP p1(7) | Q2 p1(8) |    Δ
+----------------------------------------------------
+code_histogram         |   0.8571 |   0.7500 | +0.1071
+code_sort_pairs        |   0.8571 |   0.7500 | +0.1071
+code_topk              |   0.5714 |   0.7500 | -0.1786
+grounded_observatory   |   0.5714 |   0.7500 | -0.1786
+grounded_archive       |   0.7143 |   0.8750 | -0.1607
+MEAN                   |   0.7143 |   0.7750 | -0.0607
+```
+All 5 shapes [13,3,16384], hash_match=True (replicated), prompt_lens 70/81/67/113/102.
+Greedy non-repeating, no NaN. **GREEN band: FP mean p1 = 0.7143 ∈ [0.70,0.90].**
+
+**Statistical honesty (per-prompt paired, n=5):** mean Δ = -0.0607 ± 0.0686 SE
+(t=-0.88, df=4), 95% CI [-0.251, +0.130]. **CI includes 0 → gap absent
+(underpowered).** The single-prompt gate-1 signal (+10.7 pp) did NOT replicate:
+2 prompts +10.7 pp, 3 prompts -16 to -18 pp. The FP ceiling is ≈ Q2, not above.
+
+**CORRECTED interpretation (drafter provenance):** the DSpark drafter was **distilled
+against the native served precision** (FP4/FP8) — per `inventories/dsv4_flash_dspark_model.md`:
+"this IS the distillation-time precision." It is NOT calibrated to Q2. A valid native-hidden
+pilot failing to beat Q2 would weaken the IQ2XXS-hidden-degradation hypothesis. **BUT** this
+pilot does not prove "deficit = native drafter quality": the `mhc_post` representation is
+plausible (sane p1) but NOT algebraically proven equivalent to the drafter's real native
+input (codex audit C1 unresolved). If that representation is subtly wrong, this test is
+invalid rather than negative. **Supported claim:** this pilot finds no robust evidence that
+native hiddens improve drafter p=1 enough to justify Phase B.
+
+**Remaining caveats:** (1) n=5 is too underpowered to rule out a small FP lift (the
++10.7 pp prompts suggest prompt-dependent effects exist); (2) the mhc_post
+representation is validated by sane p1 but lacks an algebraic vLLM-vs-ds4 equality
+proof (codex audit C1); (3) the 1-token template offset (69→70) precludes exact D1.
+
+### Go/no-go: **HOLD** (do NOT proceed to full Phase B capture now)
+
+**Rationale:** the pilot (n=5) shows the FP ceiling p1 ≈ Q2 (Δ=-0.06, CI includes 0).
+This is NOT the +4 pp green-trigger that would justify the $40-125 full Phase B
+capture. The pilot is underpowered, not same-anchor clean (FP 7 anchors vs Q2 8),
+and the `mhc_post` representation is not algebraically proven (C1 unresolved) — so
+the negative result could reflect a representation gap rather than a true FP ceiling.
+Per codex gate 2 (APPROVED), HOLD is warranted **because the evidence is insufficient
+to justify the spend**, NOT because the pilot proves no FP headroom. The capture
+pipeline is functional and ready if a future, better-powered study with an algebraic
+representation proof is warranted. **Full Phase B capture is deferred.**
+
+**Provenance:** artifacts at `artifacts/lead04_fp_pilot/` (5 × drafter.json + oracle_inputs
++ bundle_manifest + target_tokens); codex reviews at `artifacts/lead04_codex_reviews/`
+(5 retained: patch-design, path-review, smoke-diagnosis, gate-1, audit-review);
+worklog updated; STATUS.md updated; commit on `dspark-research`.
