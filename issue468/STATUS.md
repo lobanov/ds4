@@ -87,7 +87,7 @@ Create a trustworthy active dossier that makes it easy to:
     fidelity: `validate_fidelity.py` (p1 from prefix_hist)
   - pilot artifacts: `issue468/artifacts/lead04_fp_pilot/` (5 prompts × drafter.json +
     oracle_inputs + bundle_manifest + target_tokens)
-  - codex reviews: `issue468/artifacts/lead04_codex_reviews/` (6 retained: patch-design,
+  - codex reviews: `issue468/artifacts/lead04_codex_reviews/` (8 retained: patch-design,
     path-review, smoke-diagnosis, gate-1, audit-review)
   - worklog + go/no-go: `issue468/pending/lead_04_fp_ceiling_capture.md`
   - **Verdict: HOLD (Phase B-limited, codex gate 2 re-review).** 299/300 native captures;

@@ -26,11 +26,11 @@ with exact greedy output preserved? Primary gate ≥+20% vs baseline; secondary 
 match the shipped `--mtp` path. This document is the cycle-cost model plus the measured
 fixed-K acceptance and adaptive-scheduling evidence that feed it; the **drafter-weight**
 precision question is closed separately (`dspark_quantization_ceiling.md` — drafter weight
-precision is exhausted, Q4_K≈F16, not the lever). **Update (Lead 04 Phase B, pending
-codex gate 2):** the **target hidden-state** precision is a *separate, open* lever — see
-"FP hidden-precision ceiling" below; native FP4/FP8 target hiddens lift drafter p1 by
-+5.3 pp over the local IQ2XXS target (CI [+3.8, +6.6], n=299; verdict GO but under
-miscalculation scrutiny).
+precision is exhausted, Q4_K≈F16, not the lever). **Update (Lead 04 Phase B, codex gate 2 re-reviewed → HOLD):** the **target hidden-state**
+precision is a *separate, open* lever — see "FP hidden-precision ceiling" below; native
+FP4/FP8 target hiddens lift drafter p1 by +5.3 pp over the local IQ2XXS target at float32
+(CI [+3.8, +6.6], n=299), BUT the deployment-dtype (F16) result reverses sign (C1 capture
+error exposed) — verdict HOLD pending an algebraic hidden-equality proof.
 
 ## Notation & definitions
 
@@ -260,7 +260,7 @@ acceptance rise enough to clear the ~0.06–0.10 drafts/cycle deficit?).
 
 ---
 
-## FP hidden-precision ceiling (Lead 04 Phase B; **pending codex gate 2**)
+## FP hidden-precision ceiling (Lead 04 Phase B; **codex gate 2 re-reviewed → HOLD**)
 
 **The question:** is the local drafter-acceptance deficit (cycle-jump E[a|4]=2.198, ~0.06
 below break-even) attributable to IQ2XXS degrading the *target's hidden states* below
