@@ -87,7 +87,7 @@ Create a trustworthy active dossier that makes it easy to:
     fidelity: `validate_fidelity.py` (p1 from prefix_hist)
   - pilot artifacts: `issue468/artifacts/lead04_fp_pilot/` (5 prompts × drafter.json +
     oracle_inputs + bundle_manifest + target_tokens)
-  - codex reviews: `issue468/artifacts/lead04_codex_reviews/` (5 retained: patch-design,
+  - codex reviews: `issue468/artifacts/lead04_codex_reviews/` (6 retained: patch-design,
     path-review, smoke-diagnosis, gate-1, audit-review)
   - worklog + go/no-go: `issue468/pending/lead_04_fp_ceiling_capture.md`
   - **Verdict: HOLD.** Pilot (n=5) FP mean p=1 = 0.7143 (GREEN band), vs Q2 0.7750,
@@ -250,8 +250,8 @@ Create a trustworthy active dossier that makes it easy to:
 4. **Lead 04 — FP ceiling capture (Phase A COMPLETE → HOLD on full Phase B):**
    - Pilot: 5 exactness prompts measured (FP mean p=1=0.7143 GREEN; Δ vs Q2=−0.06,
      CI includes 0 → gap absent)
-   - Full capture: NOT justified — deferred (the deficit is native drafter quality,
-     not quantization; see go/no-go in the worklog)
+   - Full capture: NOT justified — deferred (pilot underpowered + mhc_post representation
+     unproven; see go/no-go in the worklog)
 
 ## Canonicality rule
 
