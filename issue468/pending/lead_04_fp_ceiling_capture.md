@@ -618,3 +618,105 @@ representation proof is warranted. **Full Phase B capture is deferred.**
 + bundle_manifest + target_tokens); codex reviews at `artifacts/lead04_codex_reviews/`
 (5 retained: patch-design, path-review, smoke-diagnosis, gate-1, audit-review);
 worklog updated; STATUS.md updated; commit on `dspark-research`.
+
+---
+
+## Phase B-limited plan (powered FP vs Q2 drafter gap, 300 prompts)
+
+### Objective
+
+Power the FP-vs-Q2 drafter gap to a decision-grade CI. The 5-prompt pilot
+(Δ=−0.06, CI [−0.25, +0.13]) was underpowered. Capture native (FP4/FP8) target
+data on Lead 03's 300-prompt corpus — **greedy paths + top-128 logits with
+weights + HC hidden states** — then run the local drafter on FP hiddens and pair
+against the already-measured Q2 reference (mean p1=0.7933, per-source available).
+
+### Decision rule (locked BEFORE measuring)
+
+Primary metric: **per-prompt paired Δp1 = FP_p1 − Q2_p1** (drafter top-1 match,
+bootstrap CI resampling prompts not positions, n=300).
+Secondary metric: **target-rank shift** — drafter-proposal rank in target top-128,
+FP vs Q2 (distributional; “are FP misses shallower?”).
+
+- **GO (gap present):** Δp1 ≥ +2 pp AND paired CI lower bound > 0 (and/or target-rank
+  materially shallower on FP). → IQ2XXS degrades the hiddens → Lead 07 IQ2XXS-specific
+  fine-tune trigger met.
+- **STOP (gap absent):** Δp1 ≤ 0, CI upper bound < +2 pp, target-rank similar. →
+  deficit is native drafter quality, not quantization; IQ2XXS fine-tune deprioritized.
+- **HOLD (intermediate):** CI still straddles the +2 pp threshold at n=300.
+
+### Corpus
+
+Lead 03's 300 prompts (`prompts/stage2_corpus/` 240 + `prompts/lead3_corpus/` 60;
+dolly/codealpaca/jsonex × 100 each). Same corpus Lead 03 measured Q2 on →
+**paired by construction** (same prompts, same sources). Q2 reference per-prompt p1
+already in `artifacts/acceptance_powered/combined300/per_prompt/`.
+
+### What to capture (per prompt, per decode step)
+
+| data | FP side (Modal) | Q2 side (local) |
+|---|---|---|
+| HC hidden states `[12288]` | **capture** (hooks, validated) | already in shards |
+| greedy tokens (argmax) | **capture** | already in shards |
+| top-128 logits + weights | **capture** (`logprobs=128`) | **re-capture** (ds4 `--dump-logprobs`) |
+
+- FP capture: extend `capture_hc_modal.py` — add `logprobs=128` to SamplingParams,
+  load the 300-prompt corpus, single warm session, `enable_prefix_caching=False`,
+  `reset_dspark_captures()` between prompts, checkpoint per-prompt to the Modal volume.
+- Q2 top-128: local ds4 `--dump-logprobs top_k=128` on the same 300 prompts
+  (hiddens+greedy already captured; only the logits are new). ~1-2 hr on the Box,
+  single-process (87 GB IQ2XXS), FREE.
+
+### Cost estimate (FP capture, Modal H200:2 ≈ $7.80/hr)
+
+Pilot measured ~8 toks/s (eager + hooks, max_num_seqs=1). With `logprobs=128`
+overhead, budget ~4 toks/s conservatively.
+
+| tokens/prompt | decode time | est. cost (incl load) |
+|---|---|---|
+| 64 (recommended, “limited”) | ~80 min | ~$11 |
+| 128 (full Lead-03 parity) | ~160 min | ~$21 |
+
+Q2 re-capture: free (local). Total FP+Q2 ≈ $11-21. **Flag user before exceeding ~$25.**
+
+### Analysis plan
+
+1. **FP p1 per prompt:** local drafter on FP hiddens vs FP greedy → p1 (same harness
+   as the pilot / Lead 03 torch measure).
+2. **Paired Δp1:** FP_p1 − Q2_p1 per prompt (Q2 from combined300), prompt-clustered
+   bootstrap CI. Report per-source (dolly/codealpaca/jsonex).
+3. **Target-rank:** for each drafter proposal, its rank in the target top-128
+   (0=matched top-1, 1..127=in the top-128, >127=outside). Compare FP vs Q2 rank
+   distributions (are FP misses shallower?). Needs top-128 on both sides.
+4. **Top-k overlap / KL:** secondary, if the p1 + target-rank picture is ambiguous.
+
+### Fidelity gates + codex gates (research-lead workflow)
+
+- **Smoke (before full capture):** 5-prompt capture with `logprobs=128`; verify
+  (a) logprob format/shape, (b) p1 reproduces the pilot (~0.71), (c) shapes
+  [n,3,16384] replicated, (d) no NaN. ~$1-2.
+- **Codex gate 1 (setup):** review the logprobs capture + corpus loader +
+  per-prompt reset/checkpoint + estimator/indexing BEFORE the full run.
+- **Measure:** 300-prompt FP capture (Modal) + Q2 top-128 re-capture (local).
+- **Codex gate 2 (verdict):** review the GO/STOP/HOLD + honest scoping.
+- **Propagate:** worklog + STATUS.md + commit on `dspark-research`.
+
+### Known limitation carried forward
+
+**C1 (mhc_post representation):** not algebraically proven equivalent to ds4's
+`after_ffn_hc`. Empirically validated (sane p1 ≈ Q2). Proceed with C1 as a stated
+caveat; if the gap is small (likely), C1's residual representation error is a
+confound — the target-rank analysis (target logits come from lm_head, not hiddens)
+is more robust and should carry the verdict if p1 is ambiguous.
+
+### Tasks (ordered)
+
+1. Extend `capture_hc_modal.py`: `logprobs=128` + corpus loader + per-prompt
+   checkpoint.
+2. Smoke (5 prompts) + fidelity gate.
+3. Codex gate 1 (setup review).
+4. Q2 top-128 re-capture (local ds4, `--dump-logprobs`, 300 prompts).
+5. FP full capture (Modal, 300 prompts × chosen token count).
+6. Analysis: FP p1 + paired Δp1 CI + target-rank + per-source.
+7. Codex gate 2 (verdict).
+8. Propagate go/no-go.
