@@ -1,6 +1,8 @@
 # Lead 04 — Served-precision acceptance ceiling (drafter vs native FP4/FP8 target)
 
-Date: 2026-07-08. Status: **in progress (Phase A — Modal capture script built).**
+Date: 2026-07-08. **Status: archived 2026-07-10 (HOLD verdict — Phase A pilot + Phase
+B-limited both complete; C1 follow-up open). Moved from issue468/pending/. Result: see
+issue468/summaries/spec_speedup_model.md ("Target hidden-state precision — the FP ceiling").**
 
 **Conditional purchase — trigger on lead 07's PoC landing flat or ambiguous**
 (if the PoC clears +3–5 pp p=1 on its own, realized gains trump mechanism and

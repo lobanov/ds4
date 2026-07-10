@@ -89,7 +89,7 @@ Create a trustworthy active dossier that makes it easy to:
     oracle_inputs + bundle_manifest + target_tokens)
   - codex reviews: `issue468/artifacts/lead04_codex_reviews/` (8 retained: patch-design,
     path-review, smoke-diagnosis, gate-1, audit-review)
-  - worklog + go/no-go: `issue468/pending/lead_04_fp_ceiling_capture.md`
+  - worklog + go/no-go (archived, HOLD): `issue468/archive/leads/lead_04_fp_ceiling_capture.md`
   - **Verdict: HOLD (Phase B-limited, codex gate 2 re-review).** 299/300 native captures;
     consistent-dtype float32 Δp1=+5.28pp CI[+3.8,+6.6] (technically GO; the earlier codex
     dtype-confound hypothesis was REFUTED — f32-Q2==f16-Q2 exactly on 240 prompts). BUT not
