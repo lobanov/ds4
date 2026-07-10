@@ -1,0 +1,12 @@
+{
+  "prompt_name": "grounded_archive",
+  "prompt_file": "prompts/grounded_archive.txt",
+  "temperature": 0.0,
+  "seed": 0,
+  "ctx": 4096,
+  "block": 5,
+  "generated_tokens": 13,
+  "measure_steps": 13,
+  "prompt_tokens": 102,
+  "reference_mode": "greedy"
+}

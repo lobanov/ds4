@@ -1,0 +1,173 @@
+{
+  "label": "code_sort_pairs@temp=0.0",
+  "candidate": null,
+  "reuse_mode": "none",
+  "bundle_dir": "/tmp/pilot_v3_code_sort_pairs",
+  "prompt_name": "code_sort_pairs",
+  "temperature": 0.0,
+  "seed": 0,
+  "prompt_tokens": 81,
+  "measure_steps": 7,
+  "total_positions": 35,
+  "total_match": 28,
+  "match_pct": 80.0,
+  "average_prefix": 3.857142857142857,
+  "prefix_hist": {
+    "0": 1,
+    "1": 0,
+    "2": 0,
+    "3": 1,
+    "4": 1,
+    "5": 4
+  },
+  "rows": [
+    {
+      "step": 1,
+      "position": 82,
+      "anchor": 36490,
+      "draft": [
+        201,
+        3465,
+        5803,
+        24175,
+        10595
+      ],
+      "target": [
+        201,
+        3465,
+        5803,
+        5224,
+        5851
+      ],
+      "match": 3,
+      "prefix": 3
+    },
+    {
+      "step": 2,
+      "position": 83,
+      "anchor": 201,
+      "draft": [
+        3465,
+        5803,
+        5224,
+        5851,
+        3395
+      ],
+      "target": [
+        3465,
+        5803,
+        5224,
+        5851,
+        7093
+      ],
+      "match": 4,
+      "prefix": 4
+    },
+    {
+      "step": 3,
+      "position": 84,
+      "anchor": 3465,
+      "draft": [
+        5803,
+        5224,
+        5851,
+        7093,
+        5851
+      ],
+      "target": [
+        5803,
+        5224,
+        5851,
+        7093,
+        5851
+      ],
+      "match": 5,
+      "prefix": 5
+    },
+    {
+      "step": 4,
+      "position": 85,
+      "anchor": 5803,
+      "draft": [
+        5224,
+        5851,
+        7093,
+        5851,
+        3395
+      ],
+      "target": [
+        5224,
+        5851,
+        7093,
+        5851,
+        3395
+      ],
+      "match": 5,
+      "prefix": 5
+    },
+    {
+      "step": 5,
+      "position": 86,
+      "anchor": 5224,
+      "draft": [
+        5851,
+        7093,
+        5851,
+        3395,
+        361
+      ],
+      "target": [
+        5851,
+        7093,
+        5851,
+        3395,
+        361
+      ],
+      "match": 5,
+      "prefix": 5
+    },
+    {
+      "step": 6,
+      "position": 87,
+      "anchor": 5851,
+      "draft": [
+        3395,
+        361,
+        16786,
+        361,
+        30626
+      ],
+      "target": [
+        7093,
+        5851,
+        3395,
+        361,
+        16786
+      ],
+      "match": 1,
+      "prefix": 0
+    },
+    {
+      "step": 7,
+      "position": 88,
+      "anchor": 7093,
+      "draft": [
+        5851,
+        3395,
+        361,
+        16786,
+        361
+      ],
+      "target": [
+        5851,
+        3395,
+        361,
+        16786,
+        361
+      ],
+      "match": 5,
+      "prefix": 5
+    }
+  ],
+  "reference_mode": "greedy"
+}

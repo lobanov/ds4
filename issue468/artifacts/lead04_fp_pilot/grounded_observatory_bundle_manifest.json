@@ -1,0 +1,12 @@
+{
+  "prompt_name": "grounded_observatory",
+  "prompt_file": "prompts/grounded_observatory.txt",
+  "temperature": 0.0,
+  "seed": 0,
+  "ctx": 4096,
+  "block": 5,
+  "generated_tokens": 13,
+  "measure_steps": 13,
+  "prompt_tokens": 113,
+  "reference_mode": "greedy"
+}

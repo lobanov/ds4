@@ -1,0 +1,12 @@
+{
+  "prompt_name": "code_histogram",
+  "prompt_file": "prompts/code_histogram.txt",
+  "temperature": 0.0,
+  "seed": 0,
+  "ctx": 4096,
+  "block": 5,
+  "generated_tokens": 13,
+  "measure_steps": 13,
+  "prompt_tokens": 70,
+  "reference_mode": "greedy"
+}

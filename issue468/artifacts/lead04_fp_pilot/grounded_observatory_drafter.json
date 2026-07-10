@@ -1,0 +1,173 @@
+{
+  "label": "grounded_observatory@temp=0.0",
+  "candidate": null,
+  "reuse_mode": "none",
+  "bundle_dir": "/tmp/pilot_v3_grounded_observatory",
+  "prompt_name": "grounded_observatory",
+  "temperature": 0.0,
+  "seed": 0,
+  "prompt_tokens": 113,
+  "measure_steps": 7,
+  "total_positions": 35,
+  "total_match": 9,
+  "match_pct": 25.714285714285715,
+  "average_prefix": 0.7142857142857143,
+  "prefix_hist": {
+    "0": 3,
+    "1": 3,
+    "2": 1,
+    "3": 0,
+    "4": 0,
+    "5": 0
+  },
+  "rows": [
+    {
+      "step": 1,
+      "position": 114,
+      "anchor": 1341,
+      "draft": [
+        270,
+        7900,
+        377,
+        270,
+        1116
+      ],
+      "target": [
+        270,
+        4105,
+        7900,
+        377,
+        270
+      ],
+      "match": 1,
+      "prefix": 1
+    },
+    {
+      "step": 2,
+      "position": 115,
+      "anchor": 270,
+      "draft": [
+        4105,
+        7900,
+        9676,
+        270,
+        1116
+      ],
+      "target": [
+        4105,
+        7900,
+        377,
+        270,
+        1116
+      ],
+      "match": 4,
+      "prefix": 2
+    },
+    {
+      "step": 3,
+      "position": 116,
+      "anchor": 4105,
+      "draft": [
+        377,
+        270,
+        38571,
+        377,
+        270
+      ],
+      "target": [
+        7900,
+        377,
+        270,
+        1116,
+        64009
+      ],
+      "match": 0,
+      "prefix": 0
+    },
+    {
+      "step": 4,
+      "position": 117,
+      "anchor": 7900,
+      "draft": [
+        9676,
+        270,
+        38571,
+        91,
+        734
+      ],
+      "target": [
+        377,
+        270,
+        1116,
+        64009,
+        24570
+      ],
+      "match": 1,
+      "prefix": 0
+    },
+    {
+      "step": 5,
+      "position": 118,
+      "anchor": 377,
+      "draft": [
+        270,
+        18496,
+        14,
+        305,
+        270
+      ],
+      "target": [
+        270,
+        1116,
+        64009,
+        24570,
+        270
+      ],
+      "match": 2,
+      "prefix": 1
+    },
+    {
+      "step": 6,
+      "position": 119,
+      "anchor": 270,
+      "draft": [
+        18496,
+        305,
+        270,
+        18496,
+        305
+      ],
+      "target": [
+        1116,
+        64009,
+        24570,
+        270,
+        53311
+      ],
+      "match": 0,
+      "prefix": 0
+    },
+    {
+      "step": 7,
+      "position": 120,
+      "anchor": 1116,
+      "draft": [
+        64009,
+        305,
+        612,
+        15669,
+        270
+      ],
+      "target": [
+        64009,
+        24570,
+        270,
+        53311,
+        7679
+      ],
+      "match": 1,
+      "prefix": 1
+    }
+  ],
+  "reference_mode": "greedy"
+}

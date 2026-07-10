@@ -1,0 +1,173 @@
+{
+  "label": "code_histogram@temp=0.0",
+  "candidate": null,
+  "reuse_mode": "none",
+  "bundle_dir": "/tmp/pilot_v3_code_histogram",
+  "prompt_name": "code_histogram",
+  "temperature": 0.0,
+  "seed": 0,
+  "prompt_tokens": 70,
+  "measure_steps": 7,
+  "total_positions": 35,
+  "total_match": 26,
+  "match_pct": 74.28571428571429,
+  "average_prefix": 3.7142857142857144,
+  "prefix_hist": {
+    "0": 1,
+    "1": 1,
+    "2": 0,
+    "3": 0,
+    "4": 0,
+    "5": 5
+  },
+  "rows": [
+    {
+      "step": 1,
+      "position": 71,
+      "anchor": 36490,
+      "draft": [
+        201,
+        5356,
+        23093,
+        1662,
+        5512
+      ],
+      "target": [
+        201,
+        3465,
+        2906,
+        65,
+        13930
+      ],
+      "match": 1,
+      "prefix": 1
+    },
+    {
+      "step": 2,
+      "position": 72,
+      "anchor": 201,
+      "draft": [
+        3465,
+        2906,
+        65,
+        13930,
+        14614
+      ],
+      "target": [
+        3465,
+        2906,
+        65,
+        13930,
+        14614
+      ],
+      "match": 5,
+      "prefix": 5
+    },
+    {
+      "step": 3,
+      "position": 73,
+      "anchor": 3465,
+      "draft": [
+        2906,
+        65,
+        13930,
+        14614,
+        88287
+      ],
+      "target": [
+        2906,
+        65,
+        13930,
+        14614,
+        88287
+      ],
+      "match": 5,
+      "prefix": 5
+    },
+    {
+      "step": 4,
+      "position": 74,
+      "anchor": 2906,
+      "draft": [
+        65,
+        13930,
+        14614,
+        88287,
+        3395
+      ],
+      "target": [
+        65,
+        13930,
+        14614,
+        88287,
+        3395
+      ],
+      "match": 5,
+      "prefix": 5
+    },
+    {
+      "step": 5,
+      "position": 75,
+      "anchor": 65,
+      "draft": [
+        13930,
+        14614,
+        88287,
+        3395,
+        361
+      ],
+      "target": [
+        13930,
+        14614,
+        88287,
+        3395,
+        361
+      ],
+      "match": 5,
+      "prefix": 5
+    },
+    {
+      "step": 6,
+      "position": 76,
+      "anchor": 13930,
+      "draft": [
+        88287,
+        3395,
+        361,
+        16786,
+        361
+      ],
+      "target": [
+        14614,
+        88287,
+        3395,
+        361,
+        16786
+      ],
+      "match": 0,
+      "prefix": 0
+    },
+    {
+      "step": 7,
+      "position": 77,
+      "anchor": 14614,
+      "draft": [
+        88287,
+        3395,
+        361,
+        16786,
+        361
+      ],
+      "target": [
+        88287,
+        3395,
+        361,
+        16786,
+        361
+      ],
+      "match": 5,
+      "prefix": 5
+    }
+  ],
+  "reference_mode": "greedy"
+}

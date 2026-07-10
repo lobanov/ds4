@@ -79,6 +79,13 @@ Create a trustworthy active dossier that makes it easy to:
   - Stage 0 summary: `issue468/summaries/quant_mismatch_diagnostic.md`; harness `issue468/run_stage0_quant_mismatch.py`; artifacts `issue468/artifacts/quant_mismatch_diagnostic/` (incl. `drafter_top64_scores.npz` for rank re-derivation, `codex_review.md`)
   - Stage 1 summary: `issue468/summaries/stage1_tap_precision.md`; capture `issue468/run_exactness_small_bundles.py` (Q4-tap variant); compare `issue468/run_stage1_q4tap_compare.py`; artifacts `issue468/artifacts/exactness_small_bundles_q4tap/` (incl. `comparison_vs_baseline/` + `codex_review.md`)
   - headline: drafter p=1 misses are **shallow / right neighborhood** (median target-rank 1.0; top-2 coverage 0.8125→0.9125) — recoverable shape, but causal link to quant unproven. Raising tap-layer (layers 37–42) precision to Q4 did **not** materially help p=1 (underpowered; CI straddles 0) — the original FP-vs-Q2 mismatch framing is partially falsified. Recommendation: bounded Stage 2 fine-tune PoC (not a full pipeline), targeting the secondary gate.
+- **Lead 04 — FP ceiling capture (in progress, Phase A on Modal):**
+  - capture script: `issue468/run_lead04_modal/capture.py` (Modal + vLLM >=0.18.0
+    `extract_hidden_states` for layers 40/41/42); conversion: `convert_vllm_to_oracle.py`
+  - pilot: `pilot.py` (5 exactness prompts); fidelity: `validate_fidelity.py`
+  - worklog: `issue468/pending/lead_04_fp_ceiling_capture.md`
+  - Modal credentials set up; HF token stored as Modal Secret
+  - Next: run pilot on 5 prompts (~$5-11 on H200:4); full capture after pilot passes
 - Stage 2 bounded fine-tune PoC (Activities 1–9, doubly codex-reviewed; **complete → verdict: NOT-JUSTIFIED**):
   - result: `issue468/summaries/stage2_finetune_result.md`; protocol `issue468/summaries/stage2_finetune_protocol.md`
   - corpus/capture: `prompts/stage2_corpus/` (240 prompts); `run_stage2_capture.py` + ds4 `--capture-dataset` engine mode; shards `dspark_train/data/shards/`
@@ -225,6 +232,11 @@ Create a trustworthy active dossier that makes it easy to:
    - false leads / exhausted directions
    - current open questions
 3. Move bulky or superseded material to archive references rather than keeping it active.
+4. **Lead 04 — FP ceiling capture (Phase A on Modal):**
+   - Pilot: run on 5 exactness prompts via Modal (H200:4, ~$5-11)
+   - Fidelity gate: validate conversion, shapes, drafter sanity, D1 rate
+   - Full capture: 250 prompts label-only + hidden states (~$40-125)
+   - Analysis: FP-ceiling p=1 and E[a|5block] vs retained IQ2XXS values
 
 ## Canonicality rule
 

@@ -76,6 +76,41 @@ large-model run. Read it **before** spending GPU money.
    (`manylinux_2_28_aarch64`) and `torch+cu130` aarch64 exist — so vLLM runs on
    Grace-Blackwell (e.g. DGX Spark). Plain `pip install vllm`.
 
+9. **CUDA graphs break forward hooks.** `enforce_eager=False` (cudagraphs ON) gives
+   ~2× speedup BUT **forward hooks don't fire during graph replay** → the capture
+   list stays empty (zero captures). For hook-based capture, `enforce_eager=True` is
+   **required** (~2 toks/s on TP=2 H200 for a 285B MoE; acceptable for small captures,
+   slow for full-powered runs). A cudagraph-compatible capture would need a
+   model-forward patch (write-to-buffer inside `forward`, part of the graph) — a
+   deeper surgery for future optimization.
+
+10. **The chat template is mandatory — raw text produces degenerate output.**
+    `llm.generate([raw_text])` is completion-style and does **not** apply the chat
+    template. A chat model given an unformatted prompt can produce a **degenerate
+    repeating pattern** (e.g. the same 3 tokens every ~4 positions). Always use
+    `llm.chat()` or manually render the model's chat format (BOS + system +
+    `<｜User｜>` + prompt + `<｜Assistant｜>` + `</think>` for DeepSeek). **Diagnostic:**
+    if the greedy repeats and 0%-matches a reference, check `prompt_len` — a mismatch
+    vs the reference engine's tokenization = a template issue, not a model/hook bug.
+
+11. **Clone inputs before computing in a forward hook.** A hook that calls a CUDA
+    kernel (e.g. `mhc_post_tilelang`) on the layer's OUTPUT tensors **corrupts the
+    forward** — those tensors are the next layer's INPUTS; an in-place kernel
+    modification silently degrades every subsequent layer. Always `.clone()` the
+    inputs before any computation inside a hook: `mhc_post_fn(hs.clone(),
+    residual.clone(), ...)`. (Even with clones, verify the greedy is non-repeating
+    and the drafter-sanity p=1 is in band.)
+
+12. **The working capture pattern (validated): post-load `apply_model` hooks.** The
+    reliable V1 capture = register PyTorch forward hooks on the model's layers
+    **AFTER** the model is loaded (not at import), via `llm.apply_model(func)` —
+    which runs `func(model)` **inside the EngineCore** where the model lives. Set
+    `VLLM_ALLOW_INSECURE_SERIALIZATION=1` (cloudpickle for the function). Fetch the
+    captured buffer afterward via a second `apply_model(lambda m:
+    m.get_buffer())`. The buffer is replicated across TP ranks (lesson 7) — fetch
+    rank 0 only. This pattern avoids the subprocess boundary (lesson 1), the EAGLE3
+    requirement (lesson 2), and the CUDA-graph incompatibility (lesson 9).
+
 ## Pre-GPU-spend checklist (do these FREE first)
 
 - **CPU-only Modal probes cost nothing.** A Modal function **without** `gpu=` that reads
@@ -101,6 +136,16 @@ large-model run. Read it **before** spending GPU money.
 - `SamplingParams(logprobs=N)` is capped at **20** by default → raise with
   `LLM(max_logprobs=N)`.
 - Some connectors/features require `enable_chunked_prefill=False`.
+- `VLLM_ALLOW_INSECURE_SERIALIZATION=1` is required to pass Python functions (lambdas,
+  closures) through `apply_model` / `collective_rpc` across the EngineCore subprocess
+  boundary (uses cloudpickle). Without it: `TypeError: Object of type function is not
+  serializable`.
+- `modal.Image.add_local_file(path, remote_path)` must use `copy=True` if any `.env()` or
+  build step follows it; otherwise: `InvalidError: an image tried to run a build step
+  after using add_local_*`. Or place `add_local_*` calls last.
+- `llm.chat()` applies the chat template; `llm.generate([raw_text])` does NOT. For
+  chat-trained models, always use `chat()` or render the template manually to avoid
+  degenerate output (lesson 10).
 - `enforce_eager=True` skips torch.compile + CUDA graphs (faster bootstrap, slower
   inference) and is **required** by some paths (e.g. CacheOnly-style extraction).
 - `kv_cache_dtype` may be **required** by certain attention layouts (an assertion fires
