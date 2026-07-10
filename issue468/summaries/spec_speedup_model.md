@@ -286,11 +286,10 @@ So the float32-FP-vs-f16-Q2 comparison IS the consistent-dtype comparison.
 | dolly | | | +2.73 pp | [+1.3, +4.1] |
 | jsonex | | | +6.15 pp | [+2.8, +8.8] |
 
-**Verdict: GO (at consistent float32 dtype; corrected — the earlier codex-gate-2
-"dtype confound" hypothesis was REFUTED by the float32-Q2 re-measurement).** The CI
-lower bound (+3.8 pp) clears the +2 pp threshold. IQ2XXS target-hidden quantization
-degrades the drafter's input by ~5 pp of acceptance — materially larger than the ~0.06
-drafts/cycle local deficit.
+**Verdict: HOLD (per codex gate 2 re-review; the float32 metric says GO but is not
+deployment-actionable).** The CI lower bound (+3.8 pp) clears the +2 pp threshold at
+float32, so the float32 metric is technically GO. BUT codex gate 2 downgraded to HOLD
+because:
 
 **Critical caveat — the F16/deployment anomaly (C1 reopened):** the F16 drafter on FP
 hiddens gives p1≈0.62 vs F16-Q2≈0.79 (FP *worse*), while float32-FP≈0.85. The drafter

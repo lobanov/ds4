@@ -90,17 +90,17 @@ Create a trustworthy active dossier that makes it easy to:
   - codex reviews: `issue468/artifacts/lead04_codex_reviews/` (6 retained: patch-design,
     path-review, smoke-diagnosis, gate-1, audit-review)
   - worklog + go/no-go: `issue468/pending/lead_04_fp_ceiling_capture.md`
-  - **Verdict: HOLD.** Pilot (n=5) FP mean p=1 = 0.7143 (GREEN band), vs Q2 0.7750,
-    Δ=−0.06 (per-prompt paired 95% CI [−0.25, +0.13], includes 0 → gap absent /
-    underpowered). The drafter was distilled against native served precision (per
-    `inventories/dsv4_flash_dspark_model.md`); a native-trained drafter not beating Q2
-    weakens the IQ2XXS-degradation hypothesis, BUT the `mhc_post` representation is not
-    algebraically proven (C1 unresolved) and the pilot is underpowered — so the claim is
-    "no robust evidence native hiddens improve p=1 enough to justify Phase B," NOT a
-    proven exoneration of IQ2XXS. Full Phase B capture ($40–125) NOT justified;
-    deferred. Key bug found + fixed: vLLM `enable_prefix_caching=True` contaminated
-    subsequent prompts' KV cache (positional p1 degradation); prefix caching OFF resolves it.
-    Codex gate 2 APPROVED the HOLD.
+  - **Verdict: HOLD (Phase B-limited, codex gate 2 re-review).** 299/300 native captures;
+    consistent-dtype float32 Δp1=+5.28pp CI[+3.8,+6.6] (technically GO; the earlier codex
+    dtype-confound hypothesis was REFUTED — f32-Q2==f16-Q2 exactly on 240 prompts). BUT not
+    deployment-actionable: the F16 drafter on FP hiddens gives p1≈0.62 vs F16-Q2 0.79
+    (deployment flips to STOP) — strong C1 evidence (mhc_post capture error exposed at F16,
+    masked by float32). Plus CI lower ≈ kernel systematic (~4pp, thin), cross-engine
+    confound (FP=vLLM vs Q2=ds4), easy corpus (dolly +2.7pp; exactness pilot −6pp). HOLD
+    pending an algebraic vLLM-vs-ds4 hidden-equality proof (C1). Don't kill the native-
+    hidden hypothesis (capture bug could explain F16) but STOP action on the F16 capture
+    path. JIT caches (TileLang+DeepGEMM) wired to volume (526s→244s warm). (Phase A pilot
+    HOLD superseded: that was n=5 underpowered; Phase B is the powered measurement.)
 - Stage 2 bounded fine-tune PoC (Activities 1–9, doubly codex-reviewed; **complete → verdict: NOT-JUSTIFIED**):
   - result: `issue468/summaries/stage2_finetune_result.md`; protocol `issue468/summaries/stage2_finetune_protocol.md`
   - corpus/capture: `prompts/stage2_corpus/` (240 prompts); `run_stage2_capture.py` + ds4 `--capture-dataset` engine mode; shards `dspark_train/data/shards/`

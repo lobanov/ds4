@@ -728,3 +728,51 @@ is more robust and should carry the verdict if p1 is ambiguous.
 6. Analysis: FP p1 + paired Δp1 CI + target-rank + per-source.
 7. Codex gate 2 (verdict).
 8. Propagate go/no-go.
+
+---
+
+## Phase B-limited RESULT (2026-07-10): **HOLD** (codex gate 2 re-review)
+
+**Capture (DONE):** 299/300 native FP4/FP8 captures (greedy + top-128 logits + HC
+hiddens) on Lead 03's corpus, Modal H200:2, ~$13. JIT caches (TileLang+DeepGEMM) wired
+to the persistent volume (526s→244s warm). Variable n_capture handled (151 n_cap==n_gen,
+148 n_cap==n_gen-1); converter offsets; analyzer alignment verified (mh[0]=post-g_0 for
+both cases — dropping gave insane p1).
+
+**Analysis (the dtype saga):**
+1. First analysis (float32 drafter on FP hiddens vs F16-Q2 reference): Δ=+5.28pp,
+   CI[+3.81,+6.56], GO. Per-source all positive (codealpaca +7.0, dolly +2.7, jsonex +6.2).
+2. Codex gate 2 REJECTED: flagged (M6) a dtype confound (float32-FP vs F16-Q2) +
+   (M1) the analyzer ignoring positions + (M2) kernel systematic + (M5) zero-anchor rows.
+3. **Dtype confound REFUTED:** re-measured Q2 at float32 (240 prompts) → f32-Q2 == f16-Q2
+   EXACTLY (max|diff|=0.00000, drafts identical, means 0.7930). The drafter is
+   dtype-invariant for Q2 hiddens. So the +5.3pp IS the valid consistent-dtype comparison.
+   Codex M6 was wrong (for Q2); M1 was also wrong (the converter's -1 offset was incorrect;
+   mh[0]=post-g_0 for both n_cap cases — verified by p1 sanity).
+
+**The F16 anomaly (the real blocker):** the drafter is dtype-invariant on Q2 hiddens but
+NOT on FP hiddens: float32-FP p1≈0.85 (sane) vs **F16-FP p1≈0.62** (insane). At
+**deployment precision (F16/Q4_K drafter), FP hiddens HURT (−17pp)** — opposite of the
+float32 GO. This strongly suggests **C1 (the mhc_post capture representation) is real**:
+float32's wider range masks the error; F16 exposes it. A drafter distilled on native
+hiddens should not crater on correct native hiddens while staying sane on Q2-degraded ones.
+
+**Verdict: HOLD** (codex gate 2 re-review). The float32 metric is technically GO (+5.3pp,
+CI clears +2pp), but it is NOT deployment-actionable because (a) the F16 deployment result
+is STOP (FP hiddens hurt −17pp), (b) C1 (capture representation) is unresolved + likely
+the cause of the F16 anomaly, (c) the CI lower (+3.8) ≈ kernel systematic (~4pp, thin),
+(d) cross-engine confound (FP=vLLM, Q2=ds4 — not a pure hidden-precision attribution),
+(e) corpus is the easy side (dolly +2.7pp; exactness pilot was −6pp). HOLD: do NOT kill
+the native-hidden hypothesis (a capture bug could explain the F16 result) but STOP any
+action on the current FP capture path at F16 until C1 is resolved.
+
+**Resolution path (future lead):** algebraic vLLM-vs-ds4 hidden-equality proof (does
+mhc_post produce the same `after_ffn_hc` as ds4?); if equal, the F16 anomaly is a genuine
+F16 numerical issue (deploy a float32 drafter?); if not, C1 is a capture bug (fix the
+representation, re-measure). A balanced confirmation corpus (hard code/synthesis, longer
+prompts, common-prefix/crossed-oracle) is expected to shrink the +5pp.
+
+**Provenance:** captures at /tmp/phaseB_all/ (299 bundles); float32-Q2 at
+artifacts/acceptance_powered/combined300_float32/ (240); result JSON
+/tmp/phaseB_results/phaseB_gap_final.json; codex reviews 07 (gate1), 08 (gate2 re-review);
+spec_speedup_model.md FP section corrected (GO→HOLD, dtype-confound retracted, F16/C1 noted).
