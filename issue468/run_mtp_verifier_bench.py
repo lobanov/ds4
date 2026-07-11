@@ -30,7 +30,7 @@ SEED = "1"
 TPS_RE = re.compile(r"prefill:\s*([0-9.]+) t/s, generation:\s*([0-9.]+) t/s")
 # matches: ds4: mtp timing <kind> drafted=D committed=C ... draft=X ms ... verify=Y ms ... total=Z ms
 TIMING_RE = re.compile(
-    r"ds4: mtp timing (\S+) drafted=(\d+) committed=(\d+).*?draft=([0-9.]+) ms.*?"
+    r"ds4: mtp timing (\S+) drafted=(\d+) (committed|verified)=(\d+).*?draft=([0-9.]+) ms.*?"
     r"verify=([0-9.]+) ms.*?total=([0-9.]+) ms")
 
 
@@ -56,8 +56,9 @@ def run_config(label: str, extra_args: list[str], env_extra: dict[str, str]) -> 
         mt = TIMING_RE.search(line)
         if mt:
             timings.append({"kind": mt.group(1), "drafted": int(mt.group(2)),
-                            "committed": int(mt.group(3)), "draft_ms": float(mt.group(4)),
-                            "verify_ms": float(mt.group(5)), "total_ms": float(mt.group(6))})
+                            "count_kind": mt.group(3), "committed": int(mt.group(4)),
+                            "draft_ms": float(mt.group(5)),
+                            "verify_ms": float(mt.group(6)), "total_ms": float(mt.group(7))})
     r["n_cycles"] = len(timings)
     if timings:
         for k in ("draft_ms", "verify_ms", "total_ms"):

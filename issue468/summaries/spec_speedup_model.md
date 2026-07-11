@@ -3,28 +3,28 @@
 Date: 2026-07-06 (cycle-cost model); **holistic integration 2026-07-08** of Lead 01
 (anchor-reuse falsifier), Lead 02 (confidence-scheduled verification), and Lead 03
 (powered acceptance + realistic-trajectory); **Lead 04 Phase B (FP hidden-precision
-ceiling) integrated 2026-07-10**.
+ceiling) integrated 2026-07-10**; **Lead 06 + Lead 08 Phase A measured 2026-07-11**.
 Model: `issue468/model_spec_speedup.py`; powered data + cycle-jump:
 `issue468/artifacts/acceptance_powered/`; outputs:
 `issue468/artifacts/spec_speedup_model/{summary.json,model_inputs.json}`.
 
 ## Headline (current best understanding)
 
-**Under the realistic per-cycle trajectory, DSpark speculative decoding does NOT beat plain
-ds4 decode locally on the measured corpus.** The best fixed-K result under the optimized
-anchor-reusing verifier is K≈4–5 at **~0.98×**; the shipped verifier is materially worse.
-Confidence scheduling narrows but does not reverse that conclusion: on fresh out-of-sample
-replay it still loses under shipped accounting, and under anchor reuse it reaches only a
-fragile **1.0375×** (frozen threshold) to **1.0523×** (expected-opt diagnostic) with less
-than **4 ms/cycle** of overhead headroom. The remaining acceptance levers are a better
-drafter (training) and — per Lead 04 Phase B — **target hidden-state precision**, which is a
-*separate, open* lever from drafter-weight precision: native FP4/FP8 target hiddens lift
-first-token acceptance ~+5 pp over the local IQ2XXS target at float32 (CI clears +2 pp), but
-the deployment-dtype (F16) result reverses sign (a likely capture-representation error), so
-that lever is **HOLD** pending an algebraic hidden-equality proof (see "Target hidden-state
-precision" below). So beating baseline remains contingent on an unbuilt cheap anchor-
-reusing verifier plus a better drafter; scheduling is at most conditional secondary
-material, and target-hidden precision is live-but-unconfirmed.
+**Under the realistic per-cycle trajectory, DSpark speculative decoding still does NOT beat
+plain ds4 decode locally on the measured corpus.** Lead 06 made the anchor-reuse verifier
+real, but the correctness-safe implementation that survived regression is an **exact
+sequential-reuse** path, not the cheap folded verifier assumed by the old optimistic model.
+It materially improves over shipped larger-K `--mtp`, but remains below baseline on every
+measured corpus: on the full modeled 300-prompt benchmark, baseline averages **39.02 t/s**,
+shipped K=4 **27.15 t/s**, and exact anchor reuse **32.67 t/s** (**+20.95% over shipped,
+−16.26% vs baseline**); on the retained long-context K=4 cells it reaches
+**30.81 / 31.69 / 28.85 t/s** versus baselines **36.34 / 37.46 / 33.65**. Confidence
+scheduling therefore remains only conditional secondary material: it helps only if a much
+cheaper verifier exists than the exact Lead 06 path. Lead 08 Phase A now gives that next
+recommendation directly: verifier wall time is dominated by GPU layer execution and retains
+roughly **19–22 ms/cycle** of measured headroom at K=3..5, so a fused low-K verifier kernel
+is justified. The remaining acceptance levers are still a better drafter (training) and —
+per Lead 04 — target hidden-state precision.
 
 ## The question and the gates
 
@@ -148,22 +148,20 @@ of the band; cycle-jump the realistic edge.
   the anchor) have E[a|4]=1.994 vs predicted-anchor 2.427; real decode interleaves them,
   pulling per-cycle acceptance from the sliding 2.337 down to the cycle-jump 2.198.
 
-## Anchor reuse (Lead 01) — the optimized-verifier assumption, partially de-risked
+## Anchor reuse (Lead 01 + Lead 06) — assumption de-risked, cheap path still open
 
-The optimized-verifier regime above **assumes** the verify-produced anchor can seed the next
-draft without a fresh 26 ms decode. An adversarial codex review flagged this as the
-load-bearing unverified risk (the shipped `--mtp` decodes every cycle; the reuse graph is
-unbuilt on ds4). Lead 01's offline falsifier tested the **acceptance-axis** of that
-assumption: feeding the drafter the *last-accepted-position* (stale) hidden + the correction
-token as embedding. Result (`summaries/anchor_reuse_falsifier.md`): **no large acceptance
-collapse** in any tested regime (5/6 temp×KV-model cells SURVIVE, 1 MARGINAL; all CIs
-straddle 0; p=1 robustly non-negative), so the drafter tolerates stale-from-valid-prefix
-hidden — reuse is **necessary-but-not-sufficient** and is not refuted on acceptance grounds.
-BUT non-inferiority is not established (the corpus was underpowered; reuse reshapes the block
-— early positions +, late −), and the **verifier-side** risks remain entirely untested:
-verify-forward-hidden equivalence under IQ2XXS, residual per-cycle overhead (~15–19 ms of
-readback/rollback/first-miss waste the model sets to zero), and actual cycle timing. Those
-gate the optimistic edge and are Lead 06's job.
+Lead 01 de-risked the **acceptance axis** of stale-hidden reuse: the drafter tolerates the
+last-accepted-position hidden plus the correction token as anchor input, with no large
+acceptance collapse observed (`summaries/anchor_reuse_falsifier.md`). Lead 06 then resolved
+the **correctness** question on ds4: a real env-gated anchor-reuse path now exists and passes
+both the greedy exactness corpus and the retained temp>0 logit/distribution parity gate
+(`summaries/mtp_verifier_engineering_and_phaseA.md`).
+
+What Lead 06 did **not** prove is the old optimistic economic assumption. The surviving path
+is an exact sequential verifier substrate, not a cheap folded verifier. On the full modeled
+300-prompt corpus it recovers about half of the shipped K=4 loss (+20.95% over shipped) but
+still remains **−16.26% below baseline**, so the remaining gap is now squarely verifier cost,
+not correctness or acceptance realizability.
 
 ## Q1 — acceptance required to beat baseline / clear +20% (sliding framing)
 
@@ -222,7 +220,7 @@ same two verifier accountings used elsewhere in this dossier.
 
 So in the speedup model, scheduled verification is not an overlay or an independent route
 to viability. It is best represented as a **conditional secondary increment** that matters
-only if Lead 06 makes the optimized anchor-reusing verifier real and very cheap.
+only if a much cheaper verifier than the current exact Lead 06 path exists.
 
 ## Target hidden-state precision — the FP ceiling (Lead 04 Phase B + C)
 
@@ -308,12 +306,13 @@ accounting. Under anchor reuse, scheduling rises only to a fragile low-single-di
 band on fresh replay, so the case for a local speedup still requires a stack of unverified
 gains:
 
-1. **Anchor-reusing verifier** (Lead 06): acceptance-axis de-risked by Lead 01; verifier-
-   hidden equivalence + residual overhead + cycle timing untested. This is the prerequisite
-   for any positive scheduling result at all. It is worth ~18 pp at K=4 relative to shipped
-   fixed-K accounting if realizable, but the realistic unscheduled edge it would feed is
-   still only ~0.98×, and Lead 02 lifts that only to ~1.04× in the clean frozen-threshold
-   result.
+1. **Anchor-reusing verifier economics** (Lead 06 + Lead 08): correctness is now proven, and
+   the measured exact-reuse path is worth about **+21% over shipped K=4** on the modeled
+   300-prompt corpus, but it is still **−16% vs baseline** because it falls back to exact
+   sequential verification. Phase A profiling shows the dominant remaining cost is verifier
+   layer execution, with roughly **19–22 ms/cycle** of headroom at K=3..5, so the next
+   question is not "can reuse be exact?" but "can verifier cost be driven toward the
+   ~45 ms/K4 band without breaking exactness?".
 2. **A materially better drafter** (Lead 07 upstream quality / training): the binding
    constraint is per-cycle acceptance; **drafter-weight** precision is exhausted (Q4_K≈F16),
    but **target hidden-state** precision is NOT closed — Lead 04 Phase B measured a ~+5 pp
@@ -332,15 +331,14 @@ gains:
   growth) is prompt-independent and unchanged.
 - Corpus is dolly/codealpaca/jsonex (easy side); a code/synthesis deployment is harder.
   Acceptance is temp=0 greedy; temp 0.5/1.0 drops E[a|4] ~7 pp.
-- The optimized-verifier projection assumes a usable anchor hidden at the rejection point —
-  an implementation property to confirm against the ds4 graph (Lead 06).
+- The cheap optimized-verifier projection assumes a verifier much cheaper than the current
+  exact Lead 06 path. Exact reuse is implemented; cheap reuse remains open.
 
-Net: the realistic answer to "can DSpark beat baseline locally?" is **no, not with the
-current drafter + an optimized-but-unbuilt verifier on this corpus** — and adaptive
-scheduling does not alter that answer under shipped economics. At best, if Lead 06 delivers
-a genuinely cheap folded verifier, scheduling contributes a fragile extra few points on top.
-The decision-grade open questions therefore move to Lead 06 (does a real folded verifier
-realize the anchor-reuse + low-overhead regime?) and Lead 07 (can the drafter's per-cycle
-acceptance rise enough to clear the ~0.06–0.10 drafts/cycle deficit — and can the Lead 04
-   +8–10% float32 FP-ceiling lever be realized, via a float32 drafter / body-LoRA / hidden-dequant?).
-
+Net: the realistic answer to "can DSpark beat baseline locally?" is still **no** with the
+current drafter on this target. What changed is that the verifier question is now split in
+two: **exact anchor reuse is real**, but **cheap verifier economics are not**. The
+decision-grade open questions therefore move to Lead 08 Phase B style kernel work (can the
+verifier be pushed down toward the measured headroom without breaking exactness?) and Lead 07
+(can the drafter's per-cycle acceptance rise enough to clear the remaining deficit — and can
+the Lead 04 +8–10% float32 FP-ceiling lever be realized, via a float32 drafter / body-LoRA /
+hidden-dequant?).

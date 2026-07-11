@@ -1,6 +1,8 @@
 # Lead 06 — Verifier engineering: anchor reuse + residual cycle overhead
 
-Date: 2026-07-07. Status: pending. **Updated 2026-07-07 by Lead 03:** the modeled K=4
+Date: 2026-07-07. Status: **resolved & archived 2026-07-11** (moved from `issue468/pending/`).
+Result: see `issue468/summaries/mtp_verifier_engineering_and_phaseA.md`.
+**Updated 2026-07-07 by Lead 03:** the modeled K=4
 numbers below cite the SLIDING estimate (~−0.9% / 0.99×), which Lead 03 showed is
 OPTIMISTIC — the realistic cycle-jump K=4 edge is **0.982× (−1.8%, P(speed<1)=0.999)**
 on the 300-prompt corpus (`summaries/acceptance_statistical_power.md`). Treat the
@@ -72,3 +74,20 @@ Metal).
   without reintroducing a per-cycle decode (e.g., batch-vs-decode numerics
   can't be reconciled), record that as the engineering falsification of anchor
   reuse on ds4 — the counterpart to lead 01's representational falsifier.
+
+## Worklog
+
+### 2026-07-11 — exact anchor reuse implemented; correctness gates PASS; throughput still below baseline
+
+Implemented an env-gated anchor-reuse verifier path under `DS4_MTP_ANCHOR_REUSE=1`, but
+the correctness-safe variant that survived regression is an **exact sequential-reuse**
+path, not a cheap batched exact verifier. Retained gates all passed: 10/10 greedy exactness
+matches on the retained exactness corpus and temp>0 logits/distribution parity on 640
+sampled steps with zero drift (`artifacts/mtp_exactness_compare/`,
+`artifacts/mtp_temp_distribution_compare/`).
+
+Performance result: the path is materially better than shipped larger-K `--mtp`, but not
+competitive with plain decode. On the full modeled 300-prompt corpus, baseline averaged
+39.02 t/s, shipped K=4 27.15 t/s, and exact anchor reuse 32.67 t/s: **+20.95% over
+shipped, −16.26% vs baseline**. Canonical summary:
+`issue468/summaries/mtp_verifier_engineering_and_phaseA.md`.

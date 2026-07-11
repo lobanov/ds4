@@ -93,5 +93,5 @@ dossier.
 - **Lead 06 (verifier engineering):** the binding question is now sharper — K=4 is ~0.98× on
   the realistic trajectory, so the verifier must either raise acceptance (drafter) or cut
   residual overhead to flip it positive; and the cycle-jump/drafter-state-pollution gap
-  (unmodeled here) is the next thing to measure. (Note: `pending/lead_06_*.md` still cites the
+  (unmodeled here) is the next thing to measure. (Note: `archive/leads/lead_06_verifier_engineering.md` still cites the
   stale sliding −0.9%; treat as superseded by this cycle-jump 0.982×.)

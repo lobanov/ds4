@@ -1,6 +1,8 @@
 # Lead 08 — Fused low-K batch-verify kernel (close the verify-vs-floor gap)
 
-Date: 2026-07-07. Status: pending. **Two-phase: a cheap profiling gate first
+Date: 2026-07-07. Status: **resolved & archived 2026-07-11** (moved from `issue468/pending/`).
+Result: see `issue468/summaries/mtp_verifier_engineering_and_phaseA.md`.
+**Two-phase: a cheap profiling gate first
 (independent, can start immediately), kernel work only if the gate passes.**
 Related to lead 06 but a distinct thesis: the verifier is above its *own*
 bandwidth floor, independent of the redundant anchor decode.
@@ -96,3 +98,21 @@ valuable) — re-run that simulation against any new curve.
 - **Abort condition:** exactness cannot be preserved by either strategy without
   reintroducing per-position exact re-verification on >~5% of positions (eating
   the gain) — record as the numerics falsification of the fused approach.
+
+## Worklog
+
+### 2026-07-11 — Phase A profiling gate PASSED; recommendation: proceed to Phase B
+
+Implemented retained `DS4_MTP_VERIFY_PROFILE` instrumentation and measured the shipped
+verifier on the long-context corpus for K=3..5. The resulting artifact
+(`artifacts/mtp_phaseA_profile/summary.json`) shows verifier wall time dominated by layer
+execution, not host readback: for K=4, verify medians were ~65.9/66.5/67.1 ms while the
+initial layer-execute medians alone were ~62.6/63.0/64.0 ms on
+`code_8k`/`synthesis_8k`/`grounded_8k`.
+
+Selected routed-expert bytes at K=4 were only ~4.8–5.4 GiB against a full-routed
+72.56 GiB layer set, and the measured `verify_ms(K) - floor_ms(K)` headroom remained about
+19–22 ms/cycle at K=3..5. That clears the lead's `~15 ms` proceed gate. Recommendation:
+**proceed to Phase B fused low-K kernel work** if verifier acceleration remains a live
+research path. Canonical summary:
+`issue468/summaries/mtp_verifier_engineering_and_phaseA.md`.

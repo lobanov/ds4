@@ -49,6 +49,16 @@ Create a trustworthy active dossier that makes it easy to:
   - harness: `issue468/run_mtp_verifier_bench.py` (code_4k, K in {2,4,8,16}) and
     `issue468/run_mtp_verifier_bench_long.py` (8k prompts, K=2..6)
   - artifacts: `issue468/artifacts/mtp_verifier_bench/` and `mtp_verifier_bench_long/`
+- Lead 06 verifier engineering + Lead 08 Phase A fused-verify profiling:
+  - canonical summary: `issue468/summaries/mtp_verifier_engineering_and_phaseA.md`
+  - worklogs (resolved, archived): `issue468/archive/leads/lead_06_verifier_engineering.md`,
+    `issue468/archive/leads/lead_08_fused_verify_kernel.md`
+  - harnesses: `issue468/run_mtp_exactness_compare.py`,
+    `issue468/run_mtp_temp_distribution_compare.py`,
+    `issue468/run_mtp_phaseA_profile.py`,
+    `issue468/run_mtp_corpus_bench.py`
+  - artifacts: `issue468/artifacts/mtp_exactness_compare/`,
+    `mtp_temp_distribution_compare/`, `mtp_phaseA_profile/`, `mtp_corpus_bench/`
 - Speculative-decode speedup model (numpy projection, answers the gate questions):
   - summary: `issue468/summaries/spec_speedup_model.md`
   - model: `issue468/model_spec_speedup.py`
@@ -181,7 +191,8 @@ Create a trustworthy active dossier that makes it easy to:
   dynamic break-even E[a|4]=2.256 (deficit 0.058). Corpus-dependent (cycle-jump K=4:
   jsonex +2.3%, codealpaca −1.9%, dolly −5.6%). The shipped `--mtp` pays a redundant
   anchor decode every cycle (~−18 pp at K=4) — anchor reuse (acceptance-axis de-risked
-  by Lead 01, verifier economics untested = Lead 06) is the largest lever, but it would
+  by Lead 01; exact path now implemented, cheap verifier economics still open after Lead 06)
+  is the largest lever, but it would
   feed a ~0.98× realistic edge, not the old sliding −0.9%. A 4-node draft tree still
   cannot help (ceiling +2.2%, dominated by a linear chain; hedging is doubly
   penalized). Levers: verifier-anchor reuse + a materially better drafter (training,
@@ -194,6 +205,26 @@ Create a trustworthy active dossier that makes it easy to:
   set to zero in the model and prompt-level noise (sd ≈0.43 on E[a|4]).
   The under-assumption findings stand; treat them as the optimistic edge of a band
   whose pessimistic edge is the shipped-verifier reality.
+- **Lead 06 resolved: anchor reuse is now implemented exactly on ds4, but the surviving
+  correctness-safe path is a sequential-reuse substrate, not a cheap folded verifier.**
+  Canonical result: `summaries/mtp_verifier_engineering_and_phaseA.md`. Hard gates PASS:
+  10/10 retained exactness prompts match baseline byte-for-byte at K=4, and the temp>0
+  distribution gate passes on 640 sampled steps with zero logit/logprob drift. Performance
+  is materially better than shipped larger-K `--mtp` but still below plain decode: on the
+  full modeled 300-prompt corpus, baseline averages **39.02 t/s**, shipped K=4 **27.15 t/s**,
+  and exact anchor reuse **32.67 t/s** (**+20.95% over shipped, −16.26% vs baseline**).
+  On the retained long-context K=4 cells it reaches **30.81 / 31.69 / 28.85 t/s** against
+  baselines **36.34 / 37.46 / 33.65**. Interpretation: the verifier state machine is real,
+  but current verifier cost still prevents baseline recovery.
+- **Lead 08 Phase A resolved: the shipped verifier retains enough measured headroom to
+  justify Phase B fused-kernel work.** `summaries/mtp_verifier_engineering_and_phaseA.md`
+  records the retained profiling run (`DS4_MTP_VERIFY_PROFILE=1`) on the long-context corpus.
+  K=4 verify medians were **65.9 / 66.5 / 67.1 ms**, with initial layer-execute medians
+  **62.6 / 63.0 / 64.0 ms** on `code_8k` / `synthesis_8k` / `grounded_8k`; selected routed
+  bytes were only **~4.8–5.4 GiB** vs **72.56 GiB** full-routed. The measured
+  `verify_ms(K) - floor_ms(K)` headroom at K=3..5 is roughly **19–22 ms/cycle**, above the
+  lead's `~15 ms` proceed gate. Recommendation: **proceed to Phase B** if verifier
+  acceleration remains in scope.
 - **Confidence-scheduled verification (Lead 02): useless under shipped economics; only
   fragile conditional secondary material under anchor reuse.** Canonical result:
   `summaries/confidence_scheduled_verification.md`. Confidence extraction was fidelity-gated
@@ -210,8 +241,8 @@ Create a trustworthy active dossier that makes it easy to:
   have only about **3.0–3.9 ms/cycle** of overhead headroom before they disappear.
   Per-source fresh frozen-threshold speedup under anchor reuse: codealpaca **1.046×**,
   dolly **1.003×**, jsonex **1.063×**. **Decision:** Lead 02 does NOT revive the local gate;
-  record it only as marginal conditional secondary material contingent on Lead 06 proving a
-  genuinely cheap anchor-reuse verifier.
+  record it only as marginal conditional secondary material contingent on a verifier much
+  cheaper than the current exact Lead 06 path.
 - **DFlash drafter comparison: DSpark is more attractive on this corpus.**
   DFlash oracle built and validated vs the MLX reference (<=0.08% rel); the only
   bug was a self-inflicted `d2t` token-mapping error (`d2t` is an offset, not an

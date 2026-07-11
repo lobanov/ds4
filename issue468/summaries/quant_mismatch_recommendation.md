@@ -43,7 +43,8 @@ Rationale:
 Even a fine-tune that captured every current top-2 case (p=1 → ~0.91) reaches
 "beat baseline / match --mtp" at K=4 per the speedup model, but **not** the +20%
 primary gate (needs ~0.94 at K=4 / ~0.89 at K=5). The +20% gate is a **compound
-stretch**: it needs fine-tuning *and* the unbuilt anchor-reuse verifier
+stretch**: it needs fine-tuning *and* a verifier much cheaper than the current exact
+anchor-reuse path
 (`spec_speedup_model.md` flags the shipped `--mtp` verifier pays a redundant anchor
 decode, ~−18 pp at K=4) *and* acceptance near the top-2 ceiling. So: fine-tuning
 most plausibly delivers the **secondary** gate; the primary gate is an outside shot

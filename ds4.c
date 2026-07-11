@@ -12060,6 +12060,71 @@ static bool metal_graph_stream_prefill_selected_profile_layer(
     return true;
 }
 
+static bool metal_graph_batch_selected_profile_stats(
+        ds4_gpu_graph           *g,
+        const ds4_layer_weights *layer,
+        uint32_t                 n_tokens,
+        uint32_t                *unique_out,
+        uint64_t                *selected_bytes_out,
+        uint64_t                *full_bytes_out) {
+    if (!g || !layer || !g->batch_router_selected || n_tokens == 0 ||
+        !unique_out || !selected_bytes_out || !full_bytes_out ||
+        DS4_N_EXPERT == 0 || DS4_N_EXPERT > DS4_MAX_EXPERT ||
+        DS4_N_EXPERT_USED == 0 || DS4_N_EXPERT_USED > DS4_MAX_EXPERT_USED) {
+        return false;
+    }
+
+    const uint64_t n_ids = (uint64_t)n_tokens * DS4_N_EXPERT_USED;
+    if (n_ids > SIZE_MAX / sizeof(int32_t)) return false;
+    int32_t *selected = xmalloc((size_t)n_ids * sizeof(selected[0]));
+    const bool read_ok = ds4_gpu_tensor_read(g->batch_router_selected,
+                                             0,
+                                             selected,
+                                             n_ids * sizeof(selected[0])) != 0;
+    if (!read_ok) {
+        free(selected);
+        return false;
+    }
+
+    bool seen[DS4_MAX_EXPERT] = { false };
+    uint32_t unique = 0;
+    for (uint64_t i = 0; i < n_ids; i++) {
+        const int32_t expert = selected[i];
+        if (expert < 0 || (uint32_t)expert >= DS4_N_EXPERT) {
+            free(selected);
+            return false;
+        }
+        if (!seen[expert]) {
+            seen[expert] = true;
+            unique++;
+        }
+    }
+    free(selected);
+
+    const uint64_t gate_row_bytes = routed_expert_row_bytes(layer->ffn_gate_exps);
+    const uint64_t down_row_bytes = routed_expert_row_bytes(layer->ffn_down_exps);
+    if (layer->ffn_gate_exps->dim[1] > UINT64_MAX / gate_row_bytes ||
+        layer->ffn_down_exps->dim[1] > UINT64_MAX / down_row_bytes) {
+        return false;
+    }
+    const uint64_t gate_expert_bytes = layer->ffn_gate_exps->dim[1] * gate_row_bytes;
+    const uint64_t down_expert_bytes = layer->ffn_down_exps->dim[1] * down_row_bytes;
+    if (gate_expert_bytes > UINT64_MAX - gate_expert_bytes ||
+        gate_expert_bytes + gate_expert_bytes > UINT64_MAX - down_expert_bytes) {
+        return false;
+    }
+    const uint64_t per_expert_bytes = gate_expert_bytes + gate_expert_bytes +
+                                      down_expert_bytes;
+    *unique_out = unique;
+    *selected_bytes_out =
+        unique > UINT64_MAX / per_expert_bytes ?
+        UINT64_MAX : (uint64_t)unique * per_expert_bytes;
+    *full_bytes_out =
+        (uint64_t)DS4_N_EXPERT > UINT64_MAX / per_expert_bytes ?
+        UINT64_MAX : (uint64_t)DS4_N_EXPERT * per_expert_bytes;
+    return true;
+}
+
 static void metal_graph_stream_prefill_selected_profile_summary(
         const ds4_gpu_graph *g) {
     if (!metal_graph_stream_prefill_selected_profile_enabled(g) ||
@@ -21141,6 +21206,22 @@ static bool metal_graph_verify_suffix_tops(
     if (start > (uint32_t)prompt->len || n_tokens > (uint32_t)prompt->len - start) return false;
     const uint32_t top_rows = n_tokens > 1 ? n_tokens - 1 : 0;
     if (top_rows && !row_tops) return false;
+    const bool profile = getenv("DS4_MTP_VERIFY_PROFILE") != NULL;
+    const bool profile_experts = profile || getenv("DS4_MTP_VERIFY_EXPERT_PROFILE") != NULL;
+    const double t0 = profile ? now_sec() : 0.0;
+    double upload_done = t0;
+    double layers_encoded = t0;
+    double layers_done = t0;
+    double head_encoded = t0;
+    double head_done = t0;
+    double tops_read_done = t0;
+    double logits_read_done = t0;
+    uint64_t selected_bytes_total = 0;
+    uint64_t full_bytes_total = 0;
+    uint64_t unique_total = 0;
+    uint32_t unique_min = UINT32_MAX;
+    uint32_t unique_max = 0;
+    uint32_t unique_layers = 0;
 
     bool ok = metal_graph_upload_prompt_tokens(g->prefill_tokens, prompt, start, n_tokens);
     if (ok) ok = metal_graph_upload_prompt_embeddings_hc(g->batch_cur_hc,
@@ -21150,6 +21231,7 @@ static bool metal_graph_verify_suffix_tops(
                                                          prompt,
                                                          start,
                                                          n_tokens);
+    if (profile) upload_done = now_sec();
     if (!ok) return false;
 
     const bool saved_capture = g->spec_capture_prefix1;
@@ -21163,9 +21245,31 @@ static bool metal_graph_verify_suffix_tops(
                                             il,
                                             start,
                                             n_tokens);
+        if (ok && profile_experts && weights && il < DS4_N_LAYER) {
+            uint32_t unique = 0;
+            uint64_t selected_bytes = 0;
+            uint64_t full_bytes = 0;
+            if (!metal_graph_batch_selected_profile_stats(g,
+                                                          &weights->layer[il],
+                                                          n_tokens,
+                                                          &unique,
+                                                          &selected_bytes,
+                                                          &full_bytes)) {
+                ok = false;
+                break;
+            }
+            unique_layers++;
+            unique_total += unique;
+            selected_bytes_total += selected_bytes;
+            full_bytes_total += full_bytes;
+            if (unique < unique_min) unique_min = unique;
+            if (unique > unique_max) unique_max = unique;
+        }
     }
+    if (profile) layers_encoded = now_sec();
     if (ok) ok = ds4_gpu_end_commands() != 0;
     else (void)ds4_gpu_synchronize();
+    if (profile) layers_done = now_sec();
     g->spec_capture_prefix1 = saved_capture;
     if (!ok) return false;
 
@@ -21194,19 +21298,46 @@ static bool metal_graph_verify_suffix_tops(
                                                1) != 0;
         }
     }
+    if (profile) head_encoded = now_sec();
     if (ok) ok = ds4_gpu_end_commands() != 0;
     else (void)ds4_gpu_synchronize();
+    if (profile) head_done = now_sec();
     if (ok && top_rows) {
         ok = ds4_gpu_tensor_read(g->comp_selected,
                                    0,
                                    row_tops,
                                    (uint64_t)top_rows * sizeof(row_tops[0])) != 0;
     }
+    if (profile) tops_read_done = now_sec();
     if (ok && row_logits) {
         ok = ds4_gpu_tensor_read(g->spec_logits,
                                    0,
                                    row_logits,
                                    (uint64_t)n_tokens * DS4_N_VOCAB * sizeof(row_logits[0])) != 0;
+    }
+    if (profile) logits_read_done = now_sec();
+    if (profile) {
+        fprintf(stderr,
+                "ds4: mtp verify profile start=%u tokens=%u top_rows=%u "
+                "upload=%.3f ms layer_encode=%.3f ms layer_execute=%.3f ms "
+                "head_encode=%.3f ms head_execute=%.3f ms top_read=%.3f ms "
+                "logits_read=%.3f ms selected=%.2f GiB full=%.2f GiB "
+                "avg_unique=%.1f min_unique=%u max_unique=%u\n",
+                start,
+                n_tokens,
+                top_rows,
+                (upload_done - t0) * 1000.0,
+                (layers_encoded - upload_done) * 1000.0,
+                (layers_done - layers_encoded) * 1000.0,
+                (head_encoded - layers_done) * 1000.0,
+                (head_done - head_encoded) * 1000.0,
+                (tops_read_done - head_done) * 1000.0,
+                (logits_read_done - tops_read_done) * 1000.0,
+                (double)selected_bytes_total / (1024.0 * 1024.0 * 1024.0),
+                (double)full_bytes_total / (1024.0 * 1024.0 * 1024.0),
+                unique_layers ? (double)unique_total / (double)unique_layers : 0.0,
+                unique_min == UINT32_MAX ? 0 : unique_min,
+                unique_max);
     }
     return ok;
 }
@@ -21218,6 +21349,21 @@ static bool metal_graph_read_spec_logits_row(ds4_gpu_graph *g, uint32_t row, flo
                                  (uint64_t)row * row_bytes,
                                  logits,
                                  row_bytes) != 0;
+}
+
+static bool metal_graph_copy_batch_hc_row(
+        ds4_gpu_graph *g,
+        uint32_t       row,
+        ds4_gpu_tensor *dst) {
+    if (!g || !g->batch_cur_hc || !dst || row >= g->prefill_cap) return false;
+    const uint64_t hc_dim = (uint64_t)DS4_N_HC * DS4_N_EMBD;
+    ds4_gpu_tensor *src = metal_graph_tensor_row_view(g->batch_cur_hc, row, hc_dim);
+    if (!src) return false;
+    const bool ok = ds4_gpu_tensor_copy(dst, 0,
+                                        src, 0,
+                                        hc_dim * sizeof(float)) != 0;
+    ds4_gpu_tensor_free(src);
+    return ok;
 }
 
 /* Exact N=2 target verifier for MTP.
@@ -27171,7 +27317,9 @@ int ds4_session_eval(ds4_session *s, int token, char *err, size_t errlen) {
 }
 
 /* Speculative decode state machine:
- * 1. commit the normal target token and use its logits to validate draft[0];
+ * 1. either commit the normal target token and use its logits to validate
+ *    draft[0], or (experimental) treat the sampled correction token as row 0
+ *    of the next verify batch and draft from the stale committed hidden;
  * 2. let MTP recursively draft a tiny suffix from its own raw-cache frontier;
  * 3. verify the suffix with the target graph, committing only the accepted
  *    prefix and rolling back speculative Metal state on miss;
@@ -27203,6 +27351,9 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
     return -1;
 #else
     ds4_engine *e = s->engine;
+    const bool mtp_anchor_reuse_requested = getenv("DS4_MTP_ANCHOR_REUSE") != NULL;
+    const bool mtp_anchor_reuse = mtp_anchor_reuse_requested && s->graph.mtp_n_raw > 0;
+    const bool mtp_spec_log = getenv("DS4_MTP_SPEC_LOG") != NULL;
 
     /*
      * MTP in DeepSeek V4 is a speculative drafter, not a replacement sampler.
@@ -27212,23 +27363,43 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
      * several proposed positions together; running ordinary decode once per
      * draft token is correctness-safe but cannot be faster than baseline.
      */
-    if (ds4_session_eval(s, first_token, err, errlen) != 0) return -1;
     int n_accept = 0;
-    accepted[n_accept++] = first_token;
-    if (first_token == eos_token || max_tokens == 1 || n_accept >= accepted_cap) return n_accept;
+    if (!mtp_anchor_reuse) {
+        if (mtp_spec_log && mtp_anchor_reuse_requested) {
+            fprintf(stderr, "ds4: mtp anchor-reuse unavailable; falling back to standalone decode\n");
+        }
+        if (ds4_session_eval(s, first_token, err, errlen) != 0) return -1;
+        accepted[n_accept++] = first_token;
+        if (first_token == eos_token || max_tokens == 1 || n_accept >= accepted_cap) return n_accept;
+        if (!e->mtp_ready || !s->mtp_draft_valid || e->mtp_draft_tokens <= 1) return n_accept;
+    } else {
+        if (!e->mtp_ready || e->mtp_draft_tokens <= 1) {
+            if (ds4_session_eval(s, first_token, err, errlen) != 0) return -1;
+            accepted[n_accept++] = first_token;
+            return n_accept;
+        }
+        if (sample_argmax(s->logits, DS4_N_VOCAB) != first_token) {
+            if (mtp_spec_log) {
+                fprintf(stderr, "ds4: mtp anchor-reuse skipped non-argmax first_token=%d target=%d\n",
+                        first_token,
+                        sample_argmax(s->logits, DS4_N_VOCAB));
+            }
+            if (ds4_session_eval(s, first_token, err, errlen) != 0) return -1;
+            accepted[n_accept++] = first_token;
+            return n_accept;
+        }
+    }
 
-    if (!e->mtp_ready || !s->mtp_draft_valid || e->mtp_draft_tokens <= 1) return n_accept;
-
-    int draft_cap = e->mtp_draft_tokens;
+    int draft_cap = e->mtp_draft_tokens + (mtp_anchor_reuse ? 1 : 0);
     if (draft_cap > max_tokens - n_accept) draft_cap = max_tokens - n_accept;
     if (draft_cap > accepted_cap - n_accept) draft_cap = accepted_cap - n_accept;
     int room = s->ctx_size - s->checkpoint.len;
-    if (draft_cap > room - 1) draft_cap = room - 1;
+    if (draft_cap > room - (mtp_anchor_reuse ? 0 : 1)) draft_cap = room - (mtp_anchor_reuse ? 0 : 1);
     if (draft_cap <= 0) return n_accept;
 
-    int drafts[16];
+    int drafts[17];
     int draft_n = 1;
-    drafts[0] = s->mtp_draft_token;
+    drafts[0] = mtp_anchor_reuse ? first_token : s->mtp_draft_token;
     s->mtp_draft_valid = false;
     const bool strict_mtp = e->quality || getenv("DS4_MTP_STRICT") != NULL;
     float mtp_margin_threshold = e->mtp_margin;
@@ -27249,13 +27420,13 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
     int mtp_last_top0 = -1, mtp_last_top1 = -1;
 
     /*
-     * The first proposed token is verified for free: ds4_session_eval() just
-     * produced the base logits for the committed prefix.  If MTP disagrees at
-     * this point there is no suffix to verify, so the exact behavior is to emit
-     * only first_token and skip all speculative work.
+     * In the shipped path the first proposed token is verified "for free":
+     * ds4_session_eval() just produced the base logits for the committed
+     * prefix.  If MTP disagrees there is no suffix to verify, so the exact
+     * behavior is to emit only first_token and skip all speculative work.
      */
-    if (sample_argmax(s->logits, DS4_N_VOCAB) != drafts[0]) {
-        if (getenv("DS4_MTP_SPEC_LOG")) {
+    if (!mtp_anchor_reuse && sample_argmax(s->logits, DS4_N_VOCAB) != drafts[0]) {
+        if (mtp_spec_log) {
             fprintf(stderr, "ds4: mtp spec miss first draft=%d\n", drafts[0]);
         }
         return n_accept;
@@ -27273,6 +27444,28 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
         if (keep_ > s->graph.raw_window) keep_ = s->graph.raw_window; \
         s->graph.mtp_n_raw = keep_; \
     } while (0)
+
+    if (mtp_anchor_reuse) {
+        int mtp_top = -1;
+        if (!metal_graph_eval_mtp_draft_from_hc(&s->graph,
+                                                &e->model,
+                                                &e->weights,
+                                                &e->mtp_model,
+                                                &e->mtp_weights,
+                                                s->graph.cur_hc,
+                                                s->graph.mtp_state_hc,
+                                                drafts[0],
+                                                (uint32_t)s->checkpoint.len,
+                                                mtp_need_logits ? s->mtp_logits : NULL,
+                                                &mtp_top))
+        {
+            return n_accept;
+        }
+        if (draft_cap > 1) {
+            drafts[draft_n] = mtp_top >= 0 ? mtp_top : sample_argmax(s->mtp_logits, DS4_N_VOCAB);
+            if (drafts[draft_n] == eos_token) draft_n++;
+        }
+    }
 
     for (; draft_n < draft_cap; draft_n++) {
         ds4_gpu_tensor *prev_hc = (draft_n & 1) ? s->graph.mtp_state_hc : s->graph.mtp_next_hc;
@@ -27305,7 +27498,9 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
     }
     if (mtp_timing) mtp_t_after_draft = now_sec();
 
-    if (!strict_mtp && draft_n == 2 && mtp_margin_threshold > 0.0f) {
+    if (mtp_anchor_reuse_requested) goto seq_verify;
+
+    if (!mtp_anchor_reuse && !strict_mtp && draft_n == 2 && mtp_margin_threshold > 0.0f) {
         if (!mtp_conf_log) {
             float v0 = 0.0f, v1 = 0.0f;
             logits_top2(s->mtp_logits, DS4_N_VOCAB, &mtp_last_top0, &v0, &mtp_last_top1, &v1);
@@ -27357,6 +27552,7 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
      * which preserves the one-token target stream but is not a speed win.
      */
     const bool use_decode2_exact =
+        !mtp_anchor_reuse &&
         draft_n == 2 && strict_mtp && getenv("DS4_MTP_BATCH_VERIFY") == NULL;
     if (use_decode2_exact) {
         ds4_spec_frontier frontier;
@@ -27545,17 +27741,31 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
                         accepted[n_accept++] = drafts[i];
                         if (drafts[i] == eos_token) break;
                     }
+                    if (mtp_anchor_reuse_requested) {
+                        ok = metal_graph_copy_batch_hc_row(&s->graph,
+                                                           (uint32_t)(draft_n - 1),
+                                                           s->graph.cur_hc);
+                    }
+                    if (!ok) {
+                        spec_frontier_free(&frontier);
+                        free(row_logits);
+                        free(row_tops);
+                        snprintf(err, errlen, "MTP verifier hidden-state copy failed");
+                        s->checkpoint_valid = false;
+                        return -1;
+                    }
                     s->checkpoint_valid = true;
                     s->mtp_draft_valid = false;
                     DS4_MTP_KEEP_ACCEPTED(draft_n);
                     if (mtp_timing) {
                         fprintf(stderr,
-                                "ds4: mtp timing micro drafted=%d committed=%d draft=%.3f ms snapshot=%.3f ms verify=%.3f ms total=%.3f ms\n",
+                                "ds4: mtp timing micro drafted=%d committed=%d draft=%.3f ms snapshot=%.3f ms verify=%.3f ms reuse=%d total=%.3f ms\n",
                                 draft_n,
                                 draft_n,
                                 (mtp_t_after_draft - mtp_t0) * 1000.0,
                                 (snapshot_done - snapshot_t0) * 1000.0,
                                 (micro_verify_done - snapshot_done) * 1000.0,
+                                mtp_anchor_reuse ? 1 : 0,
                                 (now_sec() - mtp_t0) * 1000.0);
                     }
                     spec_frontier_free(&frontier);
@@ -27574,19 +27784,25 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
                 if (ok) {
                     memcpy(s->logits, row_logits, (size_t)DS4_N_VOCAB * sizeof(s->logits[0]));
                     accepted[n_accept++] = drafts[0];
+                    if (mtp_anchor_reuse_requested) {
+                        ok = metal_graph_copy_batch_hc_row(&s->graph, 0, s->graph.cur_hc);
+                    }
+                }
+                if (ok) {
                     s->checkpoint_valid = true;
                     s->mtp_draft_valid = false;
                     DS4_MTP_KEEP_ACCEPTED(1);
                     token_vec_push(&s->checkpoint, drafts[0]);
                     if (mtp_timing) {
                         fprintf(stderr,
-                                "ds4: mtp timing micro drafted=%d committed=%d draft=%.3f ms snapshot=%.3f ms verify=%.3f ms prefix=%.3f ms total=%.3f ms noreplay=1\n",
+                                "ds4: mtp timing micro drafted=%d committed=%d draft=%.3f ms snapshot=%.3f ms verify=%.3f ms prefix=%.3f ms reuse=%d total=%.3f ms noreplay=1\n",
                                 draft_n,
                                 commit_drafts,
                                 (mtp_t_after_draft - mtp_t0) * 1000.0,
                                 (snapshot_done - snapshot_t0) * 1000.0,
                                 (micro_verify_done - snapshot_done) * 1000.0,
                                 (prefix_done - prefix_t0) * 1000.0,
+                                mtp_anchor_reuse ? 1 : 0,
                                 (now_sec() - mtp_t0) * 1000.0);
                     }
                     spec_frontier_free(&frontier);
@@ -27650,19 +27866,27 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
                         accepted[n_accept++] = drafts[i];
                         if (drafts[i] == eos_token) break;
                     }
+                    if (mtp_anchor_reuse_requested) {
+                        ok = metal_graph_copy_batch_hc_row(&s->graph,
+                                                           (uint32_t)(commit_drafts - 1),
+                                                           s->graph.cur_hc);
+                    }
+                }
+                if (ok) {
                     s->checkpoint_valid = true;
                     s->mtp_draft_valid = false;
                     DS4_MTP_KEEP_ACCEPTED(commit_drafts);
                     if (mtp_timing) {
                         const double replay_done = now_sec();
                         fprintf(stderr,
-                                "ds4: mtp timing micro drafted=%d committed=%d draft=%.3f ms snapshot=%.3f ms verify=%.3f ms replay=%.3f ms total=%.3f ms\n",
+                                "ds4: mtp timing micro drafted=%d committed=%d draft=%.3f ms snapshot=%.3f ms verify=%.3f ms replay=%.3f ms reuse=%d total=%.3f ms\n",
                                 draft_n,
                                 commit_drafts,
                                 (mtp_t_after_draft - mtp_t0) * 1000.0,
                                 (snapshot_done - snapshot_t0) * 1000.0,
                                 (micro_verify_done - snapshot_done) * 1000.0,
                                 (replay_done - micro_verify_done) * 1000.0,
+                                mtp_anchor_reuse ? 1 : 0,
                                 (replay_done - mtp_t0) * 1000.0);
                     }
                     spec_frontier_free(&frontier);
@@ -27701,6 +27925,7 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
      * wrong state.  This path is deliberately slow and should not be selected
      * during normal --mtp operation.
      */
+seq_verify: {
     int verified = 0;
     int target_top = sample_argmax(s->logits, DS4_N_VOCAB);
     bool logits_on_host = true;
@@ -27753,7 +27978,8 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
 #undef DS4_MTP_KEEP_ACCEPTED
     if (mtp_timing) {
         fprintf(stderr,
-                "ds4: mtp timing seq drafted=%d verified=%d draft=%.3f ms verify=%.3f ms total=%.3f ms\n",
+                "ds4: mtp timing %s drafted=%d verified=%d draft=%.3f ms verify=%.3f ms total=%.3f ms\n",
+                mtp_anchor_reuse_requested ? "seq-reuse" : "seq",
                 draft_n,
                 verified,
                 (mtp_t_after_draft - mtp_t0) * 1000.0,
@@ -27775,6 +28001,7 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
         }
     }
     return n_accept;
+}
 #endif
 }
 

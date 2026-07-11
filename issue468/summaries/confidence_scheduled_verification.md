@@ -154,8 +154,8 @@ about **`3.89 ms/cycle`**. Adding `+4 ms/cycle` drops them to about **`0.988x`**
 
 **Decision:** Lead 02 does **not** rescue the shipped local path and does **not** clear its
 own stacking tier on the clean frozen-threshold policy. Record it as **marginal,
-conditional secondary material**: worth remembering only if Lead 06 proves a genuinely
-cheap anchor-reuse verifier, but not a standalone priority and not evidence that scheduled
+conditional secondary material**: worth remembering only if a verifier much cheaper than the
+current exact Lead 06 path exists, but not a standalone priority and not evidence that scheduled
 verification revives the local gate.
 
 ## Scope / caveats

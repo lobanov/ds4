@@ -16,7 +16,8 @@ trace retained at `issue468/artifacts/stage2_plan_review/`).
 - **Out of scope (explored separately, regardless of this PoC's outcome):** expert
   tuning — the expensive part and a separate workstream; not a hedge on the verdict.
 - This PoC measures **acceptance only**. A throughput reaffirm would additionally
-  require the unbuilt anchor-reuse verifier (`spec_speedup_model.md`), so acceptance
+  require a verifier much cheaper than the current exact anchor-reuse path
+  (`spec_speedup_model.md`), so acceptance
   gain is treated as necessary-but-not-sufficient for the GOAL's throughput gate.
 
 ## Decision rule

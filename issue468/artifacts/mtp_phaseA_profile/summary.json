@@ -1,0 +1,1568 @@
+[
+  {
+    "label": "code_8k__k3",
+    "prompt": "issue468/prompts/baseline_corpus/code_8k.txt",
+    "ctx": 16384,
+    "K": 3,
+    "returncode": 0,
+    "wall_s": 14.38,
+    "n": 64,
+    "prefill_tps": 374.74,
+    "gen_tps": 25.0,
+    "spec_miss_first": 3,
+    "n_cycles": 21,
+    "timing_summary": {
+      "draft_ms": {
+        "mean": 3.829,
+        "median": 3.972,
+        "min": 0.061,
+        "max": 4.237
+      },
+      "verify_ms": {
+        "mean": 58.244,
+        "median": 59.51,
+        "min": 38.035,
+        "max": 60.36
+      },
+      "total_ms": {
+        "mean": 88.346,
+        "median": 100.159,
+        "min": 38.112,
+        "max": 114.359
+      },
+      "drafted": {
+        "mean": 2.905,
+        "median": 3.0,
+        "min": 1.0,
+        "max": 3.0
+      },
+      "committed": {
+        "mean": 1.905,
+        "median": 2.0,
+        "min": 1.0,
+        "max": 3.0
+      }
+    },
+    "initial_profile_summary": {
+      "upload_ms": {
+        "mean": 0.021,
+        "median": 0.018,
+        "min": 0.01,
+        "max": 0.042
+      },
+      "layer_encode_ms": {
+        "mean": 1.647,
+        "median": 1.634,
+        "min": 1.509,
+        "max": 2.053
+      },
+      "layer_execute_ms": {
+        "mean": 56.164,
+        "median": 56.456,
+        "min": 54.097,
+        "max": 56.678
+      },
+      "head_encode_ms": {
+        "mean": 0.025,
+        "median": 0.024,
+        "min": 0.014,
+        "max": 0.038
+      },
+      "head_execute_ms": {
+        "mean": 1.39,
+        "median": 1.365,
+        "min": 1.33,
+        "max": 1.596
+      },
+      "top_read_ms": {
+        "mean": 0.001,
+        "median": 0.001,
+        "min": 0.0,
+        "max": 0.001
+      },
+      "logits_read_ms": {
+        "mean": 0.0,
+        "median": 0.0,
+        "min": 0.0,
+        "max": 0.0
+      },
+      "selected_gib": {
+        "mean": 4.208,
+        "median": 4.25,
+        "min": 3.12,
+        "max": 5.1
+      },
+      "full_gib": {
+        "mean": 72.56,
+        "median": 72.56,
+        "min": 72.56,
+        "max": 72.56
+      },
+      "avg_unique": {
+        "mean": 14.85,
+        "median": 15.0,
+        "min": 11.0,
+        "max": 18.0
+      }
+    },
+    "replay_profile_summary": {
+      "upload_ms": {
+        "mean": 0.006,
+        "median": 0.005,
+        "min": 0.004,
+        "max": 0.016
+      },
+      "layer_encode_ms": {
+        "mean": 1.454,
+        "median": 1.434,
+        "min": 1.292,
+        "max": 1.732
+      },
+      "layer_execute_ms": {
+        "mean": 38.656,
+        "median": 35.431,
+        "min": 33.824,
+        "max": 47.328
+      },
+      "head_encode_ms": {
+        "mean": 0.021,
+        "median": 0.022,
+        "min": 0.015,
+        "max": 0.026
+      },
+      "head_execute_ms": {
+        "mean": 1.183,
+        "median": 1.154,
+        "min": 1.115,
+        "max": 1.324
+      },
+      "top_read_ms": {
+        "mean": 0.0,
+        "median": 0.0,
+        "min": 0.0,
+        "max": 0.001
+      },
+      "logits_read_ms": {
+        "mean": 0.0,
+        "median": 0.0,
+        "min": 0.0,
+        "max": 0.0
+      },
+      "selected_gib": {
+        "mean": 2.105,
+        "median": 1.7,
+        "min": 1.7,
+        "max": 3.4
+      },
+      "full_gib": {
+        "mean": 72.56,
+        "median": 72.56,
+        "min": 72.56,
+        "max": 72.56
+      },
+      "avg_unique": {
+        "mean": 7.429,
+        "median": 6.0,
+        "min": 6.0,
+        "max": 12.0
+      }
+    },
+    "profile_counts": {
+      "initial": 20,
+      "replay": 14
+    },
+    "prompt_label": "code_8k"
+  },
+  {
+    "label": "code_8k__k4",
+    "prompt": "issue468/prompts/baseline_corpus/code_8k.txt",
+    "ctx": 16384,
+    "K": 4,
+    "returncode": 0,
+    "wall_s": 14.91,
+    "n": 64,
+    "prefill_tps": 371.49,
+    "gen_tps": 22.58,
+    "spec_miss_first": 4,
+    "n_cycles": 19,
+    "timing_summary": {
+      "draft_ms": {
+        "mean": 6.004,
+        "median": 5.97,
+        "min": 5.919,
+        "max": 6.404
+      },
+      "verify_ms": {
+        "mean": 66.237,
+        "median": 65.906,
+        "min": 65.286,
+        "max": 69.132
+      },
+      "total_ms": {
+        "mean": 111.782,
+        "median": 112.168,
+        "min": 72.232,
+        "max": 132.653
+      },
+      "drafted": {
+        "mean": 4.0,
+        "median": 4.0,
+        "min": 4.0,
+        "max": 4.0
+      },
+      "committed": {
+        "mean": 2.105,
+        "median": 2.0,
+        "min": 1.0,
+        "max": 4.0
+      }
+    },
+    "initial_profile_summary": {
+      "upload_ms": {
+        "mean": 0.027,
+        "median": 0.026,
+        "min": 0.018,
+        "max": 0.06
+      },
+      "layer_encode_ms": {
+        "mean": 1.911,
+        "median": 1.872,
+        "min": 1.751,
+        "max": 2.331
+      },
+      "layer_execute_ms": {
+        "mean": 62.831,
+        "median": 62.592,
+        "min": 61.914,
+        "max": 65.48
+      },
+      "head_encode_ms": {
+        "mean": 0.028,
+        "median": 0.028,
+        "min": 0.022,
+        "max": 0.037
+      },
+      "head_execute_ms": {
+        "mean": 1.432,
+        "median": 1.408,
+        "min": 1.392,
+        "max": 1.563
+      },
+      "top_read_ms": {
+        "mean": 0.0,
+        "median": 0.0,
+        "min": 0.0,
+        "max": 0.001
+      },
+      "logits_read_ms": {
+        "mean": 0.0,
+        "median": 0.0,
+        "min": 0.0,
+        "max": 0.001
+      },
+      "selected_gib": {
+        "mean": 5.193,
+        "median": 5.39,
+        "min": 3.68,
+        "max": 6.24
+      },
+      "full_gib": {
+        "mean": 72.56,
+        "median": 72.56,
+        "min": 72.56,
+        "max": 72.56
+      },
+      "avg_unique": {
+        "mean": 18.316,
+        "median": 19.0,
+        "min": 13.0,
+        "max": 22.0
+      }
+    },
+    "replay_profile_summary": {
+      "upload_ms": {
+        "mean": 0.009,
+        "median": 0.009,
+        "min": 0.006,
+        "max": 0.018
+      },
+      "layer_encode_ms": {
+        "mean": 1.707,
+        "median": 1.72,
+        "min": 1.419,
+        "max": 2.091
+      },
+      "layer_execute_ms": {
+        "mean": 43.14,
+        "median": 45.363,
+        "min": 33.734,
+        "max": 56.835
+      },
+      "head_encode_ms": {
+        "mean": 0.024,
+        "median": 0.022,
+        "min": 0.016,
+        "max": 0.038
+      },
+      "head_execute_ms": {
+        "mean": 1.256,
+        "median": 1.27,
+        "min": 1.109,
+        "max": 1.418
+      },
+      "top_read_ms": {
+        "mean": 0.0,
+        "median": 0.0,
+        "min": 0.0,
+        "max": 0.001
+      },
+      "logits_read_ms": {
+        "mean": 0.0,
+        "median": 0.0,
+        "min": 0.0,
+        "max": 0.0
+      },
+      "selected_gib": {
+        "mean": 2.621,
+        "median": 2.125,
+        "min": 1.7,
+        "max": 5.1
+      },
+      "full_gib": {
+        "mean": 72.56,
+        "median": 72.56,
+        "min": 72.56,
+        "max": 72.56
+      },
+      "avg_unique": {
+        "mean": 9.25,
+        "median": 7.5,
+        "min": 6.0,
+        "max": 18.0
+      }
+    },
+    "profile_counts": {
+      "initial": 19,
+      "replay": 16
+    },
+    "prompt_label": "code_8k"
+  },
+  {
+    "label": "code_8k__k5",
+    "prompt": "issue468/prompts/baseline_corpus/code_8k.txt",
+    "ctx": 16384,
+    "K": 5,
+    "returncode": 0,
+    "wall_s": 16.42,
+    "n": 64,
+    "prefill_tps": 338.86,
+    "gen_tps": 18.99,
+    "spec_miss_first": 7,
+    "n_cycles": 19,
+    "timing_summary": {
+      "draft_ms": {
+        "mean": 8.229,
+        "median": 8.197,
+        "min": 7.987,
+        "max": 8.489
+      },
+      "verify_ms": {
+        "mean": 76.793,
+        "median": 76.663,
+        "min": 75.621,
+        "max": 78.224
+      },
+      "total_ms": {
+        "mean": 134.617,
+        "median": 134.136,
+        "min": 122.25,
+        "max": 154.739
+      },
+      "drafted": {
+        "mean": 5.0,
+        "median": 5.0,
+        "min": 5.0,
+        "max": 5.0
+      },
+      "committed": {
+        "mean": 1.947,
+        "median": 2.0,
+        "min": 1.0,
+        "max": 4.0
+      }
+    },
+    "initial_profile_summary": {
+      "upload_ms": {
+        "mean": 0.035,
+        "median": 0.033,
+        "min": 0.019,
+        "max": 0.073
+      },
+      "layer_encode_ms": {
+        "mean": 2.23,
+        "median": 2.18,
+        "min": 2.016,
+        "max": 2.69
+      },
+      "layer_execute_ms": {
+        "mean": 72.88,
+        "median": 72.64,
+        "min": 71.851,
+        "max": 74.227
+      },
+      "head_encode_ms": {
+        "mean": 0.036,
+        "median": 0.035,
+        "min": 0.03,
+        "max": 0.047
+      },
+      "head_execute_ms": {
+        "mean": 1.603,
+        "median": 1.596,
+        "min": 1.55,
+        "max": 1.777
+      },
+      "top_read_ms": {
+        "mean": 0.001,
+        "median": 0.001,
+        "min": 0.0,
+        "max": 0.002
+      },
+      "logits_read_ms": {
+        "mean": 0.0,
+        "median": 0.0,
+        "min": 0.0,
+        "max": 0.0
+      },
+      "selected_gib": {
+        "mean": 5.939,
+        "median": 5.95,
+        "min": 4.25,
+        "max": 7.37
+      },
+      "full_gib": {
+        "mean": 72.56,
+        "median": 72.56,
+        "min": 72.56,
+        "max": 72.56
+      },
+      "avg_unique": {
+        "mean": 20.947,
+        "median": 21.0,
+        "min": 15.0,
+        "max": 26.0
+      }
+    },
+    "replay_profile_summary": {
+      "upload_ms": {
+        "mean": 0.012,
+        "median": 0.01,
+        "min": 0.005,
+        "max": 0.026
+      },
+      "layer_encode_ms": {
+        "mean": 1.928,
+        "median": 1.96,
+        "min": 1.598,
+        "max": 2.336
+      },
+      "layer_execute_ms": {
+        "mean": 45.536,
+        "median": 45.889,
+        "min": 34.507,
+        "max": 64.071
+      },
+      "head_encode_ms": {
+        "mean": 0.034,
+        "median": 0.036,
+        "min": 0.024,
+        "max": 0.041
+      },
+      "head_execute_ms": {
+        "mean": 1.277,
+        "median": 1.277,
+        "min": 1.128,
+        "max": 1.458
+      },
+      "top_read_ms": {
+        "mean": 0.001,
+        "median": 0.0,
+        "min": 0.0,
+        "max": 0.003
+      },
+      "logits_read_ms": {
+        "mean": 0.0,
+        "median": 0.0,
+        "min": 0.0,
+        "max": 0.0
+      },
+      "selected_gib": {
+        "mean": 2.819,
+        "median": 2.55,
+        "min": 1.7,
+        "max": 6.24
+      },
+      "full_gib": {
+        "mean": 72.56,
+        "median": 72.56,
+        "min": 72.56,
+        "max": 72.56
+      },
+      "avg_unique": {
+        "mean": 9.947,
+        "median": 9.0,
+        "min": 6.0,
+        "max": 22.0
+      }
+    },
+    "profile_counts": {
+      "initial": 19,
+      "replay": 19
+    },
+    "prompt_label": "code_8k"
+  },
+  {
+    "label": "synthesis_8k__k3",
+    "prompt": "issue468/prompts/baseline_corpus/synthesis_8k.txt",
+    "ctx": 16384,
+    "K": 3,
+    "returncode": 0,
+    "wall_s": 14.85,
+    "n": 64,
+    "prefill_tps": 341.71,
+    "gen_tps": 30.23,
+    "spec_miss_first": 4,
+    "n_cycles": 18,
+    "timing_summary": {
+      "draft_ms": {
+        "mean": 3.899,
+        "median": 4.117,
+        "min": 0.083,
+        "max": 4.314
+      },
+      "verify_ms": {
+        "mean": 58.885,
+        "median": 60.195,
+        "min": 37.332,
+        "max": 61.492
+      },
+      "total_ms": {
+        "mean": 80.848,
+        "median": 65.54,
+        "min": 37.433,
+        "max": 117.187
+      },
+      "drafted": {
+        "mean": 2.889,
+        "median": 3.0,
+        "min": 1.0,
+        "max": 3.0
+      },
+      "committed": {
+        "mean": 2.333,
+        "median": 3.0,
+        "min": 1.0,
+        "max": 3.0
+      }
+    },
+    "initial_profile_summary": {
+      "upload_ms": {
+        "mean": 0.023,
+        "median": 0.02,
+        "min": 0.015,
+        "max": 0.051
+      },
+      "layer_encode_ms": {
+        "mean": 1.92,
+        "median": 1.893,
+        "min": 1.662,
+        "max": 2.236
+      },
+      "layer_execute_ms": {
+        "mean": 56.746,
+        "median": 56.756,
+        "min": 54.541,
+        "max": 58.03
+      },
+      "head_encode_ms": {
+        "mean": 0.036,
+        "median": 0.036,
+        "min": 0.03,
+        "max": 0.051
+      },
+      "head_execute_ms": {
+        "mean": 1.418,
+        "median": 1.404,
+        "min": 1.359,
+        "max": 1.627
+      },
+      "top_read_ms": {
+        "mean": 0.001,
+        "median": 0.001,
+        "min": 0.0,
+        "max": 0.001
+      },
+      "logits_read_ms": {
+        "mean": 0.0,
+        "median": 0.0,
+        "min": 0.0,
+        "max": 0.001
+      },
+      "selected_gib": {
+        "mean": 4.035,
+        "median": 3.97,
+        "min": 3.12,
+        "max": 5.1
+      },
+      "full_gib": {
+        "mean": 72.56,
+        "median": 72.56,
+        "min": 72.56,
+        "max": 72.56
+      },
+      "avg_unique": {
+        "mean": 14.235,
+        "median": 14.0,
+        "min": 11.0,
+        "max": 18.0
+      }
+    },
+    "replay_profile_summary": {
+      "upload_ms": {
+        "mean": 0.011,
+        "median": 0.009,
+        "min": 0.005,
+        "max": 0.021
+      },
+      "layer_encode_ms": {
+        "mean": 1.717,
+        "median": 1.699,
+        "min": 1.567,
+        "max": 1.928
+      },
+      "layer_execute_ms": {
+        "mean": 41.148,
+        "median": 41.314,
+        "min": 34.581,
+        "max": 47.69
+      },
+      "head_encode_ms": {
+        "mean": 0.033,
+        "median": 0.035,
+        "min": 0.026,
+        "max": 0.039
+      },
+      "head_execute_ms": {
+        "mean": 1.222,
+        "median": 1.228,
+        "min": 1.131,
+        "max": 1.326
+      },
+      "top_read_ms": {
+        "mean": 0.001,
+        "median": 0.001,
+        "min": 0.0,
+        "max": 0.002
+      },
+      "logits_read_ms": {
+        "mean": 0.0,
+        "median": 0.0,
+        "min": 0.0,
+        "max": 0.0
+      },
+      "selected_gib": {
+        "mean": 2.16,
+        "median": 1.985,
+        "min": 1.7,
+        "max": 2.83
+      },
+      "full_gib": {
+        "mean": 72.56,
+        "median": 72.56,
+        "min": 72.56,
+        "max": 72.56
+      },
+      "avg_unique": {
+        "mean": 7.625,
+        "median": 7.0,
+        "min": 6.0,
+        "max": 10.0
+      }
+    },
+    "profile_counts": {
+      "initial": 17,
+      "replay": 8
+    },
+    "prompt_label": "synthesis_8k"
+  },
+  {
+    "label": "synthesis_8k__k4",
+    "prompt": "issue468/prompts/baseline_corpus/synthesis_8k.txt",
+    "ctx": 16384,
+    "K": 4,
+    "returncode": 0,
+    "wall_s": 14.75,
+    "n": 64,
+    "prefill_tps": 359.32,
+    "gen_tps": 26.5,
+    "spec_miss_first": 3,
+    "n_cycles": 16,
+    "timing_summary": {
+      "draft_ms": {
+        "mean": 5.998,
+        "median": 6.073,
+        "min": 4.076,
+        "max": 6.391
+      },
+      "verify_ms": {
+        "mean": 66.94,
+        "median": 66.465,
+        "min": 58.724,
+        "max": 73.831
+      },
+      "total_ms": {
+        "mean": 113.299,
+        "median": 122.575,
+        "min": 72.759,
+        "max": 137.24
+      },
+      "drafted": {
+        "mean": 3.938,
+        "median": 4.0,
+        "min": 3.0,
+        "max": 4.0
+      },
+      "committed": {
+        "mean": 2.75,
+        "median": 3.0,
+        "min": 1.0,
+        "max": 4.0
+      }
+    },
+    "initial_profile_summary": {
+      "upload_ms": {
+        "mean": 0.028,
+        "median": 0.025,
+        "min": 0.014,
+        "max": 0.055
+      },
+      "layer_encode_ms": {
+        "mean": 1.954,
+        "median": 1.911,
+        "min": 1.838,
+        "max": 2.506
+      },
+      "layer_execute_ms": {
+        "mean": 63.99,
+        "median": 63.036,
+        "min": 62.434,
+        "max": 69.562
+      },
+      "head_encode_ms": {
+        "mean": 0.037,
+        "median": 0.037,
+        "min": 0.029,
+        "max": 0.046
+      },
+      "head_execute_ms": {
+        "mean": 1.469,
+        "median": 1.445,
+        "min": 1.402,
+        "max": 1.652
+      },
+      "top_read_ms": {
+        "mean": 0.001,
+        "median": 0.001,
+        "min": 0.0,
+        "max": 0.001
+      },
+      "logits_read_ms": {
+        "mean": 0.0,
+        "median": 0.0,
+        "min": 0.0,
+        "max": 0.001
+      },
+      "selected_gib": {
+        "mean": 4.915,
+        "median": 4.82,
+        "min": 3.68,
+        "max": 6.24
+      },
+      "full_gib": {
+        "mean": 72.56,
+        "median": 72.56,
+        "min": 72.56,
+        "max": 72.56
+      },
+      "avg_unique": {
+        "mean": 17.333,
+        "median": 17.0,
+        "min": 13.0,
+        "max": 22.0
+      }
+    },
+    "replay_profile_summary": {
+      "upload_ms": {
+        "mean": 0.012,
+        "median": 0.012,
+        "min": 0.005,
+        "max": 0.018
+      },
+      "layer_encode_ms": {
+        "mean": 1.813,
+        "median": 1.818,
+        "min": 1.514,
+        "max": 2.013
+      },
+      "layer_execute_ms": {
+        "mean": 50.175,
+        "median": 55.058,
+        "min": 34.081,
+        "max": 58.085
+      },
+      "head_encode_ms": {
+        "mean": 0.034,
+        "median": 0.034,
+        "min": 0.028,
+        "max": 0.04
+      },
+      "head_execute_ms": {
+        "mean": 1.34,
+        "median": 1.363,
+        "min": 1.188,
+        "max": 1.473
+      },
+      "top_read_ms": {
+        "mean": 0.001,
+        "median": 0.001,
+        "min": 0.0,
+        "max": 0.001
+      },
+      "logits_read_ms": {
+        "mean": 0.0,
+        "median": 0.0,
+        "min": 0.0,
+        "max": 0.001
+      },
+      "selected_gib": {
+        "mean": 3.335,
+        "median": 3.4,
+        "min": 1.7,
+        "max": 4.82
+      },
+      "full_gib": {
+        "mean": 72.56,
+        "median": 72.56,
+        "min": 72.56,
+        "max": 72.56
+      },
+      "avg_unique": {
+        "mean": 11.769,
+        "median": 12.0,
+        "min": 6.0,
+        "max": 17.0
+      }
+    },
+    "profile_counts": {
+      "initial": 15,
+      "replay": 13
+    },
+    "prompt_label": "synthesis_8k"
+  },
+  {
+    "label": "synthesis_8k__k5",
+    "prompt": "issue468/prompts/baseline_corpus/synthesis_8k.txt",
+    "ctx": 16384,
+    "K": 5,
+    "returncode": 0,
+    "wall_s": 15.77,
+    "n": 64,
+    "prefill_tps": 345.83,
+    "gen_tps": 21.04,
+    "spec_miss_first": 3,
+    "n_cycles": 17,
+    "timing_summary": {
+      "draft_ms": {
+        "mean": 7.966,
+        "median": 8.14,
+        "min": 4.176,
+        "max": 8.464
+      },
+      "verify_ms": {
+        "mean": 76.841,
+        "median": 77.385,
+        "min": 60.963,
+        "max": 81.227
+      },
+      "total_ms": {
+        "mean": 141.324,
+        "median": 141.01,
+        "min": 116.687,
+        "max": 160.913
+      },
+      "drafted": {
+        "mean": 4.882,
+        "median": 5.0,
+        "min": 3.0,
+        "max": 5.0
+      },
+      "committed": {
+        "mean": 2.529,
+        "median": 2.0,
+        "min": 1.0,
+        "max": 4.0
+      }
+    },
+    "initial_profile_summary": {
+      "upload_ms": {
+        "mean": 0.032,
+        "median": 0.029,
+        "min": 0.023,
+        "max": 0.076
+      },
+      "layer_encode_ms": {
+        "mean": 1.943,
+        "median": 1.917,
+        "min": 1.797,
+        "max": 2.29
+      },
+      "layer_execute_ms": {
+        "mean": 74.193,
+        "median": 73.763,
+        "min": 71.349,
+        "max": 77.526
+      },
+      "head_encode_ms": {
+        "mean": 0.034,
+        "median": 0.034,
+        "min": 0.029,
+        "max": 0.044
+      },
+      "head_execute_ms": {
+        "mean": 1.623,
+        "median": 1.606,
+        "min": 1.524,
+        "max": 1.784
+      },
+      "top_read_ms": {
+        "mean": 0.001,
+        "median": 0.001,
+        "min": 0.0,
+        "max": 0.001
+      },
+      "logits_read_ms": {
+        "mean": 0.0,
+        "median": 0.0,
+        "min": 0.0,
+        "max": 0.0
+      },
+      "selected_gib": {
+        "mean": 6.344,
+        "median": 6.24,
+        "min": 5.1,
+        "max": 7.94
+      },
+      "full_gib": {
+        "mean": 72.56,
+        "median": 72.56,
+        "min": 72.56,
+        "max": 72.56
+      },
+      "avg_unique": {
+        "mean": 22.375,
+        "median": 22.0,
+        "min": 18.0,
+        "max": 28.0
+      }
+    },
+    "replay_profile_summary": {
+      "upload_ms": {
+        "mean": 0.012,
+        "median": 0.011,
+        "min": 0.005,
+        "max": 0.021
+      },
+      "layer_encode_ms": {
+        "mean": 1.711,
+        "median": 1.73,
+        "min": 1.36,
+        "max": 1.994
+      },
+      "layer_execute_ms": {
+        "mean": 52.928,
+        "median": 53.326,
+        "min": 35.804,
+        "max": 67.257
+      },
+      "head_encode_ms": {
+        "mean": 0.032,
+        "median": 0.033,
+        "min": 0.022,
+        "max": 0.04
+      },
+      "head_execute_ms": {
+        "mean": 1.341,
+        "median": 1.318,
+        "min": 1.152,
+        "max": 1.553
+      },
+      "top_read_ms": {
+        "mean": 0.001,
+        "median": 0.001,
+        "min": 0.0,
+        "max": 0.001
+      },
+      "logits_read_ms": {
+        "mean": 0.0,
+        "median": 0.0,
+        "min": 0.0,
+        "max": 0.001
+      },
+      "selected_gib": {
+        "mean": 3.448,
+        "median": 3.26,
+        "min": 1.7,
+        "max": 5.67
+      },
+      "full_gib": {
+        "mean": 72.56,
+        "median": 72.56,
+        "min": 72.56,
+        "max": 72.56
+      },
+      "avg_unique": {
+        "mean": 12.167,
+        "median": 11.5,
+        "min": 6.0,
+        "max": 20.0
+      }
+    },
+    "profile_counts": {
+      "initial": 16,
+      "replay": 18
+    },
+    "prompt_label": "synthesis_8k"
+  },
+  {
+    "label": "grounded_8k__k3",
+    "prompt": "issue468/prompts/baseline_corpus/grounded_8k.txt",
+    "ctx": 16384,
+    "K": 3,
+    "returncode": 0,
+    "wall_s": 15.42,
+    "n": 64,
+    "prefill_tps": 344.01,
+    "gen_tps": 27.98,
+    "spec_miss_first": 3,
+    "n_cycles": 19,
+    "timing_summary": {
+      "draft_ms": {
+        "mean": 4.044,
+        "median": 4.006,
+        "min": 3.947,
+        "max": 4.283
+      },
+      "verify_ms": {
+        "mean": 60.261,
+        "median": 60.177,
+        "min": 57.653,
+        "max": 64.927
+      },
+      "total_ms": {
+        "mean": 84.365,
+        "median": 70.004,
+        "min": 63.775,
+        "max": 115.147
+      },
+      "drafted": {
+        "mean": 3.0,
+        "median": 3.0,
+        "min": 3.0,
+        "max": 3.0
+      },
+      "committed": {
+        "mean": 2.211,
+        "median": 3.0,
+        "min": 1.0,
+        "max": 3.0
+      }
+    },
+    "initial_profile_summary": {
+      "upload_ms": {
+        "mean": 0.023,
+        "median": 0.024,
+        "min": 0.015,
+        "max": 0.043
+      },
+      "layer_encode_ms": {
+        "mean": 1.729,
+        "median": 1.697,
+        "min": 1.586,
+        "max": 2.268
+      },
+      "layer_execute_ms": {
+        "mean": 57.071,
+        "median": 56.993,
+        "min": 54.562,
+        "max": 60.966
+      },
+      "head_encode_ms": {
+        "mean": 0.035,
+        "median": 0.033,
+        "min": 0.028,
+        "max": 0.045
+      },
+      "head_execute_ms": {
+        "mean": 1.394,
+        "median": 1.375,
+        "min": 1.339,
+        "max": 1.601
+      },
+      "top_read_ms": {
+        "mean": 0.001,
+        "median": 0.001,
+        "min": 0.0,
+        "max": 0.001
+      },
+      "logits_read_ms": {
+        "mean": 0.0,
+        "median": 0.0,
+        "min": 0.0,
+        "max": 0.0
+      },
+      "selected_gib": {
+        "mean": 3.939,
+        "median": 3.97,
+        "min": 3.12,
+        "max": 4.82
+      },
+      "full_gib": {
+        "mean": 72.56,
+        "median": 72.56,
+        "min": 72.56,
+        "max": 72.56
+      },
+      "avg_unique": {
+        "mean": 13.895,
+        "median": 14.0,
+        "min": 11.0,
+        "max": 17.0
+      }
+    },
+    "replay_profile_summary": {
+      "upload_ms": {
+        "mean": 0.006,
+        "median": 0.005,
+        "min": 0.004,
+        "max": 0.011
+      },
+      "layer_encode_ms": {
+        "mean": 1.568,
+        "median": 1.51,
+        "min": 1.332,
+        "max": 2.292
+      },
+      "layer_execute_ms": {
+        "mean": 38.346,
+        "median": 35.541,
+        "min": 33.86,
+        "max": 45.977
+      },
+      "head_encode_ms": {
+        "mean": 0.029,
+        "median": 0.028,
+        "min": 0.024,
+        "max": 0.04
+      },
+      "head_execute_ms": {
+        "mean": 1.223,
+        "median": 1.259,
+        "min": 1.118,
+        "max": 1.371
+      },
+      "top_read_ms": {
+        "mean": 0.0,
+        "median": 0.0,
+        "min": 0.0,
+        "max": 0.002
+      },
+      "logits_read_ms": {
+        "mean": 0.0,
+        "median": 0.0,
+        "min": 0.0,
+        "max": 0.0
+      },
+      "selected_gib": {
+        "mean": 2.141,
+        "median": 1.7,
+        "min": 1.7,
+        "max": 3.12
+      },
+      "full_gib": {
+        "mean": 72.56,
+        "median": 72.56,
+        "min": 72.56,
+        "max": 72.56
+      },
+      "avg_unique": {
+        "mean": 7.556,
+        "median": 6.0,
+        "min": 6.0,
+        "max": 11.0
+      }
+    },
+    "profile_counts": {
+      "initial": 19,
+      "replay": 9
+    },
+    "prompt_label": "grounded_8k"
+  },
+  {
+    "label": "grounded_8k__k4",
+    "prompt": "issue468/prompts/baseline_corpus/grounded_8k.txt",
+    "ctx": 16384,
+    "K": 4,
+    "returncode": 0,
+    "wall_s": 15.7,
+    "n": 64,
+    "prefill_tps": 342.56,
+    "gen_tps": 25.09,
+    "spec_miss_first": 2,
+    "n_cycles": 17,
+    "timing_summary": {
+      "draft_ms": {
+        "mean": 6.02,
+        "median": 6.129,
+        "min": 4.076,
+        "max": 6.498
+      },
+      "verify_ms": {
+        "mean": 67.442,
+        "median": 67.065,
+        "min": 61.986,
+        "max": 71.577
+      },
+      "total_ms": {
+        "mean": 114.892,
+        "median": 125.011,
+        "min": 66.428,
+        "max": 143.138
+      },
+      "drafted": {
+        "mean": 3.941,
+        "median": 4.0,
+        "min": 3.0,
+        "max": 4.0
+      },
+      "committed": {
+        "mean": 2.647,
+        "median": 3.0,
+        "min": 1.0,
+        "max": 4.0
+      }
+    },
+    "initial_profile_summary": {
+      "upload_ms": {
+        "mean": 0.03,
+        "median": 0.025,
+        "min": 0.018,
+        "max": 0.067
+      },
+      "layer_encode_ms": {
+        "mean": 1.78,
+        "median": 1.735,
+        "min": 1.655,
+        "max": 2.18
+      },
+      "layer_execute_ms": {
+        "mean": 64.484,
+        "median": 63.951,
+        "min": 62.678,
+        "max": 68.289
+      },
+      "head_encode_ms": {
+        "mean": 0.035,
+        "median": 0.035,
+        "min": 0.028,
+        "max": 0.048
+      },
+      "head_execute_ms": {
+        "mean": 1.445,
+        "median": 1.42,
+        "min": 1.362,
+        "max": 1.682
+      },
+      "top_read_ms": {
+        "mean": 0.001,
+        "median": 0.001,
+        "min": 0.0,
+        "max": 0.001
+      },
+      "logits_read_ms": {
+        "mean": 0.0,
+        "median": 0.0,
+        "min": 0.0,
+        "max": 0.0
+      },
+      "selected_gib": {
+        "mean": 4.803,
+        "median": 4.82,
+        "min": 3.97,
+        "max": 5.67
+      },
+      "full_gib": {
+        "mean": 72.56,
+        "median": 72.56,
+        "min": 72.56,
+        "max": 72.56
+      },
+      "avg_unique": {
+        "mean": 16.938,
+        "median": 17.0,
+        "min": 14.0,
+        "max": 20.0
+      }
+    },
+    "replay_profile_summary": {
+      "upload_ms": {
+        "mean": 0.01,
+        "median": 0.01,
+        "min": 0.004,
+        "max": 0.02
+      },
+      "layer_encode_ms": {
+        "mean": 1.645,
+        "median": 1.668,
+        "min": 1.382,
+        "max": 1.883
+      },
+      "layer_execute_ms": {
+        "mean": 50.894,
+        "median": 57.106,
+        "min": 34.066,
+        "max": 60.574
+      },
+      "head_encode_ms": {
+        "mean": 0.03,
+        "median": 0.03,
+        "min": 0.019,
+        "max": 0.036
+      },
+      "head_execute_ms": {
+        "mean": 1.302,
+        "median": 1.349,
+        "min": 1.123,
+        "max": 1.371
+      },
+      "top_read_ms": {
+        "mean": 0.0,
+        "median": 0.0,
+        "min": 0.0,
+        "max": 0.001
+      },
+      "logits_read_ms": {
+        "mean": 0.0,
+        "median": 0.0,
+        "min": 0.0,
+        "max": 0.0
+      },
+      "selected_gib": {
+        "mean": 3.179,
+        "median": 3.26,
+        "min": 1.7,
+        "max": 4.25
+      },
+      "full_gib": {
+        "mean": 72.56,
+        "median": 72.56,
+        "min": 72.56,
+        "max": 72.56
+      },
+      "avg_unique": {
+        "mean": 11.214,
+        "median": 11.5,
+        "min": 6.0,
+        "max": 15.0
+      }
+    },
+    "profile_counts": {
+      "initial": 16,
+      "replay": 14
+    },
+    "prompt_label": "grounded_8k"
+  },
+  {
+    "label": "grounded_8k__k5",
+    "prompt": "issue468/prompts/baseline_corpus/grounded_8k.txt",
+    "ctx": 16384,
+    "K": 5,
+    "returncode": 0,
+    "wall_s": 15.59,
+    "n": 64,
+    "prefill_tps": 341.82,
+    "gen_tps": 23.72,
+    "spec_miss_first": 4,
+    "n_cycles": 16,
+    "timing_summary": {
+      "draft_ms": {
+        "mean": 7.948,
+        "median": 8.207,
+        "min": 4.091,
+        "max": 8.47
+      },
+      "verify_ms": {
+        "mean": 76.212,
+        "median": 77.051,
+        "min": 60.739,
+        "max": 80.804
+      },
+      "total_ms": {
+        "mean": 129.15,
+        "median": 138.475,
+        "min": 65.195,
+        "max": 154.031
+      },
+      "drafted": {
+        "mean": 4.875,
+        "median": 5.0,
+        "min": 3.0,
+        "max": 5.0
+      },
+      "committed": {
+        "mean": 2.75,
+        "median": 3.0,
+        "min": 1.0,
+        "max": 5.0
+      }
+    },
+    "initial_profile_summary": {
+      "upload_ms": {
+        "mean": 0.032,
+        "median": 0.03,
+        "min": 0.022,
+        "max": 0.07
+      },
+      "layer_encode_ms": {
+        "mean": 1.852,
+        "median": 1.778,
+        "min": 1.734,
+        "max": 2.351
+      },
+      "layer_execute_ms": {
+        "mean": 73.723,
+        "median": 73.528,
+        "min": 71.766,
+        "max": 76.464
+      },
+      "head_encode_ms": {
+        "mean": 0.034,
+        "median": 0.034,
+        "min": 0.028,
+        "max": 0.038
+      },
+      "head_execute_ms": {
+        "mean": 1.592,
+        "median": 1.565,
+        "min": 1.522,
+        "max": 1.872
+      },
+      "top_read_ms": {
+        "mean": 0.002,
+        "median": 0.001,
+        "min": 0.0,
+        "max": 0.022
+      },
+      "logits_read_ms": {
+        "mean": 0.0,
+        "median": 0.0,
+        "min": 0.0,
+        "max": 0.001
+      },
+      "selected_gib": {
+        "mean": 5.651,
+        "median": 5.67,
+        "min": 4.25,
+        "max": 6.52
+      },
+      "full_gib": {
+        "mean": 72.56,
+        "median": 72.56,
+        "min": 72.56,
+        "max": 72.56
+      },
+      "avg_unique": {
+        "mean": 19.933,
+        "median": 20.0,
+        "min": 15.0,
+        "max": 23.0
+      }
+    },
+    "replay_profile_summary": {
+      "upload_ms": {
+        "mean": 0.011,
+        "median": 0.011,
+        "min": 0.005,
+        "max": 0.021
+      },
+      "layer_encode_ms": {
+        "mean": 1.656,
+        "median": 1.672,
+        "min": 1.362,
+        "max": 1.967
+      },
+      "layer_execute_ms": {
+        "mean": 51.912,
+        "median": 57.643,
+        "min": 35.279,
+        "max": 64.834
+      },
+      "head_encode_ms": {
+        "mean": 0.032,
+        "median": 0.032,
+        "min": 0.026,
+        "max": 0.044
+      },
+      "head_execute_ms": {
+        "mean": 1.341,
+        "median": 1.371,
+        "min": 1.126,
+        "max": 1.523
+      },
+      "top_read_ms": {
+        "mean": 0.001,
+        "median": 0.001,
+        "min": 0.0,
+        "max": 0.001
+      },
+      "logits_read_ms": {
+        "mean": 0.0,
+        "median": 0.0,
+        "min": 0.0,
+        "max": 0.0
+      },
+      "selected_gib": {
+        "mean": 3.22,
+        "median": 3.26,
+        "min": 1.7,
+        "max": 5.39
+      },
+      "full_gib": {
+        "mean": 72.56,
+        "median": 72.56,
+        "min": 72.56,
+        "max": 72.56
+      },
+      "avg_unique": {
+        "mean": 11.357,
+        "median": 11.5,
+        "min": 6.0,
+        "max": 19.0
+      }
+    },
+    "profile_counts": {
+      "initial": 15,
+      "replay": 14
+    },
+    "prompt_label": "grounded_8k"
+  }
+]

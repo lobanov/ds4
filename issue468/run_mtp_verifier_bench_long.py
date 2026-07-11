@@ -21,6 +21,7 @@ N = 128
 TEMP = "0.0"
 SEED = "1"
 KS = [2, 3, 4, 5, 6]
+INCLUDE_ANCHOR_REUSE = os.getenv("DS4_MTP_BENCH_INCLUDE_ANCHOR_REUSE") not in (None, "", "0")
 # (label, prompt path, ctx). 8k prompts (~8.2k tokens) need ctx well above that.
 PROMPTS = [
     ("code_8k", CORPUS / "code_8k.txt", 16384),
@@ -30,7 +31,7 @@ PROMPTS = [
 
 TPS_RE = re.compile(r"prefill:\s*([0-9.]+) t/s, generation:\s*([0-9.]+) t/s")
 TIMING_RE = re.compile(
-    r"ds4: mtp timing (\S+) drafted=(\d+) committed=(\d+).*?draft=([0-9.]+) ms.*?"
+    r"ds4: mtp timing (\S+) drafted=(\d+) (committed|verified)=(\d+).*?draft=([0-9.]+) ms.*?"
     r"verify=([0-9.]+) ms.*?total=([0-9.]+) ms")
 
 
@@ -54,8 +55,9 @@ def run_config(label: str, prompt: Path, ctx: int, extra_args: list[str], env_ex
         mt = TIMING_RE.search(line)
         if mt:
             timings.append({"kind": mt.group(1), "drafted": int(mt.group(2)),
-                            "committed": int(mt.group(3)), "draft_ms": float(mt.group(4)),
-                            "verify_ms": float(mt.group(5)), "total_ms": float(mt.group(6))})
+                            "count_kind": mt.group(3), "committed": int(mt.group(4)),
+                            "draft_ms": float(mt.group(5)),
+                            "verify_ms": float(mt.group(6)), "total_ms": float(mt.group(7))})
     r["n_cycles"] = len(timings)
     if timings:
         for k in ("draft_ms", "verify_ms", "total_ms"):
@@ -70,25 +72,38 @@ def run_config(label: str, prompt: Path, ctx: int, extra_args: list[str], env_ex
 
 def main() -> int:
     env_t = {"DS4_MTP_TIMING": "1", "DS4_MTP_SPEC_LOG": "1"}
+    env_reuse = dict(env_t)
+    env_reuse["DS4_MTP_ANCHOR_REUSE"] = "1"
     results = []
     for plabel, ppath, ctx in PROMPTS:
         print(f"\n##### prompt={plabel} (ctx={ctx}) #####", flush=True)
         # baseline
         r = run_config(f"{plabel}__baseline", ppath, ctx, [], {})
-        r["prompt_label"] = plabel; r["K"] = "baseline"
+        r["prompt_label"] = plabel; r["K"] = "baseline"; r["impl"] = "baseline"
         results.append(r)
         print(f"  baseline: rc={r['returncode']} wall={r['wall_s']}s gen={r.get('gen_tps')}", flush=True)
         for K in KS:
             r = run_config(f"{plabel}__k{K}", ppath, ctx, ["--mtp", MTP, "--mtp-draft", str(K)], env_t)
-            r["prompt_label"] = plabel; r["K"] = K
+            r["prompt_label"] = plabel; r["K"] = K; r["impl"] = "shipped"
             results.append(r)
             print(f"  K={K}: rc={r['returncode']} wall={r['wall_s']}s gen={r.get('gen_tps')} "
                   f"verify_med={r.get('median_verify_ms')} committed={r.get('mean_committed')} "
                   f"miss={r.get('spec_miss_first')}/{r.get('n_cycles')}", flush=True)
             if r["returncode"] != 0:
                 print("    FAILED; see stderr", flush=True)
+            if not INCLUDE_ANCHOR_REUSE:
+                continue
+            rr = run_config(f"{plabel}__reuse_k{K}", ppath, ctx,
+                            ["--mtp", MTP, "--mtp-draft", str(K)], env_reuse)
+            rr["prompt_label"] = plabel; rr["K"] = K; rr["impl"] = "anchor_reuse_exact"
+            results.append(rr)
+            print(f"  reuse K={K}: rc={rr['returncode']} wall={rr['wall_s']}s gen={rr.get('gen_tps')} "
+                  f"verify_med={rr.get('median_verify_ms')} committed={rr.get('mean_committed')} "
+                  f"miss={rr.get('spec_miss_first')}/{rr.get('n_cycles')}", flush=True)
+            if rr["returncode"] != 0:
+                print("    FAILED; see stderr", flush=True)
     (OUT / "summary.json").write_text(json.dumps(results, indent=2) + "\n")
-    cols = ["prompt_label", "K", "returncode", "wall_s", "prefill_tps", "gen_tps",
+    cols = ["prompt_label", "impl", "K", "returncode", "wall_s", "prefill_tps", "gen_tps",
             "n_cycles", "mean_drafted", "mean_committed", "mean_draft_ms",
             "mean_verify_ms", "median_verify_ms", "mean_total_ms", "spec_miss_first"]
     lines = [",".join(cols)]

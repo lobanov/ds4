@@ -1,0 +1,222 @@
+[
+  {
+    "prompt_label": "code_sort_pairs",
+    "impl": "baseline",
+    "K": "baseline",
+    "label": "code_sort_pairs__baseline",
+    "returncode": 0,
+    "wall_s": 4.61,
+    "prefill_tps": 105.06,
+    "gen_tps": 38.95
+  },
+  {
+    "prompt_label": "code_sort_pairs",
+    "impl": "anchor_reuse_exact",
+    "K": 4,
+    "matches_baseline": true,
+    "mismatch_at": null,
+    "label": "code_sort_pairs__reuse_k4",
+    "returncode": 0,
+    "wall_s": 6.03,
+    "prefill_tps": 98.6,
+    "gen_tps": 32.39
+  },
+  {
+    "prompt_label": "code_topk",
+    "impl": "baseline",
+    "K": "baseline",
+    "label": "code_topk__baseline",
+    "returncode": 0,
+    "wall_s": 4.62,
+    "prefill_tps": 96.53,
+    "gen_tps": 38.92
+  },
+  {
+    "prompt_label": "code_topk",
+    "impl": "anchor_reuse_exact",
+    "K": 4,
+    "matches_baseline": true,
+    "mismatch_at": null,
+    "label": "code_topk__reuse_k4",
+    "returncode": 0,
+    "wall_s": 6.02,
+    "prefill_tps": 88.96,
+    "gen_tps": 31.95
+  },
+  {
+    "prompt_label": "code_histogram",
+    "impl": "baseline",
+    "K": "baseline",
+    "label": "code_histogram__baseline",
+    "returncode": 0,
+    "wall_s": 4.67,
+    "prefill_tps": 95.98,
+    "gen_tps": 38.86
+  },
+  {
+    "prompt_label": "code_histogram",
+    "impl": "anchor_reuse_exact",
+    "K": 4,
+    "matches_baseline": true,
+    "mismatch_at": null,
+    "label": "code_histogram__reuse_k4",
+    "returncode": 0,
+    "wall_s": 5.83,
+    "prefill_tps": 87.84,
+    "gen_tps": 32.03
+  },
+  {
+    "prompt_label": "grounded_observatory",
+    "impl": "baseline",
+    "K": "baseline",
+    "label": "grounded_observatory__baseline",
+    "returncode": 0,
+    "wall_s": 4.85,
+    "prefill_tps": 125.28,
+    "gen_tps": 38.75
+  },
+  {
+    "prompt_label": "grounded_observatory",
+    "impl": "anchor_reuse_exact",
+    "K": 4,
+    "matches_baseline": true,
+    "mismatch_at": null,
+    "label": "grounded_observatory__reuse_k4",
+    "returncode": 0,
+    "wall_s": 6.05,
+    "prefill_tps": 117.49,
+    "gen_tps": 31.68
+  },
+  {
+    "prompt_label": "grounded_archive",
+    "impl": "baseline",
+    "K": "baseline",
+    "label": "grounded_archive__baseline",
+    "returncode": 0,
+    "wall_s": 4.84,
+    "prefill_tps": 117.55,
+    "gen_tps": 38.77
+  },
+  {
+    "prompt_label": "grounded_archive",
+    "impl": "anchor_reuse_exact",
+    "K": 4,
+    "matches_baseline": true,
+    "mismatch_at": null,
+    "label": "grounded_archive__reuse_k4",
+    "returncode": 0,
+    "wall_s": 6.05,
+    "prefill_tps": 108.82,
+    "gen_tps": 32.02
+  },
+  {
+    "prompt_label": "grounded_repair",
+    "impl": "baseline",
+    "K": "baseline",
+    "label": "grounded_repair__baseline",
+    "returncode": 0,
+    "wall_s": 4.86,
+    "prefill_tps": 110.17,
+    "gen_tps": 38.7
+  },
+  {
+    "prompt_label": "grounded_repair",
+    "impl": "anchor_reuse_exact",
+    "K": 4,
+    "matches_baseline": true,
+    "mismatch_at": null,
+    "label": "grounded_repair__reuse_k4",
+    "returncode": 0,
+    "wall_s": 6.42,
+    "prefill_tps": 102.16,
+    "gen_tps": 31.58
+  },
+  {
+    "prompt_label": "synthesis_ops_json",
+    "impl": "baseline",
+    "K": "baseline",
+    "label": "synthesis_ops_json__baseline",
+    "returncode": 0,
+    "wall_s": 5.18,
+    "prefill_tps": 151.61,
+    "gen_tps": 38.45
+  },
+  {
+    "prompt_label": "synthesis_ops_json",
+    "impl": "anchor_reuse_exact",
+    "K": 4,
+    "matches_baseline": true,
+    "mismatch_at": null,
+    "label": "synthesis_ops_json__reuse_k4",
+    "returncode": 0,
+    "wall_s": 6.69,
+    "prefill_tps": 143.17,
+    "gen_tps": 31.8
+  },
+  {
+    "prompt_label": "synthesis_timeline_json",
+    "impl": "baseline",
+    "K": "baseline",
+    "label": "synthesis_timeline_json__baseline",
+    "returncode": 0,
+    "wall_s": 5.14,
+    "prefill_tps": 140.76,
+    "gen_tps": 38.38
+  },
+  {
+    "prompt_label": "synthesis_timeline_json",
+    "impl": "anchor_reuse_exact",
+    "K": 4,
+    "matches_baseline": true,
+    "mismatch_at": null,
+    "label": "synthesis_timeline_json__reuse_k4",
+    "returncode": 0,
+    "wall_s": 6.3,
+    "prefill_tps": 133.46,
+    "gen_tps": 32.19
+  },
+  {
+    "prompt_label": "synthesis_incident_json",
+    "impl": "baseline",
+    "K": "baseline",
+    "label": "synthesis_incident_json__baseline",
+    "returncode": 0,
+    "wall_s": 5.03,
+    "prefill_tps": 130.22,
+    "gen_tps": 38.34
+  },
+  {
+    "prompt_label": "synthesis_incident_json",
+    "impl": "anchor_reuse_exact",
+    "K": 4,
+    "matches_baseline": true,
+    "mismatch_at": null,
+    "label": "synthesis_incident_json__reuse_k4",
+    "returncode": 0,
+    "wall_s": 6.3,
+    "prefill_tps": 121.82,
+    "gen_tps": 31.34
+  },
+  {
+    "prompt_label": "mixed_exactness_smoke",
+    "impl": "baseline",
+    "K": "baseline",
+    "label": "mixed_exactness_smoke__baseline",
+    "returncode": 0,
+    "wall_s": 4.94,
+    "prefill_tps": 107.8,
+    "gen_tps": 38.53
+  },
+  {
+    "prompt_label": "mixed_exactness_smoke",
+    "impl": "anchor_reuse_exact",
+    "K": 4,
+    "matches_baseline": true,
+    "mismatch_at": null,
+    "label": "mixed_exactness_smoke__reuse_k4",
+    "returncode": 0,
+    "wall_s": 6.4,
+    "prefill_tps": 100.94,
+    "gen_tps": 31.74
+  }
+]

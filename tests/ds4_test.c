@@ -2174,6 +2174,186 @@ static void test_mtp_verify_depth(void) {
     free(spec);
     ds4_tokens_free(&prompt);
 }
+
+static void test_mtp_verify_depth_anchor_reuse(void) {
+    char *saved = test_save_env("DS4_MTP_ANCHOR_REUSE");
+    setenv("DS4_MTP_ANCHOR_REUSE", "1", 1);
+    test_mtp_verify_depth();
+    test_restore_env("DS4_MTP_ANCHOR_REUSE", saved);
+}
+
+typedef struct {
+    const char *label;
+    const char *path;
+} test_prompt_case;
+
+static const test_prompt_case test_exactness_prompt_cases[] = {
+    {"code_sort_pairs", "issue468/prompts/exactness_small_corpus/code_sort_pairs.txt"},
+    {"code_topk", "issue468/prompts/exactness_small_corpus/code_topk.txt"},
+    {"code_histogram", "issue468/prompts/exactness_small_corpus/code_histogram.txt"},
+    {"grounded_observatory", "issue468/prompts/exactness_small_corpus/grounded_observatory.txt"},
+    {"grounded_archive", "issue468/prompts/exactness_small_corpus/grounded_archive.txt"},
+    {"grounded_repair", "issue468/prompts/exactness_small_corpus/grounded_repair.txt"},
+    {"synthesis_ops_json", "issue468/prompts/exactness_small_corpus/synthesis_ops_json.txt"},
+    {"synthesis_timeline_json", "issue468/prompts/exactness_small_corpus/synthesis_timeline_json.txt"},
+    {"synthesis_incident_json", "issue468/prompts/exactness_small_corpus/synthesis_incident_json.txt"},
+    {"mixed_exactness_smoke", "issue468/prompts/exactness_small_corpus/mixed_exactness_smoke.txt"},
+};
+
+typedef struct {
+    int total_steps;
+    int eligible_steps;
+    float worst_abs;
+    float worst_rms;
+    float worst_sampled_lp_diff;
+} test_mtp_temp_metrics;
+
+static bool test_build_user_prompt(ds4_engine *engine, const char *path, ds4_tokens *prompt) {
+    char *text = test_read_file(path);
+    TEST_ASSERT(text != NULL);
+    if (!text) return false;
+    ds4_chat_begin(engine, prompt);
+    ds4_chat_append_message(engine, prompt, "user", text);
+    ds4_chat_append_assistant_prefix(engine, prompt, DS4_THINK_NONE);
+    free(text);
+    return prompt->len > 0;
+}
+
+static bool test_mtp_temp_prompt_case(ds4_engine *engine,
+                                      const test_prompt_case *pc,
+                                      float temperature,
+                                      int max_steps,
+                                      test_mtp_temp_metrics *metrics) {
+    ds4_tokens prompt = {0};
+    ds4_session *base = NULL;
+    ds4_session *spec = NULL;
+    bool ok = false;
+    int eos = ds4_token_eos(engine);
+    const int vocab = ds4_engine_vocab_size(engine);
+    float *base_logits = NULL;
+    float *spec_logits = NULL;
+
+    TEST_ASSERT(test_build_user_prompt(engine, pc->path, &prompt));
+    TEST_ASSERT(ds4_session_create(&base, engine, 32768) == 0);
+    TEST_ASSERT(ds4_session_create(&spec, engine, 32768) == 0);
+    TEST_ASSERT(base != NULL && spec != NULL);
+    if (!base || !spec || prompt.len <= 0) goto done;
+
+    char err[160];
+    TEST_ASSERT(ds4_session_sync(base, &prompt, err, sizeof(err)) == 0);
+    TEST_ASSERT(ds4_session_sync(spec, &prompt, err, sizeof(err)) == 0);
+
+    base_logits = malloc((size_t)vocab * sizeof(*base_logits));
+    spec_logits = malloc((size_t)vocab * sizeof(*spec_logits));
+    TEST_ASSERT(base_logits != NULL && spec_logits != NULL);
+    if (!base_logits || !spec_logits) goto done;
+
+    const uint64_t seed_base = 0x5eed1234ULL ^ ((uint64_t)(unsigned char)pc->label[0] << 8);
+    uint64_t rng = seed_base ^ (temperature >= 0.75f ? 0x9e3779b97f4a7c15ULL : 0x243f6a8885a308d3ULL);
+    int steps = 0;
+    int eligible = 0;
+    float worst_abs = 0.0f;
+    float worst_rms = 0.0f;
+    float worst_lp = 0.0f;
+
+    while (steps < max_steps) {
+        ds4_token_score base_tok = {0}, spec_tok = {0};
+        TEST_ASSERT(ds4_session_copy_logits(base, base_logits, vocab) == vocab);
+        TEST_ASSERT(ds4_session_copy_logits(spec, spec_logits, vocab) == vocab);
+
+        double sumsq = 0.0;
+        float max_abs = 0.0f;
+        for (int i = 0; i < vocab; i++) {
+            const float d = fabsf(base_logits[i] - spec_logits[i]);
+            if (d > max_abs) max_abs = d;
+            sumsq += (double)d * (double)d;
+        }
+        const float rms = sqrtf((float)(sumsq / (double)vocab));
+        if (max_abs > worst_abs) worst_abs = max_abs;
+        if (rms > worst_rms) worst_rms = rms;
+        TEST_ASSERT(ds4_session_argmax(base) == ds4_session_argmax(spec));
+
+        const int token = ds4_session_sample(base, temperature, 0, 1.0f, 0.0f, &rng);
+        TEST_ASSERT(ds4_session_token_logprob(base, token, &base_tok) == 1);
+        TEST_ASSERT(ds4_session_token_logprob(spec, token, &spec_tok) == 1);
+        const float lp_diff = fabsf(base_tok.logprob - spec_tok.logprob);
+        if (lp_diff > worst_lp) worst_lp = lp_diff;
+
+        if (token == eos) break;
+
+        TEST_ASSERT(ds4_session_eval(base, token, err, sizeof(err)) == 0);
+        if (token == ds4_session_argmax(spec)) {
+            int toks[2] = {-1, -1};
+            const int ntok = ds4_session_eval_speculative_argmax(
+                spec, token, 1, eos, toks, (int)(sizeof(toks) / sizeof(toks[0])), err, sizeof(err));
+            TEST_ASSERT(ntok == 1);
+            TEST_ASSERT(toks[0] == token);
+            eligible++;
+        } else {
+            TEST_ASSERT(ds4_session_eval(spec, token, err, sizeof(err)) == 0);
+        }
+        steps++;
+    }
+
+    metrics->total_steps += steps;
+    metrics->eligible_steps += eligible;
+    if (worst_abs > metrics->worst_abs) metrics->worst_abs = worst_abs;
+    if (worst_rms > metrics->worst_rms) metrics->worst_rms = worst_rms;
+    if (worst_lp > metrics->worst_sampled_lp_diff) metrics->worst_sampled_lp_diff = worst_lp;
+
+    fprintf(stderr,
+            "ds4-test: mtp-temp-logit-parity prompt=%s temp=%.1f steps=%d eligible=%d max_abs=%.9g rms=%.9g sampled_lp_diff=%.9g\n",
+            pc->label, temperature, steps, eligible, worst_abs, worst_rms, worst_lp);
+
+    TEST_ASSERT(worst_abs <= 1e-5f);
+    TEST_ASSERT(worst_rms <= 1e-6f);
+    TEST_ASSERT(worst_lp <= 1e-6f);
+    ok = true;
+
+done:
+    free(spec_logits);
+    free(base_logits);
+    ds4_session_free(spec);
+    ds4_session_free(base);
+    ds4_tokens_free(&prompt);
+    return ok;
+}
+
+static void test_mtp_temp_logit_parity(void) {
+    ds4_engine *engine = test_get_engine(false);
+    if (!engine || !ds4_engine_has_mtp(engine)) {
+        fprintf(stderr, "ds4-test: mtp-temp-logit-parity skipped (set DS4_TEST_MTP to an MTP GGUF)\n");
+        return;
+    }
+
+    char *saved = test_save_env("DS4_MTP_ANCHOR_REUSE");
+    setenv("DS4_MTP_ANCHOR_REUSE", "1", 1);
+
+    const float temps[] = {0.5f, 1.0f};
+    const int max_steps = 32;
+    test_mtp_temp_metrics metrics = {0};
+    for (size_t ti = 0; ti < sizeof(temps) / sizeof(temps[0]); ti++) {
+        for (size_t i = 0; i < sizeof(test_exactness_prompt_cases) / sizeof(test_exactness_prompt_cases[0]); i++) {
+            TEST_ASSERT(test_mtp_temp_prompt_case(engine,
+                                                  &test_exactness_prompt_cases[i],
+                                                  temps[ti],
+                                                  max_steps,
+                                                  &metrics));
+        }
+    }
+
+    fprintf(stderr,
+            "ds4-test: mtp-temp-logit-parity total_steps=%d eligible=%d max_abs=%.9g rms=%.9g sampled_lp_diff=%.9g\n",
+            metrics.total_steps,
+            metrics.eligible_steps,
+            metrics.worst_abs,
+            metrics.worst_rms,
+            metrics.worst_sampled_lp_diff);
+    TEST_ASSERT(metrics.total_steps > 0);
+    TEST_ASSERT(metrics.eligible_steps > 0);
+
+    test_restore_env("DS4_MTP_ANCHOR_REUSE", saved);
+}
 #endif
 
 static void test_server_unit_group(void) {
@@ -2202,6 +2382,8 @@ static const ds4_test_entry test_entries[] = {
     {"--metal-tensor-equivalence", "metal-tensor-equivalence", "fast/quality Metal prompt-logit and greedy equivalence", test_metal_mpp_equivalence},
     {"--streaming-decode-prefill-correctness", "streaming-decode-prefill-correctness", "streaming decode-style cold prefill drift and repeatability", test_streaming_decode_prefill_correctness},
     {"--mtp-verify-depth", "mtp-verify-depth", "MTP speculative verify commits autoregressive-identical tokens at draft depth > 2", test_mtp_verify_depth},
+    {"--mtp-verify-depth-anchor-reuse", "mtp-verify-depth-anchor-reuse", "experimental anchor-reuse MTP speculative verify keeps near-argmax committed tokens", test_mtp_verify_depth_anchor_reuse},
+    {"--mtp-temp-logit-parity", "mtp-temp-logit-parity", "experimental anchor-reuse path preserves temp>0 logits/distribution on retained exactness prompts", test_mtp_temp_logit_parity},
 #endif
     {"--server", "server", "server parser/rendering/cache unit tests", test_server_unit_group},
 };
