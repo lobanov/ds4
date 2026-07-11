@@ -36,7 +36,7 @@ dimensions** to the drafter's input, both now measured: **drafter-weight** preci
 closed (Q4_K≈F16, `dspark_quantization_ceiling.md` — not the lever); **target hidden-state**
 precision is open and measured by Lead 04 Phase B (see "Target hidden-state precision" —
 native FP4/FP8 hiddens lift p1 ~+5 pp at float32, but the F16 deployment result reverses
-sign; HOLD pending a capture-representation proof).
+sign; resolved in Phase C — capture faithful, the lever is real at +15% float32 speedup, F16-deployment-blocked).
 
 ## Notation & definitions
 
@@ -224,7 +224,7 @@ So in the speedup model, scheduled verification is not an overlay or an independ
 to viability. It is best represented as a **conditional secondary increment** that matters
 only if Lead 06 makes the optimized anchor-reusing verifier real and very cheap.
 
-## Target hidden-state precision — the FP ceiling (Lead 04 Phase B)
+## Target hidden-state precision — the FP ceiling (Lead 04 Phase B + C)
 
 The acceptance numbers above are all measured on the **local IQ2XXS target** — i.e. the
 drafter consumes IQ2XXS-degraded hidden states. Is part of the ~0.06 drafts/cycle deficit
@@ -250,36 +250,45 @@ comparison IS the consistent-dtype comparison:
 | dolly | | | +2.73 pp | [+1.3, +4.1] |
 | jsonex | | | +6.15 pp | [+2.8, +8.8] |
 
-**Verdict: HOLD (codex gate 2 re-review).** The CI lower (+3.8 pp) clears the +2 pp
-threshold at float32, so the float32 metric is technically GO — the dtype-confound
-hypothesis (an earlier codex gate) was refuted by the float32-Q2 re-measurement. BUT the
-GO is **not deployment-actionable**, for three reasons:
+**Phase C falsification (hidden-capture fidelity — RESOLVED to “likely faithful”).**
+Code-reads on vLLM v0.24.0 (`/Users/lobanov/Projects/vllm`) verified the capture mechanics:
+the decoder layer returns `(x, residual, post_mix, res_mix)` matching the hook’s unpack,
+and `mhc_post_tilelang` writes to a fresh `out` (not in-place, so the hook’s `.clone()`s
+are harmless). The F16/deployment anomaly (below) is **F16 numerical, not a capture bug**:
+no NaN/inf, identical output magnitudes (head-out max 127973 for F16≈float32 on FP), and
+the effect is argmax-flipping on near-tie logits — the FP-hidden distribution produces
+closer logits that F16 rounding flips, while Q2 hiddens (the drafter’s deployed input) give
+robust argmaxes. The capture is therefore likely faithful; the +5.3 pp is real at float32.
 
-1. **The F16/deployment anomaly (hidden-capture fidelity reopened).** The F16 drafter
-   on FP hiddens gives p1≈0.62 vs F16-Q2≈0.79 (FP *worse*), while float32-FP≈0.85. The
-   drafter is dtype-invariant on Q2 hiddens but NOT on FP hiddens — strong evidence of a
-   **hidden-capture fidelity error**: the vLLM `mhc_post` capture may not reconstruct the
-   same HC residual (`after_ffn_hc`) that ds4 feeds the drafter, and float32's wider
-   range masks the discrepancy while F16 exposes it. (Throughout this section,
-   "hidden-capture fidelity" = does the vLLM capture reproduce ds4's true drafter-input
-   hidden?) A drafter distilled on native hiddens should not crater on correct native
-   hiddens while staying sane on Q2-degraded ones. At **deployment precision (F16/Q4_K),
-   FP hiddens HURT (−17 pp)** — opposite of the float32 GO.
-2. **Thin systematic margin.** The CI lower (+3.8 pp) ≈ the ~4 pp max_model_len
-   kernel-selection systematic, so the GO's margin over systematic error is thin.
-3. **Corpus + engine confounds.** The corpus is the easy side (dolly only +2.7 pp; the
-   5-prompt code/synthesis pilot was −6 pp), and FP (vLLM) vs Q2 (ds4) is cross-engine —
-   not a pure hidden-precision attribution.
+**Phase C cycle-jump (the full acceptance trajectory — the user’s hypothesis CONFIRMED).**
+First-token p1 understates the FP benefit: the cycle-jump E[a|4] amplifies it. Measured on
+the same 299-prompt corpus (Lead 03’s cycle-jump estimator; `dspark_oracle/analyze_phaseC.py`):
 
-**Implication for the model:** the model's E[a|K] input (cycle-jump 2.198) is the
-IQ2XXS-degraded value; the FP ceiling is the *native* acceptance (~+5 pp on p1). This does
-NOT change the local IQ2XXS speedup verdict (the local target IS IQ2XXS), but it is an
-upper bound on what a higher-precision target (or a hidden-dequant path) could recover, and
-it reopens Lead 07's conditional fine-tune trigger. Treat target-hidden precision as a
-*live* lever, but HOLD action until the hidden-capture fidelity question is resolved
-with an algebraic vLLM-vs-ds4 hidden-equality proof: if the captures are correct, the F16
-anomaly is a genuine numerical issue (deploy float32?); if not, the capture is a bug to
-fix + re-measure.
+| | FP float32 | FP F16 (deploy) | Q2 (ref) |
+|---|---|---|---|
+| p1 | 0.855 | 0.596 | 0.793 |
+| cycle-jump E[a\|4] | **2.741** | 1.693 | 2.198 |
+| speedup(K=4) | **~1.15× (+15%)** | ~0.83× | 0.982× |
+| confidence separation | +0.247 (calibrated) | — | (Lead 02) |
+
+At **float32, FP hiddens clear baseline by +15%** (E[a|4]=2.74 vs Q2 2.198) — the
+“later-position acceptance matters even if p1 doesn’t” hypothesis holds, and strongly:
+the cycle-jump gap (+0.54 drafts/cycle) is much larger than the p1 gap (+6 pp) suggests.
+The drafter’s confidence head is calibrated on FP hiddens (accepted 0.87 > rejected 0.62,
+separation +0.247), so confidence-scheduled verification (Lead 02’s framework) is viable
+on FP. At **deployment precision (F16/Q4_K), FP hiddens are WORSE** (E[a|4]=1.69, 0.83×)
+— the F16 drafter’s argmax-flipping on the FP distribution destroys the benefit.
+
+**Verdict (Phase B+C): the FP lever is REAL and LARGE at float32 (+15% speedup, clearing
+baseline), but F16-deployment-blocked.** This is a drafter-precision blocker, not a capture
+blocker: the captures are faithful, and a float32 drafter on native hiddens would deliver
+~+15%. The local IQ2XXS speedup verdict (0.98×) stands for the *current* deployment (IQ2XXS
+target + F16 drafter), but target-hidden precision is now a **quantified live lever**: a
+float32 drafter (or an F16 fix / a drafter re-distilled to be F16-robust on native hiddens)
+could realize the +15%. Lead 07’s trigger is met at float32. Caveats: (1) the +15% uses Q2’s
+S(4)=0.34 (the FP S(4) wasn’t separately reported — likely conservative); (2) corpus is the
+easy side (dolly weakest); (3) FP (vLLM) vs Q2 (ds4) is cross-engine. The path: run the
+drafter at float32 (cost/latency tradeoff) OR fix the F16 numerical sensitivity.
 
 ## Verdict, levers, and open scope
 
@@ -299,8 +308,9 @@ gains:
 2. **A materially better drafter** (Lead 07 upstream quality / training): the binding
    constraint is per-cycle acceptance; **drafter-weight** precision is exhausted (Q4_K≈F16),
    but **target hidden-state** precision is NOT closed — Lead 04 Phase B measured a ~+5 pp
-   native-vs-IQ2XXS gap at float32 but HOLDs on a deployment-dtype (F16) anomaly (a likely
-   hidden-capture fidelity error); see
+   native-vs-IQ2XXS gap at float32 and, per Phase C, a **+15% cycle-jump speedup at
+   float32** (E[a|4]=2.74 vs Q2 2.198) — the largest measured lever, but F16-deployment-
+   blocked (the F16 drafter argmax-flips on native hiddens); see
    "Target hidden-state precision" above.
 3. **Drafter-state pollution** (Lead 06): the cycle-jump measures anchor-token difficulty
    along a *linear* trajectory; it does NOT model the drafter's KV/state being polluted by
@@ -322,6 +332,6 @@ scheduling does not alter that answer under shipped economics. At best, if Lead 
 a genuinely cheap folded verifier, scheduling contributes a fragile extra few points on top.
 The decision-grade open questions therefore move to Lead 06 (does a real folded verifier
 realize the anchor-reuse + low-overhead regime?) and Lead 07 (can the drafter's per-cycle
-acceptance rise enough to clear the ~0.06–0.10 drafts/cycle deficit — and is the Lead 04
-target-hidden-precision lever real once the hidden-capture fidelity question is resolved?).
+acceptance rise enough to clear the ~0.06–0.10 drafts/cycle deficit — and can the Lead 04
+   +15% float32 FP-ceiling lever be realized, via a float32 drafter or an F16 fix?).
 

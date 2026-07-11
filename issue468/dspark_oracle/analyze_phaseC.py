@@ -65,7 +65,9 @@ def main():
     head = build_head(DSPARK, TARGET, dev, lora_rank=0, dtype=dt)
 
     bundles = sorted(d for d in Path(args.fp_bundles_dir).iterdir()
-                     if (d / "oracle" / "oracle_inputs.npz").exists())[:args.limit]
+                     if (d / "oracle" / "oracle_inputs.npz").exists())
+    if args.limit:
+        bundles = bundles[:args.limit]
     print(f"measuring {len(bundles)} FP bundles...", flush=True)
 
     ea4_all, p1_all, conf_accept, conf_reject = [], [], [], []
