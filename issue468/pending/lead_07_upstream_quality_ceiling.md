@@ -1,444 +1,223 @@
-# Lead 07 - Upstream quality ceiling
+# Lead 07 - Native-hidden recoverability on IQ2XXS
 
-Date: 2026-07-07. Status: **proposed diagnostic protocol; not yet executed.**
-Purpose: quantify whether the remaining acceptance deficit is recoverable by more
-extensive fine-tuning, or whether it is upstream of the local fine-tune levers:
-target/base-model quantization, missing original DSpark drafter quality, or lack of
-usable information in the vendored drafter features.
+Date: 2026-07-11. Status: **narrowed proposed follow-up; not yet executed.**
 
-## Why this is needed
+Purpose: resolve the **remaining drafter-quality question left open after Stage 2 and
+Lead 04**:
 
-The existing dossier closed several narrower questions, but not the full upstream
-quality ceiling:
+> The native DeepSeek-V4-Flash-DSpark target exposes a large **float32 acceptance
+> ceiling** for the current drafter, but the current **F16/IQ2XXS deployment cannot
+> use it**. How much of that native-vs-IQ2 gap is a real hidden-state lever that can
+> be recovered on the local IQ2XXS path, and by what deployable route, if any?
 
-- `dspark_quantization_ceiling.md` shows that converting the **vendored DSpark
-  drafter** from Q4_K to F16/F32 does not materially improve acceptance. This
-  proves the local GGUF conversion precision is not the bottleneck. It does **not**
-  prove the vendored DSpark source weights are as good as an original BF16 drafter,
-  if such a checkpoint exists.
-- `stage1_tap_precision.md` tests a partial higher-precision target variant
-  (layers 37-42 experts at Q4_K). It does **not** measure a full Q4/Q8/BF16 target
-  ceiling, so it does not fully quantify quality lost from the served IQ2XXS base
-  model.
-- `stage2_finetune_result.md` shows that the tested non-expert head LoRA did not
-  improve held-out p=1 acceptance. It does **not** by itself prove that a better
-  drafter, a full-precision target trajectory, expert tuning, or a larger
-  high-capacity adaptation could not recover acceptance.
+This is **not** a general "upstream quality ceiling" program anymore. The broader
+questions were already reduced by prior leads:
 
-The missing question is therefore:
+- drafter-weight precision is closed negative (`dspark_quantization_ceiling.md`);
+- partial higher-precision target proxy is measured (`stage1_tap_precision.md`);
+- non-expert head LoRA on IQ2XXS is closed negative (`stage2_finetune_result.md`);
+- native served-precision target hiddens were measured and show a real float32
+  ceiling, but attribution and recoverability on IQ2XXS remain unresolved
+  (`spec_speedup_model.md`, Lead 04 Phase B/C).
 
-> Is the current acceptance ceiling caused by trainable calibration error, or by an
-> upstream quality loss that the local PoC could never recover?
+## Why this lead still exists
+
+The dossier now says two things at once:
+
+1. **Current local deployment remains below baseline.**
+   On IQ2XXS, realistic cycle-jump K=4 is ~0.982x with the current drafter
+   (`summaries/spec_speedup_model.md`).
+2. **A large native-hidden ceiling exists.**
+   Against native FP4/FP8 target hiddens, the same drafter at float32 reaches
+   p1 ~0.855 and cycle-jump `E[a|4] = 2.741`, implying roughly **+8-10%** at K=4.
+   But the current **F16 deployment cannot use that gain**: FP hiddens + F16 drafter
+   are worse than IQ2XXS.
+
+So the remaining question is no longer "is there any upstream ceiling?" The remaining
+question is:
+
+> Is the measured native-hidden gain mostly a **hidden-state precision** effect that
+> can be transferred back onto IQ2XXS by a deployable adaptation, or is it mostly
+> label/trajectory drift or an undeployable float32-only effect?
+
+This lead should advance the specific open caveat retained in
+`summaries/spec_speedup_model.md`: a **crossed FP/IQ2 oracle** is still needed to
+separate hidden precision from label drift before attributing the native ceiling to
+recoverable target-hidden quality.
+
+## What is already closed
+
+These are **not** in scope for Lead 07 anymore:
+
+1. **Vendored drafter weight precision ceiling.**
+   `Q4_K ~= F16` for acceptance; no material gain from removing local GGUF
+   quantization noise.
+2. **Generic "is the target in the top-k neighborhood?" on the tiny exactness set.**
+   Stage 0 already showed shallow p=1 misses; that justified Stage 2 and does not
+   need to be re-proved as a standalone lead.
+3. **Generic non-expert head-only fine-tuning on IQ2XXS labels.**
+   Stage 2 already ran the bounded PoC with the specified loss and found significant
+   harm on held-out p=1.
+4. **The broad claim that missing BF16 / original checkpoints are the main blocker.**
+   The official upstream DSpark artifact is already the relevant native served-precision
+   checkpoint; no additional BF16 checkpoint is assumed to exist.
+
+## Scope
+
+Lead 07 now has **two sequential experiments only**:
+
+1. **Crossed FP/IQ2 oracle on common prefixes** - attribution.
+2. **One deployability-focused recovery test** - only if experiment 1 says the
+   hidden-state lever is real.
+
+Anything broader belongs in a different lead.
 
 ## Definitions
-
-Separate acceptance into three inputs:
 
 `A(D, H, Y)` = drafter acceptance when drafter `D` consumes hidden-state trajectory
 `H` and is judged against target labels `Y`.
 
-Useful instances:
+Use these concrete instances:
 
-- `D_cur`: current vendored DSpark drafter as served locally. The only available
-  source for this drafter is the vendored safetensors/MXFP4-derived weight set
-  used to build `dspark.gguf` and its F16-dequant ceiling.
-- `D_orig`: original BF16/FP DSpark drafter checkpoint, if one can be obtained
-  externally. It is **not available in the current local dossier**; if it remains
-  unavailable, this ceiling cannot be directly measured.
-- `H_iq2`, `Y_iq2`: hidden states and greedy labels from the served IQ2XXS target.
-- `H_hp`, `Y_hp`: hidden states and greedy labels from the highest-precision target
-  we can practically run (full Q4, Q8, BF16, or a smaller prefix miss-set if the
-  full model does not fit).
-- `D_probe`: a diagnostic high-capacity probe trained only to estimate whether the
-  relevant target token is recoverable from available features. It is not intended
-  to be deployable.
+- `D_f16`: current deployable drafter path (the local F16/Q4_K-served drafter behavior).
+- `D_f32`: float32 evaluation path used in the retained torch/oracle studies.
+- `H_iq2`, `Y_iq2`: IQ2XXS hidden states and greedy labels.
+- `H_fp`, `Y_fp`: native DeepSeek-V4-Flash-DSpark hidden states and greedy labels
+  captured in Lead 04.
 
-The upstream quality ceiling is the best acceptance that could be reached without
-changing the verifier economics. It has three components:
+The important currently measured cells are:
 
-1. **Current-drafter information ceiling:** does `D_cur` already place the target
-   token in a small candidate neighborhood?
-2. **Target/base quantization ceiling:** does moving from `H_iq2/Y_iq2` to
-   `H_hp/Y_hp` materially improve acceptance?
-3. **Drafter-source ceiling:** does `D_orig`, if available, materially outperform
-   the vendored MXFP4-derived drafter under the same target trajectory?
+- `A(D_f32, H_iq2, Y_iq2)` — current float32 reference on IQ2XXS.
+- `A(D_f32, H_fp,  Y_fp )` — native float32 ceiling from Lead 04.
+- `A(D_f16, H_fp,  Y_fp )` — deployability failure case from Lead 04.
 
-## Experiment 1 — broad top-k rank ceiling for the current drafter
+The missing attribution cells are:
 
-### Rationale
+- `A(D_f32, H_fp,  Y_iq2)` — hidden-side effect with IQ2 labels.
+- `A(D_f32, H_iq2, Y_fp )` — label/trajectory effect with IQ2 hiddens.
 
-Before training anything larger, measure whether the current drafter distribution
-contains the correct served-target token at all. If the target token is often not
-in the drafter's top-k neighborhood, a head reranker or modest LoRA cannot reliably
-recover it. If it is usually present, then the deficit is more plausibly an
-ordering/calibration problem.
+## Experiment 1 - Crossed FP/IQ2 oracle on common prefixes
 
-This extends the Stage-0 diagnostic from the 10 exactness prompts to the larger
-Stage-2 train/eval/test corpus.
+### Question
 
-### Method
+How much of the native-vs-IQ2 float32 gain comes from:
 
-For every held-out temp=0 anchor and draft position `p=1..5`:
+1. **hidden/input-side precision** (`H_fp` helps even when labels stay IQ2), versus
+2. **label/trajectory drift** (`Y_fp` is easier / different even when hiddens stay IQ2)?
 
-1. Run the current drafter and compute the full decision score:
-   `base_logits + markov_bias(prev_token)`.
-2. Record the drafter argmax, target token, target rank in the drafter score
-   distribution, score margin, and whether the target is in top-2/top-5/top-10/top-128.
-3. Compute top-k oracle prefix acceptance:
-   for each step, accept a draft position if the target token is within the
-   drafter's top-k at that position along the greedy-spine rollout.
-4. Report `p=1` top-k coverage, per-position coverage, `E[a|4]`, `E[a|5]`,
-   full-accept rates `S(4)`, `S(5)`, and prompt-bootstrap confidence intervals.
-5. Feed the oracle prefix histograms into `model_spec_speedup.py` or the same
-   speed model formulas used by `spec_speedup_model.md`.
+This is the load-bearing unresolved caveat from Lead 04.
 
-### Decision rule
+### Inputs
 
-- If top-5/top-10 oracle acceptance still cannot reach the secondary speed-model
-  threshold, then extensive non-expert fine-tuning is unlikely to help. The correct
-  token is often not available to a local reranker.
-- If top-k oracle acceptance is high but trained LoRA is flat, the direction is not
-  fully falsified. The failure is then in the trainable parameterization, objective,
-  optimization, or generalization, not necessarily in the current features.
-- If top-k oracle is high only at `p=1` but collapses at deeper positions, then the
-  improvement path must explicitly address rollout compounding; a p=1-only gain will
-  not automatically become a useful K=4/5 prefix gain.
+- Reuse Lead 04 native captures and the retained IQ2XXS captures.
+- Restrict analysis to **common-prefix / aligned anchors** only, so comparisons are
+  not contaminated by unrelated trajectory divergence.
+- Primary carrier: `D_f32`, because Lead 04 established that `D_f16` on `H_fp`
+  is numerically unstable and therefore not useful for attribution.
 
-## Experiment 2 — high-capacity probe ceiling on served IQ2XXS data
+### Acceptance cells to measure
 
-### Rationale
+For the same aligned anchors:
 
-Top-k rank answers whether the *current scoring function* already ranks the target
-near the top. It does not answer whether the information is present in hidden states
-or pre-head features but inaccessible to the current head. A high-capacity probe
-estimates this learnability ceiling without committing to a deployable DSpark
-fine-tune.
-
-This experiment does **not** require another drafter checkpoint. It uses only the
-available vendored drafter and the captured served-target data, then asks whether
-a diagnostic model can extract more target-token signal from the same features than
-the deployed head does.
-
-The probe is a falsifier, not a product path. It can be larger or less efficient
-than the real drafter, as long as train/eval/test splits are strict.
-
-### Method
-
-Train probes on the Stage-2 train split and report only locked test results:
-
-- Inputs:
-  - pre-head drafter features `h` from the frozen current body;
-  - optionally raw `main_hidden` (`layers 40/41/42` concat) for an input-side
-    information probe.
-- Candidate set:
-  - `drafter top-128` union `target top-128` union the true target token.
-  - This avoids full-vocab training cost while preserving the relevant candidates.
-- Targets:
-  - served IQ2XXS greedy next token for `p=1`, and optionally `p=2..5` with
-    teacher-forced previous tokens.
-- Models:
-  - multinomial logistic probe;
-  - one or two hidden-layer MLP probe;
-  - optionally a per-anchor reranker over candidate embeddings.
-- Metrics:
-  - held-out p=1 match;
-  - candidate recall ceiling;
-  - `E[a|4/5]` under teacher-forced and real rollout evaluation;
-  - calibration/error overlap with baseline misses.
-
-### Decision rule
-
-- If the high-capacity probe cannot beat the current drafter on locked held-out
-  p=1, then the available non-expert features do not carry enough generalizable
-  signal. More extensive head/body fine-tuning is unlikely to recover the needed
-  acceptance.
-- If the probe beats the current drafter by `>=5 pp` p=1 but deployable LoRA does
-  not, then the fine-tune direction is not falsified; the LoRA class, loss, or
-  training scale was too weak.
-- If `main_hidden` probes beat `h` probes but `h` probes do not, the information is
-  lost inside the frozen drafter body. That points toward body/expert tuning or a
-  better drafter source, not head-only adaptation.
-
-## Experiment 3 — high-precision target crossed oracle
-
-### Rationale
-
-The served target is IQ2XXS. A drafter distilled against a higher-precision teacher
-may be good for that teacher but mismatched to IQ2XXS hidden states and IQ2XXS
-argmax labels. To quantify base-model quantization loss, run the same drafter
-against higher-precision target trajectories.
-
-The earlier Q4-tap experiment is useful but partial: lower layers remained IQ2XXS.
-The decisive version needs the highest-precision target that can be run locally or
-on an available larger machine.
-
-For this dossier, "high precision" should be interpreted carefully. The public
-`deepseek-ai/DeepSeek-V4-Flash-DSpark` repository is the official upstream DSpark
-artifact, but it is **not** an all-BF16 DeepSeek-V4-Flash target. The model card
-reports a 167 GB repository / 165B-parameter safetensors view with mixed tensor
-types, and the config uses `expert_dtype: fp4` plus FP8 quantization metadata. It is
-therefore the correct **official upstream mixed-precision ceiling** relative to the
-local IQ2XXS target, not a true BF16 full-precision ceiling. A true BF16 284B target
-would require a different checkpoint that is not currently available in the local
-dossier.
-
-### Method
-
-Capture aligned temp=0 trajectories for IQ2XXS and the high-precision target.
-For every prefix-aligned anchor, compute:
-
-| acceptance cell | label |
+| acceptance cell | interpretation |
 |---|---|
-| `A(D_cur, H_iq2, Y_iq2)` | current served baseline |
-| `A(D_cur, H_hp, Y_iq2)` | hidden/input-side effect only |
-| `A(D_cur, H_iq2, Y_hp)` | label/argmax-side effect only |
-| `A(D_cur, H_hp, Y_hp)` | high-precision target ceiling for current drafter |
+| `A(D_f32, H_iq2, Y_iq2)` | local baseline |
+| `A(D_f32, H_fp,  Y_iq2)` | hidden-side effect only |
+| `A(D_f32, H_iq2, Y_fp )` | label-side effect only |
+| `A(D_f32, H_fp,  Y_fp )` | native float32 ceiling |
 
-Use p=1 as the primary clean metric, then repeat for prefix acceptance where
-prefixes remain aligned. Report input main effect, label main effect, interaction,
-and target-label shift rate.
+### Metrics
 
-If full high-precision capture is too expensive, run a targeted miss-set:
-
-1. Select IQ2XXS p=1 misses from the Stage-2 eval/test corpus.
-2. Re-run only those prompts/positions with the high-precision target.
-3. Measure whether the high-precision target agrees with the drafter, with IQ2XXS,
-   or with neither.
+- p=1 acceptance delta for each cell.
+- If alignment depth supports it: prefix metrics `E[a|4]`, `S(4)`, and a cycle-jump
+  replay on common-prefix slices.
+- Input main effect, label main effect, and interaction.
+- Per-source breakdown (codealpaca / dolly / jsonex).
 
 ### Decision rule
 
-- If `A(D_cur, H_hp, Y_hp)` is close to `A(D_cur, H_iq2, Y_iq2)`, then target
-  quantization is not the main upstream ceiling for the current drafter.
-- If `A(D_cur, H_hp, Y_hp)` is materially higher, then the current drafter may be
-  good for a higher-precision teacher but mismatched to the served IQ2XXS target.
-- If swapping labels changes acceptance but swapping hidden states does not, the
-  problem is target argmax drift; output/head-side adaptation is the relevant lever.
-- If swapping hidden states changes acceptance, the problem is representation/input
-  shift; main-projection/body adaptation is more relevant.
+- **If `A(D_f32, H_fp, Y_iq2)` captures most of the `H_fp,Y_fp` lift:**
+  the gain is genuinely on the hidden/input side; a recovery path aimed at
+  hidden adaptation is justified.
+- **If `A(D_f32, H_iq2, Y_fp)` captures most of the lift:**
+  the measured native win is mostly label/trajectory drift, not an IQ2-hidden
+  recoverable lever; Lead 07 should stop.
+- **If both matter materially:**
+  the gain is mixed; any recovery attempt must be framed honestly as partial.
+- **If neither cell is much better than IQ2 baseline:**
+  the apparent native ceiling is not actionable for the local path; stop.
 
-### Remote execution plan on Modal
+## Experiment 2 - One deployability-focused recovery test
 
-The local 128 GB Apple Silicon machine should not attempt this run. Use Modal only
-for short data gathering: load the official upstream DSpark repository, replay the
-Stage-2 prompt set at temp=0, and emit compact artifacts back to the local dossier.
+### Gate
 
-#### Required machine class
+Run this only if Experiment 1 shows a **real hidden-side lever** worth recovering.
 
-Official upstream mixed-precision DSpark artifact (`deepseek-ai/DeepSeek-V4-Flash-DSpark`):
+### Goal
 
-- Model facts from the public repo:
-  - DeepSeek-V4-Flash is 284B total / 13B activated parameters.
-  - The DSpark repository is the same checkpoint with the speculative decoding
-    module attached.
-  - The repo file tree is ~167 GB and the model card reports mixed tensor types
-    (`BF16`, `F32`, `F8_E8M0`, `F8_E4M3`, `I8`, `I64`).
-  - `config.json` has `expert_dtype: fp4`, FP8 quantization metadata, 43 layers,
-    `hidden_size=4096`, DSpark target layers `[40,41,42]`, and block size 5.
-  - The official inference README uses model-parallel size `MP=4`.
-- Practical Modal minimum: `gpu="H100:4"` or `gpu="A100-80GB:4"` should fit the
-  167 GB mixed-precision artifact for short-context data gathering, but with less
-  headroom for conversion buffers and instrumentation.
-- Recommended Modal setup: `gpu="H200:4"` for headroom (4 x 141 GB = 564 GB VRAM),
-  better memory bandwidth, and lower risk of OOM during instrumented capture.
-- Higher-margin alternative: `gpu="B200:4"` if availability is good. Modal supports
-  up to 8 GPUs per container for B200/H200/H100/A100 families, so `B200:4` and
-  `H200:4` stay within a single-node setup.
-- Host resources: 16 physical CPU cores, 256 GiB host memory, and a persistent
-  Modal Volume sized 500-700 GiB. The volume must hold the HF cache (~167 GB), the
-  converted model-parallel checkpoint if using the official `inference/convert.py`
-  path (another ~167 GB), Python environment/cache, and compact outputs.
+Test **one concrete route** for making some of the hidden-side gain usable on the
+IQ2XXS local path. This is not another generic fine-tune sweep. It is a targeted
+recoverability test chosen using the crossed-oracle result.
 
-Hypothetical true all-BF16 target + F16 drafter:
+### Preferred route order
 
-- DeepSeek-V4-Flash target alone would be about `284B * 2 bytes ~= 568 GB` of
-  weights. The local F16 DSpark ceiling drafter is ~40 GiB, so target+drafter is
-  roughly 608 GiB before KV, activations, runtime buffers, and instrumentation.
-- Minimum practical class would be `B200:4` (nominal 768 GB VRAM) for short-context
-  inference, or `H200:8` for comfortable headroom. `H100:8` is only ~640 GB and is
-  too tight once overhead is included.
-- This is **not recommended now** because no true BF16 DeepSeek-V4-Flash + DSpark
-  checkpoint is identified. Dequantizing the public FP4/FP8 artifact into BF16 would
-  not restore lost information, so it would not answer the original-weight ceiling
-  question.
+Choose exactly one:
 
-#### Modal implementation shape
+1. **Body-side adapter with native auxiliary teacher** (preferred default).
+   Train a small adapter on the IQ2XXS path, with IQ2 labels primary and native
+   hidden/label information as auxiliary supervision. This directly tests the
+   best Lead-04-derived hypothesis: a deployable adaptation that makes IQ2XXS
+   features more native-like without requiring float32 deployment.
+2. **Full-HC residual probe before adaptation.**
+   If the crossed oracle suggests the mean-HC reduction may be leaving signal on the
+   table, run a cheap locked-split probe comparing full `[4,4096]` HC residual
+   against mean-HC features. If full-HC does not beat mean-HC, do not pursue that
+   route further.
+3. **Hidden dequantizer / mapper diagnostic.**
+   Only if the paired `H_iq2 ↔ H_fp` data suggests a simple learned mapping is
+   plausible. This is primarily diagnostic, not a product path.
 
-Use the official PyTorch inference code rather than vLLM for this diagnostic,
-because we need internal target-layer taps and drafter outputs, not only API text.
+### Success criterion
 
-1. Create a Modal image with CUDA PyTorch, `transformers`, `safetensors`,
-   `huggingface_hub`, `numpy`, and `pyarrow`/`safetensors` for outputs.
-2. Mount a persistent volume, e.g. `/cache`, for HF files, converted MP=4 weights,
-   and outputs.
-3. Define three functions:
-   - `prepare_dspark_weights()`: download `deepseek-ai/DeepSeek-V4-Flash-DSpark`
-     into the volume and run `inference/convert.py --model-parallel 4`.
-   - `pilot_capture()`: run 5-10 Stage-2 prompts, verify tokenizer alignment,
-     greedy labels, top-k shape, and DSpark draft semantics against expected local
-     tokenization.
-   - `full_capture()`: run all Stage-2 prompts at temp=0 and emit compact shards.
-4. Patch or wrap the official `inference/model.py` / `generate.py` path to emit:
-   - upstream greedy selected token per generated position;
-   - upstream top-128 token ids and logits/logprobs;
-   - optional exact DSpark tap hidden states for layers 40/41/42 if the hook is
-     confirmed to match `dspark_target_layer_ids`;
-   - official DSpark p=1..5 draft tokens and, if cheap, top-k scores.
-5. Keep the first full run label-only if hidden hooks are uncertain. Label-only
-   already answers whether upstream target labels agree with IQ2XXS or with the
-   current drafter on the miss set. Add hidden-state crossed oracle only after the
-   tap representation is validated.
+Any route is only interesting if it shows both:
 
-Pseudo-Modal resource declaration:
+1. **Held-out p=1 gain over the IQ2XXS deployable baseline**, and
+2. **A credible move in prefix/cycle metrics toward the native-hidden ceiling**, not
+   just a tiny first-token gain with no block-level effect.
 
-```python
-@app.function(
-    gpu="H200:4",
-    cpu=16,
-    memory=262144,  # MiB
-    timeout=6 * 60 * 60,
-    volumes={"/cache": dspark_volume},
-    secrets=[modal.Secret.from_name("huggingface-token")],
-)
-def full_capture(...):
-    ...
-```
+If it cannot clear that bar, record the native-hidden ceiling as **real but not
+recoverable on the current deployment path** and close the lead.
 
-#### Workload size
+## Non-goals
 
-The current Stage-2 dataset has 240 prompts and 29,160 captured target positions.
-Prompt prefill is small (22,316 total prompt tokens; mean prompt length ~93 tokens),
-so the exhaustive upstream run is only about 51k total target-model token positions
-including prefill. The compute is small compared with cold start, model download,
-conversion, and model load.
+Lead 07 does **not** include:
 
-Recommended run set:
+- a new broad fine-tuning campaign;
+- expert tuning as an open-ended workstream;
+- a search for hypothetical BF16/original DSpark checkpoints;
+- verifier engineering (Lead 06);
+- scheduler-only work (Lead 02);
+- generic corpus expansion unless needed to stabilize the crossed-oracle estimate.
 
-- **Pilot:** 10 prompts across the three sources (`codealpaca`, `dolly`, `jsonex`).
-- **Full label-only:** all 240 prompts; output selected ids + top-128 logits.
-- **Optional full hidden/drafter:** same 240 prompts; output layer 40/41/42 taps and
-  official DSpark drafts after hook validation.
-- **Retry contingency:** budget one extra pilot/full pass if instrumentation is wrong.
+## Deliverables
 
-#### Cost estimate
+1. A compact summary answering:
+   - how much of the native-vs-IQ2 gain is hidden-side vs label-side;
+   - whether that gain appears recoverable on IQ2XXS;
+   - whether the local drafter-quality axis remains open or should be closed.
+2. Machine-readable artifact(s) for the crossed oracle.
+3. If Experiment 2 runs, one bounded recovery result with a clear stop/proceed verdict.
 
-Modal pricing as of 2026-07-07:
+## Exit conditions
 
-- H200: `$0.001261/sec` = `$4.54/GPU-hour`; `H200:4` GPU cost ~= `$18.16/hour`.
-- H100: `$0.001097/sec` = `$3.95/GPU-hour`; `H100:4` GPU cost ~= `$15.80/hour`.
-- B200: `$0.001736/sec` = `$6.25/GPU-hour`; `B200:4` GPU cost ~= `$25.00/hour`.
-- A100-80GB: `$0.000694/sec` = `$2.50/GPU-hour`; `A100-80GB:4` GPU cost ~=
-  `$10.00/hour`.
-- Add host resources for the recommended shape: 16 physical cores ~= `$0.75/hour`;
-  256 GiB memory ~= `$2.05/hour`.
-- Modal Volumes are `$0.09/GiB-month` with 1 TiB/month included, so the proposed
-  500-700 GiB experiment volume should usually add no extra storage charge within
-  the free included tier. Region selection adds 1.5-1.75x; non-preemptible execution
-  is 3x and is not recommended for this short experiment.
+- **Proceed:** crossed oracle says the hidden-side lever is real, and the bounded
+  recovery test shows deployable held-out improvement.
+- **Stop:** crossed oracle says the native gain is mostly label/trajectory drift, or
+  the bounded recovery test fails to pull IQ2XXS meaningfully toward the native
+  ceiling.
 
-Recommended budget on `H200:4`:
+## One-line verdict
 
-| phase | expected wall time | cost at ~$20.96/hour |
-|---|---:|---:|
-| first download + convert + model-load smoke | 1-2 h | $21-$42 |
-| pilot capture | 0.25-0.5 h | $5-$11 |
-| full label-only capture | 0.5-2 h | $11-$42 |
-| optional hidden + official-drafter capture | 0.5-2 h | $11-$42 |
-| one retry/contingency pass | 1-2 h | $21-$42 |
-
-Practical envelope:
-
-- **Label-only answer:** ~2-4 hours on `H200:4`, about **$40-$85** after the first
-  successful setup.
-- **Full labels + hidden taps + official drafter outputs:** ~3-6 hours, about
-  **$65-$125**.
-- **Conservative budget with retries:** **$150-$250**.
-
-Cheaper `A100-80GB:4` could reduce hourly cost but is not the recommended first run:
-the experiment is dominated by setup/debug risk, and H200's memory headroom is worth
-more than the small absolute cost saving. `B200:4` is a good fast fallback if H200
-queue time is poor, at roughly `$28/hour` including host resources.
-
-## Experiment 4 — original drafter checkpoint A/B, if available
-
-### Rationale
-
-The current F16 ceiling is only the F16 dequantization of the vendored MXFP4 source.
-If the DSpark drafter originally existed as BF16/FP weights before MXFP4 export, the
-vendored weights may simply have lost too much quality. This is a separate question
-from Q4_K GGUF conversion.
-
-This experiment is conditional. The current local materials include only the
-vendored safetensors/MXFP4-derived drafter, so this A/B cannot be executed unless an
-external original BF16/FP checkpoint is found.
-
-### Method
-
-If an original BF16/FP DSpark drafter checkpoint can be obtained:
-
-1. Convert or load it into the same oracle path.
-2. Verify tensor semantics against the current DSpark forward.
-3. Run the same retained acceptance harness:
-   - exactness small corpus;
-   - Stage-2 locked eval/test corpus;
-   - same IQ2XXS target captures;
-   - optionally high-precision target captures from Experiment 3.
-4. Compare against `D_cur` and the F16 vendored ceiling.
-
-### Decision rule
-
-- If `D_orig` improves held-out p=1 and `E[a|4/5]` by `<1 pp`, the original drafter
-  source quality is not the missing ceiling.
-- If `D_orig` improves by `>=5 pp`, the vendored MXFP4-derived drafter is a real
-  upstream bottleneck, and local fine-tuning of the shipped weights is solving a
-  harder problem than intended.
-- If no original checkpoint exists, this ceiling remains unmeasured. The dossier
-  should state that explicitly rather than treating the F16 vendored ceiling as a
-  true original-weight ceiling.
-
-## Recommended execution order
-
-1. **Broad top-k rank ceiling on current Stage-2 held-out data.** Cheapest and most
-   directly tied to acceptance. This determines whether a local reranking/fine-tune
-   story is even plausible.
-2. **High-capacity probe ceiling.** Still local and fast on Apple Silicon. This
-   separates "information absent" from "our LoRA/loss was too weak."
-3. **High-precision target crossed oracle.** More expensive because it needs a
-   better target run, but decisive for base-model quantization loss.
-4. **Original drafter A/B.** Most decisive for vendored drafter quality, but only
-   possible if true pre-MXFP4 DSpark weights are available.
-
-## Efficient falsification criteria
-
-Close the "more extensive non-expert fine-tuning will recover acceptance" direction
-if all of the following hold:
-
-- broad top-k oracle acceptance is too low to meet at least the secondary speed-model
-  threshold;
-- high-capacity probes on served IQ2XXS data cannot materially beat the current
-  drafter on a locked held-out split;
-- high-precision target crossed oracle, if available, does not materially raise
-  current-drafter acceptance;
-- no original BF16/FP drafter A/B is available, or it fails to improve materially.
-
-Keep the direction open, but localize it, if any of the following hold:
-
-- top-k oracle is high but LoRA is flat: trainable adapter/loss/scale was too weak;
-- high-capacity probe is high from `main_hidden` but not from `h`: frozen drafter
-  body loses useful information;
-- high-precision target is much better: served IQ2XXS quantization is the mismatch;
-- original BF16 drafter is much better: vendored MXFP4 source quality is the ceiling.
-
-## Reporting requirements
-
-For every experiment, report both acceptance and speed-model relevance:
-
-- p=1 match rate with paired confidence / McNemar where applicable;
-- `E[a|4]`, `E[a|5]`, prefix histograms, and full-accept rates;
-- prompt-bootstrap intervals, not only token-level aggregate means;
-- miss-set overlap with Stage-0 shallow-rank cases;
-- whether the result changes the projected ability to beat baseline or the `+20%`
-  primary gate under `spec_speedup_model.md`.
-
-This prevents a repeat of the main ambiguity in Stage 2: a diagnostic can be
-locally correct but still not answer whether the acceptance gain is large enough to
-matter for DSpark throughput.
+Lead 07 remains justified only as a **narrow post-Lead-04 recoverability lead**:
+first attribute the native-hidden gain with a crossed FP/IQ2 oracle, then test at
+most one deployable hidden-side recovery path.
