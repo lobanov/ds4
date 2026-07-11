@@ -778,3 +778,54 @@ prompts, common-prefix/crossed-oracle) is expected to shrink the +5pp.
 artifacts/acceptance_powered/combined300_float32/ (240); result JSON
 /tmp/phaseB_results/phaseB_gap_final.json; codex reviews 07 (gate1), 08 (gate2 re-review);
 spec_speedup_model.md FP section corrected (GO→HOLD, dtype-confound retracted, F16/hidden-capture fidelity noted).
+
+### Codex Phase C gate — AMEND + 4 new leads (2026-07-11)
+
+Codex gate (retained 09_phaseC_gate_routes.md) AMENDED the Phase C verdict (not approved/rejected):
+- The +15% was over-precise (script used Q2's S(4)=0.34; measured FP S(4)=0.57 → speedup
+  corrected to ~+8-10%, still clears baseline).
+- Cross-engine confound: "IQ2XXS can capture this gain" UNPROVEN without a crossed oracle.
+- Accepted wording: "native hiddens expose a large float32 ceiling; F16 can't use it;
+  IQ2XXS recoverability unproven."
+
+Codex's practical-routes critique: most-promising = **Route A (drafter body-LoRA adapter,
+IQ2XXS labels primary + native teacher auxiliary, F16-deployable)**; B (full HC residual)
+needs a probe first (the ceiling already used the mean); C (float32 alone) useless on IQ2XXS;
+D (dequantizer) best diagnostic but ill-posed + needs float32.
+
+Codex's 4 new leads (for future work):
+1. **Crossed FP/IQ2 oracle** — A(D,H_fp,Y_iq2), A(D,H_iq2,Y_fp), A(D,H_fp,Y_fp) on common
+   prefixes. Separates hidden-precision gain from label/trajectory drift BEFORE any route.
+   Falsifier: H_fp,Y_iq2 gives little lift, or label divergence explains the FP win.
+2. **F16 flip triage** — f32 islands for main_proj/head/markov, or margin-triggered f32
+   rerun. If the F16 flips are near-tie numerics, a small mixed-precision patch recovers FP
+   behavior cheaper than full f32. Falsifier: high-margin flips dominate, or islands recover <90-95%.
+3. **Full-HC probe** — cheap locked-split reranker from full [4,4096] HC vs mean HC. Tests
+   whether the mean reduction loses target-token info (de-risks Route B). Falsifier: full-HC
+   probe doesn't beat mean probe.
+4. **Scheduler with real FP S(K) + confidence** — FP S(K) ≠ Q2's; confidence separation
+   +0.247 suggests scheduling may outperform fixed K. Falsifier: scheduled replay adds <2-3
+   speed points over best fixed K.
+
+### Phase C RESULT (2026-07-11): falsification cleared + cycle-jump +8-10% float32
+
+**Falsification gate (CLEARED):** code-reads on vLLM v0.24.0 verified the capture mechanics
+(layer return `(x, residual, post_mix, res_mix)` matches the hook unpack; mhc_post_tilelang
+not in-place → clones harmless). Local check: F16 anomaly is argmax-flipping (F16 FP p1=0.60
+vs float32 0.92; no NaN/inf; identical magnitudes), NOT overflow/capture-bug. Capture likely
+faithful (C1 resolved). No capture bug → proceed.
+
+**Cycle-jump (the full trajectory, user hypothesis CONFIRMED):** first-token p1 understates
+the FP benefit; the cycle-jump amplifies it. analyze_phaseC.py (Lead 03 estimator, offset s+2):
+- FP @ float32 (n=296): E[a|4]=2.741, S(4)≈0.57, speedup ~1.08-1.10x (+8-10%, clears baseline).
+  p1=0.855. Confidence calibrated (separation +0.247).
+- FP @ F16 (n=30, codealpaca): E[a|4]=1.693, speedup 0.83x — deployment WORSE than Q2.
+- Q2 ref: E[a|4]=2.198, S(4)=0.34, speedup 0.982x.
+(The +15% initial estimate used Q2's S(4)=0.34; codex caught it → measured FP S(4)=0.57 → +8-10%.)
+
+**Verdict (codex-amended):** native hiddens expose a large float32 acceptance ceiling
+(+8-10% cycle-jump speedup, clearing baseline); the current F16 deployment cannot use it;
+recoverability on an IQ2XXS target is UNPROVEN (needs a crossed oracle to separate hidden-
+precision from label-drift). Practical routes: (A) body-LoRA adapter [most promising,
+F16-deployable]; (B) full-HC residual [probe first]; (D) hidden dequantizer [diagnostic].
+See codex's 4 leads above.

@@ -70,7 +70,7 @@ def main():
         bundles = bundles[:args.limit]
     print(f"measuring {len(bundles)} FP bundles...", flush=True)
 
-    ea4_all, p1_all, conf_accept, conf_reject = [], [], [], []
+    ea4_all, sk4_all, p1_all, conf_accept, conf_reject = [], [], [], [], []
     t0 = time.time()
     for i, b in enumerate(bundles):
         oi = np.load(b / "oracle" / "oracle_inputs.npz")
@@ -86,7 +86,7 @@ def main():
         conf = conf_scores.cpu().numpy()    # [max_step, BLOCK]
         # cycle-jump E[a|4]
         ea, sk = simulate_ea(drafts, tt, 4)
-        if ea is not None: ea4_all.append(ea)
+        if ea is not None: ea4_all.append(ea); sk4_all.append(sk)
         # p1
         p1 = np.mean(drafts[:, 0] == np.array([tt[s + 1] for s in range(1, max_step + 1)]))
         p1_all.append(float(p1))
@@ -97,18 +97,18 @@ def main():
             (conf_accept if accept else conf_reject).append(float(conf[s, 0]))
         if (i + 1) % 10 == 0: print(f"  [{i+1}/{len(bundles)}] ({(time.time()-t0)/(i+1):.1f}s/p)", flush=True)
 
-    ea4_mean = np.mean(ea4_all); p1_mean = np.mean(p1_all)
-    # S(4) approx from ea (recompute properly would need per-cycle; use the simulate return)
-    sp4 = speedup_k(ea4_mean, 0.34, 4)  # S(4) approx from Q2; report ea4 mainly
+    ea4_mean = np.mean(ea4_all); sk4_mean = np.mean(sk4_all); p1_mean = np.mean(p1_all)
+    sp4 = speedup_k(ea4_mean, sk4_mean, 4)  # use MEASURED FP S(4), not Q2's 0.34
     # confidence: mean conf when accepted vs rejected (separation)
     ca = np.mean(conf_accept) if conf_accept else 0; cr = np.mean(conf_reject) if conf_reject else 0
     print(f"\n=== FP @ {args.dtype} (n={len(ea4_all)}) ===")
     print(f"  p1 = {p1_mean:.4f}  (Q2 ref 0.793)")
     print(f"  cycle-jump E[a|4] = {ea4_mean:.4f}  (Q2 ref 2.198)")
-    print(f"  speedup(K=4) ~ {sp4:.4f}x  (Q2 ref 0.982x, uses Q2 S(4)=0.34)")
+    print(f"  cycle-jump S(4) = {sk4_mean:.4f}  (Q2 ref 0.34)  ← now MEASURED")
+    print(f"  speedup(K=4) = {sp4:.4f}x  (Q2 ref 0.982x)")
     print(f"  confidence: mean(accept)={ca:.4f} vs mean(reject)={cr:.4f}  separation={ca-cr:+.4f}")
     print(f"  (larger separation = better-calibrated confidence → better scheduling)")
-    res = {"dtype": args.dtype, "n": len(ea4_all), "fp_p1": p1_mean, "fp_ea4": ea4_mean,
+    res = {"dtype": args.dtype, "n": len(ea4_all), "fp_p1": p1_mean, "fp_ea4": ea4_mean, "fp_s4": sk4_mean,
            "fp_speedup4": sp4, "conf_accept_mean": ca, "conf_reject_mean": cr, "conf_separation": ca - cr}
     if args.json_out: Path(args.json_out).write_text(json.dumps(res, indent=2))
     return res

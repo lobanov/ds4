@@ -36,7 +36,7 @@ dimensions** to the drafter's input, both now measured: **drafter-weight** preci
 closed (Q4_K≈F16, `dspark_quantization_ceiling.md` — not the lever); **target hidden-state**
 precision is open and measured by Lead 04 Phase B (see "Target hidden-state precision" —
 native FP4/FP8 hiddens lift p1 ~+5 pp at float32, but the F16 deployment result reverses
-sign; resolved in Phase C — capture faithful, the lever is real at +15% float32 speedup, F16-deployment-blocked).
+sign; resolved in Phase C — capture faithful, the lever is real at +8–10% float32 speedup, F16-deployment-blocked, IQ2XXS-recoverability unproven).
 
 ## Notation & definitions
 
@@ -268,27 +268,36 @@ the same 299-prompt corpus (Lead 03’s cycle-jump estimator; `dspark_oracle/ana
 |---|---|---|---|
 | p1 | 0.855 | 0.596 | 0.793 |
 | cycle-jump E[a\|4] | **2.741** | 1.693 | 2.198 |
-| speedup(K=4) | **~1.15× (+15%)** | ~0.83× | 0.982× |
+| cycle-jump S(4) | ~0.57 (meas.) | — | 0.34 |
+| speedup(K=4) | **~1.08–1.10× (+8–10%)** | ~0.83× | 0.982× |
 | confidence separation | +0.247 (calibrated) | — | (Lead 02) |
 
-At **float32, FP hiddens clear baseline by +15%** (E[a|4]=2.74 vs Q2 2.198) — the
-“later-position acceptance matters even if p1 doesn’t” hypothesis holds, and strongly:
+At **float32, FP hiddens clear baseline by ~+8–10%** (E[a|4]=2.74, S(4)≈0.57 vs Q2
+2.198/0.34) — the “later-position acceptance matters even if p1 doesn’t” hypothesis holds:
 the cycle-jump gap (+0.54 drafts/cycle) is much larger than the p1 gap (+6 pp) suggests.
 The drafter’s confidence head is calibrated on FP hiddens (accepted 0.87 > rejected 0.62,
 separation +0.247), so confidence-scheduled verification (Lead 02’s framework) is viable
 on FP. At **deployment precision (F16/Q4_K), FP hiddens are WORSE** (E[a|4]=1.69, 0.83×)
 — the F16 drafter’s argmax-flipping on the FP distribution destroys the benefit.
 
-**Verdict (Phase B+C): the FP lever is REAL and LARGE at float32 (+15% speedup, clearing
-baseline), but F16-deployment-blocked.** This is a drafter-precision blocker, not a capture
-blocker: the captures are faithful, and a float32 drafter on native hiddens would deliver
-~+15%. The local IQ2XXS speedup verdict (0.98×) stands for the *current* deployment (IQ2XXS
-target + F16 drafter), but target-hidden precision is now a **quantified live lever**: a
-float32 drafter (or an F16 fix / a drafter re-distilled to be F16-robust on native hiddens)
-could realize the +15%. Lead 07’s trigger is met at float32. Caveats: (1) the +15% uses Q2’s
-S(4)=0.34 (the FP S(4) wasn’t separately reported — likely conservative); (2) corpus is the
-easy side (dolly weakest); (3) FP (vLLM) vs Q2 (ds4) is cross-engine. The path: run the
-drafter at float32 (cost/latency tradeoff) OR fix the F16 numerical sensitivity.
+**Verdict (Phase B+C, codex-amended): native served-precision hiddens expose a large
+float32 acceptance ceiling (~+8–10% cycle-jump speedup, clearing baseline); the current
+F16 deployment cannot use it; recoverability on an IQ2XXS target is UNPROVEN.** This is a
+drafter-precision blocker, not a capture blocker: the captures are faithful (mechanics
+verified), and a float32 drafter on native hiddens would deliver ~+8–10%. The local IQ2XXS
+speedup verdict (0.98×) stands for the *current* deployment (IQ2XXS target + F16 drafter),
+but target-hidden precision is now a **quantified live lever**. **Critical caveat (codex):**
+the +8–10% compares a vLLM-native trajectory to a ds4-IQ2XXS trajectory — a **crossed
+oracle** (drafter on FP-hiddens×IQ2XXS-labels, and vice versa, on common prefixes) is needed
+to separate the hidden-precision gain from label/trajectory drift before attributing the
+lever to hidden precision. Practical routes to capture some of the gain (target stays
+IQ2XXS): (A) drafter body-LoRA adapter trained on IQ2XXS labels with native as an auxiliary
+distillation teacher [codex’s most-promising pick, F16-deployable]; (B) feed the full
+[4,4096] HC residual instead of the mean [needs probe first — the ceiling already used the
+mean]; (D) a learned IQ2XXS→native-like hidden dequantizer [Lead 04 has the pairs] + a
+float32 drafter. (C) float32-drafter-alone is useless on IQ2XXS (f32-Q2==f16-Q2). Caveats:
+corpus is the easy side (dolly weakest); the +8–10% uses a 30-prompt S(4) estimate (full-300
+S(4) unmeasured); F16 drafter cannot handle native hiddens (argmax-flipping).
 
 ## Verdict, levers, and open scope
 
@@ -308,7 +317,7 @@ gains:
 2. **A materially better drafter** (Lead 07 upstream quality / training): the binding
    constraint is per-cycle acceptance; **drafter-weight** precision is exhausted (Q4_K≈F16),
    but **target hidden-state** precision is NOT closed — Lead 04 Phase B measured a ~+5 pp
-   native-vs-IQ2XXS gap at float32 and, per Phase C, a **+15% cycle-jump speedup at
+   native-vs-IQ2XXS gap at float32 and, per Phase C, a **+8–10% cycle-jump speedup at
    float32** (E[a|4]=2.74 vs Q2 2.198) — the largest measured lever, but F16-deployment-
    blocked (the F16 drafter argmax-flips on native hiddens); see
    "Target hidden-state precision" above.
@@ -333,5 +342,5 @@ a genuinely cheap folded verifier, scheduling contributes a fragile extra few po
 The decision-grade open questions therefore move to Lead 06 (does a real folded verifier
 realize the anchor-reuse + low-overhead regime?) and Lead 07 (can the drafter's per-cycle
 acceptance rise enough to clear the ~0.06–0.10 drafts/cycle deficit — and can the Lead 04
-   +15% float32 FP-ceiling lever be realized, via a float32 drafter or an F16 fix?).
+   +8–10% float32 FP-ceiling lever be realized, via a float32 drafter / body-LoRA / hidden-dequant?).
 

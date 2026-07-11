@@ -90,7 +90,7 @@ Create a trustworthy active dossier that makes it easy to:
   - codex reviews: `issue468/artifacts/lead04_codex_reviews/` (8 retained: patch-design,
     path-review, smoke-diagnosis, gate-1, audit-review)
   - worklog + go/no-go (archived, HOLD): `issue468/archive/leads/lead_04_fp_ceiling_capture.md`
-  - **Verdict: HOLD (Phase B-limited, codex gate 2 re-review).** 299/300 native captures;
+  - **Verdict: HOLD→RESOLVED (Phase C): native-hidden float32 ceiling +8-10% cycle-jump speedup (clears baseline); F16-deployment-blocked; IQ2XXS-recoverability unproven (crossed-oracle pending). Capture fidelity cleared (v0.24.0 code-reads + F16-anomaly-is-numerical). Codex 4 leads recorded. See spec_speedup_model "Target hidden-state precision". [Phase B-limited was HOLD.]** 299/300 native captures;
     consistent-dtype float32 Δp1=+5.28pp CI[+3.8,+6.6] (technically GO; the earlier codex
     dtype-confound hypothesis was REFUTED — f32-Q2==f16-Q2 exactly on 240 prompts). BUT not
     deployment-actionable: the F16 drafter on FP hiddens gives p1≈0.62 vs F16-Q2 0.79
