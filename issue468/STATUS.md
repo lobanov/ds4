@@ -296,23 +296,52 @@ Create a trustworthy active dossier that makes it easy to:
   is the last plausible lever, realistically targeting the secondary gate
   (beat baseline / match --mtp), not the +20% primary gate. See
   `summaries/quant_mismatch_recommendation.md`.
+- **Milestone 2 (DSpark runtime model-on-Metal validation): runtime sound, verifier break-even, local primary gate not achievable on IQ2XXS; secondary gate met.**
+  The runtime modelling assumptions in `summaries/spec_speedup_model.md` were
+  measured on Metal (doubly codex-reviewed). (1) **Runtime drafter is sound:** on
+  the same greedy spine (lead3, n=946 matched anchors, oracle self-aligned to the
+  live trajectory via dumped hiddens), live acceptance is **at/above the oracle**
+  (p1 0.517 vs 0.477; mean prefix 1.64 vs 1.21) — the earlier "runtime realizes
+  ~57% of oracle" was a **measurement artifact** (cross-encoding + capture-length
+  mismatch), not a drafter bug. (2) **Verifier is break-even at oracle
+  acceptance:** the sublinear batched verifier only beats the short-circuiting
+  sequential verify above ~2.3 (K4) / ~2.6 (K5) accepts; oracle E[a|4]=2.2–2.3
+  sits at/below that crossover. It is exactness-acceptable for rejection sampling
+  (median TV 0.0035, flip 0.64%), so option A (distribution-exact gate) clears the
+  exactness axis but only breaks even on cost. (3) **Rejection sampling is
+  acceptance-neutral** (greedy-draft +2.6% within noise; sampled −6.9%). Net: the
+  model's ~0.98× IQ2XXS ceiling is trustworthy; runtime levers are exhausted for
+  the local primary gate. **Primary gate NOT met** (not achievable on IQ2XXS +
+  current drafter); **secondary gate met** (DSpark fixed verify_k=1 ~30 t/s vs
+  shipped K=4 --mtp 27.15 t/s). The only modeled route to the primary gate is
+  drafter QUALITY (Lead 04 native-FP hiddens, +8–10% float32, F16-deployment-
+  blocked; Lead 07 training). See
+  `summaries/dspark_runtime_milestone_2_progress.md` (§ Milestone 2 conclusion).
 
 ## Next recommended steps
 
-1. Create inventories for:
-   - instrumentation in code
-   - retained tools/scripts
-   - retained artifacts
-2. Add compact topic summaries for:
-   - accepted findings
-   - false leads / exhausted directions
-   - current open questions
-3. Move bulky or superseded material to archive references rather than keeping it active.
-4. **Lead 04 — FP ceiling capture (Phase A COMPLETE → HOLD on full Phase B):**
-   - Pilot: 5 exactness prompts measured (FP mean p=1=0.7143 GREEN; Δ vs Q2=−0.06,
-     CI includes 0 → gap absent)
-   - Full capture: NOT justified — deferred (pilot underpowered + mhc_post representation
-     unproven; see go/no-go in the worklog)
+The local DSpark runtime is correctness-gated, benchmarkable, and beats the
+shipped `--mtp` path, but does **not** clear baseline on IQ2XXS; runtime-side
+levers are exhausted. The realistic research directions, in priority order:
+
+1. **Drafter quality (the only modeled route to the primary gate).** Lead 04
+   native-FP hidden precision (+8–10% float32; F16-deployment-blocked) is the
+   single >baseline projection — pursue an IQ2XXS-recovery route (body-LoRA
+   distilled toward native; full [4,4096] HC residual; or a learned
+   IQ2XXS→native hidden dequantizer). Lead 07 drafter training is the parallel.
+2. **Server-side multi-request batching** (the separate deployment-shape gate):
+  the verifier is bandwidth-bound, so batching amortizes the verify floor — a
+  throughput (not single-request-latency) win requiring `ds4-server`
+  integration.
+3. **Decide the local scope.** Either (a) declare the local primary gate not
+   met and narrow DSpark to a `--mtp`-beating path (secondary gate), or (b)
+   commit a research cycle to Lead 04/07. A clean long-context absolute-
+   acceptance re-measurement (vs the short-context lead3 run) would make the
+   acceptance numbers comparable to the powered corpus before that decision.
+
+Lower-priority housekeeping (mostly done in the 2026-07-12 cleanup):
+instrumentation + retained-tools inventories are current; the milestone-2
+conclusion is consolidated; the fixed-K verify clamp bug is fixed and committed.
 
 ## Canonicality rule
 

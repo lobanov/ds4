@@ -25,6 +25,44 @@ conditional scheduling). Milestone 2's job is to replace each of those
 assumptions with a measured Metal reality, then re-read the model with the
 measured numbers.
 
+## Milestone 2 conclusion (validated)
+
+The runtime modelling assumptions have been measured on Metal. Consolidated
+verdict (evidence in the worklog entries below, all doubly codex-reviewed):
+
+1. **The runtime drafter is sound.** On the same greedy spine (lead3, 60
+   prompts, n=946 matched anchors, oracle built from the live's own dumped
+   hiddens so it is self-aligned), live acceptance is **at or above the oracle**
+   (p1 0.517 vs 0.477; mean accepted prefix 1.64 vs 1.21). The earlier
+   "runtime realizes ~57% of oracle acceptance" was a **measurement artifact**
+   (cross-encoding raw-48/chat-70 vs chat-67 + short-vs-long capture length),
+   NOT a runtime drafter deficiency or bug.
+2. **The verifier is break-even at oracle acceptance.** The sublinear batched
+   verifier (`verify_suffix_tops`) only beats the short-circuiting sequential
+   verify above ~2.3 (K4) / ~2.6 (K5) accepts; the oracle `E[a|4]` = 2.2–2.3
+   sits at/slightly-below that crossover. It is exactness-acceptable for
+   rejection sampling (median TV 0.0035, flip 0.64%), so option A (relax
+   greedy-exact to distribution-exact) clears the *exactness* axis — but the
+   *cost* axis is only break-even, not a win.
+3. **Rejection sampling is acceptance-neutral.** Greedy-draft RS is +2.6%
+   (within noise, CI straddles 0); sampled-draft RS is −6.9%. No acceptance
+   windfall; the drafter should keep proposing its argmax.
+
+**Gate status.** Primary gate (≥20% over baseline, exact greedy): **NOT met**
+and, per the validated model, **not achievable on IQ2XXS + current drafter**
+(the model's ~0.98× ceiling is now trustworthy — the runtime is sound, the
+verifier is break-even, the gap is the drafter's IQ2XXS-limited acceptance).
+Secondary gate (beat/match `--mtp`): **met** — DSpark (exact anchor reuse,
+fixed `verify_k=1`) lands ~30 t/s vs shipped K=4 `--mtp` 27.15 t/s (the
+exact-anchor-reuse variant is +21% over shipped `--mtp`).
+
+**Implication.** Runtime-side levers are effectively exhausted for the local
+primary gate. The only modeled route to the primary gate is drafter QUALITY —
+Lead 04 native-FP hidden precision (+8–10% at float32, the single >baseline
+projection; F16-deployment-blocked, IQ2XXS-recoverability open) and/or Lead 07
+training — which would also push acceptance above the batched-verify crossover.
+Server-side multi-request batching remains the separate deployment-shape gate.
+
 ## Scope: the modelled levers under validation
 
 Each row is one assumption the speedup model depends on. "Model projection" is

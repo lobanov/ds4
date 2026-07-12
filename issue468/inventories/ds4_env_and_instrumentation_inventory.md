@@ -228,6 +228,7 @@ meaning materially changes.
 | `DS4_DSPARK_SPEC_LOG` | diagnostic | Enables DSpark speculative-cycle logging. |
 | `DS4_DSPARK_TIMING` | diagnostic | Enables per-cycle DSpark timing capture. |
 | `DS4_DSPARK_VERIFY_DIST_PROBE` | diagnostic | Measurement 1 (option A): non-committing probe that runs the sublinear batched verifier (`verify_suffix_tops`) alongside the real sequential DSpark verify and records per-position argmax-flip / max-abs-logit / TV / KL(seq‖batched) into `dspark_last_cycle.verify_dist`, emitted per-cycle as `verify_dist` objects in the ds4-spec-bench JSONL. Requires the graph to allocate `spec_logits` + spec-frontier tensors for DSpark (now done). Non-mutating to the real decode. |
+| `DS4_DSPARK_DUMP_HIDDEN` | diagnostic | Live greedy-spine hidden dump (milestone 2 live-vs-oracle trace). When set to a path, forces a host refresh of the DSpark `main_hidden` (layer-40/41/42 mean) at every committed token and appends a (pos, token, hidden[3*N_EMBD]) record. Because greedy speculative preserves the greedy spine, these per-committed-token hiddens ARE the clean capture the offline oracle drafter consumes. Set per-prompt by `ds4-spec-bench --dump-hidden-dir`. |
 
 ## Inventory notes for current research
 
@@ -240,3 +241,31 @@ meaning materially changes.
 - The largest instrumentation surface in `ds4.c` today is the Metal streaming
   and graph-debug stack. That surface should be treated as part of the research
   harness, not only as production runtime configuration.
+
+## Retained milestone-2 analysis tooling
+
+- **ds4-spec-bench** (`ds4_spec_bench.c`): the one-load bulk speculative bench.
+  Milestone-2 additions: per-cycle `anchor_id` + `draft_ids[5]` in the DSpark
+  metrics (live-vs-oracle trace); a per-run `think` config field (`high`/`max`/
+  `none`) so the bench can reproduce `ds4`'s default `DS4_THINK_HIGH` chat
+  template; `--dump-hidden-dir` to drive `DS4_DSPARK_DUMP_HIDDEN` per prompt; the
+  `verify_dist` JSON block (incl. `batched_verify_ms`) per cycle.
+- **`dspark_oracle/measure_rejection_acceptance.py`** — measurement 2: projects
+  rejection-sampling acceptance (1-TV / min(1,p/q)) from retained draft + target
+  distributions; emits per-position + E[a|K] (greedy vs rs-greedy-draft vs
+  rs-sampled).
+- **`dspark_oracle/measure_acceptance_bundle.py --emit-draft-dist`** — extended
+  to emit the per-position drafter distribution (top-K ids+probs) sidecar
+  (`draft_dist.json`) consumed by the RS + live-vs-oracle analyses.
+- **`dspark_oracle/run_rejection_acceptance_all.py`** — one-load driver that runs
+  the oracle drafter over many bundles and the RS measurement together.
+- **`dspark_oracle/convert_dumps_to_bundles.py`** — converts live hidden dumps
+  (`DS4_DSPARK_DUMP_HIDDEN`) into the oracle-bundle format so the offline oracle
+  drafter runs on the LIVE greedy-spine hiddens (self-aligned).
+- **`dspark_oracle/compare_live_vs_oracle.py`** — aligns the live runtime trace
+  to the oracle drafts on the same greedy spine (robust sequential anchor match)
+  and reports p1 / mean-prefix / draft-agreement. Decisive for the
+  drafter-faithfulness question (n=946 result).
+- **Environment:** `issue468/.venv` + `issue468/requirements.txt` (numpy, torch
+  MPS, safetensors, pyarrow, tqdm, modal, huggingface-hub). Single consolidated
+  analysis venv for the dossier; recreate from requirements.txt.
