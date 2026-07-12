@@ -225,18 +225,32 @@ Create a trustworthy active dossier that makes it easy to:
   `verify_ms(K) - floor_ms(K)` headroom at K=3..5 is roughly **19–22 ms/cycle**, above the
   lead's `~15 ms` proceed gate. Recommendation: **proceed to Phase B** if verifier
   acceleration remains in scope.
-- **Current DSpark runtime path is correctness-gated but far below baseline; the draft
-  pass is the first-order bottleneck.** `summaries/dspark_runtime_initial_benchmark.md`
-  records the first end-to-end `ds4 --dspark` result with the retained Q4_K drafter GGUF:
-  greedy exactness passes on the retained 10-prompt exactness corpus sample (10/10 byte-
-  identical at `n=32`), and the conservative temp>0 logit/distribution gate passes on
-  **640** sampled steps with zero drift (`eligible=574`). But throughput is poor:
-  on the first 6 powered Stage-2 prompts baseline averages **39.00 t/s**, DSpark default
-  scheduling **20.49 t/s**, and fixed `verify_k=1` **19.14 t/s**. Long-prompt profiling
-  shows the dominant cost is the current CPU draft pass at roughly **33–36 ms/cycle**,
-  on top of about **28 ms** for the committed target token; when `verified=0`, verifier
-  time is near-zero and the path still lands around **16 t/s**. Recommendation: do not
-  widen the DSpark benchmark yet; first reduce the draft-pass cost materially.
+- **Current DSpark runtime path is correctness-gated and benchmarkable, but the
+  cleaned-up semantic path is weaker than the previous provisional runtime headline
+  and now points first at verifier/state-update economics, not a simple “GPU drafter
+  body/head next” story.**
+  `summaries/dspark_runtime_initial_benchmark.md` now records the end-to-end
+  `ds4 --dspark` result after five retained runtime changes: session-lifetime DSpark
+  scratch, confidence scheduling folded into the draft evaluator, GPU-first hidden
+  capture / stage-KV push, verifier-accepted-token DSpark state advance, and a
+  corrected GPU `main_proj` path that consumes the concatenated `3 * 4096` hidden like
+  the CPU path. The same work also added a reusable `ds4-spec-bench` binary and fixed
+  the `ds4-server --dspark` greedy path so it actually enters speculative decode instead
+  of silently remaining MTP-only. Greedy exactness still passes on the retained
+  10-prompt exactness corpus sample (10/10 byte-identical at `n=32`), and the
+  conservative temp>0 logit/distribution gate still passes on **640** sampled steps
+  with zero drift (`eligible=574`). But after the semantic fixes, the refreshed 6-prompt powered
+  Stage-2 sample lands at baseline **39.95 t/s**, DSpark default scheduling
+  **24.65 t/s**, and fixed `verify_k=1` **30.20 t/s**. On the retained 8k profile,
+  fixed `verify_k=1` now lands around **28.1–28.9 t/s**, while scheduled DSpark is
+  about **22.1–23.6 t/s** with mean verifier cost roughly **54–62 ms** and mean draft
+  cost roughly **44–49 ms**. The new timing-detail buckets now show that most of
+  `verify_ms` is serial target decode itself, while DSpark support-state pushes are only
+  about **~0.6–1.5 ms/cycle** and logits readback is negligible. The retained gpt-5.5 xhigh adversarial review
+  (`issue468/artifacts/dspark_codex_reviews/2026-07-12_gpt55_xhigh_dspark_opt_review.md`)
+  and the refreshed measurements now support a different recommendation: continue DSpark
+  optimization work, but investigate verifier/state-update economics before committing
+  to a full DSpark GPU body/head port.
 - **Confidence-scheduled verification (Lead 02): useless under shipped economics; only
   fragile conditional secondary material under anchor reuse.** Canonical result:
   `summaries/confidence_scheduled_verification.md`. Confidence extraction was fidelity-gated

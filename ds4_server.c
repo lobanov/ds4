@@ -815,6 +815,14 @@ static bool parse_reasoning_effort_name(const char *s, ds4_think_mode *out) {
     return false;
 }
 
+static bool server_should_speculate(float temperature,
+                                    int mtp_draft_tokens,
+                                    bool has_dspark) {
+    return temperature <= 0.0f &&
+           (mtp_draft_tokens > 1 || has_dspark) &&
+           getenv("DS4_MTP_SPEC_DISABLE") == NULL;
+}
+
 static bool parse_reasoning_effort_value(const char **p, ds4_think_mode *out) {
     json_ws(p);
     if (json_lit(p, "null")) return true;
@@ -10415,10 +10423,9 @@ decode_again:
 
         int toks[17];
         int ntok = 0;
-        if (temperature <= 0.0f &&
-            ds4_engine_mtp_draft_tokens(s->engine) > 1 &&
-            getenv("DS4_MTP_SPEC_DISABLE") == NULL)
-        {
+        if (server_should_speculate(temperature,
+                                    ds4_engine_mtp_draft_tokens(s->engine),
+                                    ds4_engine_has_dspark(s->engine))) {
             ntok = ds4_session_eval_speculative_argmax(s->session,
                                                        token,
                                                        max_tokens - completion,
@@ -13035,6 +13042,28 @@ static void test_api_thinking_controls_parse(void) {
     mode = DS4_THINK_HIGH;
     TEST_ASSERT(parse_reasoning_effort_value(&openai_effort, &mode));
     TEST_ASSERT(mode == DS4_THINK_HIGH);
+}
+
+static void test_server_should_speculate_gate(void) {
+    char *saved = NULL;
+    const char *cur = getenv("DS4_MTP_SPEC_DISABLE");
+    if (cur) {
+        saved = xstrdup(cur);
+    }
+    unsetenv("DS4_MTP_SPEC_DISABLE");
+    TEST_ASSERT(server_should_speculate(0.0f, 2, false));
+    TEST_ASSERT(server_should_speculate(0.0f, 1, true));
+    TEST_ASSERT(!server_should_speculate(0.1f, 2, true));
+    TEST_ASSERT(!server_should_speculate(0.0f, 1, false));
+    setenv("DS4_MTP_SPEC_DISABLE", "1", 1);
+    TEST_ASSERT(!server_should_speculate(0.0f, 2, false));
+    TEST_ASSERT(!server_should_speculate(0.0f, 1, true));
+    if (saved) {
+        setenv("DS4_MTP_SPEC_DISABLE", saved, 1);
+        free(saved);
+    } else {
+        unsetenv("DS4_MTP_SPEC_DISABLE");
+    }
 }
 
 static void test_render_think_max_prompt_prefix(void) {
@@ -15763,6 +15792,7 @@ static void ds4_server_unit_tests_run(void) {
     test_request_defaults_use_min_p_filtering();
     test_reasoning_effort_mapping();
     test_api_thinking_controls_parse();
+    test_server_should_speculate_gate();
     test_render_think_max_prompt_prefix();
     test_render_non_thinking_prompt_closes_think();
     test_render_drops_old_reasoning_without_tools();

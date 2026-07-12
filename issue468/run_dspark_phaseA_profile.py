@@ -35,6 +35,10 @@ TPS_RE = re.compile(r"prefill:\s*([0-9.]+) t/s, generation:\s*([0-9.]+) t/s")
 TIMING_RE = re.compile(
     r"ds4: dspark timing drafted=(\d+) verify=(\d+) verified=(\d+) "
     r"decode=([0-9.]+) ms draft=([0-9.]+) ms verify=([0-9.]+) ms total=([0-9.]+) ms")
+DETAIL_RE = re.compile(
+    r"ds4: dspark timing detail pushes_init=(\d+) pushes_verify=(\d+) "
+    r"push_init=([0-9.]+) ms push_verify=([0-9.]+) ms "
+    r"verify_decode=([0-9.]+) ms logits_read=([0-9.]+) ms")
 CONF_RE = re.compile(
     r"ds4: dspark drafted=(\d+) verify=(\d+) verified=(\d+) accepted=(\d+) "
     r"conf0=([0-9.eE+-]+) conf1=([0-9.eE+-]+) conf2=([0-9.eE+-]+)")
@@ -85,6 +89,7 @@ def run_config(label: str, prompt: Path, ctx: int, verify_k: str) -> dict:
         result["gen_tps"] = float(tps.group(2))
 
     timings = []
+    details = []
     confs = []
     for line in proc.stderr.splitlines():
         mt = TIMING_RE.search(line)
@@ -97,6 +102,17 @@ def run_config(label: str, prompt: Path, ctx: int, verify_k: str) -> dict:
                 "draft_ms": float(mt.group(5)),
                 "verify_ms": float(mt.group(6)),
                 "total_ms": float(mt.group(7)),
+            })
+            continue
+        md = DETAIL_RE.search(line)
+        if md:
+            details.append({
+                "pushes_init": int(md.group(1)),
+                "pushes_verify": int(md.group(2)),
+                "push_init_ms": float(md.group(3)),
+                "push_verify_ms": float(md.group(4)),
+                "verify_decode_ms": float(md.group(5)),
+                "logits_read_ms": float(md.group(6)),
             })
             continue
         mc = CONF_RE.search(line)
@@ -114,6 +130,12 @@ def run_config(label: str, prompt: Path, ctx: int, verify_k: str) -> dict:
     if timings:
         for key in ("drafted", "verify_n", "verified", "decode_ms", "draft_ms", "verify_ms", "total_ms"):
             stats = summarize([t[key] for t in timings])
+            if stats:
+                result[f"{key}_summary"] = stats
+    if details:
+        for key in ("pushes_init", "pushes_verify", "push_init_ms", "push_verify_ms",
+                    "verify_decode_ms", "logits_read_ms"):
+            stats = summarize([d[key] for d in details])
             if stats:
                 result[f"{key}_summary"] = stats
     if confs:

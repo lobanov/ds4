@@ -5,15 +5,15 @@
   "impl": "dspark_k1",
   "prompt_file": "prompts/stage2_corpus/dolly_0003.txt",
   "returncode": 0,
-  "wall_s": 2.04,
-  "prefill_tps": 77.39,
-  "gen_tps": 30.5,
+  "wall_s": 2.06,
+  "prefill_tps": 77.28,
+  "gen_tps": 30.28,
   "n_cycles": 18,
   "mean_drafted": 1.0,
   "mean_verify_n": 1.0,
   "mean_verified": 0.778,
-  "mean_decode_ms": 26.579,
-  "mean_draft_ms": 10.549,
-  "mean_verify_ms": 21.03,
-  "mean_total_ms": 58.219
+  "mean_decode_ms": 26.758,
+  "mean_draft_ms": 11.426,
+  "mean_verify_ms": 20.39,
+  "mean_total_ms": 58.636
 }

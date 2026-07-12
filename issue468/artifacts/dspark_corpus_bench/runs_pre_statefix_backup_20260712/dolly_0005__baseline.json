@@ -5,8 +5,8 @@
   "impl": "baseline",
   "prompt_file": "prompts/stage2_corpus/dolly_0005.txt",
   "returncode": 0,
-  "wall_s": 2.21,
-  "prefill_tps": 97.7,
-  "gen_tps": 40.29,
+  "wall_s": 2.18,
+  "prefill_tps": 99.71,
+  "gen_tps": 40.32,
   "n_cycles": 0
 }

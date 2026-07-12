@@ -43,12 +43,12 @@ endif
 .PHONY: all help clean test cpu cuda cuda-spark cuda-generic cuda-regression strix-halo rocm
 
 ifeq ($(UNAME_S),Darwin)
-all: ds4 ds4-server ds4-bench ds4-eval ds4-agent
+all: ds4 ds4-server ds4-bench ds4-spec-bench ds4-eval ds4-agent
 
 help:
 	@echo "DS4 build targets:"
-	@echo "  make              Build Metal ./ds4, ./ds4-server, ./ds4-bench, ./ds4-eval, and ./ds4-agent"
-	@echo "  make cpu          Build CPU-only ./ds4, ./ds4-server, ./ds4-bench, ./ds4-eval, and ./ds4-agent"
+	@echo "  make              Build Metal ./ds4, ./ds4-server, ./ds4-bench, ./ds4-spec-bench, ./ds4-eval, and ./ds4-agent"
+	@echo "  make cpu          Build CPU-only ./ds4, ./ds4-server, ./ds4-bench, ./ds4-spec-bench, ./ds4-eval, and ./ds4-agent"
 	@echo "  make test         Build and run tests"
 	@echo "  make clean        Remove build outputs"
 
@@ -61,16 +61,20 @@ ds4-server: ds4_server.o ds4_help.o ds4_kvstore.o rax.o $(CORE_OBJS)
 ds4-bench: ds4_bench.o ds4_help.o $(CORE_OBJS)
 	$(CC) $(CFLAGS) -o $@ ds4_bench.o ds4_help.o $(CORE_OBJS) $(METAL_LDLIBS)
 
+ds4-spec-bench: ds4_spec_bench.o $(CORE_OBJS)
+	$(CC) $(CFLAGS) -o $@ ds4_spec_bench.o $(CORE_OBJS) $(METAL_LDLIBS)
+
 ds4-eval: ds4_eval.o ds4_help.o $(CORE_OBJS)
 	$(CC) $(CFLAGS) -o $@ ds4_eval.o ds4_help.o $(CORE_OBJS) $(METAL_LDLIBS)
 
 ds4-agent: ds4_agent.o ds4_help.o ds4_web.o ds4_kvstore.o linenoise.o $(CORE_OBJS)
 	$(CC) $(CFLAGS) -o $@ ds4_agent.o ds4_help.o ds4_web.o ds4_kvstore.o linenoise.o $(CORE_OBJS) $(METAL_LDLIBS)
 
-cpu: ds4_cli_cpu.o ds4_server_cpu.o ds4_bench_cpu.o ds4_eval_cpu.o ds4_agent_cpu.o ds4_help.o ds4_web.o ds4_kvstore.o linenoise.o rax.o $(CPU_CORE_OBJS)
+cpu: ds4_cli_cpu.o ds4_server_cpu.o ds4_bench_cpu.o ds4_spec_bench_cpu.o ds4_eval_cpu.o ds4_agent_cpu.o ds4_help.o ds4_web.o ds4_kvstore.o linenoise.o rax.o $(CPU_CORE_OBJS)
 	$(CC) $(CFLAGS) -o ds4 ds4_cli_cpu.o ds4_help.o linenoise.o $(CPU_CORE_OBJS) $(LDLIBS)
 	$(CC) $(CFLAGS) -o ds4-server ds4_server_cpu.o ds4_help.o ds4_kvstore.o rax.o $(CPU_CORE_OBJS) $(LDLIBS)
 	$(CC) $(CFLAGS) -o ds4-bench ds4_bench_cpu.o ds4_help.o $(CPU_CORE_OBJS) $(LDLIBS)
+	$(CC) $(CFLAGS) -o ds4-spec-bench ds4_spec_bench_cpu.o $(CPU_CORE_OBJS) $(LDLIBS)
 	$(CC) $(CFLAGS) -o ds4-eval ds4_eval_cpu.o ds4_help.o $(CPU_CORE_OBJS) $(LDLIBS)
 	$(CC) $(CFLAGS) -o ds4-agent ds4_agent_cpu.o ds4_help.o ds4_web.o ds4_kvstore.o linenoise.o $(CPU_CORE_OBJS) $(LDLIBS)
 
@@ -86,15 +90,15 @@ help:
 	@echo "  make cuda CUDA_ARCH=sm_N Build CUDA with an explicit nvcc -arch value"
 	@echo "  make strix-halo          Build ROCm for Strix Halo / gfx1151"
 	@echo "  make rocm                Alias for make strix-halo"
-	@echo "  make cpu                 Build CPU-only ./ds4, ./ds4-server, ./ds4-bench, ./ds4-eval, and ./ds4-agent"
+	@echo "  make cpu                 Build CPU-only ./ds4, ./ds4-server, ./ds4-bench, ./ds4-spec-bench, ./ds4-eval, and ./ds4-agent"
 	@echo "  make test                Build and run tests"
 	@echo "  make clean               Remove build outputs"
 
 cuda-spark:
-	$(MAKE) -B ds4 ds4-server ds4-bench ds4-eval ds4-agent CUDA_ARCH=
+	$(MAKE) -B ds4 ds4-server ds4-bench ds4-spec-bench ds4-eval ds4-agent CUDA_ARCH=
 
 cuda-generic:
-	$(MAKE) -B ds4 ds4-server ds4-bench ds4-eval ds4-agent CUDA_ARCH=native
+	$(MAKE) -B ds4 ds4-server ds4-bench ds4-spec-bench ds4-eval ds4-agent CUDA_ARCH=native
 
 cuda:
 	@if [ -z "$(strip $(CUDA_ARCH))" ]; then \
@@ -102,10 +106,10 @@ cuda:
 		echo "       or use make cuda-spark / make cuda-generic"; \
 		exit 2; \
 	fi
-	$(MAKE) -B ds4 ds4-server ds4-bench ds4-eval ds4-agent CUDA_ARCH="$(CUDA_ARCH)"
+	$(MAKE) -B ds4 ds4-server ds4-bench ds4-spec-bench ds4-eval ds4-agent CUDA_ARCH="$(CUDA_ARCH)"
 
 strix-halo:
-	$(MAKE) -B ds4 ds4-server ds4-bench ds4-eval ds4-agent \
+	$(MAKE) -B ds4 ds4-server ds4-bench ds4-spec-bench ds4-eval ds4-agent \
 		CORE_OBJS="ds4.o ds4_distributed.o ds4_ssd.o ds4_rocm.o" \
 		CFLAGS="$(CFLAGS) -DDS4_ROCM_BUILD" \
 		DS4_LINK="$(HIPCC) $(ROCM_CFLAGS)" \
@@ -122,16 +126,20 @@ ds4-server: ds4_server.o ds4_help.o ds4_kvstore.o rax.o $(CORE_OBJS)
 ds4-bench: ds4_bench.o ds4_help.o $(CORE_OBJS)
 	$(DS4_LINK) -o $@ $^ $(DS4_LINK_LIBS)
 
+ds4-spec-bench: ds4_spec_bench.o $(CORE_OBJS)
+	$(DS4_LINK) -o $@ $^ $(DS4_LINK_LIBS)
+
 ds4-eval: ds4_eval.o ds4_help.o $(CORE_OBJS)
 	$(DS4_LINK) -o $@ $^ $(DS4_LINK_LIBS)
 
 ds4-agent: ds4_agent.o ds4_help.o ds4_web.o ds4_kvstore.o linenoise.o $(CORE_OBJS)
 	$(DS4_LINK) -o $@ $^ $(DS4_LINK_LIBS)
 
-cpu: ds4_cli_cpu.o ds4_server_cpu.o ds4_bench_cpu.o ds4_eval_cpu.o ds4_agent_cpu.o ds4_help.o ds4_web.o ds4_kvstore.o linenoise.o rax.o $(CPU_CORE_OBJS)
+cpu: ds4_cli_cpu.o ds4_server_cpu.o ds4_bench_cpu.o ds4_spec_bench_cpu.o ds4_eval_cpu.o ds4_agent_cpu.o ds4_help.o ds4_web.o ds4_kvstore.o linenoise.o rax.o $(CPU_CORE_OBJS)
 	$(CC) $(CFLAGS) -o ds4 ds4_cli_cpu.o ds4_help.o linenoise.o $(CPU_CORE_OBJS) $(LDLIBS)
 	$(CC) $(CFLAGS) -o ds4-server ds4_server_cpu.o ds4_help.o ds4_kvstore.o rax.o $(CPU_CORE_OBJS) $(LDLIBS)
 	$(CC) $(CFLAGS) -o ds4-bench ds4_bench_cpu.o ds4_help.o $(CPU_CORE_OBJS) $(LDLIBS)
+	$(CC) $(CFLAGS) -o ds4-spec-bench ds4_spec_bench_cpu.o $(CPU_CORE_OBJS) $(LDLIBS)
 	$(CC) $(CFLAGS) -o ds4-eval ds4_eval_cpu.o ds4_help.o $(CPU_CORE_OBJS) $(LDLIBS)
 	$(CC) $(CFLAGS) -o ds4-agent ds4_agent_cpu.o ds4_help.o ds4_web.o ds4_kvstore.o linenoise.o $(CPU_CORE_OBJS) $(LDLIBS)
 
@@ -159,6 +167,9 @@ ds4_server.o: ds4_server.c ds4.h ds4_ssd.h ds4_distributed.h ds4_help.h ds4_kvst
 
 ds4_bench.o: ds4_bench.c ds4.h ds4_ssd.h ds4_distributed.h ds4_help.h
 	$(CC) $(CFLAGS) -c -o $@ ds4_bench.c
+
+ds4_spec_bench.o: ds4_spec_bench.c ds4.h ds4_ssd.h
+	$(CC) $(CFLAGS) -c -o $@ ds4_spec_bench.c
 
 ds4_eval.o: ds4_eval.c ds4.h ds4_ssd.h ds4_distributed.h ds4_help.h
 	$(CC) $(CFLAGS) -c -o $@ ds4_eval.c
@@ -198,6 +209,9 @@ ds4_server_cpu.o: ds4_server.c ds4.h ds4_ssd.h ds4_distributed.h ds4_help.h ds4_
 
 ds4_bench_cpu.o: ds4_bench.c ds4.h ds4_ssd.h ds4_distributed.h ds4_help.h
 	$(CC) $(CFLAGS) -DDS4_NO_GPU -c -o $@ ds4_bench.c
+
+ds4_spec_bench_cpu.o: ds4_spec_bench.c ds4.h ds4_ssd.h
+	$(CC) $(CFLAGS) -DDS4_NO_GPU -c -o $@ ds4_spec_bench.c
 
 ds4_eval_cpu.o: ds4_eval.c ds4.h ds4_ssd.h ds4_distributed.h ds4_help.h
 	$(CC) $(CFLAGS) -DDS4_NO_GPU -c -o $@ ds4_eval.c

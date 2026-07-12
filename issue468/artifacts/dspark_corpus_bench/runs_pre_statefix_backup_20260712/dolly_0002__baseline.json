@@ -6,7 +6,7 @@
   "prompt_file": "prompts/stage2_corpus/dolly_0002.txt",
   "returncode": 0,
   "wall_s": 1.68,
-  "prefill_tps": 87.72,
-  "gen_tps": 40.2,
+  "prefill_tps": 87.63,
+  "gen_tps": 40.25,
   "n_cycles": 0
 }
