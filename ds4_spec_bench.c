@@ -38,6 +38,7 @@ typedef struct {
     bool quality;
     bool ssd_streaming;
     bool ssd_streaming_cold;
+    char *dump_hidden_dir;
 } spec_bench_config;
 
 typedef struct {
@@ -55,6 +56,7 @@ typedef struct {
     float min_p;
     uint64_t seed;
     bool exclude_eos;
+    int think_mode;  /* DS4_THINK_* (0=NONE); set via run config "think":"high" */
     int line_no;
 } spec_run;
 
@@ -359,6 +361,8 @@ static spec_bench_config parse_options(int argc, char **argv) {
             c.ssd_streaming = true;
         } else if (!strcmp(arg, "--ssd-streaming-cold")) {
             c.ssd_streaming_cold = true;
+        } else if (!strcmp(arg, "--dump-hidden-dir")) {
+            c.dump_hidden_dir = xstrdup0(need_arg(&i, argc, argv, arg));
         } else if (!strcmp(arg, "--ssd-streaming-cache-experts")) {
             uint32_t experts = 0;
             uint64_t bytes = 0;
@@ -773,6 +777,13 @@ static bool parse_run_json(const char *line, int line_no, const char *default_sy
             run.seed = (uint64_t)v;
         } else if (!strcmp(key, "exclude_eos")) {
             if (!json_bool(&p, &run.exclude_eos)) goto bad_value;
+        } else if (!strcmp(key, "think")) {
+            char *tv = NULL;
+            if (!json_string(&p, &tv)) goto bad_value;
+            if (tv && !strcmp(tv, "high")) run.think_mode = DS4_THINK_HIGH;
+            else if (tv && !strcmp(tv, "max")) run.think_mode = DS4_THINK_MAX;
+            else run.think_mode = DS4_THINK_NONE;
+            free(tv);
         } else {
             if (!json_skip_value(&p)) goto bad_value;
         }
@@ -954,7 +965,8 @@ static const ds4_tokens *prompt_cache_get(
         .system = xstrdup0(run->system),
     };
     if (run->chat_prompt_path) {
-        ds4_encode_chat_prompt(engine, run->system, text, DS4_THINK_NONE, &entry.tokens);
+        ds4_think_mode tm = (run->think_mode > 0) ? (ds4_think_mode)run->think_mode : DS4_THINK_NONE;
+        ds4_encode_chat_prompt(engine, run->system, text, tm, &entry.tokens);
     } else {
         ds4_tokenize_text(engine, text, &entry.tokens);
     }
@@ -1246,7 +1258,7 @@ static void write_result_jsonl(
         const ds4_dspark_cycle_metrics *m = &res->dspark_cycles.v[i];
         if (i) fprintf(out, ",");
         fprintf(out,
-                "{\"scheduled_verify\":%s,\"batched_schedule\":%s,\"schedule_batch_limit\":%d,\"rows_computed\":%d,\"drafted\":%d,\"verify_n\":%d,\"verified\":%d,\"accepted\":%d,\"decode_ms\":%.6f,\"draft_ms\":%.6f,\"verify_ms\":%.6f,\"total_ms\":%.6f,\"pushes_init\":%d,\"pushes_verify\":%d,\"push_init_ms\":%.6f,\"push_verify_ms\":%.6f,\"verify_decode_ms\":%.6f,\"logits_read_ms\":%.6f,\"conf_logits\":[%.6f,%.6f,%.6f,%.6f,%.6f]}",
+                "{\"scheduled_verify\":%s,\"batched_schedule\":%s,\"schedule_batch_limit\":%d,\"rows_computed\":%d,\"drafted\":%d,\"verify_n\":%d,\"verified\":%d,\"accepted\":%d,\"decode_ms\":%.6f,\"draft_ms\":%.6f,\"verify_ms\":%.6f,\"total_ms\":%.6f,\"pushes_init\":%d,\"pushes_verify\":%d,\"push_init_ms\":%.6f,\"push_verify_ms\":%.6f,\"verify_decode_ms\":%.6f,\"logits_read_ms\":%.6f,\"conf_logits\":[%.6f,%.6f,%.6f,%.6f,%.6f]",
                 m->scheduled_verify ? "true" : "false",
                 m->batched_schedule ? "true" : "false",
                 m->schedule_batch_limit,
@@ -1270,6 +1282,21 @@ static void write_result_jsonl(
                 m->conf_logits[2],
                 m->conf_logits[3],
                 m->conf_logits[4]);
+        if (m->verify_dist.present) {
+            fprintf(out,
+                    ",\"verify_dist\":{\"n_compared\":%d,\"argmax_flips\":%d,\"max_abs_logit_diff\":%.6g,\"mean_tv\":%.6g,\"mean_kl_seq_batched\":%.6g,\"batched_verify_ms\":%.6f}",
+                    m->verify_dist.n_compared,
+                    m->verify_dist.argmax_flips,
+                    m->verify_dist.max_abs_logit_diff,
+                    m->verify_dist.mean_tv,
+                    m->verify_dist.mean_kl_seq_batched,
+                    m->verify_dist.batched_verify_ms);
+        }
+        fprintf(out,
+                ",\"anchor_id\":%d,\"draft_ids\":[%d,%d,%d,%d,%d]",
+                m->anchor_id,
+                m->draft_ids[0], m->draft_ids[1], m->draft_ids[2], m->draft_ids[3], m->draft_ids[4]);
+        fprintf(out, "}");
     }
     fprintf(out, "]");
     fprintf(out, ",\"eos_hit\":%s", res->eos_hit ? "true" : "false");
@@ -1328,6 +1355,13 @@ int main(int argc, char **argv) {
     for (int i = 0; i < runs.len; i++) {
         spec_run *run = &runs.v[i];
         char err[256] = {0};
+        if (cfg.dump_hidden_dir && run->id && run->id[0]) {
+            char dpath[2048];
+            snprintf(dpath, sizeof(dpath), "%s/%s.bin", cfg.dump_hidden_dir, run->id);
+            setenv("DS4_DSPARK_DUMP_HIDDEN", dpath, 1);
+        } else {
+            unsetenv("DS4_DSPARK_DUMP_HIDDEN");
+        }
         const ds4_tokens *tokens = prompt_cache_get(&cache, engine, run, err, sizeof(err));
         run_result res = {0};
         if (!tokens) {

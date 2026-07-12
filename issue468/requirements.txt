@@ -1,0 +1,34 @@
+# Issue 468 — consolidated analysis environment.
+#
+# One venv for all local analysis in this dossier (acceptance / speedup
+# modelling, drafter forward, capture inspection). Recreate with:
+#
+#   python3 -m venv .venv
+#   . .venv/bin/activate
+#   python -m pip install --upgrade pip
+#   python -m pip install -r requirements.txt
+#
+# Target: Apple Silicon (M-series, MPS). Verified on CPython 3.14.6 / macOS arm64.
+# The torch cp314 wheel includes the MPS backend; no CUDA build needed.
+#
+# NOTE: numpy/torch versions are pinned for parity with the Lead 03 torch/MPS
+# drafter port (precision-gated at 100% vs the numpy oracle) and the Lead 04
+# captures. Do not bump without re-running the precision gate.
+
+# Core numerics + drafter forward (MPS).
+numpy==2.5.1
+torch==2.12.1
+
+# Feature / capture storage.
+safetensors==0.8.0
+pyarrow==24.0.0
+
+# Progress + reporting.
+tqdm==4.68.4
+PyYAML==6.0.3
+rich==15.0.0
+
+# Optional — only needed for cloud capture / model download (Lead 04 Modal run,
+# HF pulls). Safe to comment out for purely local analysis.
+modal==1.5.2
+huggingface-hub==1.23.0

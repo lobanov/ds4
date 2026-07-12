@@ -1,0 +1,209 @@
+{
+  "n_pairs": 946,
+  "live_p1": 0.5169133192389006,
+  "oracle_p1": 0.47674418604651164,
+  "live_mean_verified": 1.6395348837209303,
+  "oracle_mean_prefix": 1.2114164904862579,
+  "draft0_agreement": 0.7071881606765328,
+  "full_draft_agreement": 0.4069767441860465,
+  "draft0_disagree_live_wrong": 26,
+  "draft0_disagree_both_wrong": 187,
+  "per_prompt": {
+    "codealpaca_0080": {
+      "name": "codealpaca_0080",
+      "n_pairs": 27
+    },
+    "codealpaca_0081": {
+      "name": "codealpaca_0081",
+      "n_pairs": 24
+    },
+    "codealpaca_0082": {
+      "name": "codealpaca_0082",
+      "n_pairs": 24
+    },
+    "codealpaca_0083": {
+      "name": "codealpaca_0083",
+      "n_pairs": 24
+    },
+    "codealpaca_0084": {
+      "name": "codealpaca_0084",
+      "n_pairs": 33
+    },
+    "codealpaca_0085": {
+      "name": "codealpaca_0085",
+      "n_pairs": 24
+    },
+    "codealpaca_0086": {
+      "name": "codealpaca_0086",
+      "n_pairs": 21
+    },
+    "codealpaca_0087": {
+      "name": "codealpaca_0087",
+      "n_pairs": 18
+    },
+    "codealpaca_0088": {
+      "name": "codealpaca_0088",
+      "n_pairs": 29
+    },
+    "codealpaca_0089": {
+      "name": "codealpaca_0089",
+      "n_pairs": 20
+    },
+    "codealpaca_0090": {
+      "name": "codealpaca_0090",
+      "n_pairs": 21
+    },
+    "codealpaca_0091": {
+      "name": "codealpaca_0091",
+      "n_pairs": 19
+    },
+    "codealpaca_0092": {
+      "name": "codealpaca_0092",
+      "n_pairs": 20
+    },
+    "codealpaca_0093": {
+      "name": "codealpaca_0093",
+      "n_pairs": 18
+    },
+    "codealpaca_0094": {
+      "name": "codealpaca_0094",
+      "n_pairs": 19
+    },
+    "codealpaca_0095": {
+      "name": "codealpaca_0095",
+      "n_pairs": 22
+    },
+    "codealpaca_0096": {
+      "name": "codealpaca_0096",
+      "n_pairs": 24
+    },
+    "codealpaca_0097": {
+      "name": "codealpaca_0097",
+      "n_pairs": 18
+    },
+    "codealpaca_0098": {
+      "name": "codealpaca_0098",
+      "n_pairs": 10
+    },
+    "codealpaca_0099": {
+      "name": "codealpaca_0099",
+      "n_pairs": 21
+    },
+    "dolly_0080": {
+      "name": "dolly_0080",
+      "n_pairs": 22
+    },
+    "dolly_0081": {
+      "name": "dolly_0081",
+      "n_pairs": 29
+    },
+    "dolly_0082": {
+      "name": "dolly_0082",
+      "n_pairs": 20
+    },
+    "dolly_0083": {
+      "name": "dolly_0083",
+      "n_pairs": 32
+    },
+    "dolly_0084": {
+      "name": "dolly_0084",
+      "n_pairs": 23
+    },
+    "dolly_0085": {
+      "name": "dolly_0085",
+      "n_pairs": 9
+    },
+    "dolly_0086": {
+      "name": "dolly_0086",
+      "n_pairs": 11
+    },
+    "dolly_0087": {
+      "name": "dolly_0087",
+      "n_pairs": 17
+    },
+    "dolly_0088": {
+      "name": "dolly_0088",
+      "n_pairs": 14
+    },
+    "dolly_0089": {
+      "name": "dolly_0089",
+      "n_pairs": 19
+    },
+    "dolly_0090": {
+      "name": "dolly_0090",
+      "n_pairs": 11
+    },
+    "dolly_0091": {
+      "name": "dolly_0091",
+      "n_pairs": 12
+    },
+    "dolly_0092": {
+      "name": "dolly_0092",
+      "n_pairs": 27
+    },
+    "dolly_0093": {
+      "name": "dolly_0093",
+      "n_pairs": 24
+    },
+    "dolly_0094": {
+      "name": "dolly_0094",
+      "n_pairs": 20
+    },
+    "dolly_0095": {
+      "name": "dolly_0095",
+      "n_pairs": 15
+    },
+    "dolly_0096": {
+      "name": "dolly_0096",
+      "n_pairs": 21
+    },
+    "dolly_0097": {
+      "name": "dolly_0097",
+      "n_pairs": 19
+    },
+    "dolly_0098": {
+      "name": "dolly_0098",
+      "n_pairs": 10
+    },
+    "dolly_0099": {
+      "name": "dolly_0099",
+      "n_pairs": 18
+    },
+    "jsonex_0080": {
+      "name": "jsonex_0080",
+      "n_pairs": 13
+    },
+    "jsonex_0081": {
+      "name": "jsonex_0081",
+      "n_pairs": 18
+    },
+    "jsonex_0082": {
+      "name": "jsonex_0082",
+      "n_pairs": 18
+    },
+    "jsonex_0083": {
+      "name": "jsonex_0083",
+      "n_pairs": 19
+    },
+    "jsonex_0084": {
+      "name": "jsonex_0084",
+      "n_pairs": 12
+    },
+    "jsonex_0085": {
+      "name": "jsonex_0085",
+      "n_pairs": 17
+    },
+    "jsonex_0086": {
+      "name": "jsonex_0086",
+      "n_pairs": 13
+    },
+    "jsonex_0087": {
+      "name": "jsonex_0087",
+      "n_pairs": 16
+    },
+    "jsonex_0088": {
+      "name": "jsonex_0088",
+      "n_pairs": 11
+    }
+  }
+}

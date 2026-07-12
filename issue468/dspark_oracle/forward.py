@@ -91,13 +91,19 @@ def block_forward(x, main_x, input_ids, w, store, stage, start_pos, cos, sin, sl
 
 
 def forward_head(h, anchor_tok, w_head, norm_w, hc_head_fn, hc_head_scale, hc_head_base,
-                 markov_w1, markov_w2, conf_proj, lm_head, temp=1.0, return_conf=False):
+                 markov_w1, markov_w2, conf_proj, lm_head, temp=1.0, return_conf=False,
+                 return_full_logits=False):
     """mtp.2.forward_head.
 
     h [1,block,hc,dim] -> output_ids [block+1], logits [block,vocab]
     Optional confidence output follows the DSpark paper / converter contract:
     one scalar per draft position from the concatenation of normalized hidden h_k
     and the Markov embedding of the previous token.
+
+    When return_full_logits is set, a trailing ``full_logits`` array
+    ``[block, vocab]`` of the Markov-bias-applied draft logits ``(base + bias)``
+    is appended to the return tuple (at temp=1.0 this is the drafter's full
+    per-position distribution before softmax). Existing callers are unaffected.
     """
     x = hc_head(h, hc_head_fn, hc_head_scale, hc_head_base)        # [1,block,dim]
     x = rmsnorm(x, norm_w)
@@ -106,6 +112,7 @@ def forward_head(h, anchor_tok, w_head, norm_w, hc_head_fn, hc_head_scale, hc_he
     output_ids[0] = anchor_tok
     conf_logits = np.zeros(BLOCK, dtype=np.float32) if return_conf else None
     conf_scores = np.zeros(BLOCK, dtype=np.float32) if return_conf else None
+    full_logits = np.zeros((BLOCK, logits.shape[1]), dtype=np.float32) if return_full_logits else None
     for i in range(BLOCK):
         # markov_head(output_ids[i]): markov_w1 embed [rank], markov_w2 -> [vocab]
         emb = markov_w1[output_ids[i]]                             # [rank]  (markov_w1 HF [vocab,rank])
@@ -116,9 +123,15 @@ def forward_head(h, anchor_tok, w_head, norm_w, hc_head_fn, hc_head_scale, hc_he
             conf_scores[i] = np.float32(1.0 / (1.0 + np.exp(-clogit)))
         bias = emb @ markov_w2.T                                   # [vocab]  (markov_w2 HF [vocab,rank])
         li = (logits[i] + bias) / max(temp, 1e-5)
+        if full_logits is not None:
+            full_logits[i] = li
         output_ids[i + 1] = int(np.argmax(li))
     if return_conf:
+        if full_logits is not None:
+            return output_ids, logits, conf_logits, conf_scores, full_logits
         return output_ids, logits, conf_logits, conf_scores
+    if full_logits is not None:
+        return output_ids, logits, full_logits
     return output_ids, logits
 
 

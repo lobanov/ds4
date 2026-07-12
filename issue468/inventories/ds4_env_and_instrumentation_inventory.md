@@ -227,6 +227,7 @@ meaning materially changes.
 | `DS4_DSPARK_SCHEDULE_GPU_HEAD` | variation | Enables the experimental GPU-assisted scheduled output-head path. |
 | `DS4_DSPARK_SPEC_LOG` | diagnostic | Enables DSpark speculative-cycle logging. |
 | `DS4_DSPARK_TIMING` | diagnostic | Enables per-cycle DSpark timing capture. |
+| `DS4_DSPARK_VERIFY_DIST_PROBE` | diagnostic | Measurement 1 (option A): non-committing probe that runs the sublinear batched verifier (`verify_suffix_tops`) alongside the real sequential DSpark verify and records per-position argmax-flip / max-abs-logit / TV / KL(seq‖batched) into `dspark_last_cycle.verify_dist`, emitted per-cycle as `verify_dist` objects in the ds4-spec-bench JSONL. Requires the graph to allocate `spec_logits` + spec-frontier tensors for DSpark (now done). Non-mutating to the real decode. |
 
 ## Inventory notes for current research
 

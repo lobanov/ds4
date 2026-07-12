@@ -1,0 +1,53 @@
+{
+  "n_pairs": 0,
+  "live_p1": 0.0,
+  "oracle_p1": 0.0,
+  "live_mean_verified": 0.0,
+  "oracle_mean_prefix": 0.0,
+  "draft0_agreement": 0.0,
+  "full_draft_agreement": 0.0,
+  "draft0_disagree_live_wrong": 0,
+  "draft0_disagree_both_wrong": 0,
+  "per_prompt": {
+    "code_histogram": {
+      "name": "code_histogram",
+      "n_pairs": 0
+    },
+    "code_sort_pairs": {
+      "name": "code_sort_pairs",
+      "n_pairs": 0
+    },
+    "code_topk": {
+      "name": "code_topk",
+      "n_pairs": 0
+    },
+    "grounded_archive": {
+      "name": "grounded_archive",
+      "n_pairs": 0
+    },
+    "grounded_observatory": {
+      "name": "grounded_observatory",
+      "n_pairs": 0
+    },
+    "grounded_repair": {
+      "name": "grounded_repair",
+      "n_pairs": 0
+    },
+    "mixed_exactness_smoke": {
+      "name": "mixed_exactness_smoke",
+      "n_pairs": 0
+    },
+    "synthesis_incident_json": {
+      "name": "synthesis_incident_json",
+      "n_pairs": 0
+    },
+    "synthesis_ops_json": {
+      "name": "synthesis_ops_json",
+      "n_pairs": 0
+    },
+    "synthesis_timeline_json": {
+      "name": "synthesis_timeline_json",
+      "n_pairs": 0
+    }
+  }
+}

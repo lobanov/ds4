@@ -276,6 +276,15 @@ typedef struct {
     float conf_logits[DS4_DSPARK_MAX_BLOCK];
 } ds4_dspark_schedule_probe;
 typedef struct {
+    bool present;
+    int n_compared;
+    int argmax_flips;
+    double max_abs_logit_diff;
+    double mean_tv;
+    double mean_kl_seq_batched;
+    double batched_verify_ms;
+} ds4_dspark_verify_dist;
+typedef struct {
     bool valid;
     bool scheduled_verify;
     bool batched_schedule;
@@ -296,6 +305,13 @@ typedef struct {
     double verify_decode_ms;
     double logits_read_ms;
     float conf_logits[DS4_DSPARK_MAX_BLOCK];
+    ds4_dspark_verify_dist verify_dist;
+    /* live-vs-oracle drafter trace (issue468 milestone 2): the anchor token and
+     * the drafted token ids for this cycle, so offline comparison to the
+     * numpy/torch oracle's drafts on the same anchor can separate runtime
+     * drafter divergence (window-state pollution) from oracle overstating. */
+    int anchor_id;
+    int draft_ids[DS4_DSPARK_MAX_BLOCK];
 } ds4_dspark_cycle_metrics;
 int ds4_session_dspark_schedule_probe(ds4_session *s,
                                       int first_token,

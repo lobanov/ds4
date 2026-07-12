@@ -1,0 +1,53 @@
+{
+  "n_pairs": 20,
+  "live_p1": 0.85,
+  "oracle_p1": 0.75,
+  "live_mean_verified": 2.6,
+  "oracle_mean_prefix": 2.1,
+  "draft0_agreement": 0.9,
+  "full_draft_agreement": 0.6,
+  "draft0_disagree_live_wrong": 0,
+  "draft0_disagree_both_wrong": 0,
+  "per_prompt": {
+    "code_histogram": {
+      "name": "code_histogram",
+      "n_pairs": 2
+    },
+    "code_sort_pairs": {
+      "name": "code_sort_pairs",
+      "n_pairs": 1
+    },
+    "code_topk": {
+      "name": "code_topk",
+      "n_pairs": 2
+    },
+    "grounded_archive": {
+      "name": "grounded_archive",
+      "n_pairs": 2
+    },
+    "grounded_observatory": {
+      "name": "grounded_observatory",
+      "n_pairs": 2
+    },
+    "grounded_repair": {
+      "name": "grounded_repair",
+      "n_pairs": 2
+    },
+    "mixed_exactness_smoke": {
+      "name": "mixed_exactness_smoke",
+      "n_pairs": 3
+    },
+    "synthesis_incident_json": {
+      "name": "synthesis_incident_json",
+      "n_pairs": 2
+    },
+    "synthesis_ops_json": {
+      "name": "synthesis_ops_json",
+      "n_pairs": 2
+    },
+    "synthesis_timeline_json": {
+      "name": "synthesis_timeline_json",
+      "n_pairs": 2
+    }
+  }
+}

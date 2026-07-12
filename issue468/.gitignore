@@ -1,12 +1,18 @@
+# Consolidated analysis venv (recreate from requirements.txt)
+.venv/
+dspark_oracle/.venv/
+run_lead04_modal/.venv/
+
 artifacts/**/*.stdout
 artifacts/**/*.stderr
-artifacts/**/captures/*.bin
+artifacts/**/*.bin
 artifacts/**/oracle/*.npy
 artifacts/dspark_ceiling/*.gguf
 dflash_drafter/model.safetensors
 dflash_drafter/*.safetensors
 artifacts/dflash_capture/*/context.npz
 artifacts/dflash_capture/*/captures/
+artifacts/rejection_acceptance/lead3_oracle_bundles/
 
 # Stage 2 (dspark_train) — local venv + generated artifacts
 dspark_train/.venv/

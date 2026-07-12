@@ -63,6 +63,14 @@ def parse_args() -> argparse.Namespace:
                     help="deprecated shorthand for --reuse-mode=lag")
     ap.add_argument("--include-confidence", action="store_true",
                     help="include per-position confidence logits/scores in row outputs")
+    # Rejection-sampling acceptance probe (issue468 milestone 2, option A):
+    # emit the drafter's per-block-position distribution (top-K ids + probs) so a
+    # downstream pass can compute TV / rejection-sampling acceptance against the
+    # retained target top-K (p), comparing to the greedy-argmax acceptance.
+    ap.add_argument("--emit-draft-dist", action="store_true",
+                    help="emit per-row per-position draft distribution (top-K ids+probs) to <bundle>/draft_dist.json")
+    ap.add_argument("--dist-topk", type=int, default=256,
+                    help="number of top draft logits to retain per position (default 256)")
     return ap.parse_args()
 
 
@@ -136,7 +144,8 @@ def build_drafter_ctx(dspark_path: str) -> dict:
 def measure_bundle(bundle_dir: Path | None = None, mctx: dict | None = None, dctx: dict | None = None,
                     *, candidate: str | None = None, reuse_mode: str = "none",
                     store=None, prompt_id: str | None = None,
-                    include_confidence: bool = False) -> dict:
+                    include_confidence: bool = False,
+                    emit_draft_dist: bool = False, dist_topk: int = 256) -> dict:
     """Run the drafter forward over one retained bundle OR one Stage2CaptureStore
     prompt and return the acceptance summary dict. Fresh per-bundle KV window;
     does NOT clear expert caches (the caller decides memory policy).
@@ -226,6 +235,7 @@ def measure_bundle(bundle_dir: Path | None = None, mctx: dict | None = None, dct
     n_real = 1
 
     rows = []
+    dist_rows = []
     prefix_hist = {k: 0 for k in range(BLOCK + 1)}
     total_match = 0
     total_pos = 0
@@ -289,11 +299,19 @@ def measure_bundle(bundle_dir: Path | None = None, mctx: dict | None = None, dct
             lm_head,
             temp=1.0,
             return_conf=include_confidence,
+            return_full_logits=emit_draft_dist,
         )
+        full_logits = None
         if include_confidence:
-            out, _logits, conf_logits, conf_scores = head_out
+            if emit_draft_dist:
+                out, _logits, conf_logits, conf_scores, full_logits = head_out
+            else:
+                out, _logits, conf_logits, conf_scores = head_out
         else:
-            out, _logits = head_out
+            if emit_draft_dist:
+                out, _logits, full_logits = head_out
+            else:
+                out, _logits = head_out
         draft = [int(v) for v in out[1:].tolist()]
         target = [int(v) for v in target_tokens[step + 1:step + 1 + BLOCK]]
         match = sum(1 for d, t in zip(draft, target) if d == t)
@@ -320,6 +338,32 @@ def measure_bundle(bundle_dir: Path | None = None, mctx: dict | None = None, dct
             row["confidence_scores"] = [float(v) for v in conf_scores.tolist()]
         rows.append(row)
 
+        if emit_draft_dist and full_logits is not None:
+            # q = softmax(base + markov_bias) per draft position. Numerically
+            # stable softmax; retain top-K ids+probs and the retained mass so a
+            # downstream pass can bound TV against the retained target top-K.
+            for i in range(BLOCK):
+                li = full_logits[i].astype(np.float64)
+                li -= li.max()
+                eq = np.exp(li)
+                q = eq / eq.sum()
+                k = min(dist_topk, q.shape[0])
+                top_idx = np.argpartition(q, -k)[-k:]
+                top_idx = top_idx[np.argsort(q[top_idx])[::-1]]
+                dist_rows.append({
+                    "anchor_step": step,
+                    "block_pos": i,
+                    "spine_step": step + 1 + i,
+                    "anchor_id": anchor,
+                    "draft_id": draft[i],
+                    "target_id": target[i],
+                    "q_argmax_id": draft[i],
+                    "q_argmax_prob": float(q[draft[i]]),
+                    "q_topk_ids": [int(v) for v in top_idx.tolist()],
+                    "q_topk_probs": [float(v) for v in q[top_idx].tolist()],
+                    "q_topk_mass": float(q[top_idx].sum()),
+                })
+
     n_rows = len(rows)
     avg_prefix = float(sum(row["prefix"] for row in rows) / n_rows) if n_rows else 0.0
     summary = {
@@ -340,6 +384,17 @@ def measure_bundle(bundle_dir: Path | None = None, mctx: dict | None = None, dct
         "rows": rows,
         "reference_mode": reference_mode,
     }
+    if emit_draft_dist and bundle_dir is not None and dist_rows:
+        sidecar = bundle_dir / "draft_dist.json"
+        sidecar.write_text(json.dumps({
+            "source": "dspark_oracle.measure_acceptance_bundle",
+            "bundle_dir": str(bundle_dir),
+            "dist_topk": dist_topk,
+            "block": BLOCK,
+            "n_rows": len(dist_rows),
+            "rows": dist_rows,
+        }, indent=2) + "\n")
+        summary["draft_dist_sidecar"] = str(sidecar)
     return summary
 
 
@@ -349,7 +404,8 @@ def main() -> int:
     dctx = build_drafter_ctx(args.dspark)
     summary = measure_bundle(Path(args.bundle_dir), mctx, dctx,
                              reuse_mode=(args.reuse if args.reuse else args.reuse_mode),
-                             include_confidence=args.include_confidence)
+                             include_confidence=args.include_confidence,
+                             emit_draft_dist=args.emit_draft_dist, dist_topk=args.dist_topk)
     if args.json_out:
         Path(args.json_out).write_text(json.dumps(summary, indent=2) + "\n")
     else:

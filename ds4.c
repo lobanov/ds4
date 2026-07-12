@@ -11332,7 +11332,7 @@ static bool metal_graph_alloc_raw_cap(
                     (DS4_GPU_ATTN_COMP_CACHE_F16 ? sizeof(uint16_t) : sizeof(float)));
             g->layer_attn_state_kv[il] = ds4_gpu_tensor_alloc(attn_width * attn_rows * sizeof(float));
             g->layer_attn_state_score[il] = ds4_gpu_tensor_alloc(attn_width * attn_rows * sizeof(float));
-            if (enable_mtp) {
+            if (enable_mtp || enable_dspark) {
                 g->spec_attn_state_kv[il] = ds4_gpu_tensor_alloc(attn_width * attn_rows * sizeof(float));
                 g->spec_attn_state_score[il] = ds4_gpu_tensor_alloc(attn_width * attn_rows * sizeof(float));
                 g->spec_prefix1_attn_state_kv[il] = ds4_gpu_tensor_alloc(attn_width * attn_rows * sizeof(float));
@@ -11355,7 +11355,7 @@ static bool metal_graph_alloc_raw_cap(
                         (uint64_t)g->layer_comp_cap[il] * DS4_N_INDEXER_HEAD_DIM * sizeof(float));
                 g->layer_index_state_kv[il] = ds4_gpu_tensor_alloc(index_width * index_rows * sizeof(float));
                 g->layer_index_state_score[il] = ds4_gpu_tensor_alloc(index_width * index_rows * sizeof(float));
-                if (enable_mtp) {
+                if (enable_mtp || enable_dspark) {
                     g->spec_index_state_kv[il] = ds4_gpu_tensor_alloc(index_width * index_rows * sizeof(float));
                     g->spec_index_state_score[il] = ds4_gpu_tensor_alloc(index_width * index_rows * sizeof(float));
                     g->spec_prefix1_index_state_kv[il] = ds4_gpu_tensor_alloc(index_width * index_rows * sizeof(float));
@@ -11433,6 +11433,7 @@ static bool metal_graph_alloc_raw_cap(
         g->mtp_n_raw = 0;
     }
     if (enable_dspark) {
+        if (!g->spec_logits) g->spec_logits = ds4_gpu_tensor_alloc((uint64_t)16 * DS4_N_VOCAB * sizeof(float));
         for (uint32_t i = 0; i < 3; i++) {
             g->dspark_capture_hc[i] = ds4_gpu_tensor_alloc(hc_dim * sizeof(float));
         }
@@ -27845,6 +27846,39 @@ static void dspark_markov_embed_lookup(
     dspark_dense_row_copy(out, model, w, (uint32_t)token);
 }
 
+static bool dspark_session_push_graph_hidden(ds4_session *s);
+
+/* Live greedy-spine hidden dump (issue468 milestone 2 live-vs-oracle trace):
+ * when DS4_DSPARK_DUMP_HIDDEN=<path> is set, force a host refresh of the
+ * main_hidden (the layer-40/41/42 mean the drafter consumes) and append a
+ * (pos, token, hidden[3*N_EMBD]) record. Greedy speculative preserves the
+ * greedy spine, so these per-committed-token hiddens ARE the clean capture the
+ * offline oracle drafter expects. One file per prompt (the bench sets a fresh
+ * path per run); re-opens when the path changes. */
+static void dspark_dump_hidden_if_enabled(ds4_session *s, uint32_t pos_after_inc) {
+    const char *path = getenv("DS4_DSPARK_DUMP_HIDDEN");
+    if (!path || !path[0]) return;
+    ds4_gpu_graph *g = &s->graph;
+    if (!g->dspark_enabled || !g->dspark_main_hidden) return;
+    if (!metal_graph_refresh_dspark_main_hidden(g)) return;
+    static FILE *fp = NULL;
+    static char open_path[1024] = {0};
+    if (!fp || strcmp(open_path, path) != 0) {
+        if (fp) fclose(fp);
+        fp = fopen(path, "ab");
+        if (!fp) return;
+        strncpy(open_path, path, sizeof(open_path) - 1);
+        open_path[sizeof(open_path) - 1] = '\0';
+    }
+    const int32_t pos = (int32_t)(pos_after_inc > 0 ? pos_after_inc - 1u : 0u);
+    const int32_t tok = (s->checkpoint.len > 0)
+        ? (int32_t)s->checkpoint.v[s->checkpoint.len - 1] : (int32_t)-1;
+    fwrite(&pos, sizeof(pos), 1, fp);
+    fwrite(&tok, sizeof(tok), 1, fp);
+    fwrite(g->dspark_main_hidden, sizeof(float), (size_t)3 * DS4_N_EMBD, fp);
+    fflush(fp);
+}
+
 static bool dspark_session_push_graph_hidden(ds4_session *s) {
     if (!s || ds4_session_is_cpu(s) || !s->engine || !s->engine->dspark_ready) return false;
 #ifdef DS4_NO_GPU
@@ -27865,6 +27899,7 @@ static bool dspark_session_push_graph_hidden(ds4_session *s) {
             s->dspark_push_ms += (now_sec() - t0) * 1000.0;
             s->dspark_push_count++;
         }
+        dspark_dump_hidden_if_enabled(s, s->dspark_n_real);
         return true;
     }
     if (!g->dspark_main_hidden_valid && !metal_graph_refresh_dspark_main_hidden(g)) return false;
@@ -27891,6 +27926,7 @@ static bool dspark_session_push_graph_hidden(ds4_session *s) {
         s->dspark_push_ms += (now_sec() - t0) * 1000.0;
         s->dspark_push_count++;
     }
+    dspark_dump_hidden_if_enabled(s, s->dspark_n_real);
     return true;
 #endif
 }
@@ -28222,6 +28258,15 @@ static bool dspark_schedule_enabled(void) {
 
 static bool dspark_timing_enabled(void) {
     return getenv("DS4_DSPARK_TIMING") != NULL;
+}
+
+/* Measurement 1 (issue468 milestone 2, option A): non-committing diagnostic
+ * that runs the sublinear batched verifier (verify_suffix_tops) alongside the
+ * real sequential verify on the same drafts and records the per-position
+ * logit/distribution distance. Decides whether the batched verifier is
+ * exactness-acceptable for rejection sampling. */
+static bool dspark_verify_dist_probe_enabled(void) {
+    return getenv("DS4_DSPARK_VERIFY_DIST_PROBE") != NULL;
 }
 
 static float dspark_schedule_threshold(void) {
@@ -28566,6 +28611,10 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
         }
         if (draft_n <= 0) return n_accept;
         s->dspark_last_cycle.drafted = draft_n;
+        s->dspark_last_cycle.anchor_id = first_token;
+        for (int i = 0; i < DS4_DSPARK_MAX_BLOCK; i++) {
+            s->dspark_last_cycle.draft_ids[i] = i < draft_n ? drafts[i] : -1;
+        }
         for (int i = 0; i < draft_n && i < (int)DS4_DSPARK_BLOCK; i++) {
             s->dspark_last_cycle.conf_logits[i] = s->dspark_conf_logits ? s->dspark_conf_logits[i] : 0.0f;
         }
@@ -28574,6 +28623,12 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
         } else if (scheduled_verify) {
             if (verify_n > draft_n) verify_n = draft_n;
         }
+        /* fixed/non-scheduled path: verify_n was initialized to the full block
+         * before draft_n was reduced to fixed_verify_n; clamp here so a
+         * DS4_DSPARK_VERIFY_K setting actually constrains the verify span
+         * (codex review 2026-07-12 found this left verify_n=block with garbage
+         * drafts beyond the fixed K). */
+        if (verify_n > draft_n) verify_n = draft_n;
         s->dspark_last_cycle.verify_n = verify_n;
         if (verify_n <= 0) {
             s->dspark_last_cycle.accepted = n_accept;
@@ -28591,16 +28646,48 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
         bool logits_on_host = true;
         const double verify_t0 = dspark_timing ? now_sec() : 0.0;
         double verify_decode_ms = 0.0;
+        const bool dist_probe = dspark_verify_dist_probe_enabled();
+        float *batched_logits = NULL, *seq_logits = NULL;
+        int *batched_tops = NULL;
+        double dist_batched_ms = 0.0;
+        bool dist_batched_ok = false;
+        const uint32_t dist_start = (uint32_t)s->checkpoint.len;
+        if (dist_probe && verify_n > 0) {
+            batched_logits = xmalloc((size_t)verify_n * DS4_N_VOCAB * sizeof(float));
+            seq_logits = xmalloc((size_t)verify_n * DS4_N_VOCAB * sizeof(float));
+            batched_tops = xmalloc((size_t)verify_n * sizeof(int));
+            ds4_spec_frontier dist_frontier;
+            const bool have_df = spec_frontier_snapshot(&dist_frontier, s);
+            bool dist_ok = have_df;
+            if (dist_ok) {
+                for (int i = 0; i < verify_n; i++) token_vec_push(&s->checkpoint, drafts[i]);
+                const double batched_t0 = now_sec();
+                dist_ok = metal_graph_verify_suffix_tops(&s->graph, &e->model, &e->weights,
+                                                         &s->checkpoint, dist_start, (uint32_t)verify_n,
+                                                         false, batched_tops, batched_logits);
+                dist_batched_ms = (now_sec() - batched_t0) * 1000.0;
+                s->checkpoint.len = (int)dist_start;
+                if (have_df) (void)spec_frontier_restore(&dist_frontier, s);
+                spec_frontier_free(&dist_frontier);
+            }
+            dist_batched_ok = dist_ok;
+            if (!dist_ok) { free(batched_logits); batched_logits = NULL; free(seq_logits); seq_logits = NULL; free(batched_tops); batched_tops = NULL; }
+        }
+        if (dist_batched_ok) {
+            s->dspark_last_cycle.verify_dist.present = true;
+            s->dspark_last_cycle.verify_dist.batched_verify_ms = dist_batched_ms;
+        }
         for (int i = 0; i < verify_n && n_accept < accepted_cap; i++) {
             if (target_top != drafts[i]) break;
             const double verify_decode_t0 = dspark_timing ? now_sec() : 0.0;
+            float *const seq_cap = (dist_probe && seq_logits) ? (seq_logits + (size_t)i * DS4_N_VOCAB) : NULL;
             if (!metal_graph_eval_token_raw_swa_top(&s->graph,
                                                     &e->model,
                                                     &e->weights,
                                                     drafts[i],
                                                     (uint32_t)s->checkpoint.len,
                                                     &target_top,
-                                                    NULL)) {
+                                                    seq_cap)) {
                 snprintf(err, errlen, "%s decode failed", ds4_backend_name(e->backend));
                 s->checkpoint_valid = false;
                 return -1;
@@ -28630,6 +28717,48 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
             }
             if (dspark_timing) logits_read_ms = (now_sec() - logits_read_t0) * 1000.0;
         }
+        if (dist_probe && batched_logits && seq_logits && verified > 0) {
+            int n_cmp = verified < verify_n ? verified : verify_n;
+            int flips = 0;
+            double max_abs = 0.0, sum_tv = 0.0, sum_kl = 0.0;
+            for (int i = 0; i < n_cmp; i++) {
+                const float *b = batched_logits + (size_t)i * DS4_N_VOCAB;
+                const float *q = seq_logits + (size_t)i * DS4_N_VOCAB;
+                uint32_t bam = 0, sam = 0;
+                double bmax = b[0], smax = q[0];
+                for (uint32_t v = 1; v < DS4_N_VOCAB; v++) {
+                    if (b[v] > bmax) { bmax = b[v]; bam = v; }
+                    if (q[v] > smax) { smax = q[v]; sam = v; }
+                }
+                if (bam != sam) flips++;
+                double bez = 0.0, sez = 0.0;
+                for (uint32_t v = 0; v < DS4_N_VOCAB; v++) {
+                    bez += exp((double)b[v] - bmax);
+                    sez += exp((double)q[v] - smax);
+                }
+                double pos_maxabs = 0.0, pos_tv = 0.0, pos_kl = 0.0;
+                for (uint32_t v = 0; v < DS4_N_VOCAB; v++) {
+                    double bp = exp((double)b[v] - bmax) / bez;
+                    double sp = exp((double)q[v] - smax) / sez;
+                    double ad = fabs((double)b[v] - (double)q[v]);
+                    if (ad > pos_maxabs) pos_maxabs = ad;
+                    pos_tv += fabs(bp - sp);
+                    if (sp > 0.0 && bp > 0.0) pos_kl += sp * (log(sp) - log(bp));
+                }
+                if (pos_maxabs > max_abs) max_abs = pos_maxabs;
+                sum_tv += 0.5 * pos_tv;
+                sum_kl += pos_kl;
+            }
+            s->dspark_last_cycle.verify_dist.present = true;
+            s->dspark_last_cycle.verify_dist.n_compared = n_cmp;
+            s->dspark_last_cycle.verify_dist.argmax_flips = flips;
+            s->dspark_last_cycle.verify_dist.max_abs_logit_diff = max_abs;
+            s->dspark_last_cycle.verify_dist.mean_tv = (n_cmp > 0) ? sum_tv / n_cmp : 0.0;
+            s->dspark_last_cycle.verify_dist.mean_kl_seq_batched = (n_cmp > 0) ? sum_kl / n_cmp : 0.0;
+        }
+        free(batched_logits);
+        free(seq_logits);
+        free(batched_tops);
         if (dspark_log) {
             fprintf(stderr,
                     "ds4: dspark drafted=%d verify=%d verified=%d accepted=%d conf0=%.3f conf1=%.3f conf2=%.3f\n",
