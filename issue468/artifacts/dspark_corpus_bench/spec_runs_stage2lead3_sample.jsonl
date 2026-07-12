@@ -1,0 +1,6 @@
+{"id": "dolly_0000", "label": "dolly_0000", "mode": "speculative_argmax", "prompt_file": "/Users/lobanov/Projects/ds4-dspark-research/issue468/prompts/stage2_corpus/dolly_0000.txt", "frontier_tokens": 8192, "gen_tokens": 32}
+{"id": "dolly_0001", "label": "dolly_0001", "mode": "speculative_argmax", "prompt_file": "/Users/lobanov/Projects/ds4-dspark-research/issue468/prompts/stage2_corpus/dolly_0001.txt", "frontier_tokens": 8192, "gen_tokens": 32}
+{"id": "dolly_0002", "label": "dolly_0002", "mode": "speculative_argmax", "prompt_file": "/Users/lobanov/Projects/ds4-dspark-research/issue468/prompts/stage2_corpus/dolly_0002.txt", "frontier_tokens": 8192, "gen_tokens": 32}
+{"id": "dolly_0080", "label": "dolly_0080", "mode": "speculative_argmax", "prompt_file": "/Users/lobanov/Projects/ds4-dspark-research/issue468/prompts/lead3_corpus/dolly_0080.txt", "frontier_tokens": 8192, "gen_tokens": 32}
+{"id": "dolly_0081", "label": "dolly_0081", "mode": "speculative_argmax", "prompt_file": "/Users/lobanov/Projects/ds4-dspark-research/issue468/prompts/lead3_corpus/dolly_0081.txt", "frontier_tokens": 8192, "gen_tokens": 32}
+{"id": "dolly_0082", "label": "dolly_0082", "mode": "speculative_argmax", "prompt_file": "/Users/lobanov/Projects/ds4-dspark-research/issue468/prompts/lead3_corpus/dolly_0082.txt", "frontier_tokens": 8192, "gen_tokens": 32}

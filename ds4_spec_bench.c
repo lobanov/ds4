@@ -78,16 +78,28 @@ typedef struct {
 } prompt_cache;
 
 typedef struct {
+    ds4_dspark_cycle_metrics *v;
+    int len;
+    int cap;
+} dspark_cycle_vec;
+
+typedef struct {
     bool ok;
     bool eos_hit;
     int emitted_tokens;
     int cycles;
     int accepted_total;
     int accepted_max;
+    bool dspark_metrics_present;
+    bool schedule_batched;
+    bool scheduled_verify;
+    int schedule_batch_limit;
+    bool dspark_timing_enabled;
     double prefill_ms;
     double snapshot_ms;
     double decode_ms;
     double restore_ms;
+    dspark_cycle_vec dspark_cycles;
     char err[256];
 } run_result;
 
@@ -122,6 +134,56 @@ static char *xstrdup0(const char *s) {
     memcpy(out, s, n + 1);
     return out;
 }
+
+static void dspark_cycle_vec_push(dspark_cycle_vec *vec,
+                                  const ds4_dspark_cycle_metrics *metric) {
+    if (vec->len == vec->cap) {
+        int ncap = vec->cap ? vec->cap * 2 : 16;
+        vec->v = xrealloc(vec->v, (size_t)ncap * sizeof(vec->v[0]));
+        vec->cap = ncap;
+    }
+    vec->v[vec->len++] = *metric;
+}
+
+static double metric_mean_f64(const dspark_cycle_vec *vec, double (*field)(const ds4_dspark_cycle_metrics *)) {
+    if (!vec || vec->len == 0) return 0.0;
+    double sum = 0.0;
+    for (int i = 0; i < vec->len; i++) sum += field(&vec->v[i]);
+    return sum / (double)vec->len;
+}
+
+static double metric_mean_i32(const dspark_cycle_vec *vec, int (*field)(const ds4_dspark_cycle_metrics *)) {
+    if (!vec || vec->len == 0) return 0.0;
+    double sum = 0.0;
+    for (int i = 0; i < vec->len; i++) sum += (double)field(&vec->v[i]);
+    return sum / (double)vec->len;
+}
+
+static int metric_max_i32(const dspark_cycle_vec *vec, int (*field)(const ds4_dspark_cycle_metrics *)) {
+    int best = 0;
+    if (!vec || vec->len == 0) return 0;
+    best = field(&vec->v[0]);
+    for (int i = 1; i < vec->len; i++) {
+        int cur = field(&vec->v[i]);
+        if (cur > best) best = cur;
+    }
+    return best;
+}
+
+static int metric_field_rows_computed(const ds4_dspark_cycle_metrics *m) { return m->rows_computed; }
+static int metric_field_drafted(const ds4_dspark_cycle_metrics *m) { return m->drafted; }
+static int metric_field_schedule_batch_limit(const ds4_dspark_cycle_metrics *m) { return m->schedule_batch_limit; }
+static int metric_field_verify_n(const ds4_dspark_cycle_metrics *m) { return m->verify_n; }
+static int metric_field_verified(const ds4_dspark_cycle_metrics *m) { return m->verified; }
+static int metric_field_accepted(const ds4_dspark_cycle_metrics *m) { return m->accepted; }
+static double metric_field_decode_ms(const ds4_dspark_cycle_metrics *m) { return m->decode_ms; }
+static double metric_field_draft_ms(const ds4_dspark_cycle_metrics *m) { return m->draft_ms; }
+static double metric_field_verify_ms(const ds4_dspark_cycle_metrics *m) { return m->verify_ms; }
+static double metric_field_total_ms(const ds4_dspark_cycle_metrics *m) { return m->total_ms; }
+static double metric_field_push_init_ms(const ds4_dspark_cycle_metrics *m) { return m->push_init_ms; }
+static double metric_field_push_verify_ms(const ds4_dspark_cycle_metrics *m) { return m->push_verify_ms; }
+static double metric_field_verify_decode_ms(const ds4_dspark_cycle_metrics *m) { return m->verify_decode_ms; }
+static double metric_field_logits_read_ms(const ds4_dspark_cycle_metrics *m) { return m->logits_read_ms; }
 
 static int parse_int_arg(const char *s, const char *opt, bool allow_zero) {
     char *end = NULL;
@@ -945,15 +1007,20 @@ static const char *active_drafter_name(ds4_engine *engine) {
 
 static run_result execute_run(
         ds4_engine        *engine,
-        ds4_session       *session,
+        int                ctx_alloc,
         const spec_run    *run,
         const ds4_tokens  *tokens) {
     run_result res = {.ok = false};
     char err[256] = {0};
+    ds4_session *session = NULL;
     if (tokens->len < run->frontier_tokens) {
         snprintf(res.err, sizeof(res.err),
                  "prompt has %d tokens, need frontier %d",
                  tokens->len, run->frontier_tokens);
+        return res;
+    }
+    if (ds4_session_create(&session, engine, ctx_alloc) != 0 || !session) {
+        snprintf(res.err, sizeof(res.err), "failed to create session");
         return res;
     }
 
@@ -970,15 +1037,6 @@ static run_result execute_run(
     }
     const double prefill_t1 = now_sec();
     res.prefill_ms = (prefill_t1 - prefill_t0) * 1000.0;
-
-    ds4_session_snapshot snap = {0};
-    const double snap_t0 = now_sec();
-    if (ds4_session_save_snapshot(session, &snap, err, sizeof(err)) != 0) {
-        snprintf(res.err, sizeof(res.err), "snapshot failed: %s", err);
-        return res;
-    }
-    const double snap_t1 = now_sec();
-    res.snapshot_ms = (snap_t1 - snap_t0) * 1000.0;
 
     const int eos = ds4_token_eos(engine);
     const double decode_t0 = now_sec();
@@ -1043,6 +1101,19 @@ static run_result execute_run(
                 snprintf(res.err, sizeof(res.err), "speculative decode failed: %s", err);
                 goto done;
             }
+            if (ds4_engine_has_dspark(engine)) {
+                ds4_dspark_cycle_metrics metric = {0};
+                res.dspark_timing_enabled = getenv("DS4_DSPARK_TIMING") != NULL;
+                if (ds4_session_get_dspark_last_cycle_metrics(session, &metric) == 0) {
+                    res.dspark_metrics_present = true;
+                    res.schedule_batched = res.schedule_batched || metric.batched_schedule;
+                    res.scheduled_verify = res.scheduled_verify || metric.scheduled_verify;
+                    if (metric.schedule_batch_limit > res.schedule_batch_limit) {
+                        res.schedule_batch_limit = metric.schedule_batch_limit;
+                    }
+                    dspark_cycle_vec_push(&res.dspark_cycles, &metric);
+                }
+            }
             for (int i = 0; i < produced; i++) {
                 if (accepted[i] == eos) {
                     res.eos_hit = true;
@@ -1067,18 +1138,16 @@ static run_result execute_run(
     res.ok = true;
 
 done:
-    {
-        const double restore_t0 = now_sec();
-        if (ds4_session_load_snapshot(session, &snap, err, sizeof(err)) != 0) {
-            if (res.ok) {
-                snprintf(res.err, sizeof(res.err), "restore failed: %s", err);
-                res.ok = false;
-            }
-        }
-        res.restore_ms = (now_sec() - restore_t0) * 1000.0;
-    }
-    ds4_session_snapshot_free(&snap);
+    ds4_session_free(session);
     return res;
+}
+
+static void run_result_free(run_result *res) {
+    if (!res) return;
+    free(res->dspark_cycles.v);
+    res->dspark_cycles.v = NULL;
+    res->dspark_cycles.len = 0;
+    res->dspark_cycles.cap = 0;
 }
 
 static void write_result_jsonl(
@@ -1136,6 +1205,73 @@ static void write_result_jsonl(
             res->cycles > 0 ? (double)res->accepted_total / (double)res->cycles : 0.0);
     fprintf(out, ",\"tokens_per_second\":%.9g",
             res->decode_ms > 0.0 ? (double)res->emitted_tokens * 1000.0 / res->decode_ms : 0.0);
+    fprintf(out, ",\"dspark_metrics_present\":%s", res->dspark_metrics_present ? "true" : "false");
+    fprintf(out, ",\"dspark_timing_enabled\":%s", res->dspark_timing_enabled ? "true" : "false");
+    fprintf(out, ",\"schedule_batched\":%s", res->schedule_batched ? "true" : "false");
+    fprintf(out, ",\"scheduled_verify\":%s", res->scheduled_verify ? "true" : "false");
+    fprintf(out, ",\"schedule_batch_limit\":%d", res->schedule_batch_limit);
+    fprintf(out, ",\"dspark_cycle_count\":%d", res->dspark_cycles.len);
+    fprintf(out, ",\"dspark_schedule_batch_limit_max\":%d",
+            metric_max_i32(&res->dspark_cycles, metric_field_schedule_batch_limit));
+    fprintf(out, ",\"dspark_rows_computed_mean\":%.9g",
+            metric_mean_i32(&res->dspark_cycles, metric_field_rows_computed));
+    fprintf(out, ",\"dspark_drafted_mean\":%.9g",
+            metric_mean_i32(&res->dspark_cycles, metric_field_drafted));
+    fprintf(out, ",\"dspark_verify_n_mean\":%.9g",
+            metric_mean_i32(&res->dspark_cycles, metric_field_verify_n));
+    fprintf(out, ",\"dspark_verified_mean\":%.9g",
+            metric_mean_i32(&res->dspark_cycles, metric_field_verified));
+    fprintf(out, ",\"dspark_cycle_accepted_mean\":%.9g",
+            metric_mean_i32(&res->dspark_cycles, metric_field_accepted));
+    fprintf(out, ",\"dspark_cycle_accepted_max\":%d",
+            metric_max_i32(&res->dspark_cycles, metric_field_accepted));
+    fprintf(out, ",\"dspark_decode_ms_mean\":%.9g",
+            metric_mean_f64(&res->dspark_cycles, metric_field_decode_ms));
+    fprintf(out, ",\"dspark_draft_ms_mean\":%.9g",
+            metric_mean_f64(&res->dspark_cycles, metric_field_draft_ms));
+    fprintf(out, ",\"dspark_verify_ms_mean\":%.9g",
+            metric_mean_f64(&res->dspark_cycles, metric_field_verify_ms));
+    fprintf(out, ",\"dspark_total_ms_mean\":%.9g",
+            metric_mean_f64(&res->dspark_cycles, metric_field_total_ms));
+    fprintf(out, ",\"dspark_verify_decode_ms_mean\":%.9g",
+            metric_mean_f64(&res->dspark_cycles, metric_field_verify_decode_ms));
+    fprintf(out, ",\"dspark_push_init_ms_mean\":%.9g",
+            metric_mean_f64(&res->dspark_cycles, metric_field_push_init_ms));
+    fprintf(out, ",\"dspark_push_verify_ms_mean\":%.9g",
+            metric_mean_f64(&res->dspark_cycles, metric_field_push_verify_ms));
+    fprintf(out, ",\"dspark_logits_read_ms_mean\":%.9g",
+            metric_mean_f64(&res->dspark_cycles, metric_field_logits_read_ms));
+    fprintf(out, ",\"dspark_cycles\":[");
+    for (int i = 0; i < res->dspark_cycles.len; i++) {
+        const ds4_dspark_cycle_metrics *m = &res->dspark_cycles.v[i];
+        if (i) fprintf(out, ",");
+        fprintf(out,
+                "{\"scheduled_verify\":%s,\"batched_schedule\":%s,\"schedule_batch_limit\":%d,\"rows_computed\":%d,\"drafted\":%d,\"verify_n\":%d,\"verified\":%d,\"accepted\":%d,\"decode_ms\":%.6f,\"draft_ms\":%.6f,\"verify_ms\":%.6f,\"total_ms\":%.6f,\"pushes_init\":%d,\"pushes_verify\":%d,\"push_init_ms\":%.6f,\"push_verify_ms\":%.6f,\"verify_decode_ms\":%.6f,\"logits_read_ms\":%.6f,\"conf_logits\":[%.6f,%.6f,%.6f,%.6f,%.6f]}",
+                m->scheduled_verify ? "true" : "false",
+                m->batched_schedule ? "true" : "false",
+                m->schedule_batch_limit,
+                m->rows_computed,
+                m->drafted,
+                m->verify_n,
+                m->verified,
+                m->accepted,
+                m->decode_ms,
+                m->draft_ms,
+                m->verify_ms,
+                m->total_ms,
+                m->pushes_init,
+                m->pushes_verify,
+                m->push_init_ms,
+                m->push_verify_ms,
+                m->verify_decode_ms,
+                m->logits_read_ms,
+                m->conf_logits[0],
+                m->conf_logits[1],
+                m->conf_logits[2],
+                m->conf_logits[3],
+                m->conf_logits[4]);
+    }
+    fprintf(out, "]");
     fprintf(out, ",\"eos_hit\":%s", res->eos_hit ? "true" : "false");
     fprintf(out, ",\"routed_quant_bits\":%d", ds4_engine_routed_quant_bits(engine));
     fprintf(out, ",\"error\":");
@@ -1175,21 +1311,11 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    ds4_session *session = NULL;
-    if (ds4_session_create(&session, engine, cfg.ctx_alloc) != 0) {
-        fprintf(stderr, "ds4-spec-bench: failed to create session\n");
-        ds4_engine_close(engine);
-        for (int i = 0; i < runs.len; i++) run_free(&runs.v[i]);
-        free(runs.v);
-        return 1;
-    }
-
     FILE *out = stdout;
     if (cfg.jsonl_path) {
         out = fopen(cfg.jsonl_path, "wb");
         if (!out) {
             fprintf(stderr, "ds4-spec-bench: failed to open %s: %s\n", cfg.jsonl_path, strerror(errno));
-            ds4_session_free(session);
             ds4_engine_close(engine);
             for (int i = 0; i < runs.len; i++) run_free(&runs.v[i]);
             free(runs.v);
@@ -1210,10 +1336,11 @@ int main(int argc, char **argv) {
                    !ds4_engine_has_dspark(engine) && !ds4_engine_has_mtp(engine)) {
             snprintf(res.err, sizeof(res.err), "speculative_argmax requested but engine has no speculative drafter");
         } else {
-            res = execute_run(engine, session, run, tokens);
+            res = execute_run(engine, cfg.ctx_alloc, run, tokens);
         }
         if (!res.ok) rc = 1;
         write_result_jsonl(out, &cfg, engine, run, tokens, &res);
+        run_result_free(&res);
     }
 
     for (int i = 0; i < cache.len; i++) {
@@ -1225,7 +1352,6 @@ int main(int argc, char **argv) {
     free(cache.v);
 
     if (out != stdout) fclose(out);
-    ds4_session_free(session);
     ds4_engine_close(engine);
     for (int i = 0; i < runs.len; i++) run_free(&runs.v[i]);
     free(runs.v);

@@ -1,0 +1,130 @@
+{
+  "throughput_pass": {
+    "serial": {
+      "rows": 6,
+      "flags": [
+        [
+          true,
+          false,
+          0,
+          false
+        ]
+      ],
+      "tokens_per_second_mean": 24.711502049999996,
+      "accepted_mean_mean": 2.09333792,
+      "dspark_rows_computed_mean": 3.170582501666667,
+      "dspark_drafted_mean": 3.170582501666667,
+      "dspark_verify_n_mean": 2.3591503266666667,
+      "dspark_verified_mean": 1.0933379193333332
+    },
+    "cap5": {
+      "rows": 6,
+      "flags": [
+        [
+          true,
+          true,
+          5,
+          false
+        ]
+      ],
+      "tokens_per_second_mean": 24.05840196666667,
+      "accepted_mean_mean": 2.09333792,
+      "dspark_rows_computed_mean": 4.602688911666667,
+      "dspark_drafted_mean": 4.602688911666667,
+      "dspark_verify_n_mean": 2.3591503266666667,
+      "dspark_verified_mean": 1.0933379193333332
+    },
+    "cap4": {
+      "rows": 6,
+      "flags": [
+        [
+          true,
+          true,
+          4,
+          false
+        ]
+      ],
+      "tokens_per_second_mean": 25.545182,
+      "accepted_mean_mean": 2.09333792,
+      "dspark_rows_computed_mean": 3.7540075666666666,
+      "dspark_drafted_mean": 3.7540075666666666,
+      "dspark_verify_n_mean": 2.282352941666667,
+      "dspark_verified_mean": 1.0933379193333332
+    },
+    "cap3": {
+      "rows": 6,
+      "flags": [
+        [
+          true,
+          true,
+          3,
+          false
+        ]
+      ],
+      "tokens_per_second_mean": 26.990787083333334,
+      "accepted_mean_mean": 2.0711156983333336,
+      "dspark_rows_computed_mean": 2.8776408950000003,
+      "dspark_drafted_mean": 2.8776408950000003,
+      "dspark_verify_n_mean": 2.0978700833333335,
+      "dspark_verified_mean": 1.0711156976666667
+    }
+  },
+  "timing_pass": {
+    "serial": {
+      "rows": 6,
+      "flags": [
+        [
+          true,
+          false,
+          0,
+          true
+        ]
+      ],
+      "tokens_per_second_mean": 24.845521666666667,
+      "dspark_rows_computed_mean": 3.170582501666667,
+      "dspark_verify_n_mean": 2.3591503266666667,
+      "dspark_draft_ms_mean": 27.265849316666664,
+      "dspark_verify_ms_mean": 29.123019100000004,
+      "dspark_total_ms_mean": 82.34818015
+    },
+    "cap4": {
+      "rows": 6,
+      "flags": [
+        [
+          true,
+          true,
+          4,
+          true
+        ]
+      ],
+      "tokens_per_second_mean": 25.233665283333334,
+      "dspark_rows_computed_mean": 3.7540075666666666,
+      "dspark_verify_n_mean": 2.282352941666667,
+      "dspark_draft_ms_mean": 25.839287833333334,
+      "dspark_verify_ms_mean": 29.07130275,
+      "dspark_total_ms_mean": 81.12157409999999
+    },
+    "cap3": {
+      "rows": 6,
+      "flags": [
+        [
+          true,
+          true,
+          3,
+          true
+        ]
+      ],
+      "tokens_per_second_mean": 27.03633698333333,
+      "dspark_rows_computed_mean": 2.8776408950000003,
+      "dspark_verify_n_mean": 2.0978700833333335,
+      "dspark_draft_ms_mean": 20.18147825,
+      "dspark_verify_ms_mean": 28.576826999999998,
+      "dspark_total_ms_mean": 74.92754728333334
+    }
+  },
+  "notes": [
+    "Throughput pass ran with DS4_DSPARK_TIMING unset.",
+    "Timing pass ran with DS4_DSPARK_TIMING=1 and is attribution-only.",
+    "Post-benchmark adversarial review could not be commissioned in this run because the workspace was out of credits."
+  ]
+}

@@ -25,6 +25,8 @@ N = int(os.getenv("DS4_DSPARK_PROFILE_N", "64"))
 TEMP = "0.0"
 SEED = "1"
 VERIFY_KS = [v.strip() for v in os.getenv("DS4_DSPARK_PROFILE_VERIFY_KS", "sched,1").split(",") if v.strip()]
+PROFILE_TAG = os.getenv("DS4_DSPARK_PROFILE_TAG", "").strip()
+SCHEDULE_BATCHED = os.getenv("DS4_DSPARK_SCHEDULE_BATCHED", "").strip()
 PROMPTS = [
     ("code_8k", CORPUS / "code_8k.txt", 16384),
     ("synthesis_8k", CORPUS / "synthesis_8k.txt", 16384),
@@ -61,6 +63,8 @@ def run_config(label: str, prompt: Path, ctx: int, verify_k: str) -> dict:
         "DS4_DSPARK_TIMING": "1",
         "DS4_DSPARK_SPEC_LOG": "1",
     })
+    if SCHEDULE_BATCHED:
+        env["DS4_DSPARK_SCHEDULE_BATCHED"] = SCHEDULE_BATCHED
     if verify_k != "sched":
         env["DS4_DSPARK_VERIFY_K"] = verify_k
     cmd = [
@@ -82,6 +86,7 @@ def run_config(label: str, prompt: Path, ctx: int, verify_k: str) -> dict:
         "returncode": proc.returncode,
         "wall_s": round(dt, 2),
         "n": N,
+        "schedule_batched": bool(SCHEDULE_BATCHED and SCHEDULE_BATCHED not in ("0", "off", "OFF")),
     }
     tps = TPS_RE.search(proc.stderr)
     if tps:
@@ -152,6 +157,8 @@ def main() -> int:
         print(f"\n##### prompt={prompt_label} #####", flush=True)
         for verify_k in VERIFY_KS:
             label = f"{prompt_label}__{verify_k}"
+            if PROFILE_TAG:
+                label = f"{label}__{PROFILE_TAG}"
             r = run_config(label, prompt_path, ctx, verify_k)
             r["prompt_label"] = prompt_label
             results.append(r)
@@ -161,7 +168,8 @@ def main() -> int:
                 f"total_med={r.get('total_ms_summary', {}).get('median')}",
                 flush=True,
             )
-    (OUT / "summary.json").write_text(json.dumps(results, indent=2) + "\n")
+    summary_name = "summary.json" if not PROFILE_TAG else f"summary__{PROFILE_TAG}.json"
+    (OUT / summary_name).write_text(json.dumps(results, indent=2) + "\n")
     return 0
 
 

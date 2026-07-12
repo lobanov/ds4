@@ -2525,6 +2525,196 @@ static void test_dspark_temp_logit_parity(void) {
 
     test_restore_env("DS4_DSPARK_VERIFY_K", saved_verify);
 }
+
+typedef struct {
+    int toks[TEST_MTP_MAXGEN];
+    int chunks[TEST_MTP_MAXGEN];
+    int n_toks;
+    int n_chunks;
+    int max_chunk;
+} test_dspark_schedule_trace;
+
+static void test_dspark_schedule_compare_cycle_semantics(ds4_session *serial,
+                                                         ds4_session *batched,
+                                                         int first_token,
+                                                         int max_tokens) {
+    ds4_dspark_schedule_probe serial_probe = {0};
+    ds4_dspark_schedule_probe batched_probe = {0};
+
+    TEST_ASSERT(ds4_session_dspark_schedule_probe(
+        serial, first_token, max_tokens, false, &serial_probe) == 0);
+    TEST_ASSERT(ds4_session_dspark_schedule_probe(
+        batched, first_token, max_tokens, true, &batched_probe) == 0);
+    TEST_ASSERT(serial_probe.rows_computed > 0);
+    TEST_ASSERT(serial_probe.verify_n >= 0);
+    TEST_ASSERT(serial_probe.verify_n <= serial_probe.candidate_n);
+    TEST_ASSERT(batched_probe.rows_computed >= serial_probe.rows_computed);
+    TEST_ASSERT(batched_probe.verify_n == serial_probe.verify_n);
+    for (int i = 0; i < serial_probe.rows_computed; i++) {
+        TEST_ASSERT(batched_probe.draft[i] == serial_probe.draft[i]);
+        TEST_ASSERT(fabsf(batched_probe.conf_logits[i] - serial_probe.conf_logits[i]) <= 1e-6f);
+    }
+}
+
+static bool test_dspark_capture_schedule_trace(ds4_engine *engine,
+                                               const ds4_tokens *prompt,
+                                               int max_tokens,
+                                               bool batched_schedule,
+                                               test_dspark_schedule_trace *trace) {
+    ds4_session *session = NULL;
+    char *saved_batched = test_save_env("DS4_DSPARK_SCHEDULE_BATCHED");
+    char *saved_batch_n = test_save_env("DS4_DSPARK_SCHEDULE_BATCH_N");
+    char *saved_verify = test_save_env("DS4_DSPARK_VERIFY_K");
+    char *saved_schedule = test_save_env("DS4_DSPARK_CONF_SCHEDULE");
+    char err[160];
+    bool ok = false;
+
+    memset(trace, 0, sizeof(*trace));
+    unsetenv("DS4_DSPARK_SCHEDULE_BATCH_N");
+    unsetenv("DS4_DSPARK_VERIFY_K");
+    setenv("DS4_DSPARK_CONF_SCHEDULE", "1", 1);
+    if (batched_schedule) setenv("DS4_DSPARK_SCHEDULE_BATCHED", "1", 1);
+    else unsetenv("DS4_DSPARK_SCHEDULE_BATCHED");
+
+    TEST_ASSERT(ds4_session_create(&session, engine, 32768) == 0);
+    TEST_ASSERT(session != NULL);
+    if (!session) goto done;
+
+    TEST_ASSERT(ds4_session_sync(session, prompt, err, sizeof(err)) == 0);
+    if (ds4_session_common_prefix(session, prompt) != prompt->len) goto done;
+
+    const int eos = ds4_token_eos(engine);
+    bool stop = false;
+    while (!stop && trace->n_toks < max_tokens && trace->n_chunks < max_tokens) {
+        const int token = ds4_session_argmax(session);
+        if (token == eos) break;
+
+        int accepted[17];
+        const int ntok = ds4_session_eval_speculative_argmax(
+            session, token, max_tokens - trace->n_toks, eos,
+            accepted, (int)(sizeof(accepted) / sizeof(accepted[0])),
+            err, sizeof(err));
+        TEST_ASSERT(ntok >= 0);
+        if (ntok < 0) goto done;
+
+        trace->chunks[trace->n_chunks++] = ntok;
+        if (ntok > trace->max_chunk) trace->max_chunk = ntok;
+        for (int j = 0; j < ntok; j++) {
+            if (accepted[j] == eos) {
+                stop = true;
+                break;
+            }
+            trace->toks[trace->n_toks++] = accepted[j];
+            if (trace->n_toks >= max_tokens) {
+                stop = true;
+                break;
+            }
+        }
+    }
+    ok = true;
+
+done:
+    ds4_session_free(session);
+    test_restore_env("DS4_DSPARK_SCHEDULE_BATCHED", saved_batched);
+    test_restore_env("DS4_DSPARK_SCHEDULE_BATCH_N", saved_batch_n);
+    test_restore_env("DS4_DSPARK_VERIFY_K", saved_verify);
+    test_restore_env("DS4_DSPARK_CONF_SCHEDULE", saved_schedule);
+    return ok;
+}
+
+static void test_dspark_schedule_parity(void) {
+    ds4_engine *engine = test_get_dspark_engine();
+    if (!engine || !ds4_engine_has_dspark(engine)) {
+        fprintf(stderr, "ds4-test: dspark-schedule-parity skipped (set DS4_TEST_DSPARK to a DSpark GGUF)\n");
+        return;
+    }
+
+    for (size_t i = 0; i < sizeof(test_exactness_prompt_cases) / sizeof(test_exactness_prompt_cases[0]); i++) {
+        ds4_tokens prompt = {0};
+        test_dspark_schedule_trace batched = {0};
+        test_dspark_schedule_trace serial = {0};
+        ds4_session *serial_session = NULL;
+        ds4_session *batched_session = NULL;
+        char *saved_batched = test_save_env("DS4_DSPARK_SCHEDULE_BATCHED");
+        char *saved_batch_n = test_save_env("DS4_DSPARK_SCHEDULE_BATCH_N");
+        char *saved_verify = test_save_env("DS4_DSPARK_VERIFY_K");
+        char *saved_schedule = test_save_env("DS4_DSPARK_CONF_SCHEDULE");
+        char err[160];
+
+        TEST_ASSERT(test_build_user_prompt(engine, test_exactness_prompt_cases[i].path, &prompt));
+        unsetenv("DS4_DSPARK_SCHEDULE_BATCH_N");
+        unsetenv("DS4_DSPARK_VERIFY_K");
+        setenv("DS4_DSPARK_CONF_SCHEDULE", "1", 1);
+        unsetenv("DS4_DSPARK_SCHEDULE_BATCHED");
+        TEST_ASSERT(ds4_session_create(&serial_session, engine, 32768) == 0);
+        TEST_ASSERT(serial_session != NULL);
+        TEST_ASSERT(ds4_session_sync(serial_session, &prompt, err, sizeof(err)) == 0);
+        TEST_ASSERT(ds4_session_common_prefix(serial_session, &prompt) == prompt.len);
+        setenv("DS4_DSPARK_SCHEDULE_BATCHED", "1", 1);
+        TEST_ASSERT(ds4_session_create(&batched_session, engine, 32768) == 0);
+        TEST_ASSERT(batched_session != NULL);
+        TEST_ASSERT(ds4_session_sync(batched_session, &prompt, err, sizeof(err)) == 0);
+        TEST_ASSERT(ds4_session_common_prefix(batched_session, &prompt) == prompt.len);
+
+        const int eos = ds4_token_eos(engine);
+        int generated = 0;
+        while (generated < 64) {
+            const int serial_token = ds4_session_argmax(serial_session);
+            const int batched_token = ds4_session_argmax(batched_session);
+            TEST_ASSERT(serial_token == batched_token);
+            if (serial_token == eos) break;
+
+            test_dspark_schedule_compare_cycle_semantics(
+                serial_session, batched_session, serial_token, 64 - generated);
+
+            int serial_accept[17];
+            int batched_accept[17];
+            unsetenv("DS4_DSPARK_SCHEDULE_BATCHED");
+            const int serial_ntok = ds4_session_eval_speculative_argmax(
+                serial_session, serial_token, 64 - generated, eos,
+                serial_accept, (int)(sizeof(serial_accept) / sizeof(serial_accept[0])),
+                err, sizeof(err));
+            setenv("DS4_DSPARK_SCHEDULE_BATCHED", "1", 1);
+            const int batched_ntok = ds4_session_eval_speculative_argmax(
+                batched_session, batched_token, 64 - generated, eos,
+                batched_accept, (int)(sizeof(batched_accept) / sizeof(batched_accept[0])),
+                err, sizeof(err));
+            TEST_ASSERT(serial_ntok >= 0);
+            TEST_ASSERT(batched_ntok >= 0);
+            TEST_ASSERT(serial_ntok == batched_ntok);
+            TEST_ASSERT(memcmp(serial_accept, batched_accept, (size_t)serial_ntok * sizeof(serial_accept[0])) == 0);
+            for (int j = 0; j < serial_ntok; j++) {
+                if (serial_accept[j] == eos) {
+                    generated = 64;
+                    break;
+                }
+                generated++;
+                if (generated >= 64) break;
+            }
+        }
+
+        TEST_ASSERT(test_dspark_capture_schedule_trace(engine, &prompt, 64, true, &batched));
+        TEST_ASSERT(test_dspark_capture_schedule_trace(engine, &prompt, 64, false, &serial));
+        TEST_ASSERT(batched.n_toks == serial.n_toks);
+        TEST_ASSERT(batched.n_chunks == serial.n_chunks);
+        TEST_ASSERT(memcmp(batched.toks, serial.toks, (size_t)batched.n_toks * sizeof(batched.toks[0])) == 0);
+        TEST_ASSERT(memcmp(batched.chunks, serial.chunks, (size_t)batched.n_chunks * sizeof(batched.chunks[0])) == 0);
+
+        fprintf(stderr,
+                "ds4-test: dspark-schedule-parity prompt=%s tokens=%d chunks=%d max_chunk=%d\n",
+                test_exactness_prompt_cases[i].label,
+                batched.n_toks,
+                batched.n_chunks,
+                batched.max_chunk);
+        ds4_session_free(serial_session);
+        ds4_session_free(batched_session);
+        test_restore_env("DS4_DSPARK_SCHEDULE_BATCHED", saved_batched);
+        test_restore_env("DS4_DSPARK_SCHEDULE_BATCH_N", saved_batch_n);
+        test_restore_env("DS4_DSPARK_VERIFY_K", saved_verify);
+        test_restore_env("DS4_DSPARK_CONF_SCHEDULE", saved_schedule);
+        ds4_tokens_free(&prompt);
+    }
+}
 #endif
 
 static void test_server_unit_group(void) {
@@ -2556,6 +2746,7 @@ static const ds4_test_entry test_entries[] = {
     {"--mtp-verify-depth-anchor-reuse", "mtp-verify-depth-anchor-reuse", "experimental anchor-reuse MTP speculative verify keeps near-argmax committed tokens", test_mtp_verify_depth_anchor_reuse},
     {"--mtp-temp-logit-parity", "mtp-temp-logit-parity", "experimental anchor-reuse path preserves temp>0 logits/distribution on retained exactness prompts", test_mtp_temp_logit_parity},
     {"--dspark-temp-logit-parity", "dspark-temp-logit-parity", "DSpark path with verify_k=0 preserves temp>0 logits/distribution on retained exactness prompts", test_dspark_temp_logit_parity},
+    {"--dspark-schedule-parity", "dspark-schedule-parity", "Experimental DSpark batched scheduling preserves committed tokens and accepted chunking vs the default serial scheduler", test_dspark_schedule_parity},
 #endif
     {"--server", "server", "server parser/rendering/cache unit tests", test_server_unit_group},
 };

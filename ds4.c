@@ -23866,6 +23866,7 @@ struct ds4_session {
     uint32_t dspark_n_real;
     uint32_t dspark_push_count;
     double dspark_push_ms;
+    ds4_dspark_cycle_metrics dspark_last_cycle;
     uint64_t mtp_probe_total;
     uint64_t mtp_probe_hit;
     ds4_session_progress_fn progress;
@@ -23887,6 +23888,7 @@ static const float ds4_dspark_sts_temp[DS4_DSPARK_BLOCK] = {
 static void dspark_session_reset_state(ds4_session *s) {
     if (!s) return;
     s->dspark_n_real = 0;
+    memset(&s->dspark_last_cycle, 0, sizeof(s->dspark_last_cycle));
 }
 
 /* =========================================================================
@@ -25455,6 +25457,7 @@ int ds4_session_load_payload(ds4_session *s, FILE *fp, uint64_t payload_bytes, c
     s->checkpoint_valid = true;
     s->mtp_draft_valid = false;
     g->mtp_n_raw = 0;
+    dspark_session_reset_state(s);
     return 0;
 #endif
 }
@@ -27437,6 +27440,7 @@ int ds4_session_sync(ds4_session *s, const ds4_tokens *prompt, char *err, size_t
 #else
     ds4_engine *e = s->engine;
     const char *backend_name = ds4_backend_name(e->backend);
+    dspark_session_reset_state(s);
 
     if (s->checkpoint_valid &&
         prompt->len >= s->checkpoint.len &&
@@ -27997,6 +28001,7 @@ static void dspark_block_forward_batch(
         uint32_t                 n_real,
         uint32_t                 pos_base,
         uint32_t                 n_tok,
+        bool                     prefix_visible_only,
         ds4_dspark_scratch      *scratch) {
     if (!scratch || n_tok == 0 || n_tok > DS4_DSPARK_BLOCK) ds4_die("invalid dspark batch scratch");
     const uint32_t n_hc = DS4_N_HC;
@@ -28069,7 +28074,7 @@ static void dspark_block_forward_batch(
                                  model, layer,
                                  q + (uint64_t)t * q_dim,
                                  kv_all,
-                                 n_kv);
+                                 prefix_visible_only ? (n_real + t + 1u) : n_kv);
         dspark_rope_inplace(heads + (uint64_t)t * q_dim,
                             DS4_N_HEAD, DS4_N_HEAD_DIM,
                             pos_base + t, true);
@@ -28138,6 +28143,7 @@ static bool dspark_eval_draft_block_cpu(
                                    s->dspark_n_real,
                                    s->dspark_n_real,
                                    (uint32_t)draft_n,
+                                   false,
                                    scratch);
         float *tmp = cur;
         cur = nxt;
@@ -28229,6 +28235,26 @@ static float dspark_schedule_threshold(void) {
     return threshold;
 }
 
+static bool dspark_schedule_batched_draft(void) {
+    const char *mode_env = getenv("DS4_DSPARK_SCHEDULE_BATCHED");
+    return mode_env && strcmp(mode_env, "0") && strcasecmp(mode_env, "off");
+}
+
+static int dspark_schedule_batch_limit(int max_n) {
+    int limit = max_n;
+    const char *limit_env = getenv("DS4_DSPARK_SCHEDULE_BATCH_N");
+    if (limit_env && limit_env[0]) {
+        char *end = NULL;
+        long v = strtol(limit_env, &end, 10);
+        if (end != limit_env && v > 0) {
+            if (v < limit) limit = (int)v;
+        }
+    }
+    if (limit < 1) limit = 1;
+    if (limit > max_n) limit = max_n;
+    return limit;
+}
+
 static int dspark_schedule_verify_len(const float *conf_logits, int max_n) {
     if (max_n <= 0) return 0;
     const int fixed_n = dspark_fixed_verify_len_override(max_n);
@@ -28302,6 +28328,7 @@ static bool dspark_eval_draft_block_cpu_scheduled(
                                        s->dspark_n_real + (uint32_t)t,
                                        s->dspark_n_real + (uint32_t)t,
                                        1,
+                                       false,
                                        scratch);
             memcpy(win_kv[stage] + (uint64_t)(s->dspark_n_real + (uint32_t)t) * DS4_N_HEAD_DIM,
                    scratch->kv,
@@ -28348,6 +28375,93 @@ static bool dspark_eval_draft_block_cpu_scheduled(
     return true;
 }
 
+static bool dspark_eval_draft_block_cpu_scheduled_batched(
+        ds4_session *s,
+        int          anchor,
+        int          draft_n,
+        int          draft[DS4_DSPARK_BLOCK]) {
+    if (!s || !s->engine || !s->engine->dspark_ready || !draft ||
+        draft_n <= 0 || draft_n > (int)DS4_DSPARK_BLOCK)
+        return false;
+    ds4_engine *e = s->engine;
+    ds4_dspark_scratch *scratch = &s->dspark_scratch;
+    if (s->dspark_n_real == 0 && !dspark_session_push_graph_hidden(s)) return false;
+    if (s->dspark_n_real == 0) return false;
+    if (s->dspark_n_real + (uint32_t)draft_n > scratch->kv_cap) return false;
+
+    const uint64_t hc_dim = (uint64_t)DS4_N_HC * DS4_N_EMBD;
+    float *x_hc = scratch->x_hc;
+    float *next_hc = scratch->next_hc;
+    float *win_kv[DS4_DSPARK_STAGES];
+    if (!dspark_prepare_stage_windows(s, win_kv)) return false;
+
+    {
+        float plain[DS4_N_EMBD];
+        embed_token_f16(&e->model, &e->weights, anchor, plain);
+        hc_from_plain_embedding(x_hc, plain, DS4_N_EMBD, DS4_N_HC);
+    }
+    if (draft_n > 1) {
+        memcpy(x_hc + hc_dim,
+               scratch->noise_hc,
+               (size_t)(draft_n - 1) * hc_dim * sizeof(x_hc[0]));
+    }
+
+    float *cur = x_hc;
+    float *nxt = next_hc;
+    for (uint32_t stage = 0; stage < DS4_DSPARK_STAGES; stage++) {
+        dspark_block_forward_batch(nxt,
+                                   &e->dspark_model,
+                                   &e->dspark_weights.block[stage],
+                                   cur,
+                                   win_kv[stage],
+                                   s->dspark_n_real,
+                                   s->dspark_n_real,
+                                   (uint32_t)draft_n,
+                                   true,
+                                   scratch);
+        float *tmp = cur;
+        cur = nxt;
+        nxt = tmp;
+    }
+
+    float *norm = scratch->norm;
+    float *base_logits = scratch->base_logits;
+    float markov_emb[DS4_DSPARK_MARKOV_RANK];
+    float *markov_bias = scratch->markov_bias;
+    float *conf_proj = scratch->conf_proj;
+    int prev = anchor;
+    for (int t = 0; t < draft_n; t++) {
+        dspark_hc_head_one(norm, &e->dspark_model, &e->dspark_weights, cur + (uint64_t)t * hc_dim);
+        rms_norm_weight(norm, norm,
+                        tensor_data(&e->dspark_model, e->dspark_weights.norm),
+                        DS4_N_EMBD, DS4_RMS_EPS);
+        matvec_q8_0(base_logits, &e->model, e->weights.output, norm);
+
+        dspark_markov_embed_lookup(markov_emb, &e->dspark_model, e->dspark_weights.markov_w1, prev);
+        matvec_any(markov_bias, &e->dspark_model, e->dspark_weights.markov_w2, markov_emb);
+
+        if (s->dspark_conf_logits) {
+            float clogit = 0.0f;
+            clogit += dot_f32(norm, conf_proj, DS4_N_EMBD);
+            clogit += dot_f32(markov_emb, conf_proj + DS4_N_EMBD, DS4_DSPARK_MARKOV_RANK);
+            s->dspark_conf_logits[t] = clogit;
+        }
+
+        int best = 0;
+        float bestv = base_logits[0] + markov_bias[0];
+        for (uint32_t v = 1; v < DS4_N_VOCAB; v++) {
+            const float curv = base_logits[v] + markov_bias[v];
+            if (curv > bestv) {
+                bestv = curv;
+                best = (int)v;
+            }
+        }
+        draft[t] = best;
+        prev = best;
+    }
+    return true;
+}
+
 /* Speculative decode state machine:
  * 1. either commit the normal target token and use its logits to validate
  *    draft[0], or (experimental) treat the sampled correction token as row 0
@@ -28362,6 +28476,7 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
                                         int *accepted, int accepted_cap,
                                         char *err, size_t errlen) {
     if (!s || max_tokens <= 0 || accepted_cap <= 0) return 0;
+    memset(&s->dspark_last_cycle, 0, sizeof(s->dspark_last_cycle));
     if (s->distributed) {
         if (!accepted) return 0;
         if (ds4_session_eval(s, first_token, err, errlen) != 0) return -1;
@@ -28387,6 +28502,7 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
         const bool dspark_timing = dspark_timing_enabled();
         const bool dspark_log = getenv("DS4_DSPARK_SPEC_LOG") != NULL;
         const double dspark_t0 = dspark_timing ? now_sec() : 0.0;
+        s->dspark_last_cycle.valid = true;
         s->dspark_push_ms = 0.0;
         s->dspark_push_count = 0;
         int n_accept = 0;
@@ -28406,7 +28522,11 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
         if (draft_n <= 0) return n_accept;
         const int fixed_verify_n = dspark_fixed_verify_len_override(draft_n);
         const bool scheduled_verify = fixed_verify_n < 0 && dspark_schedule_enabled();
+        s->dspark_last_cycle.scheduled_verify = scheduled_verify;
         if (fixed_verify_n == 0) {
+            s->dspark_last_cycle.decode_ms = (dspark_t_after_commit - dspark_t0) * 1000.0;
+            s->dspark_last_cycle.total_ms = s->dspark_last_cycle.decode_ms;
+            s->dspark_last_cycle.accepted = n_accept;
             if (dspark_log) {
                 fprintf(stderr, "ds4: dspark drafted=0 verify=0 accepted=%d\n", n_accept);
             }
@@ -28421,15 +28541,22 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
         }
 
         int drafts[DS4_DSPARK_BLOCK];
+        const bool batched_scheduled_draft = scheduled_verify && dspark_schedule_batched_draft();
+        s->dspark_last_cycle.batched_schedule = batched_scheduled_draft;
         int draft_eval_n = fixed_verify_n > 0 ? fixed_verify_n : draft_n;
         int verify_n = draft_n;
-        if (scheduled_verify) {
+        if (batched_scheduled_draft) {
+            draft_eval_n = dspark_schedule_batch_limit(draft_eval_n);
+            s->dspark_last_cycle.schedule_batch_limit = draft_eval_n;
+            if (!dspark_eval_draft_block_cpu_scheduled_batched(s, first_token, draft_eval_n, drafts)) return n_accept;
+        } else if (scheduled_verify) {
             if (!dspark_eval_draft_block_cpu_scheduled(s, first_token, draft_n, &draft_eval_n, &verify_n, drafts))
                 return n_accept;
         } else {
             if (!dspark_eval_draft_block_cpu(s, first_token, draft_eval_n, drafts)) return n_accept;
         }
         const double dspark_t_after_draft = dspark_timing ? now_sec() : 0.0;
+        s->dspark_last_cycle.rows_computed = draft_eval_n;
         draft_n = draft_eval_n;
         for (int i = 0; i < draft_n; i++) {
             if (drafts[i] == eos_token) {
@@ -28438,12 +28565,21 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
             }
         }
         if (draft_n <= 0) return n_accept;
-        if (scheduled_verify) {
-            if (verify_n > draft_n) verify_n = draft_n;
-        } else {
-            verify_n = dspark_schedule_verify_len(s->dspark_conf_logits, draft_n);
+        s->dspark_last_cycle.drafted = draft_n;
+        for (int i = 0; i < draft_n && i < (int)DS4_DSPARK_BLOCK; i++) {
+            s->dspark_last_cycle.conf_logits[i] = s->dspark_conf_logits ? s->dspark_conf_logits[i] : 0.0f;
         }
+        if (batched_scheduled_draft) {
+            verify_n = dspark_schedule_verify_len(s->dspark_conf_logits, draft_n);
+        } else if (scheduled_verify) {
+            if (verify_n > draft_n) verify_n = draft_n;
+        }
+        s->dspark_last_cycle.verify_n = verify_n;
         if (verify_n <= 0) {
+            s->dspark_last_cycle.accepted = n_accept;
+            s->dspark_last_cycle.decode_ms = (dspark_t_after_commit - dspark_t0) * 1000.0;
+            s->dspark_last_cycle.draft_ms = (dspark_t_after_draft - dspark_t_after_commit) * 1000.0;
+            s->dspark_last_cycle.total_ms = dspark_timing ? (now_sec() - dspark_t0) * 1000.0 : 0.0;
             if (dspark_log) {
                 fprintf(stderr, "ds4: dspark drafted=%d verify=0 accepted=%d\n", draft_n, n_accept);
             }
@@ -28509,6 +28645,16 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
             const double done = now_sec();
             const double push_verify_ms = s->dspark_push_ms - dspark_push_ms_after_commit;
             const uint32_t push_verify_count = s->dspark_push_count - dspark_push_count_after_commit;
+            s->dspark_last_cycle.pushes_init = (int)dspark_push_count_after_commit;
+            s->dspark_last_cycle.pushes_verify = (int)push_verify_count;
+            s->dspark_last_cycle.push_init_ms = dspark_push_ms_after_commit;
+            s->dspark_last_cycle.push_verify_ms = push_verify_ms;
+            s->dspark_last_cycle.verify_decode_ms = verify_decode_ms;
+            s->dspark_last_cycle.logits_read_ms = logits_read_ms;
+            s->dspark_last_cycle.decode_ms = (dspark_t_after_commit - dspark_t0) * 1000.0;
+            s->dspark_last_cycle.draft_ms = (dspark_t_after_draft - dspark_t_after_commit) * 1000.0;
+            s->dspark_last_cycle.verify_ms = (done - verify_t0) * 1000.0;
+            s->dspark_last_cycle.total_ms = (done - dspark_t0) * 1000.0;
             fprintf(stderr,
                     "ds4: dspark timing drafted=%d verify=%d verified=%d decode=%.3f ms draft=%.3f ms verify=%.3f ms total=%.3f ms\n",
                     draft_n,
@@ -28527,6 +28673,8 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
                     verify_decode_ms,
                     logits_read_ms);
         }
+        s->dspark_last_cycle.verified = verified;
+        s->dspark_last_cycle.accepted = n_accept;
         return n_accept;
     }
     const bool mtp_anchor_reuse_requested = getenv("DS4_MTP_ANCHOR_REUSE") != NULL;
@@ -29181,6 +29329,64 @@ seq_verify: {
     return n_accept;
 }
 #endif
+}
+
+int ds4_session_dspark_schedule_probe(ds4_session *s,
+                                      int first_token,
+                                      int max_tokens,
+                                      bool batched_schedule,
+                                      ds4_dspark_schedule_probe *out) {
+    if (!s || !out || max_tokens <= 0) return -1;
+    memset(out, 0, sizeof(*out));
+    if (!s->engine || !s->engine->dspark_ready) return -1;
+    if (s->distributed || ds4_session_is_cpu(s)) return -1;
+
+    int draft_n = (int)DS4_DSPARK_BLOCK;
+    if (draft_n > max_tokens) draft_n = max_tokens;
+    int room = s->ctx_size - s->checkpoint.len;
+    if (draft_n > room) draft_n = room;
+    if (draft_n <= 0) return 0;
+
+    const int fixed_verify_n = dspark_fixed_verify_len_override(draft_n);
+    const bool scheduled_verify = fixed_verify_n < 0 && dspark_schedule_enabled();
+    int draft_eval_n = fixed_verify_n > 0 ? fixed_verify_n : draft_n;
+    int rows_computed = draft_eval_n;
+    int verify_n = draft_n;
+
+    if (batched_schedule && scheduled_verify) {
+        draft_eval_n = dspark_schedule_batch_limit(draft_eval_n);
+        rows_computed = draft_eval_n;
+        if (!dspark_eval_draft_block_cpu_scheduled_batched(s, first_token, draft_eval_n, out->draft)) return -1;
+        verify_n = dspark_schedule_verify_len(s->dspark_conf_logits, draft_eval_n);
+    } else if (scheduled_verify) {
+        if (!dspark_eval_draft_block_cpu_scheduled(s, first_token, draft_n, &rows_computed, &verify_n, out->draft))
+            return -1;
+    } else {
+        if (!dspark_eval_draft_block_cpu(s, first_token, draft_eval_n, out->draft)) return -1;
+        verify_n = draft_eval_n;
+    }
+
+    int candidate_n = rows_computed;
+    const int eos_token = ds4_token_eos(s->engine);
+    for (int i = 0; i < rows_computed; i++) {
+        out->conf_logits[i] = s->dspark_conf_logits ? s->dspark_conf_logits[i] : 0.0f;
+        if (out->draft[i] == eos_token) {
+            candidate_n = i + 1;
+            break;
+        }
+    }
+    if (verify_n > candidate_n) verify_n = candidate_n;
+    out->rows_computed = rows_computed;
+    out->candidate_n = candidate_n;
+    out->verify_n = verify_n;
+    return 0;
+}
+
+int ds4_session_get_dspark_last_cycle_metrics(ds4_session *s,
+                                              ds4_dspark_cycle_metrics *out) {
+    if (!s || !out || !s->dspark_last_cycle.valid) return -1;
+    *out = s->dspark_last_cycle;
+    return 0;
 }
 
 void ds4_session_invalidate(ds4_session *s) {

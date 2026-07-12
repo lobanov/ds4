@@ -1,0 +1,62 @@
+{
+  "serial_mean_tokens_per_second": 23.30339515,
+  "batched_mean_tokens_per_second": 22.743356,
+  "serial_mean_accepted_mean": 2.0044490316666668,
+  "batched_mean_accepted_mean": 2.0044490316666668,
+  "per_prompt": [
+    {
+      "id": "dolly_0000",
+      "serial_tps": 21.9064499,
+      "batched_tps": 23.1674208,
+      "serial_accepted_mean": 1.88235294,
+      "batched_accepted_mean": 1.88235294,
+      "serial_cycles": 17,
+      "batched_cycles": 17
+    },
+    {
+      "id": "dolly_0001",
+      "serial_tps": 22.1554482,
+      "batched_tps": 21.2720556,
+      "serial_accepted_mean": 1.68421053,
+      "batched_accepted_mean": 1.68421053,
+      "serial_cycles": 19,
+      "batched_cycles": 19
+    },
+    {
+      "id": "dolly_0002",
+      "serial_tps": 23.0903888,
+      "batched_tps": 22.351301,
+      "serial_accepted_mean": 1.88235294,
+      "batched_accepted_mean": 1.88235294,
+      "serial_cycles": 17,
+      "batched_cycles": 17
+    },
+    {
+      "id": "dolly_0080",
+      "serial_tps": 23.311195,
+      "batched_tps": 23.2784326,
+      "serial_accepted_mean": 2.13333333,
+      "batched_accepted_mean": 2.13333333,
+      "serial_cycles": 15,
+      "batched_cycles": 15
+    },
+    {
+      "id": "dolly_0081",
+      "serial_tps": 26.3231929,
+      "batched_tps": 24.9235936,
+      "serial_accepted_mean": 2.66666667,
+      "batched_accepted_mean": 2.66666667,
+      "serial_cycles": 12,
+      "batched_cycles": 12
+    },
+    {
+      "id": "dolly_0082",
+      "serial_tps": 23.0336961,
+      "batched_tps": 21.4673324,
+      "serial_accepted_mean": 1.77777778,
+      "batched_accepted_mean": 1.77777778,
+      "serial_cycles": 18,
+      "batched_cycles": 18
+    }
+  ]
+}

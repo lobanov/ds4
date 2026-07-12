@@ -55,6 +55,7 @@ typedef struct {
 #define DS4_DEFAULT_TEMPERATURE 1.0f
 #define DS4_DEFAULT_TOP_P 1.0f
 #define DS4_DEFAULT_MIN_P 0.05f
+#define DS4_DSPARK_MAX_BLOCK 5
 
 typedef struct ds4_engine ds4_engine;
 typedef struct ds4_session ds4_session;
@@ -267,6 +268,42 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
                                         int max_tokens, int eos_token,
                                         int *accepted, int accepted_cap,
                                         char *err, size_t errlen);
+typedef struct {
+    int rows_computed;
+    int candidate_n;
+    int verify_n;
+    int draft[DS4_DSPARK_MAX_BLOCK];
+    float conf_logits[DS4_DSPARK_MAX_BLOCK];
+} ds4_dspark_schedule_probe;
+typedef struct {
+    bool valid;
+    bool scheduled_verify;
+    bool batched_schedule;
+    int schedule_batch_limit;
+    int rows_computed;
+    int drafted;
+    int verify_n;
+    int verified;
+    int accepted;
+    int pushes_init;
+    int pushes_verify;
+    double decode_ms;
+    double draft_ms;
+    double verify_ms;
+    double total_ms;
+    double push_init_ms;
+    double push_verify_ms;
+    double verify_decode_ms;
+    double logits_read_ms;
+    float conf_logits[DS4_DSPARK_MAX_BLOCK];
+} ds4_dspark_cycle_metrics;
+int ds4_session_dspark_schedule_probe(ds4_session *s,
+                                      int first_token,
+                                      int max_tokens,
+                                      bool batched_schedule,
+                                      ds4_dspark_schedule_probe *out);
+int ds4_session_get_dspark_last_cycle_metrics(ds4_session *s,
+                                              ds4_dspark_cycle_metrics *out);
 void ds4_session_invalidate(ds4_session *s);
 void ds4_session_rewind(ds4_session *s, int pos);
 int ds4_session_pos(ds4_session *s);

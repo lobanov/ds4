@@ -233,51 +233,22 @@ Five points now look solid.
    The current evidence does **not** support “full DSpark GPU drafter body/head
    first, keep the verifier unchanged” as the clearest next lever.
 
-## Known optimization avenues
-
-The current measurements and implementation review narrow the live optimization
-space to a shorter list.
-
-1. **Keep verifier work as the primary ceiling.** The new timing-detail split
-   makes the current bottleneck picture more precise: most of `verify_ms` is
-   serial target decode inside the exact verifier, not DSpark support-state
-   push or logits readback. This keeps Lead 08 Phase B fused low-K verifier
-   work live.
-2. **Move more of DSpark execution onto the GPU, but with confidence and state
-   carried along.** The live drafter still pays for CPU body/head execution and
-   host-side DSpark window handling. The remaining drafter-side path therefore
-   points to persistent device DSpark KV/window state plus GPU body, head,
-   markov, confidence, and argmax. Host policy can remain on CPU because the
-   scheduling decision itself is only over a few scalars.
-3. **Treat variable verify span as the more important scheduled-DSpark lever
-   than token-serial early-stop drafting.** The current scheduled path drafts
-   token-by-token so it can stop as soon as cumulative survival drops below the
-   STS threshold. That preserves the intended policy shape, but it makes the
-   drafter expensive. The likely better next runtime design is to batch a full
-   short block (`4` or `5` tokens), produce draft ids plus confidence logits in
-   one pass, and then let confidence choose how much of that block to verify.
-   That keeps the main scheduling benefit while avoiding much of the current
-   token-serial draft overhead.
-4. **Preserve the existing “confident prefix + 1 drafted token” policy logic
-   even if drafting becomes batched.** The current scheduled implementation is
-   deliberately asymmetric: it can draft one token beyond the confident prefix
-   while verifying only the confident prefix, which is meant to reduce the
-   frequency of full-block accepts and therefore the need to pay the standalone
-   anchor decode on the next cycle. If scheduled drafting is reworked around
-   batched full-block drafting, the verify-length chooser should preserve this
-   economics rather than collapsing into plain fixed-K.
-5. **Do not spend more time on drafter-weight precision or scheduler-only
-   tuning.** Earlier lead work already closed these as primary levers. The
-   vendored Q4_K drafter is already effectively at its source-weight ceiling,
-   and confidence scheduling by itself was only marginal secondary material
-   under cheaper verifier assumptions. The live question is execution cost, not
-   whether the confidence signal exists.
-
-## Current recommendation
+## Next steps
 
 **Proceed with DSpark optimization work, but do not headline a positive local
-runtime result and do not treat a full GPU drafter body/head port as the first
-obvious next step.**
+runtime result yet and do not treat a full GPU drafter body/head port as the
+first obvious next move.**
+
+This section should be updated after each optimization iteration so it remains
+the current workload and recommendation snapshot.
+
+Current workload:
+
+1. keep the new `ds4-spec-bench` path and retained corpus/profile gates as the
+   measurement substrate;
+2. parity-gate DSpark window-state semantics explicitly; and
+3. investigate verifier/state-update economics before committing to a full
+   DSpark GPU body/head port.
 
 What is established now:
 
@@ -301,14 +272,354 @@ What is not established:
 - that “GPU drafter body/head first” is the best next engineering move under
   the current verifier
 
-The next engineering step should therefore be:
+The live optimization space is now narrower.
 
-1. keep the new `ds4-spec-bench` path and retained corpus/profile gates as the
-   measurement substrate;
-2. parity-gate DSpark window-state semantics explicitly; and
-3. investigate verifier/state-update economics before committing to a full
-   DSpark GPU body/head port.
+1. **Keep verifier work as the primary ceiling.** The timing-detail split
+   shows that most of `verify_ms` is serial target decode inside the exact
+   verifier, not DSpark support-state push or logits readback. This keeps Lead
+   08 Phase B fused low-K verifier work live.
+2. **Treat variable verify span as more important than token-serial early-stop
+   drafting.** The likely better scheduled runtime design is to batch a short
+   full block (`4` or `5` tokens), produce draft ids plus confidence logits in
+   one pass, and let confidence choose how much of that block to verify. That
+   keeps the scheduling benefit while avoiding much of the current token-serial
+   draft overhead.
+3. **Preserve the existing “confident prefix + 1 drafted token” policy logic
+   even if drafting becomes batched.** The verify-length chooser should keep
+   the current asymmetry so the system does not drift back toward paying more
+   standalone anchor decodes than necessary.
+4. **Move more of DSpark execution onto the GPU only with confidence and state
+   carried along.** The remaining drafter-side path points to persistent device
+   DSpark KV/window state plus GPU body, head, markov, confidence, and argmax,
+   while host policy can remain on CPU because it only consumes a few scalars.
+5. **Do not spend more time on drafter-weight precision or scheduler-only
+   tuning.** Earlier lead work already closed these as primary levers. The live
+   question is execution cost, not whether the confidence signal exists.
 
 The current DSpark path is real and measurable, but the cleaned-up evidence now
 points to **verifier and state-update economics as the next load-bearing issue**,
 not just “move the drafter to GPU and the rest will probably work out.”
+
+## Worklog
+
+### 2026-07-12 — scheduled-drafter optimization cycle 1
+
+Tried the most obvious drafter-cost optimization suggested by the current
+profile: keep confidence scheduling, but make the scheduler's drafting side
+**batched** instead of token-serial. Concretely, the experimental path uses a
+new opt-in env, `DS4_DSPARK_SCHEDULE_BATCHED=1`, to draft the full short block
+with the existing batched CPU drafter and then choose `verify_n` from the
+resulting confidence logits, instead of stopping draft compute token-by-token
+at the STS frontier.
+
+Important status:
+
+- the default runtime was **not** changed; the retained token-serial scheduled
+  path remains the default
+- the batched path is **experimental / opt-in only**
+- a new lock-safe smoke regression was added to `ds4_test`:
+  `--dspark-schedule-parity`
+
+Smoke outcome before any benchmark:
+
+- `./ds4_test --dspark-temp-logit-parity` still passes for the current DSpark
+  path
+- `./ds4_test --dspark-schedule-parity` currently **fails** for the
+  experimental batched path: committed chunking differs from the default serial
+  scheduler on the retained exactness prompts
+
+Interpretation:
+
+- the current batched-scheduler implementation is **not yet benchmark-ready**
+  under this note's methodology
+- even with final-output parity protected by exact verification, the draft-side
+  economics are changing enough to trip the new smoke gate
+- next step is adversarial review of the divergence before any benchmark claims
+  are recorded
+
+Pre-benchmark adversarial review:
+
+- retained at
+  `issue468/artifacts/dspark_codex_reviews/2026-07-12_gpt55_xhigh_batched_schedule_prebench_review.md`
+- verdict: the current full-block batched path is **not** serial-equivalent by
+  construction, because the batched drafter lets early rows see future/noise
+  block rows and therefore changes proposals / confidence / accepted chunking
+- recommendation: do **not** benchmark or summarize this path as a valid drop-in
+  optimization of the current scheduler; either rework it toward causal
+  prefix-limited intra-block attention, or treat it as a distinct speculative
+  policy with a different benchmark contract
+
+### 2026-07-12 — scheduled-drafter optimization cycle 2
+
+Reworked the experimental batched scheduler into a **prefix-limited** batched
+path rather than the earlier full-block path. The retained default runtime is
+still unchanged; the experimental path remains opt-in behind
+`DS4_DSPARK_SCHEDULE_BATCHED=1`. The key semantic change is that intra-block
+attention for row `t` is limited to the real prefix plus `t+1` visible rows, so
+the batched path no longer lets early scheduled rows see future/noise rows.
+
+The pre-benchmark adversarial review for this current implementation is retained
+at:
+
+- `issue468/artifacts/dspark_codex_reviews/2026-07-12_gpt55_xhigh_prefix_limited_batched_schedule_prebench_review.md`
+
+That review judged the current prefix-limited path a plausible semantic match to
+the retained serial scheduler, but also correctly pointed out that the old smoke
+coverage was still too weak: committed-token / chunk parity alone could miss
+draft-id, confidence-logit, or scheduled-`verify_n` drift.
+
+In response, the retained smoke gate was strengthened:
+
+- added `ds4_session_dspark_schedule_probe(...)` so tests can inspect the real
+  scheduled DSpark cycle outputs without exposing DSpark internals broadly
+- upgraded `./ds4_test --dspark-schedule-parity` to compare, cycle-by-cycle:
+  draft ids, confidence logits, computed `verify_n`, committed accepted tokens,
+  and accepted chunking
+
+Lock-safe smoke outcome for the current implementation:
+
+- `./ds4_test --dspark-temp-logit-parity`: **PASS**
+- strengthened `./ds4_test --dspark-schedule-parity`: **PASS**
+
+Interpretation:
+
+- the current prefix-limited batched scheduled path has now cleared a much
+  stronger pre-benchmark parity gate than the earlier rejected full-block path
+- it is therefore benchmark-eligible under this note's methodology
+- the next step is actual corpus/profile measurement, followed by the required
+  post-benchmark adversarial review before any benchmark summary is propagated
+
+First retained benchmark slice after that stronger gate:
+
+- short retained `ds4-spec-bench` sample:
+  `issue468/artifacts/dspark_corpus_bench/spec_sched_compare_sample_summary.json`
+- retained long-profile reruns:
+  - `issue468/artifacts/dspark_phaseA_profile/summary__serial_now.json`
+  - `issue468/artifacts/dspark_phaseA_profile/summary__batched_now.json`
+
+Measured result on this first slice was **mixed**:
+
+- short 6-prompt retained sample:
+  - serial scheduled mean `tokens_per_second`: **23.303**
+  - batched scheduled mean `tokens_per_second`: **22.743**
+  - reported chunk-level `accepted_mean`: unchanged at **2.004449**
+- retained 8k sched-only profile:
+  - `code_8k`: gen **24.17 -> 25.24 t/s**, draft mean **41.832 -> 35.855 ms**
+  - `synthesis_8k`: gen **23.20 -> 23.88 t/s**, draft mean **42.748 -> 39.190 ms**
+  - `grounded_8k`: gen **22.15 -> 23.70 t/s**, draft mean **48.399 -> 40.168 ms**
+  - measured `verified` means were unchanged across those three retained prompts
+
+Post-benchmark adversarial review:
+
+- retained at
+  `issue468/artifacts/dspark_codex_reviews/2026-07-12_gpt55_xhigh_prefix_limited_batched_schedule_postbench_review.md`
+- verdict: this is a **follow-up-worthy mixed signal**, not a validated runtime
+  win
+- safe framing:
+  - the prefix-limited path appears semantically sound enough to measure
+  - short retained prompts showed slightly worse throughput with unchanged
+    chunk-level acceptance
+  - long retained prompts showed lower draft cost and slightly better `gen_tps`
+- unsafe framing:
+  - claiming the optimization is already proven faster
+  - claiming full acceptance economics are identical from the current short
+    sample alone
+
+Immediate next step from that review:
+
+- extend `ds4-spec-bench` so the retained DSpark benchmark substrate itself
+  records schedule mode plus per-cycle draft/verify/timing fields, instead of
+  relying on a split between JSONL throughput runs and separate CLI timing
+  parses
+
+### 2026-07-12 — scheduled-drafter optimization cycle 3
+
+Extended `ds4_spec_bench.c` / `ds4-spec-bench` so the retained JSONL output now
+captures DSpark run mode and per-cycle telemetry directly, rather than requiring
+separate CLI timing parses. The current JSONL records, per run:
+
+- whether DSpark metrics were present
+- whether scheduled verification was used at all during the run
+- whether batched scheduling was enabled
+- DSpark cycle count
+- mean drafted / verify / verified / accepted counts per cycle
+- mean DSpark timing splits per cycle (`decode_ms`, `draft_ms`, `verify_ms`,
+  `total_ms`, `verify_decode_ms`, push timing, logits readback)
+- a retained `dspark_cycles` array with the per-cycle raw fields
+
+One schema bug was caught immediately by the first rerun: top-level
+`scheduled_verify` had been reflecting only the **last** speculative cycle
+rather than summarizing the whole run. That was corrected before the retained
+batched rerun, so the v2 artifacts below are directly comparable.
+
+Retained v2 short-sample artifacts:
+
+- serial:
+  `issue468/artifacts/dspark_corpus_bench/spec_sched_serial_sample_v2.jsonl`
+- batched:
+  `issue468/artifacts/dspark_corpus_bench/spec_sched_batched_sample_v2.jsonl`
+
+Measured result on the same 6-prompt retained sample:
+
+- serial scheduled mean `tokens_per_second`: **24.463**
+- batched scheduled mean `tokens_per_second`: **22.484**
+- run-level `accepted_mean`: unchanged at **2.004449**
+- cycle-level accepted mean: unchanged at **1.985386**
+- mean verifier time stayed effectively flat:
+  **26.677 -> 26.699 ms**
+- mean draft time worsened materially:
+  **27.875 -> 34.914 ms**
+- mean drafted rows per cycle rose:
+  **2.940 -> 4.614**
+- mean `verify_n` stayed unchanged:
+  **2.119 -> 2.119**
+
+Interpretation:
+
+- the integrated `ds4-spec-bench` substrate is now sufficient to replace the
+  earlier split throughput-plus-CLI-timing workflow for future DSpark cycles
+- on this retained short sample, the current prefix-limited batched scheduler
+  is slower for a now-clear reason: it drafts substantially more rows per cycle
+  without reducing verifier work
+- this does **not** invalidate the earlier positive long-context profile slice,
+  but it does narrow the current follow-up question: find cases where batching
+  reduces draft cost enough to offset extra drafted rows, or change the
+  scheduled policy so batched drafting does not overshoot the current serial
+  `verify_n` economics
+
+### 2026-07-12 — scheduled-drafter optimization cycle 4
+
+The next retained cycle pursued the follow-up question directly by making the
+experimental batched scheduled span **tunable** rather than hard-wired to the
+full short block. The new opt-in env is:
+
+- `DS4_DSPARK_SCHEDULE_BATCH_N=<1..5>`
+
+It only applies when the experimental batched scheduled path is active
+(`DS4_DSPARK_SCHEDULE_BATCHED=1`) and scheduled verification is still in use.
+The goal is simple: keep the “batch then let confidence choose verify length”
+shape from the previous cycle, but reduce the draft-side overcompute that made
+cap-5 batching slower on short prompts.
+
+Before benchmarking, this cycle also fixed a real retained-harness confound
+found by adversarial review:
+
+- `ds4-spec-bench` no longer reuses one mutable session timeline across runs
+- it now reuses **one loaded engine** but creates a **fresh session per run**
+- it no longer forces `DS4_DSPARK_TIMING=1`; throughput and attribution passes
+  are now intentionally separate
+- DSpark side state is explicitly reset on snapshot/payload restore and GPU
+  sync-prefill rebuild paths
+
+Those changes were not cosmetic. A retained hygiene smoke had shown that two
+identical capped runs through the old reused-session harness could produce the
+same high-level counts but different per-cycle confidence traces. After the
+fresh-session change, identical repeated runs matched on all non-timing JSON
+fields.
+
+Retained pre-benchmark review for this cleaned-up state:
+
+- `issue468/artifacts/dspark_codex_reviews/2026-07-12_gpt55_xhigh_batchcap_prebench_review_v2.md`
+
+That review judged the current harness and cap path benchmark-ready for a short
+cap sweep, with two key constraints:
+
+- throughput comparison should run with `DS4_DSPARK_TIMING` unset
+- each batched row should be rejected if the JSONL does not show the intended
+  scheduler flags (`scheduled_verify=true`, `schedule_batched=true`,
+  `schedule_batch_limit=<cap>`)
+
+Lock-safe smoke outcome before benchmarking:
+
+- `./ds4_test --dspark-temp-logit-parity`: **PASS**
+- `./ds4_test --dspark-schedule-parity`: **PASS**
+- one-prompt cap smoke via `ds4-spec-bench`: **PASS**
+- repeated-run fresh-session hygiene smoke: **PASS**
+
+Retained benchmark artifacts for the short 6-prompt Stage-2 sample:
+
+- throughput pass, timing **off**:
+  - serial:
+    `issue468/artifacts/dspark_corpus_bench/spec_sched_serial_sample_v3.jsonl`
+  - cap 5:
+    `issue468/artifacts/dspark_corpus_bench/spec_sched_batched_cap5_sample_v3.jsonl`
+  - cap 4:
+    `issue468/artifacts/dspark_corpus_bench/spec_sched_batched_cap4_sample_v3.jsonl`
+  - cap 3:
+    `issue468/artifacts/dspark_corpus_bench/spec_sched_batched_cap3_sample_v3.jsonl`
+- diagnostic attribution pass, timing **on**:
+  - serial:
+    `issue468/artifacts/dspark_corpus_bench/spec_sched_serial_sample_v3_timing.jsonl`
+  - cap 4:
+    `issue468/artifacts/dspark_corpus_bench/spec_sched_batched_cap4_sample_v3_timing.jsonl`
+  - cap 3:
+    `issue468/artifacts/dspark_corpus_bench/spec_sched_batched_cap3_sample_v3_timing.jsonl`
+- retained roll-up:
+  `issue468/artifacts/dspark_corpus_bench/spec_sched_batchcap_v3_summary.json`
+
+Measured throughput-pass means on this retained sample:
+
+- serial: **24.712 t/s**
+- cap 5: **24.058 t/s**
+- cap 4: **25.545 t/s**
+- cap 3: **26.991 t/s**
+
+Measured economic deltas on the same pass:
+
+- serial:
+  - `accepted_mean`: **2.093338**
+  - `rows_computed_mean`: **3.170583**
+  - `verify_n_mean`: **2.359150**
+- cap 5:
+  - `accepted_mean`: **2.093338**
+  - `rows_computed_mean`: **4.602689**
+  - `verify_n_mean`: **2.359150**
+- cap 4:
+  - `accepted_mean`: **2.093338**
+  - `rows_computed_mean`: **3.754008**
+  - `verify_n_mean`: **2.282353**
+- cap 3:
+  - `accepted_mean`: **2.071116**
+  - `rows_computed_mean`: **2.877641**
+  - `verify_n_mean`: **2.097870**
+
+Measured attribution pass means:
+
+- serial:
+  - draft **27.266 ms**
+  - verify **29.123 ms**
+  - total **82.348 ms**
+- cap 4:
+  - draft **25.839 ms**
+  - verify **29.071 ms**
+  - total **81.122 ms**
+- cap 3:
+  - draft **20.181 ms**
+  - verify **28.577 ms**
+  - total **74.928 ms**
+
+Retained post-benchmark adversarial review:
+
+- `issue468/artifacts/dspark_codex_reviews/2026-07-12_gpt55_xhigh_batchcap_postbench_review.md`
+
+That review's judgement is the right narrow framing for this cycle:
+
+- `cap5` is a local miss on this sample; it raises rows computed without buying
+  back enough acceptance or verifier reduction
+- `cap4` is the conservative positive: modestly faster than serial on this
+  sample while preserving reported `accepted_mean`
+- `cap3` is the stronger local candidate: fastest on this sample, with the
+  gain coming mainly from lower draft-side cost rather than lower verifier cost
+- `cap3` is **not** yet free to promote as a default, because one prompt
+  (`dolly_0080`) showed a small acceptance/verified regression relative to
+  serial and `cap4`
+
+Interpretation:
+
+- the new evidence does **not** support “batched scheduling is faster” in the
+  abstract
+- it does support a narrower claim: **shorter batched scheduled caps can beat
+  both serial scheduling and cap-5 batching on the retained short sample**
+- `cap4` currently looks like the safer local default candidate
+- `cap3` looks like the higher-leverage candidate that now deserves a larger
+  interleaved paired validation rather than another broad cap sweep

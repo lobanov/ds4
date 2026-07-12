@@ -4,10 +4,8 @@
     "impl": "baseline",
     "K": "baseline",
     "label": "code_sort_pairs__baseline",
-    "returncode": 0,
-    "wall_s": 2.11,
-    "prefill_tps": 105.35,
-    "gen_tps": 40.34
+    "returncode": 2,
+    "wall_s": 0.46
   },
   {
     "prompt_label": "code_sort_pairs",
@@ -16,20 +14,16 @@
     "matches_baseline": true,
     "mismatch_at": null,
     "label": "code_sort_pairs__dspark",
-    "returncode": 0,
-    "wall_s": 2.93,
-    "prefill_tps": 100.47,
-    "gen_tps": 21.82
+    "returncode": 2,
+    "wall_s": 0.0
   },
   {
     "prompt_label": "code_topk",
     "impl": "baseline",
     "K": "baseline",
     "label": "code_topk__baseline",
-    "returncode": 0,
-    "wall_s": 2.11,
-    "prefill_tps": 96.83,
-    "gen_tps": 40.33
+    "returncode": 2,
+    "wall_s": 0.0
   },
   {
     "prompt_label": "code_topk",
@@ -38,20 +32,16 @@
     "matches_baseline": true,
     "mismatch_at": null,
     "label": "code_topk__dspark",
-    "returncode": 0,
-    "wall_s": 2.96,
-    "prefill_tps": 89.27,
-    "gen_tps": 20.69
+    "returncode": 2,
+    "wall_s": 0.0
   },
   {
     "prompt_label": "code_histogram",
     "impl": "baseline",
     "K": "baseline",
     "label": "code_histogram__baseline",
-    "returncode": 0,
-    "wall_s": 2.16,
-    "prefill_tps": 96.31,
-    "gen_tps": 40.25
+    "returncode": 2,
+    "wall_s": 0.0
   },
   {
     "prompt_label": "code_histogram",
@@ -60,20 +50,16 @@
     "matches_baseline": true,
     "mismatch_at": null,
     "label": "code_histogram__dspark",
-    "returncode": 0,
-    "wall_s": 2.89,
-    "prefill_tps": 90.05,
-    "gen_tps": 22.08
+    "returncode": 2,
+    "wall_s": 0.0
   },
   {
     "prompt_label": "grounded_observatory",
     "impl": "baseline",
     "K": "baseline",
     "label": "grounded_observatory__baseline",
-    "returncode": 0,
-    "wall_s": 2.35,
-    "prefill_tps": 124.26,
-    "gen_tps": 39.92
+    "returncode": 2,
+    "wall_s": 0.0
   },
   {
     "prompt_label": "grounded_observatory",
@@ -82,20 +68,16 @@
     "matches_baseline": true,
     "mismatch_at": null,
     "label": "grounded_observatory__dspark",
-    "returncode": 0,
-    "wall_s": 3.29,
-    "prefill_tps": 119.54,
-    "gen_tps": 19.26
+    "returncode": 2,
+    "wall_s": 0.0
   },
   {
     "prompt_label": "grounded_archive",
     "impl": "baseline",
     "K": "baseline",
     "label": "grounded_archive__baseline",
-    "returncode": 0,
-    "wall_s": 2.34,
-    "prefill_tps": 117.15,
-    "gen_tps": 40.1
+    "returncode": 2,
+    "wall_s": 0.0
   },
   {
     "prompt_label": "grounded_archive",
@@ -104,20 +86,16 @@
     "matches_baseline": true,
     "mismatch_at": null,
     "label": "grounded_archive__dspark",
-    "returncode": 0,
-    "wall_s": 2.96,
-    "prefill_tps": 112.2,
-    "gen_tps": 23.61
+    "returncode": 2,
+    "wall_s": 0.0
   },
   {
     "prompt_label": "grounded_repair",
     "impl": "baseline",
     "K": "baseline",
     "label": "grounded_repair__baseline",
-    "returncode": 0,
-    "wall_s": 2.28,
-    "prefill_tps": 110.91,
-    "gen_tps": 40.15
+    "returncode": 2,
+    "wall_s": 0.0
   },
   {
     "prompt_label": "grounded_repair",
@@ -126,20 +104,16 @@
     "matches_baseline": true,
     "mismatch_at": null,
     "label": "grounded_repair__dspark",
-    "returncode": 0,
-    "wall_s": 2.83,
-    "prefill_tps": 103.33,
-    "gen_tps": 25.38
+    "returncode": 2,
+    "wall_s": 0.0
   },
   {
     "prompt_label": "synthesis_ops_json",
     "impl": "baseline",
     "K": "baseline",
     "label": "synthesis_ops_json__baseline",
-    "returncode": 0,
-    "wall_s": 2.57,
-    "prefill_tps": 152.87,
-    "gen_tps": 39.67
+    "returncode": 2,
+    "wall_s": 0.0
   },
   {
     "prompt_label": "synthesis_ops_json",
@@ -148,20 +122,16 @@
     "matches_baseline": true,
     "mismatch_at": null,
     "label": "synthesis_ops_json__dspark",
-    "returncode": 0,
-    "wall_s": 3.4,
-    "prefill_tps": 145.73,
-    "gen_tps": 21.14
+    "returncode": 2,
+    "wall_s": 0.0
   },
   {
     "prompt_label": "synthesis_timeline_json",
     "impl": "baseline",
     "K": "baseline",
     "label": "synthesis_timeline_json__baseline",
-    "returncode": 0,
-    "wall_s": 2.64,
-    "prefill_tps": 140.9,
-    "gen_tps": 39.22
+    "returncode": 2,
+    "wall_s": 0.0
   },
   {
     "prompt_label": "synthesis_timeline_json",
@@ -170,20 +140,16 @@
     "matches_baseline": true,
     "mismatch_at": null,
     "label": "synthesis_timeline_json__dspark",
-    "returncode": 0,
-    "wall_s": 3.29,
-    "prefill_tps": 133.78,
-    "gen_tps": 22.65
+    "returncode": 2,
+    "wall_s": 0.0
   },
   {
     "prompt_label": "synthesis_incident_json",
     "impl": "baseline",
     "K": "baseline",
     "label": "synthesis_incident_json__baseline",
-    "returncode": 0,
-    "wall_s": 2.47,
-    "prefill_tps": 131.0,
-    "gen_tps": 39.74
+    "returncode": 2,
+    "wall_s": 0.0
   },
   {
     "prompt_label": "synthesis_incident_json",
@@ -192,20 +158,16 @@
     "matches_baseline": true,
     "mismatch_at": null,
     "label": "synthesis_incident_json__dspark",
-    "returncode": 0,
-    "wall_s": 3.32,
-    "prefill_tps": 124.2,
-    "gen_tps": 20.46
+    "returncode": 2,
+    "wall_s": 0.0
   },
   {
     "prompt_label": "mixed_exactness_smoke",
     "impl": "baseline",
     "K": "baseline",
     "label": "mixed_exactness_smoke__baseline",
-    "returncode": 0,
-    "wall_s": 2.41,
-    "prefill_tps": 108.54,
-    "gen_tps": 40.12
+    "returncode": 2,
+    "wall_s": 0.0
   },
   {
     "prompt_label": "mixed_exactness_smoke",
@@ -214,9 +176,7 @@
     "matches_baseline": true,
     "mismatch_at": null,
     "label": "mixed_exactness_smoke__dspark",
-    "returncode": 0,
-    "wall_s": 3.13,
-    "prefill_tps": 102.38,
-    "gen_tps": 22.32
+    "returncode": 2,
+    "wall_s": 0.0
   }
 ]
