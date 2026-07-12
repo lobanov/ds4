@@ -1,6 +1,6 @@
 # DSpark runtime path — current benchmark
 
-Date: 2026-07-12. Status: **partial / provisional**. This note records the
+Date: 2026-07-12. Status: **concluded**. This note records the
 current end-to-end `ds4 --dspark` runtime after five retained DSpark runtime
 changes:
 

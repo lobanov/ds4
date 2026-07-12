@@ -31,6 +31,8 @@ Create a trustworthy active dossier that makes it easy to:
   - summary: `issue468/summaries/exactness_small_bundles_and_oracle_acceptance.md`
   - artifacts: `issue468/artifacts/exactness_small_bundles/summary.json`
   - artifacts: `issue468/artifacts/exactness_small_bundles/summary.csv`
+- retained DS4 runtime env/instrumentation inventory:
+  - inventory: `issue468/inventories/ds4_env_and_instrumentation_inventory.md`
 - updated retained plain-baseline matrix for the later prompt corpus:
   - summary: `issue468/summaries/plain_baseline_matrix.md`
   - artifacts: `issue468/artifacts/plain_baseline_matrix/summary.csv`
