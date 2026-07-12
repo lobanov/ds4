@@ -1,0 +1,192 @@
+{
+  "returncode": 0,
+  "rows": [
+    {
+      "prompt_label": "code_sort_pairs",
+      "temperature": 0.5,
+      "steps": 32,
+      "eligible_steps": 32,
+      "max_abs": 0.0,
+      "rms": 0.0,
+      "sampled_lp_diff": 0.0
+    },
+    {
+      "prompt_label": "code_topk",
+      "temperature": 0.5,
+      "steps": 32,
+      "eligible_steps": 30,
+      "max_abs": 0.0,
+      "rms": 0.0,
+      "sampled_lp_diff": 0.0
+    },
+    {
+      "prompt_label": "code_histogram",
+      "temperature": 0.5,
+      "steps": 32,
+      "eligible_steps": 31,
+      "max_abs": 0.0,
+      "rms": 0.0,
+      "sampled_lp_diff": 0.0
+    },
+    {
+      "prompt_label": "grounded_observatory",
+      "temperature": 0.5,
+      "steps": 32,
+      "eligible_steps": 30,
+      "max_abs": 0.0,
+      "rms": 0.0,
+      "sampled_lp_diff": 0.0
+    },
+    {
+      "prompt_label": "grounded_archive",
+      "temperature": 0.5,
+      "steps": 32,
+      "eligible_steps": 26,
+      "max_abs": 0.0,
+      "rms": 0.0,
+      "sampled_lp_diff": 0.0
+    },
+    {
+      "prompt_label": "grounded_repair",
+      "temperature": 0.5,
+      "steps": 32,
+      "eligible_steps": 25,
+      "max_abs": 0.0,
+      "rms": 0.0,
+      "sampled_lp_diff": 0.0
+    },
+    {
+      "prompt_label": "synthesis_ops_json",
+      "temperature": 0.5,
+      "steps": 32,
+      "eligible_steps": 29,
+      "max_abs": 0.0,
+      "rms": 0.0,
+      "sampled_lp_diff": 0.0
+    },
+    {
+      "prompt_label": "synthesis_timeline_json",
+      "temperature": 0.5,
+      "steps": 32,
+      "eligible_steps": 31,
+      "max_abs": 0.0,
+      "rms": 0.0,
+      "sampled_lp_diff": 0.0
+    },
+    {
+      "prompt_label": "synthesis_incident_json",
+      "temperature": 0.5,
+      "steps": 32,
+      "eligible_steps": 32,
+      "max_abs": 0.0,
+      "rms": 0.0,
+      "sampled_lp_diff": 0.0
+    },
+    {
+      "prompt_label": "mixed_exactness_smoke",
+      "temperature": 0.5,
+      "steps": 32,
+      "eligible_steps": 31,
+      "max_abs": 0.0,
+      "rms": 0.0,
+      "sampled_lp_diff": 0.0
+    },
+    {
+      "prompt_label": "code_sort_pairs",
+      "temperature": 1.0,
+      "steps": 32,
+      "eligible_steps": 31,
+      "max_abs": 0.0,
+      "rms": 0.0,
+      "sampled_lp_diff": 0.0
+    },
+    {
+      "prompt_label": "code_topk",
+      "temperature": 1.0,
+      "steps": 32,
+      "eligible_steps": 23,
+      "max_abs": 0.0,
+      "rms": 0.0,
+      "sampled_lp_diff": 0.0
+    },
+    {
+      "prompt_label": "code_histogram",
+      "temperature": 1.0,
+      "steps": 32,
+      "eligible_steps": 29,
+      "max_abs": 0.0,
+      "rms": 0.0,
+      "sampled_lp_diff": 0.0
+    },
+    {
+      "prompt_label": "grounded_observatory",
+      "temperature": 1.0,
+      "steps": 32,
+      "eligible_steps": 20,
+      "max_abs": 0.0,
+      "rms": 0.0,
+      "sampled_lp_diff": 0.0
+    },
+    {
+      "prompt_label": "grounded_archive",
+      "temperature": 1.0,
+      "steps": 32,
+      "eligible_steps": 24,
+      "max_abs": 0.0,
+      "rms": 0.0,
+      "sampled_lp_diff": 0.0
+    },
+    {
+      "prompt_label": "grounded_repair",
+      "temperature": 1.0,
+      "steps": 32,
+      "eligible_steps": 27,
+      "max_abs": 0.0,
+      "rms": 0.0,
+      "sampled_lp_diff": 0.0
+    },
+    {
+      "prompt_label": "synthesis_ops_json",
+      "temperature": 1.0,
+      "steps": 32,
+      "eligible_steps": 28,
+      "max_abs": 0.0,
+      "rms": 0.0,
+      "sampled_lp_diff": 0.0
+    },
+    {
+      "prompt_label": "synthesis_timeline_json",
+      "temperature": 1.0,
+      "steps": 32,
+      "eligible_steps": 32,
+      "max_abs": 0.0,
+      "rms": 0.0,
+      "sampled_lp_diff": 0.0
+    },
+    {
+      "prompt_label": "synthesis_incident_json",
+      "temperature": 1.0,
+      "steps": 32,
+      "eligible_steps": 32,
+      "max_abs": 0.0,
+      "rms": 0.0,
+      "sampled_lp_diff": 0.0
+    },
+    {
+      "prompt_label": "mixed_exactness_smoke",
+      "temperature": 1.0,
+      "steps": 32,
+      "eligible_steps": 31,
+      "max_abs": 0.0,
+      "rms": 0.0,
+      "sampled_lp_diff": 0.0
+    }
+  ],
+  "summary": {
+    "total_steps": 640,
+    "eligible_steps": 574,
+    "max_abs": 0.0,
+    "rms": 0.0,
+    "sampled_lp_diff": 0.0
+  }
+}

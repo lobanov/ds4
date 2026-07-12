@@ -1,0 +1,12 @@
+{
+  "prompt_id": "dolly_0001",
+  "source": "dolly",
+  "split": "train",
+  "impl": "baseline",
+  "prompt_file": "prompts/stage2_corpus/dolly_0001.txt",
+  "returncode": 0,
+  "wall_s": 2.43,
+  "prefill_tps": 121.08,
+  "gen_tps": 38.08,
+  "n_cycles": 0
+}

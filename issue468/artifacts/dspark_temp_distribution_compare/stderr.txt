@@ -1,0 +1,30 @@
+dspark-temp-logit-parity:
+ds4: DSpark support model loaded: /Users/lobanov/Projects/ds4/gguf/dspark.gguf (draft=1)
+ds4: Metal device Apple M5 Max, 128.00 GiB RAM
+ds4: Metal 4 tensor API enabled for Tensor kernels
+ds4: drift-patch flags hc_stable=on norm_unify=on kv_raw_f32=off rope_exp2_log2=off math_safe=off tensor_matmul=on
+ds4: Metal model views created in 2.383 ms, residency requested in 381.239 ms, warmup 3.807 ms (mapped 82697.67 MiB from offset 5.09 MiB)
+ds4: Metal mapped mmaped model as 2 overlapping shared buffers
+ds4: metal backend initialized for graph diagnostics
+ds4-test: dspark-temp-logit-parity prompt=code_sort_pairs temp=0.5 steps=32 eligible=32 max_abs=0 rms=0 sampled_lp_diff=0
+ds4-test: dspark-temp-logit-parity prompt=code_topk temp=0.5 steps=32 eligible=30 max_abs=0 rms=0 sampled_lp_diff=0
+ds4-test: dspark-temp-logit-parity prompt=code_histogram temp=0.5 steps=32 eligible=31 max_abs=0 rms=0 sampled_lp_diff=0
+ds4-test: dspark-temp-logit-parity prompt=grounded_observatory temp=0.5 steps=32 eligible=30 max_abs=0 rms=0 sampled_lp_diff=0
+ds4-test: dspark-temp-logit-parity prompt=grounded_archive temp=0.5 steps=32 eligible=26 max_abs=0 rms=0 sampled_lp_diff=0
+ds4-test: dspark-temp-logit-parity prompt=grounded_repair temp=0.5 steps=32 eligible=25 max_abs=0 rms=0 sampled_lp_diff=0
+ds4-test: dspark-temp-logit-parity prompt=synthesis_ops_json temp=0.5 steps=32 eligible=29 max_abs=0 rms=0 sampled_lp_diff=0
+ds4-test: dspark-temp-logit-parity prompt=synthesis_timeline_json temp=0.5 steps=32 eligible=31 max_abs=0 rms=0 sampled_lp_diff=0
+ds4-test: dspark-temp-logit-parity prompt=synthesis_incident_json temp=0.5 steps=32 eligible=32 max_abs=0 rms=0 sampled_lp_diff=0
+ds4-test: dspark-temp-logit-parity prompt=mixed_exactness_smoke temp=0.5 steps=32 eligible=31 max_abs=0 rms=0 sampled_lp_diff=0
+ds4-test: dspark-temp-logit-parity prompt=code_sort_pairs temp=1.0 steps=32 eligible=31 max_abs=0 rms=0 sampled_lp_diff=0
+ds4-test: dspark-temp-logit-parity prompt=code_topk temp=1.0 steps=32 eligible=23 max_abs=0 rms=0 sampled_lp_diff=0
+ds4-test: dspark-temp-logit-parity prompt=code_histogram temp=1.0 steps=32 eligible=29 max_abs=0 rms=0 sampled_lp_diff=0
+ds4-test: dspark-temp-logit-parity prompt=grounded_observatory temp=1.0 steps=32 eligible=20 max_abs=0 rms=0 sampled_lp_diff=0
+ds4-test: dspark-temp-logit-parity prompt=grounded_archive temp=1.0 steps=32 eligible=24 max_abs=0 rms=0 sampled_lp_diff=0
+ds4-test: dspark-temp-logit-parity prompt=grounded_repair temp=1.0 steps=32 eligible=27 max_abs=0 rms=0 sampled_lp_diff=0
+ds4-test: dspark-temp-logit-parity prompt=synthesis_ops_json temp=1.0 steps=32 eligible=28 max_abs=0 rms=0 sampled_lp_diff=0
+ds4-test: dspark-temp-logit-parity prompt=synthesis_timeline_json temp=1.0 steps=32 eligible=32 max_abs=0 rms=0 sampled_lp_diff=0
+ds4-test: dspark-temp-logit-parity prompt=synthesis_incident_json temp=1.0 steps=32 eligible=32 max_abs=0 rms=0 sampled_lp_diff=0
+ds4-test: dspark-temp-logit-parity prompt=mixed_exactness_smoke temp=1.0 steps=32 eligible=31 max_abs=0 rms=0 sampled_lp_diff=0
+ds4-test: dspark-temp-logit-parity total_steps=640 eligible=574 max_abs=0 rms=0 sampled_lp_diff=0
+dspark-temp-logit-parity: OK

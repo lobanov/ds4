@@ -225,6 +225,18 @@ Create a trustworthy active dossier that makes it easy to:
   `verify_ms(K) - floor_ms(K)` headroom at K=3..5 is roughly **19–22 ms/cycle**, above the
   lead's `~15 ms` proceed gate. Recommendation: **proceed to Phase B** if verifier
   acceleration remains in scope.
+- **Current DSpark runtime path is correctness-gated but far below baseline; the draft
+  pass is the first-order bottleneck.** `summaries/dspark_runtime_initial_benchmark.md`
+  records the first end-to-end `ds4 --dspark` result with the retained Q4_K drafter GGUF:
+  greedy exactness passes on the retained 10-prompt exactness corpus sample (10/10 byte-
+  identical at `n=32`), and the conservative temp>0 logit/distribution gate passes on
+  **640** sampled steps with zero drift (`eligible=574`). But throughput is poor:
+  on the first 6 powered Stage-2 prompts baseline averages **39.00 t/s**, DSpark default
+  scheduling **20.49 t/s**, and fixed `verify_k=1` **19.14 t/s**. Long-prompt profiling
+  shows the dominant cost is the current CPU draft pass at roughly **33–36 ms/cycle**,
+  on top of about **28 ms** for the committed target token; when `verified=0`, verifier
+  time is near-zero and the path still lands around **16 t/s**. Recommendation: do not
+  widen the DSpark benchmark yet; first reduce the draft-pass cost materially.
 - **Confidence-scheduled verification (Lead 02): useless under shipped economics; only
   fragile conditional secondary material under anchor reuse.** Canonical result:
   `summaries/confidence_scheduled_verification.md`. Confidence extraction was fidelity-gated

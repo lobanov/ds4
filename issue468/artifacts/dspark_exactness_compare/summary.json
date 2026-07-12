@@ -1,0 +1,222 @@
+[
+  {
+    "prompt_label": "code_sort_pairs",
+    "impl": "baseline",
+    "K": "baseline",
+    "label": "code_sort_pairs__baseline",
+    "returncode": 0,
+    "wall_s": 2.1,
+    "prefill_tps": 105.61,
+    "gen_tps": 40.38
+  },
+  {
+    "prompt_label": "code_sort_pairs",
+    "impl": "dspark",
+    "K": 5,
+    "matches_baseline": true,
+    "mismatch_at": null,
+    "label": "code_sort_pairs__dspark",
+    "returncode": 0,
+    "wall_s": 4.37,
+    "prefill_tps": 100.81,
+    "gen_tps": 11.0
+  },
+  {
+    "prompt_label": "code_topk",
+    "impl": "baseline",
+    "K": "baseline",
+    "label": "code_topk__baseline",
+    "returncode": 0,
+    "wall_s": 2.12,
+    "prefill_tps": 95.68,
+    "gen_tps": 40.37
+  },
+  {
+    "prompt_label": "code_topk",
+    "impl": "dspark",
+    "K": 5,
+    "matches_baseline": true,
+    "mismatch_at": null,
+    "label": "code_topk__dspark",
+    "returncode": 0,
+    "wall_s": 3.56,
+    "prefill_tps": 91.01,
+    "gen_tps": 14.78
+  },
+  {
+    "prompt_label": "code_histogram",
+    "impl": "baseline",
+    "K": "baseline",
+    "label": "code_histogram__baseline",
+    "returncode": 0,
+    "wall_s": 2.16,
+    "prefill_tps": 95.1,
+    "gen_tps": 40.34
+  },
+  {
+    "prompt_label": "code_histogram",
+    "impl": "dspark",
+    "K": 5,
+    "matches_baseline": true,
+    "mismatch_at": null,
+    "label": "code_histogram__dspark",
+    "returncode": 0,
+    "wall_s": 3.57,
+    "prefill_tps": 90.78,
+    "gen_tps": 14.98
+  },
+  {
+    "prompt_label": "grounded_observatory",
+    "impl": "baseline",
+    "K": "baseline",
+    "label": "grounded_observatory__baseline",
+    "returncode": 0,
+    "wall_s": 2.35,
+    "prefill_tps": 124.64,
+    "gen_tps": 39.84
+  },
+  {
+    "prompt_label": "grounded_observatory",
+    "impl": "dspark",
+    "K": 5,
+    "matches_baseline": true,
+    "mismatch_at": null,
+    "label": "grounded_observatory__dspark",
+    "returncode": 0,
+    "wall_s": 3.66,
+    "prefill_tps": 119.88,
+    "gen_tps": 15.67
+  },
+  {
+    "prompt_label": "grounded_archive",
+    "impl": "baseline",
+    "K": "baseline",
+    "label": "grounded_archive__baseline",
+    "returncode": 0,
+    "wall_s": 2.31,
+    "prefill_tps": 118.64,
+    "gen_tps": 40.15
+  },
+  {
+    "prompt_label": "grounded_archive",
+    "impl": "dspark",
+    "K": 5,
+    "matches_baseline": true,
+    "mismatch_at": null,
+    "label": "grounded_archive__dspark",
+    "returncode": 0,
+    "wall_s": 3.67,
+    "prefill_tps": 112.03,
+    "gen_tps": 15.47
+  },
+  {
+    "prompt_label": "grounded_repair",
+    "impl": "baseline",
+    "K": "baseline",
+    "label": "grounded_repair__baseline",
+    "returncode": 0,
+    "wall_s": 2.26,
+    "prefill_tps": 110.99,
+    "gen_tps": 40.15
+  },
+  {
+    "prompt_label": "grounded_repair",
+    "impl": "dspark",
+    "K": 5,
+    "matches_baseline": true,
+    "mismatch_at": null,
+    "label": "grounded_repair__dspark",
+    "returncode": 0,
+    "wall_s": 3.63,
+    "prefill_tps": 103.67,
+    "gen_tps": 15.79
+  },
+  {
+    "prompt_label": "synthesis_ops_json",
+    "impl": "baseline",
+    "K": "baseline",
+    "label": "synthesis_ops_json__baseline",
+    "returncode": 0,
+    "wall_s": 2.63,
+    "prefill_tps": 150.96,
+    "gen_tps": 39.46
+  },
+  {
+    "prompt_label": "synthesis_ops_json",
+    "impl": "dspark",
+    "K": 5,
+    "matches_baseline": true,
+    "mismatch_at": null,
+    "label": "synthesis_ops_json__dspark",
+    "returncode": 0,
+    "wall_s": 4.03,
+    "prefill_tps": 146.68,
+    "gen_tps": 14.76
+  },
+  {
+    "prompt_label": "synthesis_timeline_json",
+    "impl": "baseline",
+    "K": "baseline",
+    "label": "synthesis_timeline_json__baseline",
+    "returncode": 0,
+    "wall_s": 2.57,
+    "prefill_tps": 141.89,
+    "gen_tps": 39.77
+  },
+  {
+    "prompt_label": "synthesis_timeline_json",
+    "impl": "dspark",
+    "K": 5,
+    "matches_baseline": true,
+    "mismatch_at": null,
+    "label": "synthesis_timeline_json__dspark",
+    "returncode": 0,
+    "wall_s": 3.95,
+    "prefill_tps": 134.05,
+    "gen_tps": 15.48
+  },
+  {
+    "prompt_label": "synthesis_incident_json",
+    "impl": "baseline",
+    "K": "baseline",
+    "label": "synthesis_incident_json__baseline",
+    "returncode": 0,
+    "wall_s": 2.44,
+    "prefill_tps": 131.56,
+    "gen_tps": 39.82
+  },
+  {
+    "prompt_label": "synthesis_incident_json",
+    "impl": "dspark",
+    "K": 5,
+    "matches_baseline": true,
+    "mismatch_at": null,
+    "label": "synthesis_incident_json__dspark",
+    "returncode": 0,
+    "wall_s": 3.84,
+    "prefill_tps": 123.95,
+    "gen_tps": 15.32
+  },
+  {
+    "prompt_label": "mixed_exactness_smoke",
+    "impl": "baseline",
+    "K": "baseline",
+    "label": "mixed_exactness_smoke__baseline",
+    "returncode": 0,
+    "wall_s": 2.4,
+    "prefill_tps": 108.78,
+    "gen_tps": 40.1
+  },
+  {
+    "prompt_label": "mixed_exactness_smoke",
+    "impl": "dspark",
+    "K": 5,
+    "matches_baseline": true,
+    "mismatch_at": null,
+    "label": "mixed_exactness_smoke__dspark",
+    "returncode": 0,
+    "wall_s": 3.82,
+    "prefill_tps": 101.53,
+    "gen_tps": 15.12
+  }
+]

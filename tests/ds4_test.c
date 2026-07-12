@@ -7,6 +7,7 @@
 
 static ds4_engine *test_engine_fast;
 static ds4_engine *test_engine_quality;
+static ds4_engine *test_engine_dspark;
 
 static const char *test_model_path(void) {
     const char *model_path = getenv("DS4_TEST_MODEL");
@@ -113,6 +114,32 @@ static ds4_engine *test_open_engine(bool quality) {
     return engine;
 }
 
+static ds4_engine *test_open_dspark_engine(void) {
+    ds4_engine *engine = NULL;
+    const char *dspark = getenv("DS4_TEST_DSPARK");
+    if (!dspark || !dspark[0]) return NULL;
+    ds4_engine_options opt = {
+        .model_path = test_model_path(),
+#ifdef __APPLE__
+        .backend = DS4_BACKEND_METAL,
+#else
+        .backend = DS4_BACKEND_CUDA,
+#endif
+        .quality = false,
+        .ssd_streaming = test_env_bool("DS4_TEST_SSD_STREAMING"),
+        .ssd_streaming_cold = test_env_bool("DS4_TEST_SSD_STREAMING_COLD"),
+        .ssd_streaming_cache_experts =
+            test_env_u32("DS4_TEST_SSD_STREAMING_CACHE_EXPERTS"),
+        .ssd_streaming_cache_bytes =
+            test_env_gib("DS4_TEST_SSD_STREAMING_CACHE_GB"),
+        .ssd_streaming_preload_experts =
+            test_env_u32("DS4_TEST_SSD_STREAMING_PRELOAD_EXPERTS"),
+        .dspark_path = dspark,
+    };
+    TEST_ASSERT(ds4_engine_open(&engine, &opt) == 0);
+    return engine;
+}
+
 static ds4_engine *test_get_engine(bool quality) {
     ds4_engine **slot = quality ? &test_engine_quality : &test_engine_fast;
     if (*slot) return *slot;
@@ -121,11 +148,19 @@ static ds4_engine *test_get_engine(bool quality) {
     return *slot;
 }
 
+static ds4_engine *test_get_dspark_engine(void) {
+    if (test_engine_dspark) return test_engine_dspark;
+    test_engine_dspark = test_open_dspark_engine();
+    return test_engine_dspark;
+}
+
 static void test_close_engines(void) {
     ds4_engine_close(test_engine_fast);
     ds4_engine_close(test_engine_quality);
+    ds4_engine_close(test_engine_dspark);
     test_engine_fast = NULL;
     test_engine_quality = NULL;
+    test_engine_dspark = NULL;
 }
 
 static void test_close_engine(bool quality) {
@@ -2354,6 +2389,142 @@ static void test_mtp_temp_logit_parity(void) {
 
     test_restore_env("DS4_MTP_ANCHOR_REUSE", saved);
 }
+
+static bool test_dspark_temp_prompt_case(ds4_engine *engine,
+                                         const test_prompt_case *pc,
+                                         float temperature,
+                                         int max_steps,
+                                         test_mtp_temp_metrics *metrics) {
+    ds4_tokens prompt = {0};
+    ds4_session *base = NULL;
+    ds4_session *spec = NULL;
+    bool ok = false;
+    int eos = ds4_token_eos(engine);
+    const int vocab = ds4_engine_vocab_size(engine);
+    float *base_logits = NULL;
+    float *spec_logits = NULL;
+
+    TEST_ASSERT(test_build_user_prompt(engine, pc->path, &prompt));
+    TEST_ASSERT(ds4_session_create(&base, engine, 32768) == 0);
+    TEST_ASSERT(ds4_session_create(&spec, engine, 32768) == 0);
+    TEST_ASSERT(base != NULL && spec != NULL);
+    if (!base || !spec || prompt.len <= 0) goto done;
+
+    char err[160];
+    TEST_ASSERT(ds4_session_sync(base, &prompt, err, sizeof(err)) == 0);
+    TEST_ASSERT(ds4_session_sync(spec, &prompt, err, sizeof(err)) == 0);
+
+    base_logits = malloc((size_t)vocab * sizeof(*base_logits));
+    spec_logits = malloc((size_t)vocab * sizeof(*spec_logits));
+    TEST_ASSERT(base_logits != NULL && spec_logits != NULL);
+    if (!base_logits || !spec_logits) goto done;
+
+    const uint64_t seed_base = 0x5eed4321ULL ^ ((uint64_t)(unsigned char)pc->label[0] << 8);
+    uint64_t rng = seed_base ^ (temperature >= 0.75f ? 0x9e3779b97f4a7c15ULL : 0x243f6a8885a308d3ULL);
+    int steps = 0;
+    int eligible = 0;
+    float worst_abs = 0.0f;
+    float worst_rms = 0.0f;
+    float worst_lp = 0.0f;
+
+    while (steps < max_steps) {
+        ds4_token_score base_tok = {0}, spec_tok = {0};
+        TEST_ASSERT(ds4_session_copy_logits(base, base_logits, vocab) == vocab);
+        TEST_ASSERT(ds4_session_copy_logits(spec, spec_logits, vocab) == vocab);
+
+        double sumsq = 0.0;
+        float max_abs = 0.0f;
+        for (int i = 0; i < vocab; i++) {
+            const float d = fabsf(base_logits[i] - spec_logits[i]);
+            if (d > max_abs) max_abs = d;
+            sumsq += (double)d * (double)d;
+        }
+        const float rms = sqrtf((float)(sumsq / (double)vocab));
+        if (max_abs > worst_abs) worst_abs = max_abs;
+        if (rms > worst_rms) worst_rms = rms;
+        TEST_ASSERT(ds4_session_argmax(base) == ds4_session_argmax(spec));
+
+        const int token = ds4_session_sample(base, temperature, 0, 1.0f, 0.0f, &rng);
+        TEST_ASSERT(ds4_session_token_logprob(base, token, &base_tok) == 1);
+        TEST_ASSERT(ds4_session_token_logprob(spec, token, &spec_tok) == 1);
+        const float lp_diff = fabsf(base_tok.logprob - spec_tok.logprob);
+        if (lp_diff > worst_lp) worst_lp = lp_diff;
+
+        if (token == eos) break;
+
+        TEST_ASSERT(ds4_session_eval(base, token, err, sizeof(err)) == 0);
+        if (token == ds4_session_argmax(spec)) {
+            int toks[2] = {-1, -1};
+            const int ntok = ds4_session_eval_speculative_argmax(
+                spec, token, 2, eos, toks, (int)(sizeof(toks) / sizeof(toks[0])), err, sizeof(err));
+            TEST_ASSERT(ntok == 1);
+            TEST_ASSERT(toks[0] == token);
+            eligible++;
+        } else {
+            TEST_ASSERT(ds4_session_eval(spec, token, err, sizeof(err)) == 0);
+        }
+        steps++;
+    }
+
+    metrics->total_steps += steps;
+    metrics->eligible_steps += eligible;
+    if (worst_abs > metrics->worst_abs) metrics->worst_abs = worst_abs;
+    if (worst_rms > metrics->worst_rms) metrics->worst_rms = worst_rms;
+    if (worst_lp > metrics->worst_sampled_lp_diff) metrics->worst_sampled_lp_diff = worst_lp;
+
+    fprintf(stderr,
+            "ds4-test: dspark-temp-logit-parity prompt=%s temp=%.1f steps=%d eligible=%d max_abs=%.9g rms=%.9g sampled_lp_diff=%.9g\n",
+            pc->label, temperature, steps, eligible, worst_abs, worst_rms, worst_lp);
+
+    TEST_ASSERT(worst_abs <= 1e-5f);
+    TEST_ASSERT(worst_rms <= 1e-6f);
+    TEST_ASSERT(worst_lp <= 1e-6f);
+    ok = true;
+
+done:
+    free(spec_logits);
+    free(base_logits);
+    ds4_session_free(spec);
+    ds4_session_free(base);
+    ds4_tokens_free(&prompt);
+    return ok;
+}
+
+static void test_dspark_temp_logit_parity(void) {
+    ds4_engine *engine = test_get_dspark_engine();
+    if (!engine || !ds4_engine_has_dspark(engine)) {
+        fprintf(stderr, "ds4-test: dspark-temp-logit-parity skipped (set DS4_TEST_DSPARK to a DSpark GGUF)\n");
+        return;
+    }
+
+    char *saved_verify = test_save_env("DS4_DSPARK_VERIFY_K");
+    setenv("DS4_DSPARK_VERIFY_K", "0", 1);
+
+    const float temps[] = {0.5f, 1.0f};
+    const int max_steps = 32;
+    test_mtp_temp_metrics metrics = {0};
+    for (size_t ti = 0; ti < sizeof(temps) / sizeof(temps[0]); ti++) {
+        for (size_t i = 0; i < sizeof(test_exactness_prompt_cases) / sizeof(test_exactness_prompt_cases[0]); i++) {
+            TEST_ASSERT(test_dspark_temp_prompt_case(engine,
+                                                     &test_exactness_prompt_cases[i],
+                                                     temps[ti],
+                                                     max_steps,
+                                                     &metrics));
+        }
+    }
+
+    fprintf(stderr,
+            "ds4-test: dspark-temp-logit-parity total_steps=%d eligible=%d max_abs=%.9g rms=%.9g sampled_lp_diff=%.9g\n",
+            metrics.total_steps,
+            metrics.eligible_steps,
+            metrics.worst_abs,
+            metrics.worst_rms,
+            metrics.worst_sampled_lp_diff);
+    TEST_ASSERT(metrics.total_steps > 0);
+    TEST_ASSERT(metrics.eligible_steps > 0);
+
+    test_restore_env("DS4_DSPARK_VERIFY_K", saved_verify);
+}
 #endif
 
 static void test_server_unit_group(void) {
@@ -2384,6 +2555,7 @@ static const ds4_test_entry test_entries[] = {
     {"--mtp-verify-depth", "mtp-verify-depth", "MTP speculative verify commits autoregressive-identical tokens at draft depth > 2", test_mtp_verify_depth},
     {"--mtp-verify-depth-anchor-reuse", "mtp-verify-depth-anchor-reuse", "experimental anchor-reuse MTP speculative verify keeps near-argmax committed tokens", test_mtp_verify_depth_anchor_reuse},
     {"--mtp-temp-logit-parity", "mtp-temp-logit-parity", "experimental anchor-reuse path preserves temp>0 logits/distribution on retained exactness prompts", test_mtp_temp_logit_parity},
+    {"--dspark-temp-logit-parity", "dspark-temp-logit-parity", "DSpark path with verify_k=0 preserves temp>0 logits/distribution on retained exactness prompts", test_dspark_temp_logit_parity},
 #endif
     {"--server", "server", "server parser/rendering/cache unit tests", test_server_unit_group},
 };

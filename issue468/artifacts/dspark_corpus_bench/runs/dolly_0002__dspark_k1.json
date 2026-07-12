@@ -1,0 +1,19 @@
+{
+  "prompt_id": "dolly_0002",
+  "source": "dolly",
+  "split": "train",
+  "impl": "dspark_k1",
+  "prompt_file": "prompts/stage2_corpus/dolly_0002.txt",
+  "returncode": 0,
+  "wall_s": 2.9,
+  "prefill_tps": 68.56,
+  "gen_tps": 16.78,
+  "n_cycles": 31,
+  "mean_drafted": 4.419,
+  "mean_verify_n": 1.0,
+  "mean_verified": 0.0,
+  "mean_decode_ms": 26.796,
+  "mean_draft_ms": 33.733,
+  "mean_verify_ms": 0.009,
+  "mean_total_ms": 60.601
+}
