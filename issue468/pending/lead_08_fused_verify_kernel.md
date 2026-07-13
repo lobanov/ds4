@@ -137,18 +137,42 @@ rather than just reusing `verify_suffix_tops`.
 
 ## Next steps
 
-**Milestone COMPLETE (2026-07-13): Phase B floor-clearance characterization → verdict
-HOLD/inconclusive, codex-gated A+B, propagated.** Canonical summary:
+**Milestone COMPLETE (2026-07-13): Phase B characterization + decisive measurements →
+FINAL verdict = NO-GO via swaps → bounded build attempt with a hard exit gate
+(codex-gated A+B+C; propagated).** Canonical summary:
 `issue468/summaries/lead08_phaseB_floor_clearance_verdict.md`. STATUS.md +
 spec_speedup_model.md updated.
 
-**The decisive follow-up test (gate B) — a separate lead/goal:** profile a **bit-exact
-K=4 verifier's `verify_ms(4)`** under deployed accounting. ≤ 50.5 ms → GO (commit to the
-full fusion); > 50.5 ms → NO-GO. This likely does NOT need novel IQ2_XXS kernels — put the
-batch path's HC/compressor/attention on the decode reductions (kernel-selection/config
-swaps) + profile. Two supporting probes (necessary, not sufficient): (a) identical-input
-MoE kernel-equality test (settles whether gate/up are truly bit-exact); (b) the K3→K4 vs
-K4→K5 verify-bandwidth slope instability (re-measure with a stable protocol).
+**The gated follow-up (a separate lead/goal):** attempt the **sublinear bit-exact
+batch-path build** (HC/compressor/attention on decode reductions + batched load sharing) as
+a BOUNDED effort with a **hard exit gate** — GO is unconfirmed until an end-to-end K=4
+bit-exact verifier profiles `verify_ms(4) ≤ 50.5 ms`. NOT "gate cleared / commit as
+sufficient." (Confirmatory: a literal identical-input MoE kernel-equality harness; a stable
+verify-bandwidth slope re-measure.)
+
+## Worklog
+
+### 2026-07-13 — decisive measurements + gate C + final verdict: NO-GO via swaps; bounded build attempt
+
+Ran the three codex-suggested decisive measurements (swap-only constraint). (1) MoE-equality:
+gate/up bit-exact given identical inputs — consistent with source (both use `_impl`) + a
+~480× inherited-input amplification check (the 6.7–7.6 gate/up divergence is the matmul
+amplification of the 0.014 inherited ffn_norm; routed output 0.018 near-exact via
+cancellation). (2) Attention-residual: NO config swap forces the batch HC/compressor/
+attention onto decode reductions (`--quality` is N=2-only) → needs a code change = beyond
+swaps. (3) Bit-exact K=4 (decisive): the existing bit-exact verifier (DSpark sequential) =
+~0.85× baseline on the 8k corpus (30.81/31.69/28.85 vs 36.34/37.46/33.65) → NO-GO; no swap
+yields a sublinear bit-exact verifier → needs novel kernels (ABORT per constraint).
+
+Codex gate C (gpt-5.5 xhigh; `artifacts/dspark_codex_reviews/2026-07-13_gpt55_xhigh_lead08_gateC_final.md`)
+corrected: moe "confirmed"→"consistent with"; the code_topk 0.41× probe was dist-probe-
+inflated (use 8k ~0.85×); "commit to novel-kernel build"→"bounded build attempt with hard
+exit gate; GO unconfirmed until ≤50.5 ms"; confirmed no missed swap. Corrections applied to
+`decisive_measurements.md` + `floor_clearance_verdict.md` (v4). Final verdict propagated to
+`summaries/lead08_phaseB_floor_clearance_verdict.md`, STATUS.md, spec_speedup_model.md.
+Committed on `dspark-research`.
+
+### 2026-07-13 — propagate-verdict: milestone complete; HOLD verdict propagated to STATUS + spec_speedup_model
 
 ## Worklog
 

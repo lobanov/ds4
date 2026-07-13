@@ -151,11 +151,17 @@ of the band; cycle-jump the realistic edge.
 >   = 65.8 ms → 0.982× (below). The **K=4 verify floor at decode bandwidth ≈ 15.5 GiB /
 >   428 GB/s ≈ 39 ms → ~1.44× (clears)**; break-even ≈ 329 GB/s.
 >
-> Verdict on the fused-verifier path: **HOLD/inconclusive** — the cost side is favorable
-> (decode bw resolved; floor clears), but the cost of a *bit-exact* K=4 verifier is
-> unmeasured (exactness fixes may cost speed; K=4 fused may not hit decode bw). The one
-> decisive test: profile a bit-exact K=4 verifier's verify_ms(4) (≤ 50.5 ms → GO). See
-> `summaries/lead08_phaseB_floor_clearance_verdict.md`.
+> Verdict on the fused-verifier path (FINAL, post decisive measurements + gate C):
+> **NO-GO via swaps → bounded build attempt with a hard exit gate.** The existing bit-exact
+> verifier (DSpark sequential) is **~0.85× baseline on the 8k corpus** (NO-GO); gate/up are
+> bit-exact given identical inputs; but **NO kernel-selection/config swap yields a sublinear
+> bit-exact K=4 verifier** (verify_suffix_tops is sublinear-not-exact; decode2_exact is
+> exact-N=2-linear; no config reroutes batch HC/compressor/attention onto decode reductions)
+> → a gate-clearing verifier requires **novel kernels**. The cost side is favorable-but-
+> unproven (floor ~39–43 ms → 1.34–1.44× *if* built sublinear+exact + stack). Decision:
+> attempt the sublinear bit-exact batch-path build as a **bounded effort with a hard exit
+> gate** — GO is **unconfirmed** until an end-to-end K=4 bit-exact verifier profiles
+> `verify_ms(4) ≤ 50.5 ms`. See `summaries/lead08_phaseB_floor_clearance_verdict.md`.
 
 - **Corpus-dependent** (cycle-jump K=4 speedup): jsonex **+2.3%**, codealpaca −1.9%, dolly
   −5.6%. The mix is on the easy side — the old 10-prompt code/synthesis exactness corpus was

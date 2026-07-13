@@ -227,21 +227,27 @@ Create a trustworthy active dossier that makes it easy to:
   `verify_ms(K) - floor_ms(K)` headroom at K=3..5 is roughly **19–22 ms/cycle**, above the
   lead's `~15 ms` proceed gate. Recommendation: **proceed to Phase B** if verifier
   acceleration remains in scope.
-- **Lead 08 Phase B characterization (2026-07-13): go/no-go verdict = HOLD/inconclusive
-  (codex-gated A+B).** Reframed Phase B from "build a single-stage fused kernel" to a
-  measurement-driven go/no-go before committing to multi-week kernel work.
-  `summaries/lead08_phaseB_floor_clearance_verdict.md`. **Robust:** the +20% gate clears at
-  **`verify_ms(4) ≤ 50.5 ms`**; decode effective bandwidth is **~410–450 GB/s** (resolved
-  from byte data — the "300 GB/s" assertion was conservative); the K=4 verify floor at
-  decode bandwidth is **~39 ms → 1.44× (clears)**; the ~21 ms headroom is GPU
-  `layer_execute` bandwidth inefficiency, not host overhead. **Corrected (the draft
-  overclaimed):** the divergence is NOT F16-vs-F32 (decode uses F16 too) — it is
-  reduction/path/order; the gate/up large divergences are real (not a layout artifact);
-  pos-61 is not clean-input. **Verdict: do NOT commit to the novel-kernel build.** The one
-  decisive test (gate B): profile a **bit-exact K=4 verifier** (likely via batch-path
-  HC/compressor/attention kernel-selection swaps, NOT novel IQ2_XXS kernels) — `≤ 50.5 ms`
-  → GO, else NO-GO. Artifacts + reviews under `issue468/artifacts/lead08_stage_divergence/`
-  and `issue468/artifacts/dspark_codex_reviews/2026-07-13_*`.
+- **Lead 08 Phase B characterization + decisive measurements (2026-07-13): FINAL verdict =
+  NO-GO via swaps → bounded build attempt with a hard exit gate (codex-gated A+B+C).**
+  Reframed Phase B to a measurement-driven go/no-go before committing to multi-week kernel
+  work, then ran the three codex-suggested decisive measurements (swap-only constraint).
+  `summaries/lead08_phaseB_floor_clearance_verdict.md`. **Measurements:** (1) gate/up are
+  bit-exact given identical inputs (consistent with source + a ~480× inherited-input
+  amplification check); (2) NO config swap forces the batch HC/compressor/attention onto
+  decode reductions (`--quality` is N=2-only) → needs a code change = beyond swaps; (3) the
+  existing bit-exact verifier (DSpark sequential) = **~0.85× baseline on the 8k corpus**
+  (30.81/31.69/28.85 vs 36.34/37.46/33.65; full corpus 0.84×) → NO-GO; no swap yields a
+  *sublinear* bit-exact verifier → needs novel kernels. **Robust:** +20% gate threshold
+  `verify_ms(4) ≤ 50.5 ms`; decode bw ~410–450 GB/s (byte-data resolved); K=4 verify floor
+  at decode bw ~39–43 ms → 1.34–1.44× (clears *if* built sublinear+exact). **Verdict:**
+  there is NO swap-only path to a gate-clearing bit-exact verifier; the cost side is
+  favorable-but-unproven, so attempt the **sublinear bit-exact batch-path build as a BOUNDED
+  effort with a hard exit gate** — GO is **unconfirmed** until an end-to-end K=4 bit-exact
+  verifier profiles `≤ 50.5 ms`. (NOT "gate cleared" / "commit as sufficient".) Correct
+  build target: a sublinear bit-exact batch path (HC/compressor/attention on decode
+  reductions + batched load sharing); the Phase-B "single-stage gate/up kernel" was
+  mis-aimed (gate/up already bit-exact). Artifacts + reviews under
+  `issue468/artifacts/lead08_stage_divergence/` and `issue468/artifacts/dspark_codex_reviews/2026-07-13_*`.
 - **Current DSpark runtime path is correctness-gated and benchmarkable, but the
   cleaned-up semantic path is weaker than the previous provisional runtime headline
   and now points first at verifier/state-update economics, not a simple “GPU drafter
