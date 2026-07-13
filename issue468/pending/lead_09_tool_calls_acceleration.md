@@ -103,7 +103,38 @@ for a live agent request.
 
 Pi already speaks to ds4-server as its `ds4` provider
 (`http://127.0.0.1:8000/v1`, model `deepseek-v4-flash`, OpenAI-compatible,
-tools enabled), so a Pi coding-agent session is the natural trajectory source.
+tools enabled), so a Pi agent session is the natural trajectory source.
+
+**Trajectory carrier — Pi (diverse tools) on a borrowed SWE-Bench Verified
+instance in docker.** The carrier choice is load-bearing: the point is a
+*representative* tool-call token distribution, so the agent must emit *diverse*
+structured tool calls on a *real* task.
+- The existing `~/Projects/swe-bench` rig is already wired to ds4-server
+  (`.env` → `LLM_BASE_URL=http://127.0.0.1:8000/v1`) and **proven on ds4**
+  (`runs/full-metal-20-40/report.txt` = 14/20, 70% resolved), with `mini-extra`
+  v2.4.0, `swebench`, and ~60 cached eval images. **But its default agent is
+  mini-swe-agent, which is bash/submit-only** — a single repeated tool, far too
+  narrow a distribution for this lead.
+- **Pi is the diverse-tool replacement.** Pi's built-in tools are
+  `read`, `bash`, `edit`, `write`, `grep`, `find`, `ls`; `pi -p` runs the full
+  agent loop non-interactively, and Pi documents a supported "Plain Docker"
+  containerization pattern (run the whole `pi` process in a container).
+- So the carrier is: **borrow one SWE-Bench eval container**
+  (`ghcr.io/epoch-research/swe-bench.eval.x86_64.<id>` — Ubuntu 22.04, apt-able,
+  conda + the repo at `/testbed`, the bug's env), **install Node + Pi
+  in-container**, point Pi's `ds4` provider at `host.docker.internal:8000`
+  (`temperature=0`), feed it the instance's problem statement, and run
+  `pi -p "<problem statement>" -t read,edit,write,bash,grep,find,ls` from
+  `/testbed`. ds4-server stays host-side (the single ~87 GB heavy process);
+  the container is light. Pi's diverse tool calls flow through ds4-server, which
+  captures the per-token traces. **SWE-bench grading is optional bonus**
+  (copy the patch back and run the harness) — Lead 09 needs the trajectory, not
+  the score.
+- **Feasibility risks to confirm in orientation:** linux/amd64 emulation on
+  arm64 Mac slows container-side tool ops (LLM decode is host-side, unaffected);
+  Node/Pi install in-container (npm network, or copy the pure-JS host bundle —
+  verify node version + no native modules); `host.docker.internal` resolution
+  (Docker Desktop Mac default = yes).
 
 1. **Add a capture mode to `ds4-server`** (env-gated, off by default): during a
    greedy (`temperature: 0`) chat decode, append one record per sampled token
@@ -116,12 +147,18 @@ tools enabled), so a Pi coding-agent session is the natural trajectory source.
    target-only greedy trajectory is the ground truth the drafter is judged
    against and the baseline we later speed up. Greedy is already the
    speculation gate (`server_should_speculate()` requires `temperature ≤ 0`).
-2. **Drive a real Pi agent session through it.** Boot the captured
-   `ds4-server` (model `deepseek-v4-flash`, the local `ds4` provider Pi
-   already knows), tools enabled, and run a Pi coding-agent over a handful of
-   concrete agentic SWE tasks in a scratch repo (file read/edit, search, bash)
-   — representative multi-turn trajectories with real DSML tool-call
-   emission. Capture every assistant turn (thinking + text + tool spans).
+2. **Rig Pi-in-container + capture (single-instance smoke first).** Start a
+   borrowed SWE-Bench eval container (`docker run -d … --add-host=
+   host.docker.internal:host-gateway`, kept alive), install Node + Pi
+   in-container, configure the `ds4` provider → `host.docker.internal:8000`
+   (`temperature=0`). Smoke gate: one `pi -p` tool call (e.g. `read`/`bash`)
+   round-trips through ds4-server with capture ON, yielding records with the
+   expected `TOOL`/`THINKING`/`TEXT` `region_label`. Then run `pi -p "<problem
+   statement>"` on **one instance** first, and expand to a powered slice across
+   repos only if the single-instance trajectory shows a region signal worth
+   powering — assistant turns (thinking + text + tool spans) captured as
+   per-token JSONL. Memory-safe: ds4-server is the only heavy process; the
+   container is light; checkpoint per-instance so a crash is recoverable.
 3. **Offline per-region acceptance replay.** Feed the captured layer-means to
    the retained numpy / torch-MPS drafter oracle (Lead-03 style, fidelity-gated
    against the live target tokens); compare draft tokens to captured target
@@ -153,8 +190,9 @@ tools enabled), so a Pi coding-agent session is the natural trajectory source.
    The batch verifier is **out of scope** here: its ~0.64% argmax flips would
    break both the exact-output gate and the tool-call syntax itself.
 
-Estimated effort: Phase 1 ~2–4 days (capture + offline replay); Phases 2/3
-contingent on the prior phase's decision.
+Estimated effort: Phase 1 ~3–6 days (ds4-server capture mode + fidelity gate;
+rig Pi-in-container on a borrowed SWE-Bench instance; offline replay);
+Phases 2/3 contingent on the prior phase's decision.
 
 ## Success criteria
 
