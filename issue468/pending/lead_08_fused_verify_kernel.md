@@ -152,6 +152,21 @@ verify-bandwidth slope re-measure.)
 
 ## Worklog
 
+### 2026-07-13 — ds4-eval practical comparison: batch-verifier vs plain decode (outputs identical; ~4% slower)
+
+Ran `ds4-eval --plain --nothink --tokens 2048 --temp 0 --seed 1 --questions 10` baseline vs
+DSpark with `DS4_DSPARK_SCHEDULE_BATCHED=1` (batch verifier confirmed engaged:
+`batched_scheduled_draft = scheduled_verify && dspark_schedule_batched_draft()`, both true).
+Artifact: `artifacts/lead08_stage_divergence/ds4eval_batch_vs_baseline.md`.
+
+Result: **outputs byte-identical 10/10** (the verify-level 0.64% argmax-flip does NOT
+propagate to the committed output on this ~5.8k-token sample); DSpark-batch ~37.0 t/s vs
+baseline ~38.7 t/s → **~4% slower (no speedup)**; same 8/10 pass (2 AIME fails hit the
+2048 cap). Interpretation: the current batch-verifier path is greedy-exact in committed
+output but provides no speedup — consistent with the codex-gated verdict (a gate-clearing
+verifier needs sublinear AND fast, not just exact). Open: a larger sample + flip-detecting
+diff to confirm the committed-output-exactness holds generally.
+
 ### 2026-07-13 — decisive measurements + gate C + final verdict: NO-GO via swaps; bounded build attempt
 
 Ran the three codex-suggested decisive measurements (swap-only constraint). (1) MoE-equality:
