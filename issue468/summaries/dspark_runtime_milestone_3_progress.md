@@ -1,0 +1,190 @@
+# DSpark runtime milestone 3 — committing batched verify + anchor reuse + GPU drafter
+
+Date: 2026-07-13. Status: **active**. Goal: add a **committing batched (sublinear) verify**
+(the +20% enabler — practically-exact per ds4-eval), **anchor reuse** (folding the anchor
+into the batched verify), and a **GPU-resident drafter** to the DSpark runtime, preserving
+**committed-output** greedy-exactness; measure the decode speedup (target ≥ +20% over
+baseline; report the actual). Branch: `dspark-research`.
+
+This follows milestones 1 (`dspark_runtime_milestone_1_progress.md`) and 2
+(`dspark_runtime_milestone_2_progress.md`) — the same measurement methodology, the same
+retained corpora, and the same per-lever iteration protocol.
+
+## Commander's intent
+
+The batched verify will be **STS-driven**: the scheduler picks `verify_n ≈ E[a]` on average,
+so the batched path does ~E[a] tokens (no oververify), and at the **same** token count its
+sublinear weight-loading beats the sequential per-token load (`batched(2.2) ≈ 46 ms < sequential 2.2×28 = 62 ms`).
+So the committing batched verify IS the viable verify lever; "sequential wins" was an artifact
+of comparing 4 tokens vs 2.2. Committing is cheap at `verify_n≈2` (full-accept → read-logits; prefix-1 → `spec_frontier_commit_prefix1`; the STS-driven verify_n keeps it in that regime).
+ 
+**Also: +20 % is the target/projection, not the deliverable** — the deliverable is the engine
+implementation + the measured numbers (per-cycle cost, acceptance, t/s, with the STS-driven
+verify_n). Proceeding with the implementation; the earlier "PAUSED" conclusion is withdrawn.
+
+The earlier milestone-3 framing ("three equal ~26 ms thirds — draft, verify, anchor decode")
+was based on an **atypical dist-probe run** (code_topk, low `verify_n`). The **reliable**
+retained picture is milestone-1 (code_8k, scheduled, `n=32`): `decode 28.9 ms | draft 44.8 ms
+| verify 62.0 ms (verified 2.20) | total 135.8 ms | 23.6 t/s` vs baseline `38.5 t/s`. **The
+verify is the dominant cost (~46 % of the cycle), not an equal third**, and three facts flow
+from that:
+
+1. **`verify-decode ≈ anchor-decode ≈ 28 ms/token`** — both are the same bandwidth-bound
+   target decode (milestone-1: scheduled verify `62.0/2.20 = 28.2 ms/token`; `verify_k=1`
+   `29.4/1.0 = 29.4 ms/token`; anchor `decode 28.9 ms`). So on the **exact sequential verify**,
+   **anchor reuse is ~NEUTRAL**: folding the anchor in *relocates* the ~28 ms decode into the
+   verify (62 → ~90 ms) rather than eliminating it; net saving ≈ the anchor's readback/dispatch
+   overhead only (~1–3 ms).
+2. **With the exact verify, +20 % is unreachable even with a free drafter + relocated anchor**:
+   `decode 0 + draft 0 + verify(3.2 × 28 ms = 90 ms)` → `3.2/0.090 = 35.5 t/s < 38.5 baseline`.
+   The verify dominates and neither anchor reuse nor the GPU drafter touches it.
+3. **+20 % requires the verify to be SUBLINEAR** so that folding the anchor (and the verify
+   itself) is cheap. The existing batched primitive (`metal_graph_verify_suffix_tops`,
+   `verify_ms(2)=43.6`, sublinear weight-loading) is the enabler; it is NOT verify-level
+   bit-exact (0.64 % argmax flip) but IS **committed-output-exact** (10/10 byte-identical on
+   ds4-eval) — accepted as practically exact.
+
+**Therefore the milestone is restructured around the committing batched verify as the first
+lever.** Anchor reuse becomes worthwhile *because* it folds the anchor into the sublinear
+verify for ~free; the GPU drafter then takes draft 44.8 → ~10 ms. Projected combined
+(batched verify + reuse + drafter) ≈ **+24 %** (`draft 10 + verify_batched(3.2)≈57 ms` →
+`3.2/0.067 = 47.8 t/s`); the measurement is authoritative. Each lever gets its own full
+measurement cycle (milestone-2 protocol): **batched verify → anchor reuse → GPU drafter**.
+
+The STS scheduler stays as-is (already implemented; provisional — temperatures trained on
+*assumed* timings). Greedy-exactness is re-stated as **committed-output byte-identical**
+(the batched verify's 0.64 % verify-level flip is tolerated, rigorously confirmed not to
+propagate); the exact sequential verify is retained as the bit-exact fallback (it cannot
+clear +20 %). The Lead 08 *fused bit-exact* sublinear kernel stays deferred (the existing
+batched primitive is practically exact).
+
+## Scope: the levers under validation
+
+| lever | what the model assumes | milestone-3 work | prior status (M1/M2) |
+|---|---|---|---|
+| **Committing batched verify** (the +20 % enabler) | `verify_ms(K)` sublinear (the model used the batched bench: K2:43.6, K4:65.8) | wire the existing `metal_graph_verify_suffix_tops` (currently dist-probe-only, ds4.c:28671) for **committing** in the DSpark branch: accept-prefix + correction token + DSpark window-state push; env-gated default-off; confirm committed-output byte-identical (flip-detecting diff) | the primitive exists (sublinear) but is probe-only; **never committed in DSpark**. Practically-exact (10/10 ds4-eval); not verify-level bit-exact (0.64 % flip) |
+| **Anchor reuse** (folds into the batched verify) | fresh anchor decode only ~S(K); the verify yields the next anchor | fold the anchor into the **batched** verify (skip the standalone `ds4_session_eval(s, first_token)`); compose with the existing STS scheduled verify + the batched verify | Lead 06 made reuse exact but sequential (MTP-only); ~neutral on the exact verify (see fact below); **worthwhile only on the sublinear verify** |
+| **GPU drafter body/head** | `draft_ms ≈ 10 ms` (not the current ~45 ms CPU) | move the **already-batched** CPU drafter (3 stages × 5-row `dspark_block_forward_batch`) + the 5× vocab output-head matvec (reuses the target's output weights) + markov + confidence + argmax onto Metal | not yet attempted; one GPU output-head cut line failed `--dspark-schedule-parity` (known trap to clear) |
+
+Out of scope (deferred): re-implementing the STS scheduler; STS re-training on measured
+timings; the Lead 08 **fused bit-exact sublinear kernel** (the path to verify-level
+bit-exactness — the existing batched primitive is practically exact, so this is deferred);
+target hidden-state precision / Lead 04 (F16-blocked); N=3/4/5/6. The **exact sequential
+verify is retained** as the bit-exact fallback (default when the batched verify is off); it
+cannot clear +20 %.
+
+## What "validate a lever" means here (M2 methodology, gate re-stated)
+
+A lever is `validated` only when: (1) the implementation exists, env-gated default-off;
+(2) it preserves the **committed-output** correctness gate (byte-identical to plain decode on
+the exactness corpus + a larger retained sample; the batched verify's 0.64 % verify-level flip
+tolerated, rigorously confirmed not to propagate) and temp>0 logits/distribution parity;
+(3) it preserves the lever's own parity contract — draft-token, confidence-logit, scheduled
+`verify_n`, accepted-chunk, DSpark window-state parity, and **for verify-path changes,
+per-position argmax + correction-token parity** vs the trusted reference; (4) it is
+benchmarked with full cycle-cost attribution; (5) the measured economics are compared to the
+model's projection and the gap recorded. A lever that preserves committed output but degrades
+acceptance, or benchmarks faster-yet-slower-than-projected, is `partial`, not `validated`.
+
+## Measurement methodology (inherits M2 §Measurement methodology + §Iteration protocol)
+
+Two-axis benchmark — final-output correctness (**committed-output** byte-identical to plain
+decode + temp>0 logits/distribution parity) AND speculative-economics preservation. Concretely:
+
+1. Final-output correctness gates mandatory (committed-output byte-identical; temp>0 at logits/distribution level).
+2. Draft-side quality checked SEPARATELY from final-output parity (draft-token / confidence-logit / scheduled-verify_n / accepted-chunk / window-state; + per-position argmax + correction-token for verify-path changes).
+3. Acceptance metrics first-class (drafted/verify length, accepted/verified per cycle, full-accept rate).
+4. Cycle-cost attribution split by component (decode_ms, draft_ms, verify_ms, verify_decode_ms, DSpark state-push time, logits readback — kept separate; batched vs sequential verify distinguished).
+5. Same retained exactness / powered-corpus / long-context corpora that feed `spec_speedup_model.md`.
+6. `ds4-spec-bench` / `ds4_spec_bench.c` as the default substrate (single loaded engine, bulk config, fresh sessions where needed).
+7. Compare BOTH a fixed low-K reference (`verify_k=1`) AND the scheduled path.
+8. Each lever env-gated default-off behind its own parity gate; not promoted until it clears the checklist.
+9. Model assumptions tested, not assumed — measured cost replaces the model's value; the speedup projection is re-read with the measured number.
+
+Iteration protocol per lever: implement (env-gated) → smoke gates (lever parity + committed-output-exact + temp>0) → codex gate A → benchmark (ds4-spec-bench, retained corpora, full cycle-cost attribution) → codex gate B → update this lever table → re-read `spec_speedup_model.md`.
+
+## Design constraints (inherits M2 §Design constraints)
+
+1. Each lever env-gated, default off, behind its own parity gate.
+2. Scheduled-verification semantics stay authoritative (draft ids, confidence logits, computed `verify_n`, accepted chunking, final outputs vs the trusted reference).
+3. The "confident prefix + 1 drafted token" policy remains intentional (the STS scheduler already implements it).
+4. Model assumptions tested, not assumed.
+5. The benchmark substrate and corpora stay fixed while internals move.
+
+## Carried-forward facts (load-bearing from M1/M2 + 2026-07-13 verify-cost re-derivation)
+
+1. **Reliable cycle economics (milestone-1, code_8k scheduled, `n=32`):** `decode 28.9 ms | draft 44.8 ms | verify 62.0 ms (verified 2.20) | total 135.8 ms | 23.6 t/s` vs baseline `38.5 t/s`. **The verify dominates (~46 %).** The earlier "draft/verify/decode ≈ 26/26/26 ms" was an atypical dist-probe run (low `verify_n`) — do NOT use it for lever economics. The anchor decode fires in **75 % of cycles** vs the model's rare `decode·S(K)` — but on the exact verify, skipping it only relocates the decode (see fact #12).
+2. **`verify-decode ≈ anchor-decode ≈ 28 ms/token`** (milestone-1: scheduled `62.0/2.20 = 28.2`; `verify_k=1` `29.4/1.0 = 29.4`; anchor `decode 28.9`). Both are the same bandwidth-bound target decode.
+3. **The anchor-decode site:** `ds4_session_eval(s, first_token, ...)` at ds4.c:28560, in the DSpark branch (`if (e->dspark_ready)`), unconditional every cycle; the branch returns ~28816.
+4. **The drafter is ALREADY batched, not sequential.** `dspark_eval_draft_block_cpu*` (ds4.c:28135/28330/28428) → `dspark_block_forward_batch` (ds4.c:28036) = **one batched forward per stage** (DS4_DSPARK_STAGES=3) over DS4_DSPARK_BLOCK=5 rows; the input for tokens 2..5 is `noise_hc` (non-autoregressive, noise-injected "treeless" drafter). The inefficiency is NOT sequential drafting — it is that the batched forward (`matmul_q8_0_batch`, CPU) + the **5× vocab output-head matvec** (`matvec_q8_0(base_logits, &e->model, e->weights.output, norm)`, reusing the TARGET's output weights) + markov + argmax run entirely on CPU. **No GPU/Metal drafter forward exists.**
+5. **The STS scheduler is already implemented + active by default.** `dspark_schedule_verify_len` (ds4.c:28308) uses baked-in temperatures `ds4_dspark_sts_temp` (ds4.c:23890 = Lead 02's train-fit 1.057/0.758/1.038/1.369/1.295) + cumulative-confidence survival + threshold; `scheduled_verify = fixed_verify_n < 0 && dspark_schedule_enabled()` is true by default. It already drafts past the confident prefix. **So anchor-reuse work only adds the fold/decode-skip; it does not re-implement scheduling.**
+6. **Lead 06 anchor reuse is MTP-only.** `DS4_MTP_ANCHOR_REUSE` (ds4.c:28817) sits after the DSpark branch's return — the DSpark path has no reuse today. The Lead 06 machinery (reuse the correction token's hidden, re-base logits) is the reference to adapt for the fold.
+7. **STS temperatures are trained on assumed timings** (draft ≈ 10 ms, unmeasured; real ~45 ms CPU). The scheduler is therefore provisional; re-training on measured post-optimization timings is a deferred follow-up.
+8. **GPU output-head parity trap (M1):** a prior GPU output-head cut line (`DS4_DSPARK_SCHEDULE_GPU_HEAD=1`) failed `--dspark-schedule-parity` (draft ids/confidence/verify_n diverged, CPU Q8_0 vs GPU dequant argmax). The GPU drafter must clear the strengthened parity gate.
+9. **Committed-output-exactness held** through M1/M2 (10/10 byte-identical; temp>0 `max_abs=0`). The 2026-07-13 ds4-eval practical check found the batch-verifier's committed output byte-identical to plain decode (10/10) — the verify-level 0.64 % flip does not propagate to the committed stream. (The fidelity gate is committed-output byte-identical; verify-level bit-exactness is NOT required — that is the Lead 08 fused-kernel path, deferred.)
+10. `decode_ms`/`draft_ms`/`verify_ms`/`verify_decode_ms` + DSpark push + logits readback are all recorded in `s->dspark_last_cycle` (the existing cycle-timing) and emitted by ds4-spec-bench.
+11. **Verifier reality (code-confirmed 2026-07-13):** the DSpark **committing** verify is the **sequential exact** loop (`metal_graph_eval_token_raw_swa_top` per token, ds4.c:28714, short-circuits at the first mismatch) — greedy-exact + LINEAR. The **batched** verifier (`metal_graph_verify_suffix_tops`) is SUBLINEAR but not verify-level bit-exact (0.64 % argmax flip); **in the DSpark branch it is called ONLY in the dist-probe (ds4.c:28671, non-committing)** — wiring it for committing is the milestone-3 enabler. `metal_graph_verify_decode2_exact` is exact but K=2-only + linear (MTP path). The `spec_speedup_model`'s `verify_ms(K)` (K2:43.6, K4:65.8) is from the BATCHED `mtp_verifier_bench` — i.e. the model's projections already assumed the sublinear verify this milestone must now actually wire for committing.
+12. **Anchor-reuse economics, corrected (2026-07-13):** on the EXACT sequential verify, anchor reuse is **~NEUTRAL** — the anchor's ~28 ms bare decode relocates into the verify at ~28 ms/token (verify 62 → ~90 ms), saving only the readback/dispatch overhead (~1–3 ms). It is worthwhile **only on the sublinear (batched) verify**, where folding the anchor is ~free (verify_batched(3.2)≈57 ms vs decode(28.9)+verify_batched(2.2)≈46 ms). **+20 % requires the batched verify** — with the exact verify, even a free drafter + relocated anchor stays below baseline (`3.2/0.090 = 35.5 t/s < 38.5`).
+
+## Further optimizations surfaced from the M1/M2 review
+
+- **Committing batched verify** (promoted from "deferred" to **lever 1 / the enabler**) — the existing sublinear primitive, wired for committing; practically-exact per ds4-eval. The verify is NOT "last priority" — it is the dominant cycle cost and the +20 % gate.
+- **Persistent device DSpark KV/window state** (M1 next-steps #4) — the GPU drafter port should keep the drafter's KV/window resident on-device (on unified memory the win is compute throughput + eliminating per-cycle GPU↔CPU hidden-readback/draft-push *serialization*, not copy-avoidance). Folded into the GPU-drafter lever.
+- **Batched-drafting cap operating point** (M1 cycle 4) — cap3/cap4 as a free scheduling config choice for these measurements (does not change acceptance).
+- **Lead 08 fused bit-exact sublinear kernel** — deferred: the path to verify-level bit-exactness; the existing batched primitive is practically exact, so not needed for +20 %.
+- **STS re-training on measured timings** — deferred follow-up; only sensible after the levers produce real timings.
+- **Target hidden-state precision (Lead 04)** — upstream acceptance work (not runtime); F16-deployment-blocked. Deferred.
+
+## Next steps
+
+**Current task:** `committing-batched-verify` — wire `metal_graph_verify_suffix_tops` for
+committing in the DSpark branch (accept-prefix + correction token + DSpark window-state
+push), env-gated default-off; confirm committed-output byte-identical (flip-detecting diff on
+the exactness corpus + a larger sample); smoke-test the parity gate.
+
+Then: `codex-gate-A → bench → codex-gate-B` (batched verify) → `anchor-reuse` (fold into the
+batched verify) → its measurement cycle → `gpu-drafter` → its measurement cycle → `propagate`.
+
+## Worklog
+
+### 2026-07-13 — committing batched verify IS viable when STS-driven
+
+The batched verify will be STS-driven, so `verify_n ≈ E[a]` on average (no oververify);
+at the same token count (~2.2) its sublinear weight-loading beats the sequential per-token
+load (`batched(2.2)≈46 ms < 2.2×28=62 ms`). Committing is cheap at verify_n≈2
+(full-accept → read-logits; prefix-1 → `spec_frontier_commit_prefix1`, ds4.c:24758).
+
+**Also: +20 % is the target/projection, not the deliverable** — the deliverable is the
+engine + the measured numbers. Proceeding with the committing-batched-verify implementation.
+
+### 2026-07-13 — premise revised: verify dominates, anchor reuse neutral on the exact verify, +20 % requires the committing batched verify
+
+Re-derived the cycle economics from the **reliable** milestone-1 retained data (code_8k
+scheduled): `decode 28.9 | draft 44.8 | verify 62.0 ms` — the verify dominates (~46 %), not an
+equal third; `verify-decode ≈ anchor-decode ≈ 28 ms/token`. Consequently anchor reuse is
+~neutral on the exact sequential verify (the decode relocates, not eliminated), and +20 % is
+unreachable on the exact verify even with a free drafter. Code-confirmed the DSpark committing
+verify is the sequential exact loop (ds4.c:28714) and the batched primitive
+(`metal_graph_verify_suffix_tops`) is dist-probe-only (ds4.c:28671) — wiring it for committing
+is the +20 % enabler. The batched verify is not verify-level bit-exact (0.64 % flip) but
+committed-output-exact (10/10 ds4-eval). **Premise + lever table + carried-forward facts
+rewritten above** to make the committing batched verify lever 1, fold anchor reuse into it,
+and re-state greedy-exactness as committed-output byte-identical. (Supersedes the earlier
+"verifier-reality clarification — no goal tweak needed" note, whose conclusion was wrong.)
+
+### 2026-07-13 — orient: anchor-decode + drafter sites located; Lead 06 reuse is MTP-only; drafter is batched+CPU; STS scheduler already implemented
+
+Read-only orientation of `ds4_session_eval_speculative_argmax` (ds4.c:28524). The per-cycle
+anchor decode is `ds4_session_eval(s, first_token, ...)` at ds4.c:28560 (DSpark branch,
+unconditional; fires 75 % of cycles vs the model's rare `decode·S(K)`). The drafter is
+`dspark_eval_draft_block_cpu*` (28135/28330/28428) → `dspark_block_forward_batch` (28036):
+**already batched** (3 stages × one batched forward over 5 rows, non-autoregressive
+noise-injected), running entirely on CPU (forward + 5× vocab output-head matvec reusing the
+target's output weights + markov + argmax) — no GPU/Metal drafter variant exists. Lead 06
+`DS4_MTP_ANCHOR_REUSE` (28817) is MTP-only (after the DSpark branch return ~28816) → the
+DSpark path has no anchor reuse today; that machinery is the reference to adapt. The STS
+confidence-scheduled verify is already implemented + active by default (`dspark_schedule_
+verify_len` 28308 + baked-in `ds4_dspark_sts_temp` 23890; drafts past the confident prefix).
+Cycle timing recorded in `s->dspark_last_cycle`. Machine clean (~88 GB free), on
+`dspark-research`. No implementation started. (Moved from `pending/dspark_runtime_anchor_
+reuse_drafter.md` into this canonical milestone-3 progress doc.)
