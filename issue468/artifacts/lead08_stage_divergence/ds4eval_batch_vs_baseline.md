@@ -8,10 +8,22 @@ both true). Single process each, M5 Max / Metal / IQ2XXS. Traces: `/tmp/eval_bas
 
 ## Headline
 
-**Outputs are byte-identical (10/10 questions); DSpark-batch is ~4% slower per question (no speedup).**
-In practice the batch-verifier path produces the **same greedy output** as plain decode on this
-sample (~5,800 generated tokens) — the verify-level 0.64% argmax-flip (milestone-2 dist-probe)
-does **not** propagate to the committed output here.
+**Tentative conclusion (research-lead): on a practical benchmark, the greedy-exactness
+difference between the batch verifier and plain decode is immaterial.** Committed outputs
+are byte-identical (10/10 questions, ~5,800 tokens); the verify-level 0.64% argmax-flip
+(milestone-2 dist-probe) does not propagate to the committed generation. The binding gap is
+**speed**, not exactness (DSpark-batch ~37 t/s vs baseline ~38.7 t/s, ~4% slower — no speedup).
+
+*Why "tentative":* 10 Q / ~5.8k tokens is a moderate sample; the mechanism (commit re-decodes
+exactly after rejects vs. flips not changing accept/reject) isn't pinned down; a different
+workload could in principle surface a divergence. A larger sample + a token-level flip-
+detecting diff would promote this to "confirmed."
+
+*Implication for Lead 08:* the greedy-exactness bar is tentatively **met by the existing
+path's committed output** — so the real challenge is making a sublinear path **faster than
+baseline**, not making it exact. This sharpens (and partly relaxes) the final verdict's
+"need a sublinear bit-exact verifier" framing: bit-exactness-in-committed-output appears
+already in hand; speed is the binding constraint.
 
 ## Per-question (passed questions; gen tokens / gen s → t/s)
 
