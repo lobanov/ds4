@@ -10654,12 +10654,14 @@ typedef struct {
     ds4_gpu_tensor *mtp_raw_cache;
     uint32_t mtp_n_raw;
     ds4_gpu_tensor *dspark_capture_hc[3];
+    ds4_gpu_tensor *dspark_batch_capture_hc[3]; /* m3: per-position layers 40-42 for the batch verify window-push */
     ds4_gpu_tensor *dspark_main_input;
     ds4_gpu_tensor *dspark_mean_weights;
     ds4_gpu_tensor *dspark_stage_kv;
     float *dspark_capture_host;
     float *dspark_main_hidden;
     bool dspark_main_hidden_valid;
+    bool dspark_batch_capture_active; /* m3: set during the committing batch verify so layers 40-42 are captured per-position */
     uint32_t prefill_cap;
     uint32_t raw_window;
 
@@ -10828,6 +10830,7 @@ static void metal_graph_free(ds4_gpu_graph *g) {
     ds4_gpu_tensor_free(g->mtp_embed);
     for (uint32_t i = 0; i < 3; i++) {
         ds4_gpu_tensor_free(g->dspark_capture_hc[i]);
+        ds4_gpu_tensor_free(g->dspark_batch_capture_hc[i]);
     }
     ds4_gpu_tensor_free(g->dspark_stage_kv);
     ds4_gpu_tensor_free(g->dspark_main_input);
@@ -11465,6 +11468,9 @@ static bool metal_graph_alloc_raw_cap(
     g->prefill_tokens = ds4_gpu_tensor_alloc(pc * sizeof(int32_t));
     g->batch_cur_hc = ds4_gpu_tensor_alloc(pc * hc_dim * sizeof(float));
     g->batch_next_hc = ds4_gpu_tensor_alloc(pc * hc_dim * sizeof(float));
+    for (uint32_t i = 0; i < 3; i++) {
+        g->dspark_batch_capture_hc[i] = ds4_gpu_tensor_alloc((uint64_t)(DS4_DSPARK_BLOCK + 1u) * hc_dim * sizeof(float));
+    }
     g->batch_flat_hc = ds4_gpu_tensor_alloc(pc * hc_dim * sizeof(float));
     g->batch_hc_mix = ds4_gpu_tensor_alloc(pc * mix_hc * sizeof(float));
     g->batch_hc_split = ds4_gpu_tensor_alloc(pc * mix_hc * sizeof(float));
@@ -19670,6 +19676,17 @@ static bool metal_graph_encode_layer_batch(
         ds4_gpu_tensor *tmp = g->batch_cur_hc;
         g->batch_cur_hc = g->batch_next_hc;
         g->batch_next_hc = tmp;
+    }
+    if (ok && g->dspark_batch_capture_active) {
+        /* m3: capture per-position post-FFN hidden for the 3 DSpark layers (40/41/42)
+         * so the committing batch verify can push the window-state per committed token. */
+        int capture = il == 40u ? 0 : (il == 41u ? 1 : (il == 42u ? 2 : -1));
+        if (capture >= 0) {
+            const uint64_t hc_dim = (uint64_t)DS4_N_HC * DS4_N_EMBD;
+            ok = ds4_gpu_tensor_copy(g->dspark_batch_capture_hc[capture], 0,
+                                     g->batch_cur_hc, 0,
+                                     (uint64_t)n_tokens * hc_dim * sizeof(float)) != 0;
+        }
     }
     return ok;
 }
@@ -27936,6 +27953,38 @@ static bool dspark_session_push_graph_hidden(ds4_session *s) {
 #endif
 }
 
+/* m3: push the DSpark window-state for one BATCH-verified token (batch position `batch_pos`).
+ * Loads that position's captured layers (40-42, captured by metal_graph_encode_layer_batch when
+ * dspark_batch_capture_active was set) into the single-position dspark_capture_hc buffer, then
+ * delegates to the full push path (GPU push, else CPU fallback that refreshes dspark_main_hidden
+ * from the loaded capture). */
+static bool dspark_session_push_batch_hidden(ds4_session *s, uint32_t batch_pos) {
+    if (!s || ds4_session_is_cpu(s) || !s->engine || !s->engine->dspark_ready) return false;
+#ifdef DS4_NO_GPU
+    return false;
+#else
+    ds4_gpu_graph *g = &s->graph;
+    if (!g->dspark_enabled || !s->dspark_win_kv[0] || !s->dspark_win_kv[1] || !s->dspark_win_kv[2]) return false;
+    const uint64_t hc_dim = (uint64_t)DS4_N_HC * DS4_N_EMBD;
+    /* Load this position's captured layers (40-42) into the single-position capture buffer. */
+    bool ok = ds4_gpu_begin_commands() != 0;
+    for (uint32_t i = 0; ok && i < 3; i++) {
+        ok = ds4_gpu_tensor_copy(g->dspark_capture_hc[i], 0,
+                                 g->dspark_batch_capture_hc[i],
+                                 (uint64_t)batch_pos * hc_dim * sizeof(float),
+                                 hc_dim * sizeof(float)) != 0;
+    }
+    if (ok) ok = ds4_gpu_end_commands() != 0;
+    else (void)ds4_gpu_synchronize();
+    if (!ok) return false;
+    /* Reuse the full push path (GPU push, else CPU fallback that refreshes dspark_main_hidden
+     * from dspark_capture_hc). Invalidate main_hidden so the fallback uses the batch-loaded
+     * capture rather than a stale decode value. */
+    g->dspark_main_hidden_valid = false;
+    return dspark_session_push_graph_hidden(s);
+#endif
+}
+
 static void dspark_rope_inplace(
         float    *x,
         uint32_t  n_head,
@@ -28272,6 +28321,17 @@ static bool dspark_timing_enabled(void) {
  * exactness-acceptable for rejection sampling. */
 static bool dspark_verify_dist_probe_enabled(void) {
     return getenv("DS4_DSPARK_VERIFY_DIST_PROBE") != NULL;
+}
+
+/* Milestone 3: committing batched (sublinear) verify for the DSpark path. When enabled,
+ * the DSpark verify commits the accepted prefix via metal_graph_verify_suffix_tops
+ * (sublinear weight-loading, STS-driven verify_n ~ E[a], no oververify) instead of the
+ * sequential short-circuiting verify. Env-gated default-off; the exact sequential verify
+ * remains the greedy-exact fallback (default when off). Requires the per-position batched
+ * DSpark capture (layers 40-42) so the window-state push works for batch-verified tokens. */
+static bool dspark_verify_batched_enabled(void) {
+    const char *e = getenv("DS4_DSPARK_VERIFY_BATCHED");
+    return e && strcmp(e, "0") && strcasecmp(e, "off");
 }
 
 static float dspark_schedule_threshold(void) {
@@ -28683,6 +28743,109 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
             s->dspark_last_cycle.verify_dist.present = true;
             s->dspark_last_cycle.verify_dist.batched_verify_ms = dist_batched_ms;
         }
+        /* m3: committing batched (sublinear) verify. STS-driven verify_n keeps it ~E[a] tokens.
+         * Either fully commits (batched_committed=true) or fully rolls back to the snapshot
+         * and falls through to the sequential verify; a mid-commit GPU failure is a hard error. */
+        bool batched_committed = false;
+        bool batched_hard_err = false;
+        if (dspark_verify_batched_enabled() && verify_n > 0 && n_accept < accepted_cap) {
+            ds4_spec_frontier bfrontier;
+            const bool have_bf = spec_frontier_snapshot(&bfrontier, s);
+            const uint32_t bstart = (uint32_t)s->checkpoint.len;
+            const double batched_t0 = dspark_timing ? now_sec() : 0.0;
+            int *b_row_tops = xmalloc((size_t)verify_n * sizeof(int));
+            bool bok = have_bf;
+            if (bok) {
+                for (int i = 0; i < verify_n; i++) token_vec_push(&s->checkpoint, drafts[i]);
+                s->graph.dspark_batch_capture_active = true;  /* capture layers 40-42 per-position */
+                ds4_metal_dump_path_tag = "B_";
+                bok = metal_graph_verify_suffix_tops(&s->graph, &e->model, &e->weights,
+                                                     &s->checkpoint, bstart, (uint32_t)verify_n,
+                                                     (verify_n == 2), b_row_tops, NULL);
+                ds4_metal_dump_path_tag = "";
+                s->graph.dspark_batch_capture_active = false;
+            }
+            if (bok) {
+                /* acceptance: drafts[0] by target_top; drafts[i>=1] by b_row_tops[i-1] */
+                int commit_n = (drafts[0] == target_top) ? 1 : 0;
+                for (int i = 1; i < verify_n && commit_n == i; i++) {
+                    if (drafts[i] == b_row_tops[i - 1]) commit_n++;
+                }
+                if (commit_n == verify_n) {
+                    /* full accept: cache advanced for all; read last spec-logits, batch-push each */
+                    if (!metal_graph_read_spec_logits_row(&s->graph, (uint32_t)(verify_n - 1), s->logits)) {
+                        batched_hard_err = true;
+                    } else {
+                        logits_on_host = true;
+                        for (int i = 0; i < verify_n && n_accept < accepted_cap; i++) {
+                            if (!dspark_session_push_batch_hidden(s, (uint32_t)i)) { batched_hard_err = true; break; }
+                            accepted[n_accept++] = drafts[i];
+                            verified++;
+                            if (drafts[i] == eos_token) break;
+                        }
+                        if (!batched_hard_err) {
+                            target_top = sample_argmax(s->logits, DS4_N_VOCAB);
+                            batched_committed = true;
+                        }
+                    }
+                } else if (commit_n >= 1) {
+                    /* partial accept (prefix commit_n): rewind, then commit the prefix */
+                    s->checkpoint.len = (int)bstart;
+                    if (commit_n == 1 && verify_n == 2 && spec_frontier_commit_prefix1(s) &&
+                        metal_graph_read_spec_logits_row(&s->graph, 0, s->logits) &&
+                        dspark_session_push_batch_hidden(s, 0)) {
+                        logits_on_host = true;
+                        token_vec_push(&s->checkpoint, drafts[0]);
+                        accepted[n_accept++] = drafts[0];
+                        verified++;
+                        target_top = sample_argmax(s->logits, DS4_N_VOCAB);
+                        batched_committed = true;
+                    } else if (spec_frontier_restore(&bfrontier, s)) {
+                        /* general partial: replay drafts[0..commit_n-1] sequentially, RE-VERIFYING
+                         * each against target_top so a batched false-accept cannot commit a wrong token. */
+                        for (int i = 0; i < commit_n && n_accept < accepted_cap; i++) {
+                            if (target_top != drafts[i]) break;
+                            if (!metal_graph_eval_token_raw_swa_top(&s->graph, &e->model, &e->weights,
+                                                                    drafts[i], (uint32_t)s->checkpoint.len,
+                                                                    &target_top, NULL)) { batched_hard_err = true; break; }
+                            token_vec_push(&s->checkpoint, drafts[i]);
+                            if (e->dspark_ready && !dspark_session_push_graph_hidden(s)) { batched_hard_err = true; break; }
+                            accepted[n_accept++] = drafts[i];
+                            verified++;
+                            logits_on_host = false;
+                            if (drafts[i] == eos_token) break;
+                        }
+                        if (!batched_hard_err && verified > 0 && !logits_on_host) {
+                            if (ds4_gpu_tensor_read(s->graph.logits, 0, s->logits,
+                                                    (uint64_t)DS4_N_VOCAB * sizeof(s->logits[0])) == 0) { batched_hard_err = true; }
+                        }
+                        if (!batched_hard_err) { logits_on_host = true; batched_committed = true; }
+                    }
+                } else {
+                    /* commit_n == 0: drafts[0] rejected; roll back; target_top is the correction */
+                    s->checkpoint.len = (int)bstart;
+                    if (spec_frontier_restore(&bfrontier, s)) batched_committed = true;
+                    else batched_hard_err = true;
+                }
+                if (dspark_timing && (batched_committed || batched_hard_err)) {
+                    s->dspark_last_cycle.verify_dist.present = true;
+                    s->dspark_last_cycle.verify_dist.batched_verify_ms = (now_sec() - batched_t0) * 1000.0;
+                }
+            }
+            if (!batched_committed && !batched_hard_err) {
+                /* batched verify did not commit (e.g. it failed non-mutatingly): roll back + fall through */
+                s->checkpoint.len = (int)bstart;
+                if (have_bf && !spec_frontier_restore(&bfrontier, s)) batched_hard_err = true;
+            }
+            free(b_row_tops);
+            spec_frontier_free(&bfrontier);
+            if (batched_hard_err) {
+                s->checkpoint_valid = false;
+                snprintf(err, errlen, "%s batched verify commit failed", ds4_backend_name(e->backend));
+                return -1;
+            }
+        }
+        if (!batched_committed) {
         ds4_metal_dump_path_tag = "s_";
         for (int i = 0; i < verify_n && n_accept < accepted_cap; i++) {
             if (target_top != drafts[i]) break;
@@ -28712,6 +28875,7 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
             if (drafts[i] == eos_token) break;
         }
         ds4_metal_dump_path_tag = "";
+        }
         double logits_read_ms = 0.0;
         if (verified > 0 && !logits_on_host) {
             const double logits_read_t0 = dspark_timing ? now_sec() : 0.0;

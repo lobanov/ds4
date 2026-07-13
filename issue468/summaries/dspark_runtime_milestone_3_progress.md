@@ -147,6 +147,95 @@ batched verify) → its measurement cycle → `gpu-drafter` → its measurement 
 
 ## Worklog
 
+### 2026-07-13 — committing-batched-verify: codex gate A DONE (gpt-5.5 xhigh) — bug 1 (practically-exact, not strictly) + bugs 2/3/4 fixed
+
+Codex gate A (`issue468/artifacts/dspark_codex_reviews/` temp log) reviewed the committing wiring +
+window-push + exactness. Verdicts: C1 (accept-prefix indexing) sound; C4 (capture rows) sound;
+C3 (window-push) mostly sound (GPU-push-fails = unresolved perf risk); C2 (control flow) questionable;
+C5 (exactness) LIKELY-WRONG as a general claim.
+
+- **Bug 1 (CRITICAL, framing/contract — NOT a code bug): the committing batched verify is
+  PRACTICALLY exact, NOT strictly byte-identical.** It uses the batched argmax (`row_tops`) for the
+  verify DECISION; when the batched argmax flips vs the exact (0.64 %/position, per the dist-probe
+  artifact — `verify_dist_probe_exactness.jsonl` code_topk cycle 0 has `argmax_flips=1` on a
+  verified position), it commits a different token than plain decode → divergence. The 10/10 ds4-eval
+  smoke used different (embedded) prompts + got lucky (no flip-on-decision). **This matches the
+  user's "practically exact for now" — but the verification contract's "byte-identical" is too
+  strong.** Strict byte-identity would need the Lead 08 margin-guarded fallback (re-verify near-ties
+  with the exact path), which is deferred. DECISION POINT for the user: accept practical exactness
+  (quantify the divergence rate on the retained corpus) vs add the margin-guarded fallback.
+- **Bug 2 (HIGH, FIXED): general-partial replay did not re-verify.** Added `if (target_top !=
+  drafts[i]) break;` at the replay-loop start so a batched false-accept cannot commit a wrong token
+  (the replay is exact).
+- **Bug 3 (HIGH, FIXED): `spec_frontier_restore` return was ignored on reject + fallback.** Now
+  checked; a restore failure is a hard error (returns -1) instead of continuing with a corrupted
+  cache. The hard_err check was moved after the fallback so both paths are covered.
+- **Bug 4 (MEDIUM, FIXED): `dspark_batch_capture_hc` over-alloc.** Was `pc×hc_dim` per layer
+  (~768 MiB at prefill 4096, unconditional); now `(DS4_DSPARK_BLOCK+1)×hc_dim` (~1 MiB) — the
+  capture only needs the verify-width (≤5 rows).
+- **GPU push (C3, open perf risk):** `metal_graph_push_dspark_hidden` returns false in this path
+  (masked by the CPU fallback in the normal path); the batch push routes through
+  `dspark_session_push_graph_hidden`'s fallback. Correctness OK (refreshes `dspark_main_hidden` from
+  the loaded capture), but the CPU-fallback push is slower + serializes → likely erases the sublinear
+  verify's gain. To investigate (restore the GPU push) before the bench — decisive test: stage-log
+  around ds4.c:19911.
+- Re-verified post-fixes: 10/10 ds4-eval committed-output byte-identical (no regression), no failures.
+
+### 2026-07-13 — committing-batched-verify: IMPLEMENTED + smoke-exactness PASS (10/10 committed-output byte-identical)
+
+Implemented the committing batched (sublinear) verify in the DSpark path, env-gated
+`DS4_DSPARK_VERIFY_BATCHED` (default-off):
+- **Capture buffer**: added `dspark_batch_capture_hc[3]` (struct + alloc 3×`pc×hc_dim` + free) +
+  `dspark_batch_capture_active` flag.
+- **Capture hook** in `metal_graph_encode_layer_batch` (ds4.c:19652): when the flag is set, copies
+  the per-position post-FFN hidden for layers 40/41/42 (the 3 DSpark layers) into the batch buffer.
+- **Batch window-push** `dspark_session_push_batch_hidden(s, batch_pos)` (ds4.c:~27958): loads the
+  position's captured layers into the single-position `dspark_capture_hc`, invalidates
+  `dspark_main_hidden_valid`, then delegates to the full push path (GPU push, else CPU fallback
+  that refreshes `dspark_main_hidden` from the loaded capture).
+- **Committing control flow** in `ds4_session_eval_speculative_argmax` (ds4.c:~28757, before the
+  sequential verify loop): snapshot frontier → push drafts → `metal_graph_verify_suffix_tops`
+  (capture active) → determine accept-prefix (`drafts[0]` by `target_top`, `drafts[i≥1]` by
+  `row_tops[i-1]`) → commit (full-accept→read spec-logits + batch-push each; prefix-1 @ verify_n=2
+  → `spec_frontier_commit_prefix1` + batch-push; general partial → restore + sequential replay;
+  reject → restore) → fallback to the sequential verify if the batched path doesn't commit; a
+  mid-commit GPU failure is a hard error.
+- **Debugging note**: the GPU push (`metal_graph_push_dspark_hidden`) returns false here (it is
+  masked by the CPU fallback in the normal path); the batch push therefore routes through
+  `dspark_session_push_graph_hidden`'s fallback. To investigate/restore the GPU push later (perf).
+- **Smoke exactness**: `ds4-eval --questions 10 --nothink --temp 0 --seed 1 --tokens 96`, plain vs
+  `DS4_DSPARK_VERIFY_BATCHED=1` → **10/10 committed-output byte-identical** (only run timestamps/
+  timing differ). The 0.64 % verify-level flip does NOT propagate to committed output. No crashes.
+  (dspark_batched ~12 t/s on this tiny smoke — slow because of the CPU-fallback push + committing
+  overhead; performance is for the bench step, after codex gate A.)
+- **Next**: codex gate A (adversarial review of the committing wiring + window-push + exactness) →
+  then bench (full retained corpus, verify_ms/acceptance/cycle-cost; GPU-push perf fix if gate flags it).
+
+### 2026-07-13 — committing-batched-verify: design locked (window-push via per-position batched capture of layers 40-42); env gate added
+
+Implementation analysis for `committing-batched-verify`:
+- The committing path uses `metal_graph_verify_suffix_tops` (sublinear, STS-driven `verify_n`≈E[a],
+  no oververify) + the MTP committing pattern (`spec_frontier_snapshot`/`restore`/
+  `commit_prefix1`, ds4.c:24690-24758) for the cache: full-accept → read last spec-logits row
+  (`metal_graph_read_spec_logits_row`, cheap); prefix-1 (verify_n==2) →
+  `spec_frontier_commit_prefix1` (cheap); general partial → restore+sequential replay.
+- **The DSpark window-state push is the novel piece.** `dspark_session_push_graph_hidden`
+  (ds4.c:27887) reads `g->dspark_capture_hc[0..2]` — 3 specific layers (**40/41/42**, the post-FFN
+  `after_ffn_hc`, hooked in the autoregressive decode at ds4.c:16139) — NOT the batched verify's
+  `batch_cur_hc` (which holds only the final per-position hidden). So batch-verified tokens need
+  a NEW per-position capture of layers 40-42 inside `metal_graph_encode_layer_batch`
+  (ds4.c:19652) + a batch window-push variant (`metal_graph_push_dspark_hidden`, ds4.c:19883,
+  adapted to read per-position). Moderate, well-defined GPU work (the per-position
+  `after_ffn_hc` is already computed in the batched encode).
+- Added the env gate `dspark_verify_batched_enabled()` (`DS4_DSPARK_VERIFY_BATCHED`, default-off)
+  after `dspark_verify_dist_probe_enabled` (ds4.c).
+- **Next:** add the batched capture buffer + hooks (layers 40-42) in
+  `metal_graph_encode_layer_batch`; add the batch window-push helper; wire the committing
+  control flow (accept-prefix + correction token + window push) in
+  `ds4_session_eval_speculative_argmax` (ds4.c:~28689, before the sequential verify loop);
+  build (`make ds4-spec-bench`/`ds4-eval`); smoke-test committed-output byte-identical
+  (flip-detecting diff vs plain decode); codex gate A.
+
 ### 2026-07-13 — committing batched verify IS viable when STS-driven
 
 The batched verify will be STS-driven, so `verify_n ≈ E[a]` on average (no oververify);
