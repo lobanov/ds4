@@ -152,6 +152,28 @@ verify-bandwidth slope re-measure.)
 
 ## Worklog
 
+### 2026-07-13 — cycle timing breakdown + strategic correction: the lever is anchor reuse + GPU drafter, NOT novel verify kernels
+
+Measured the DSpark cycle timing breakdown (code_topk, 96 tok, 44 cycles, dist-probe OFF):
+**draft 26.0 ms (37%) | verify 26.5 ms (38%) | decode(anchor) 26.3 ms (37%)**, total 70.5 ms
+→ ~37 t/s. The anchor decode fires in **75% of cycles** (median 26 ms) — but the model's
+anchor-reuse regime expects `decode·S(K)` (rare, only on full-accept; at this acceptance
+S(K) ~10–15%). So the runtime is NOT in the anchor-reuse regime — it pays a fresh anchor
+decode ~5× too often (the Lead 06 gap, live).
+
+**Research-lead correction:** the anchor decode is a reuse/scheduling gap, not an inherent
+cost. A scheduled verifier that verifies K+1 tokens (Lead 02) always produces the next
+anchor's hidden → the fresh anchor decode never fires (carried hidden = anchor reuse).
+That collapse is a state-plumbing/scheduling change, NOT a novel kernel. Corrected
+"where to start":
+1. anchor reuse + verify-K+1 → decode term → ~0; cycle ≈ draft+verify ≈ 54 ms/2.6 tok ≈
+   48 t/s ≈ **1.25× baseline (clears +20% on its own)**.
+2. + GPU drafter (draft 26→10) → ≈ 68 t/s ≈ **1.77× baseline**.
+Both cheaper than novel IQ2XXS verify kernels; (1) alone projects to clear the gate. The
+novel verify kernels drop to last priority (possibly unnecessary). This overturns the
+earlier "weeks of novel verify kernels" framing — the binding levers are the anchor-reuse/
+scheduled-verify gap + the GPU drafter.
+
 ### 2026-07-13 — ds4-eval practical comparison: batch-verifier vs plain decode (outputs identical; ~4% slower)
 
 Ran `ds4-eval --plain --nothink --tokens 2048 --temp 0 --seed 1 --questions 10` baseline vs
