@@ -1057,6 +1057,8 @@ static run_result execute_run(
     int cycles = 0;
     int accepted_total = 0;
     int accepted_max = 0;
+    int tok_out[8192];
+    int tok_n = 0;
 
     while (emitted < run->gen_tokens) {
         const int remaining = run->gen_tokens - emitted;
@@ -1073,6 +1075,7 @@ static run_result execute_run(
                 snprintf(res.err, sizeof(res.err), "decode failed: %s", err);
                 goto done;
             }
+            if (tok_n < 8192) tok_out[tok_n++] = token;
             produced = 1;
         } else if (run->mode == SPEC_MODE_SAMPLE) {
             int token = ds4_session_sample(session,
@@ -1090,6 +1093,7 @@ static run_result execute_run(
                 snprintf(res.err, sizeof(res.err), "decode failed: %s", err);
                 goto done;
             }
+            if (tok_n < 8192) tok_out[tok_n++] = token;
             produced = 1;
         } else {
             int first = run->exclude_eos ? ds4_session_argmax_excluding(session, eos)
@@ -1132,6 +1136,7 @@ static run_result execute_run(
                     break;
                 }
             }
+            for (int i = 0; i < produced && tok_n < 8192; i++) tok_out[tok_n++] = accepted[i];
         }
 
         if (produced <= 0) break;
@@ -1147,6 +1152,25 @@ static run_result execute_run(
     res.cycles = cycles;
     res.accepted_total = accepted_total;
     res.accepted_max = accepted_max;
+    {
+        const char *dtd = getenv("DS4_BENCH_DUMP_TOKENS");
+        if (dtd && run->id && run->id[0]) {
+            char path[512];
+            snprintf(path, sizeof(path), "%s/%s.ids", dtd, run->id);
+            FILE *fp = fopen(path, "w");
+            if (fp) { for (int i = 0; i < tok_n; i++) fprintf(fp, "%d\n", tok_out[i]); fclose(fp); }
+            snprintf(path, sizeof(path), "%s/%s.txt", dtd, run->id);
+            fp = fopen(path, "w");
+            if (fp) {
+                for (int i = 0; i < tok_n; i++) {
+                    size_t plen = 0;
+                    char *piece = ds4_token_text(engine, tok_out[i], &plen);
+                    if (piece) { fwrite(piece, 1, plen, fp); free(piece); }
+                }
+                fclose(fp);
+            }
+        }
+    }
     res.ok = true;
 
 done:

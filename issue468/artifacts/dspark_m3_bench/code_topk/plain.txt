@@ -1,0 +1,7 @@
+root__` docstring
+- include a `__test__` docstring with 3 simple examples and their outputs
+- use `typing` module
+- use `collections.Counter`
+- use `heapq` with negative counts for max-heap simulation
+- no third-party imports
+- no

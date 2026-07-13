@@ -1,0 +1,13 @@
+root__` check for self-testing with a simple test case
+
+Example:
+```
+top_k_frequent([1,1,1,2,2,3], 2) -> [1,2]
+```
+"""
+
+from collections import Counter
+import heapq
+
+def top_k_frequent(nums, k):
+    """

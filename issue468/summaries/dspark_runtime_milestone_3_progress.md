@@ -147,6 +147,60 @@ batched verify) → its measurement cycle → `gpu-drafter` → its measurement 
 
 ## Worklog
 
+### 2026-07-13 — bench-batched RESULTS: throughput + attribution + DIVERGENCE (corpus-dependent: 0% benchmark / 40% code)
+
+First real measurement (warm model, exactness corpus + full ds4-eval):
+- **Throughput (warm, exactness corpus, 10 prompts):** plain 37.20 → seq 16.29 → **batched 20.19
+t/s** (+24 % over seq; 0.54× baseline). The committing batched verify IS sublinear-faster than
+sequential, but DSpark-batched is still below baseline — +20 % needs the full stack (batched +
+reuse + GPU drafter); the batched verify is the *enabler*, not the full solution.
+- **Attribution (1 cycle, code_topk, timing-on):** decode 26 ms, draft ~22-29 ms, verify
+seq 52.4 ms → **batched 43.4 ms** (sublinear, ~9 ms saved at verify_n≈2). push ~1.85 ms
+(CPU fallback, cheap). The frontier snapshot overhead is inside verify_ms.
+- **DIVERGENCE (the key finding, added a token-dump to ds4-spec-bench via DS4_BENCH_DUMP_TOKENS):
+  CORPUS-DEPENDENT.**
+  - **ds4-eval benchmark (92 questions, greedy, --nothink, --tokens 200): BYTE-IDENTICAL — 0 %
+    divergence** (plain vs batched). So the committing batched verify IS practically-exact for the
+    benchmark workload.
+  - **exactness corpus (code/grounded/synthesis, 10 prompts, 48 tok): 40 % divergence** (7/10
+    prompts, 192/480 tokens). code_topk: first divergence at token index 3 (plain[3]=3696
+    "docstring…" vs batched[3]=4085 "check for self-testing…"), then the greedy tail cascades
+    (61/64 differ). Both outputs are SENSIBLE text (valid code/docstring) — the divergence is a
+    real flip, not garbage.
+  - The seq (exact) dspark is byte-identical to plain (0 %) — confirming the divergence is the
+    batched flip, not a bug.
+- **Why corpus-dependent:** code generation has more near-tie argmax decisions → more of the
+  batched verify's 0.64 %-level flips fire on verify decisions → committed-output divergence.
+  Reasoning/benchmark workloads have clearer argmax → flips rarely fire → byte-identical.
+- **Implication:** the "practically exact" framing HOLDS for the benchmark workload (the practical
+  use case, matches the original ds4-eval 10/10) but FAILS for code generation (40 %). The
+  contract's hard-abort clause (>5 %) is triggered FOR CODE workloads. DECISION POINT: scope the
+  milestone to benchmark-exact + note code needs the Lead 08 margin-guarded fallback, OR treat the
+  code divergence as a falsification.
+
+### 2026-07-13 — fix-gpu-push INVESTIGATION: GPU push is a PRE-EXISTING general bug (fails in both paths); push is CHEAP (1.85 ms) — codex C3 over-stated, NOT perf-critical
+
+Investigated codex gate A C3 (metal_graph_push_dspark_hidden returns false → CPU fallback).
+Stage-logging (past-NULL-checks + op-chain prints) run on BOTH the normal dspark path AND the
+batched path: the GPU push fails at the OP CHAIN (past the NULL checks) in BOTH. So it is a
+PRE-EXISTING general bug — the milestone-1 "DSpark hidden capture / stage-KV push is GPU-first"
+claim was WRONG; the push has ALWAYS been the CPU fallback (dspark_session_push_graph_hidden's
+refresh+project path). The batched path's dspark_session_push_batch_hidden correctly routes through
+that same fallback (loads the batch row into dspark_capture_hc, invalidates main_hidden, calls the
+full push path).
+
+Timing (batched path, DS4_DSPARK_VERIFY_BATCHED=1 + TIMING=1, 1 prompt / 96 tok): decode 27.3 ms,
+draft 170.1 ms (vs milestone-1's ~45 ms — likely swap-inflated; this is a cold 91 GB load),
+verify 57.1 ms (INCLUDES the frontier snapshot/restore overhead), push_init 2.1 ms + push_verify
+1.85 ms (CPU fallback — cheap), logits_read 0.0, total 254.5 ms → 11.4 t/s.
+
+**Conclusion: the push is CHEAP (1.85 ms); codex C3 ("CPU fallback erases the sublinear gain") is
+over-stated. The GPU-push fix is NOT perf-critical (saving ~1 ms on a 254 ms cycle). The real
+bottlenecks are the draft (170 ms, swap) and the verify (57 ms, incl. the frontier snapshot).**
+Decisive next step for the GPU push itself (deferred / out of scope): bisect the op chain in
+metal_graph_push_dspark_hidden (begin/sum/matmul_plain/rms_norm/matmul_q8_0/rope/copy/end/read)
+to find the failing op. Debug logging removed; ds4.c compiles clean; both binaries rebuilt.
+
 ### 2026-07-13 — committing-batched-verify: codex gate A DONE (gpt-5.5 xhigh) — bug 1 (practically-exact, not strictly) + bugs 2/3/4 fixed
 
 Codex gate A (`issue468/artifacts/dspark_codex_reviews/` temp log) reviewed the committing wiring +
