@@ -1,0 +1,78 @@
+ds4: DSpark support model loaded: /Users/lobanov/Projects/ds4/gguf/dspark.gguf (draft=1)
+ds4: Metal device Apple M5 Max, 128.00 GiB RAM
+ds4: Metal 4 tensor API enabled for Tensor kernels
+ds4: drift-patch flags hc_stable=on norm_unify=on kv_raw_f32=off rope_exp2_log2=off math_safe=off tensor_matmul=on
+ds4: Metal model views created in 1.767 ms, residency requested in 248.526 ms, warmup 3.490 ms (mapped 82697.67 MiB from offset 5.09 MiB)
+ds4: Metal mapped mmaped model as 2 overlapping shared buffers
+ds4: metal backend initialized for graph diagnostics
+ds4: Metal model range 3.51..3.56 GiB is not covered by mapped model views
+ds4: dumped hc_attn_pre_mixes layer 40 pos 58 to /Users/lobanov/Projects/ds4-dspark-research/issue468/artifacts/lead08_stage_divergence/dumps/dump_hc_attn_pre_mixes-40_pos58.bin
+ds4: dumped hc_attn_pre_weights layer 40 pos 58 to /Users/lobanov/Projects/ds4-dspark-research/issue468/artifacts/lead08_stage_divergence/dumps/dump_hc_attn_pre_weights-40_pos58.bin
+ds4: dumped hc_attn_pre_post_weights layer 40 pos 58 to /Users/lobanov/Projects/ds4-dspark-research/issue468/artifacts/lead08_stage_divergence/dumps/dump_hc_attn_pre_post_weights-40_pos58.bin
+ds4: dumped hc_attn_pre_comb layer 40 pos 58 to /Users/lobanov/Projects/ds4-dspark-research/issue468/artifacts/lead08_stage_divergence/dumps/dump_hc_attn_pre_comb-40_pos58.bin
+ds4: dumped hc_attn_pre layer 40 pos 58 to /Users/lobanov/Projects/ds4-dspark-research/issue468/artifacts/lead08_stage_divergence/dumps/dump_hc_attn_pre-40_pos58.bin
+ds4: dumped attn_norm layer 40 pos 58 to /Users/lobanov/Projects/ds4-dspark-research/issue468/artifacts/lead08_stage_divergence/dumps/dump_attn_norm-40_pos58.bin
+ds4: dumped q_lora layer 40 pos 58 to /Users/lobanov/Projects/ds4-dspark-research/issue468/artifacts/lead08_stage_divergence/dumps/dump_q_lora-40_pos58.bin
+ds4: dumped KVraw layer 40 pos 58 to /Users/lobanov/Projects/ds4-dspark-research/issue468/artifacts/lead08_stage_divergence/dumps/dump_KVraw-40_pos58.bin
+ds4: dumped q_lora_norm layer 40 pos 58 to /Users/lobanov/Projects/ds4-dspark-research/issue468/artifacts/lead08_stage_divergence/dumps/dump_q_lora_norm-40_pos58.bin
+ds4: dumped KVnorm layer 40 pos 58 to /Users/lobanov/Projects/ds4-dspark-research/issue468/artifacts/lead08_stage_divergence/dumps/dump_KVnorm-40_pos58.bin
+ds4: dumped Qraw layer 40 pos 58 to /Users/lobanov/Projects/ds4-dspark-research/issue468/artifacts/lead08_stage_divergence/dumps/dump_Qraw-40_pos58.bin
+ds4: dumped Qnorm layer 40 pos 58 to /Users/lobanov/Projects/ds4-dspark-research/issue468/artifacts/lead08_stage_divergence/dumps/dump_Qnorm-40_pos58.bin
+ds4: dumped Qcur layer 40 pos 58 to /Users/lobanov/Projects/ds4-dspark-research/issue468/artifacts/lead08_stage_divergence/dumps/dump_Qcur-40_pos58.bin
+ds4: dumped KVrope layer 40 pos 58 to /Users/lobanov/Projects/ds4-dspark-research/issue468/artifacts/lead08_stage_divergence/dumps/dump_KVrope-40_pos58.bin
+ds4: dumped KVcur layer 40 pos 58 to /Users/lobanov/Projects/ds4-dspark-research/issue468/artifacts/lead08_stage_divergence/dumps/dump_KVcur-40_pos58.bin
+ds4: dumped kqv_out layer 40 pos 58 to /Users/lobanov/Projects/ds4-dspark-research/issue468/artifacts/lead08_stage_divergence/dumps/dump_kqv_out-40_pos58.bin
+ds4: dumped kqv_back layer 40 pos 58 to /Users/lobanov/Projects/ds4-dspark-research/issue468/artifacts/lead08_stage_divergence/dumps/dump_kqv_back-40_pos58.bin
+ds4: dumped attn_low layer 40 pos 58 to /Users/lobanov/Projects/ds4-dspark-research/issue468/artifacts/lead08_stage_divergence/dumps/dump_attn_low-40_pos58.bin
+ds4: dumped attn_out layer 40 pos 58 to /Users/lobanov/Projects/ds4-dspark-research/issue468/artifacts/lead08_stage_divergence/dumps/dump_attn_out-40_pos58.bin
+ds4: dumped hc_attn_post layer 40 pos 58 to /Users/lobanov/Projects/ds4-dspark-research/issue468/artifacts/lead08_stage_divergence/dumps/dump_hc_attn_post-40_pos58.bin
+ds4: dumped hc_ffn_pre_mixes layer 40 pos 58 to /Users/lobanov/Projects/ds4-dspark-research/issue468/artifacts/lead08_stage_divergence/dumps/dump_hc_ffn_pre_mixes-40_pos58.bin
+ds4: dumped hc_ffn_pre_weights layer 40 pos 58 to /Users/lobanov/Projects/ds4-dspark-research/issue468/artifacts/lead08_stage_divergence/dumps/dump_hc_ffn_pre_weights-40_pos58.bin
+ds4: dumped hc_ffn_pre_post_weights layer 40 pos 58 to /Users/lobanov/Projects/ds4-dspark-research/issue468/artifacts/lead08_stage_divergence/dumps/dump_hc_ffn_pre_post_weights-40_pos58.bin
+ds4: dumped hc_ffn_pre_comb layer 40 pos 58 to /Users/lobanov/Projects/ds4-dspark-research/issue468/artifacts/lead08_stage_divergence/dumps/dump_hc_ffn_pre_comb-40_pos58.bin
+ds4: dumped hc_ffn_pre layer 40 pos 58 to /Users/lobanov/Projects/ds4-dspark-research/issue468/artifacts/lead08_stage_divergence/dumps/dump_hc_ffn_pre-40_pos58.bin
+ds4: dumped ffn_norm layer 40 pos 58 to /Users/lobanov/Projects/ds4-dspark-research/issue468/artifacts/lead08_stage_divergence/dumps/dump_ffn_norm-40_pos58.bin
+ds4: dumped ffn_moe_logits layer 40 pos 58 to /Users/lobanov/Projects/ds4-dspark-research/issue468/artifacts/lead08_stage_divergence/dumps/dump_ffn_moe_logits-40_pos58.bin
+ds4: dumped ffn_moe_probs layer 40 pos 58 to /Users/lobanov/Projects/ds4-dspark-research/issue468/artifacts/lead08_stage_divergence/dumps/dump_ffn_moe_probs-40_pos58.bin
+ds4: dumped ffn_moe_topk layer 40 pos 58 to /Users/lobanov/Projects/ds4-dspark-research/issue468/artifacts/lead08_stage_divergence/dumps/dump_ffn_moe_topk-40_pos58.i32
+ds4: dumped ffn_moe_weights_scaled layer 40 pos 58 to /Users/lobanov/Projects/ds4-dspark-research/issue468/artifacts/lead08_stage_divergence/dumps/dump_ffn_moe_weights_scaled-40_pos58.bin
+ds4: dumped ffn_moe_gate_clamped layer 40 pos 58 to /Users/lobanov/Projects/ds4-dspark-research/issue468/artifacts/lead08_stage_divergence/dumps/dump_ffn_moe_gate_clamped-40_pos58.bin
+ds4: dumped ffn_moe_up_clamped layer 40 pos 58 to /Users/lobanov/Projects/ds4-dspark-research/issue468/artifacts/lead08_stage_divergence/dumps/dump_ffn_moe_up_clamped-40_pos58.bin
+ds4: dumped ffn_moe_weighted_swiglu layer 40 pos 58 to /Users/lobanov/Projects/ds4-dspark-research/issue468/artifacts/lead08_stage_divergence/dumps/dump_ffn_moe_weighted_swiglu-40_pos58.bin
+ds4: dumped ffn_moe_down layer 40 pos 58 to /Users/lobanov/Projects/ds4-dspark-research/issue468/artifacts/lead08_stage_divergence/dumps/dump_ffn_moe_down-40_pos58.bin
+ds4: dumped ffn_moe_out layer 40 pos 58 to /Users/lobanov/Projects/ds4-dspark-research/issue468/artifacts/lead08_stage_divergence/dumps/dump_ffn_moe_out-40_pos58.bin
+ds4: dumped ffn_shexp layer 40 pos 58 to /Users/lobanov/Projects/ds4-dspark-research/issue468/artifacts/lead08_stage_divergence/dumps/dump_ffn_shexp-40_pos58.bin
+ds4: dumped ffn_out layer 40 pos 58 to /Users/lobanov/Projects/ds4-dspark-research/issue468/artifacts/lead08_stage_divergence/dumps/dump_ffn_out-40_pos58.bin
+ds4: dumped hc_ffn_post layer 40 pos 58 to /Users/lobanov/Projects/ds4-dspark-research/issue468/artifacts/lead08_stage_divergence/dumps/dump_hc_ffn_post-40_pos58.bin
+ds4: Metal model range 3.51..3.56 GiB is not covered by mapped model views
+ds4: Metal model range 3.51..3.56 GiB is not covered by mapped model views
+ds4: Metal model range 3.51..3.56 GiB is not covered by mapped model views
+ds4: Metal model range 3.51..3.56 GiB is not covered by mapped model views
+ds4: Metal model range 3.51..3.56 GiB is not covered by mapped model views
+ds4: Metal model range 3.51..3.56 GiB is not covered by mapped model views
+ds4: Metal model range 3.51..3.56 GiB is not covered by mapped model views
+ds4: Metal model range 3.51..3.56 GiB is not covered by mapped model views
+ds4: Metal model range 3.51..3.56 GiB is not covered by mapped model views
+ds4: Metal model range 3.51..3.56 GiB is not covered by mapped model views
+ds4: Metal model range 3.51..3.56 GiB is not covered by mapped model views
+ds4: Metal model range 3.51..3.56 GiB is not covered by mapped model views
+ds4: Metal model range 3.51..3.56 GiB is not covered by mapped model views
+ds4: Metal model range 3.51..3.56 GiB is not covered by mapped model views
+ds4: Metal model range 3.51..3.56 GiB is not covered by mapped model views
+ds4: Metal model range 3.51..3.56 GiB is not covered by mapped model views
+ds4: Metal model range 3.51..3.56 GiB is not covered by mapped model views
+ds4: Metal model range 3.51..3.56 GiB is not covered by mapped model views
+ds4: Metal model range 3.51..3.56 GiB is not covered by mapped model views
+ds4: Metal model range 3.51..3.56 GiB is not covered by mapped model views
+ds4: Metal model range 3.51..3.56 GiB is not covered by mapped model views
+ds4: Metal model range 3.51..3.56 GiB is not covered by mapped model views
+ds4: Metal model range 3.51..3.56 GiB is not covered by mapped model views
+ds4: Metal model range 3.51..3.56 GiB is not covered by mapped model views
+ds4: Metal model range 3.51..3.56 GiB is not covered by mapped model views
+ds4: Metal model range 3.51..3.56 GiB is not covered by mapped model views
+ds4: Metal model range 3.51..3.56 GiB is not covered by mapped model views
+ds4: Metal model range 3.51..3.56 GiB is not covered by mapped model views
+ds4: Metal model range 3.51..3.56 GiB is not covered by mapped model views
+ds4: Metal model range 3.51..3.56 GiB is not covered by mapped model views
+ds4: Metal model range 3.51..3.56 GiB is not covered by mapped model views
+ds4: Metal model range 3.51..3.56 GiB is not covered by mapped model views

@@ -1,0 +1,1 @@
+{"id":"code_topk","mode":"speculative_argmax","prompt_file":"issue468/prompts/exactness_small_corpus/code_topk.txt","frontier_tokens":58,"gen_tokens":32,"exclude_eos":true}

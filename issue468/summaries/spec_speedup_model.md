@@ -140,6 +140,23 @@ of the band; cycle-jump the realistic edge.
   **2.256**; the deficit is **0.058 accepted drafts/cycle** (deficit > CI half-width, so
   "below baseline" is signed). Read the sliding column as the optimistic edge only. These
   are the unscheduled fixed-K reference points for the scheduling results below.
+
+> **2026-07-13 Lead 08 Phase B floor-clearance update (codex-gated A+B).** Two robust
+> refinements to the model's inputs, both decision-grade:
+> - **Decode effective bandwidth ≈ 410–450 GB/s** (resolved from byte data: dense 8.20 +
+>   experts 1.70 + KV ≈ 10.4 GiB/token at decode_ms 26). The earlier "~300 GB/s" assertion
+>   (used to floor verify_ms) was conservative; the ≤250 GB/s cliff is not real.
+> - **Gate-clearance threshold: `verify_ms(4) ≤ 50.5 ms`** clears +20%
+>   (speedup = 26·3.198/(10 + verify_ms(4) + 8.84) ≥ 1.20). The current shipped verify_ms(4)
+>   = 65.8 ms → 0.982× (below). The **K=4 verify floor at decode bandwidth ≈ 15.5 GiB /
+>   428 GB/s ≈ 39 ms → ~1.44× (clears)**; break-even ≈ 329 GB/s.
+>
+> Verdict on the fused-verifier path: **HOLD/inconclusive** — the cost side is favorable
+> (decode bw resolved; floor clears), but the cost of a *bit-exact* K=4 verifier is
+> unmeasured (exactness fixes may cost speed; K=4 fused may not hit decode bw). The one
+> decisive test: profile a bit-exact K=4 verifier's verify_ms(4) (≤ 50.5 ms → GO). See
+> `summaries/lead08_phaseB_floor_clearance_verdict.md`.
+
 - **Corpus-dependent** (cycle-jump K=4 speedup): jsonex **+2.3%**, codealpaca −1.9%, dolly
   −5.6%. The mix is on the easy side — the old 10-prompt code/synthesis exactness corpus was
   E[a|4]=2.175 (harder than all three families), so a code/synthesis-heavy deployment would

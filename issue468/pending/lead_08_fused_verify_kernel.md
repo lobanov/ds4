@@ -135,7 +135,320 @@ rather than just reusing `verify_suffix_tops`.
   reintroducing per-position exact re-verification on >~5% of positions (eating
   the gain) — record as the numerics falsification of the fused approach.
 
+## Next steps
+
+**Milestone COMPLETE (2026-07-13): Phase B floor-clearance characterization → verdict
+HOLD/inconclusive, codex-gated A+B, propagated.** Canonical summary:
+`issue468/summaries/lead08_phaseB_floor_clearance_verdict.md`. STATUS.md +
+spec_speedup_model.md updated.
+
+**The decisive follow-up test (gate B) — a separate lead/goal:** profile a **bit-exact
+K=4 verifier's `verify_ms(4)`** under deployed accounting. ≤ 50.5 ms → GO (commit to the
+full fusion); > 50.5 ms → NO-GO. This likely does NOT need novel IQ2_XXS kernels — put the
+batch path's HC/compressor/attention on the decode reductions (kernel-selection/config
+swaps) + profile. Two supporting probes (necessary, not sufficient): (a) identical-input
+MoE kernel-equality test (settles whether gate/up are truly bit-exact); (b) the K3→K4 vs
+K4→K5 verify-bandwidth slope instability (re-measure with a stable protocol).
+
 ## Worklog
+
+### 2026-07-13 — propagate-verdict: milestone complete; HOLD verdict propagated to STATUS + spec_speedup_model
+
+Finalized the milestone. Wrote the canonical summary
+(`summaries/lead08_phaseB_floor_clearance_verdict.md`) capturing the verdict (HOLD), the
+robust findings (gate threshold verify_ms(4) ≤ 50.5 ms; decode bw ~410–450 GB/s resolved;
+K=4 verify floor at decode bw ~39 ms → 1.44×; headroom = GPU layer_execute bandwidth
+inefficiency), and the gate-corrected overclaims (F16-on-both-paths; gate/up divergences
+real; pos-61 not clean-input; "two decisive measurements" → the one bit-exact K=4 profile).
+Updated STATUS.md (Lead 08 Phase B characterization entry) + spec_speedup_model.md
+(decode-bw resolution + the 50.5 ms gate threshold + the ~39 ms floor). Committed on
+`dspark-research`. The lead worklog stays in `pending/` (the lead is not resolved — verdict
+is HOLD pending the decisive bit-exact K=4 verifier profile).
+
+## Worklog
+
+### 2026-07-13 — codex gate A + verdict revision: CONDITIONAL-GO draft was not decision-grade; revised to HOLD
+
+Codex gate A (gpt-5.5 xhigh; artifact
+`artifacts/dspark_codex_reviews/2026-07-13_gpt55_xhigh_lead08_gateA_methodology.md`)
+challenged the methodology; I independently verified the two decisive findings: (1) the
+"F16 is the dominant divergence / closable by F32 swap" claim is WRONG —
+`metal_graph_matmul_plain_tensor` (ds4.c:16615) dispatches on `w->type` and `hc_attn_fn`
+is `DS4_TENSOR_F16` (ds4.c:3655), so decode ALSO uses `ds4_gpu_matmul_f16_tensor`; the
+compressor is F16 on both paths → divergence is reduction/path/order, not dtype. (2) the
+300 GB/s decode figure is load-bearing + unmeasured — recomputed: 300→1.346×, 250→1.193×
+(under gate), 200→1.019× (fails); cliff-edge. Also: the 6.2–7.6 gate/up divergences are
+REAL (codex recomputed the dumps; not a layout artifact); the 190 GB/s slope is
+cherry-picked (K4→K5 contradicts at 56 GB/s).
+
+**Verdict revised** (`floor_clearance_verdict.md`): from CONDITIONAL GO to **HOLD /
+INCONCLUSIVE** — the gate-clearance is too fragile to commit (decode bw unmeasured; ≤250
+→ fails) and the exactness story was wrong (F16 on both paths; real divergence source
+unidentified; gate/up bit-exactness unverified). Exactness-gap artifact corrected (gate-A
+correction prepended). Robust findings kept: gate threshold verify_ms(4) ≤ 50.5 ms;
+headroom is GPU layer_execute not host overhead; Phase-B targeted the wrong thing. The
+GO/NO-GO is deferred to two decisive measurements (decode bandwidth; identical-input MoE
+kernel equality). Gate A did its job (caught the overclaims before propagation).
+
+### 2026-07-13 — floor-clearance-verdict (DRAFT): CONDITIONAL GO; gate clears at verify_ms(4) ≤ 50.5 ms; Phase-B plan superseded
+
+Produced the go/no-go verdict (artifact:
+`artifacts/lead08_stage_divergence/floor_clearance_verdict.md`), integrating the headroom
+decomposition + exactness-gap + `spec_speedup_model.md`. Gate-clearance threshold:
+**verify_ms(4) ≤ 50.5 ms** clears +20% (stack: anchor-reuse + GPU drafter + oracle
+acceptance). Sensitivity: current batch 66 ms → 0.98×; floor ~43 ms → 1.34×; bit-exact
+F32 est. ~47–50 ms → 1.21–1.26× (borderline). **Verdict: CONDITIONAL GO** — both
+barriers are tractable and lower-effort than the original plan: cost = bandwidth tuning
+(recoverable, proven at K=2), exactness = F32/Q8_0 matmul swaps (decode kernels exist, no
+novel IQ2_XXS kernels; gate/up already bit-exact). Conditional on two cheap measurements
+(attention residual after F32 compression; F32 speed cost) before the heavy engineering.
+**Supersedes the Phase-B single-stage-kernel plan** (it targeted the gate/up, already
+bit-exact; the cost barrier is bandwidth, not expert-load-sharing). Not a guarantee the
+gate is cleared — that needs the two measurements + the bandwidth engineering.
+
+### 2026-07-13 — exactness-gap: dominant divergence is F16 vs F32/Q8_0 matmul swaps; gate/up already bit-exact
+
+Characterized the bit-exactness fix scope per divergent stage (artifact:
+`artifacts/lead08_stage_divergence/exactness_gap.md`, read-only kernel analysis + the
+diagnose-divergence data). The batch path uses `ds4_gpu_matmul_f16_tensor` for the hc
+projections AND the attention compression (`batch_comp_kv`/`batch_comp_sc`); decode uses
+plain/Q8_0. **The F16 precision loss is the dominant divergence source** (hc 0.078–0.086,
+KVcur 0.125 — the largest), and it is **closable by kernel swap** (use the decode
+plain/Q8_0 matmul), low–medium effort, no novel kernels. The gate/up — the original
+"fusion" target — are already bit-exact. down/sum6 (`id_q2_k` vs `addr_q2_k`) is a minor
+closable gap (ffn_moe_out 0.018). The one real uncertainty is the **batched-attention
+residual after F32 compression** (the measured attn_out 0.064 likely inherits most of the
+upstream KVcur F16 error; residual unmeasured) — a cheap measurement decides whether
+attention is feasible for free or needs per-token (loses sharing). **Implication:** a
+fully-bit-exact sublinear verifier is plausibly achievable WITHOUT novel IQ2_XXS kernels —
+mostly kernel selection (use decode reductions in the batch path), substantially
+lower-effort than the Phase-B single-stage-kernel plan.
+
+### 2026-07-13 — headroom-decomposition: headroom is GPU bandwidth inefficiency (~23 ms recoverable at K=4)
+
+Decomposed the ~19–22 ms verify headroom from the retained Phase A
+`DS4_MTP_VERIFY_PROFILE` data (`artifacts/mtp_phaseA_profile/summary.json`, code_8k
+K=3,4,5; reuses the instrumentation, reproduces the 20.9 ms headroom at K=4). Artifact:
+`artifacts/lead08_stage_divergence/headroom_decomposition.md`.
+
+Finding: `layer_execute` (GPU) is ~95% of verify_ms; host-side launch/encode/readback is
+only ~3–4 ms (~5%, readback ≈0). So the headroom is **not** host overhead — it is GPU
+bandwidth inefficiency: the verify path runs the routed-expert stream at ~190 GB/s
+(K3→K4 slope: 1.14 GiB / 6.14 ms) vs decode's ~300 GB/s (~63%). If a fused/tuned kernel
+reached decode bandwidth, `layer_execute(4)` 62.6 → ~39.7 ms, `verify_ms(4)` ~43 ms
+(**recover ~23 ms**, at/below the 45 ms floor target). The `code_4k` K=2 ≈ decode point
+corroborates that the floor is reachable at low K. Load-bearing uncertainty for the
+verdict: whether an M=K fused kernel hits 300 GB/s at K=4 (unproven); the 300 GB/s decode
+figure is the Lead 08 doc's assertion (order-of-magnitude robustness noted).
+
+### 2026-07-13 — build-single-stage scope check: novel kernel is multi-week; paused for approach decision
+
+Assessed the realistic scope of `build-single-stage` after the spec-read refinement.
+The novel M=2 routed-expert kernel requires: (1) a new IQ2XXS union-expert load-once
+kernel (extends `_impl` to 2 tokens with shared weight load + per-token accumulators),
+(2) a complex host dispatch (`routed_moe_pair`: union-expert computation, mmap'd weight
+binding mirroring `routed_moe_one`'s ~250-line SSD-streaming dispatch), (3) wiring into
+`decode2_exact`, then (4) bit-exactness iteration via build + 87GB fidelity-gate cycles
+(likely + a codex bug-hunt). This is the "weeks of Metal work" the doc flags — confirmed.
+
+The refinement also revealed a more-tractable alternative: `verify_suffix_tops` (batch)
+is ALREADY sublinear (shared loads) and bit-exact in gate/up (both paths use `_impl`);
+it diverges only in down+sum6 + attention. So the milestone's questions (can routed
+experts be sublinear? bit-exact gate/up? what cost saving?) are largely answerable from
+the existing paths by measurement, without a novel kernel. Paused for the user to choose
+between (A) commit to the novel-kernel build, (B) reframe to characterize the existing
+batch path + scope the down/sum6 fix, or (C) prove the mechanism on the simpler shared
+Q8_0 expert first.
+
+### 2026-07-13 — build-single-stage spec-read: gate/up reduction already shared; impl focus = shared loads + bit-exact down/sum6
+
+Read the actual routed-expert kernels before implementing. **Gate/up IQ2XXS paired
+reduction is already shared**: both decode (`kernel_mul_mv_id_iq2_xxs_pair_swiglu_f32`,
+moe.metal:1022, inline) and batch (`kernel_mul_mv_addr_iq2_xxs_pair_swiglu_f32`,
+moe.metal:1257) use the SAME reduction — the `addr` kernel calls
+`kernel_mul_mv_iq2_xxs_pair_f32_impl` (moe.metal:680), bit-identical to the `id` inline
+loop (same dequant, MAC order, `simd_sum`+`*0.25`). So **gate/up are bit-identical
+batch-vs-decode** → the large `ffn_moe_gate_clamped`/`up_clamped`/`down` divergences
+(6.7–331) in the diagnose map were a **per-expert layout artifact** (row-0 extraction on an
+expert-major tensor), not real. f16-mid ruled out (`request_mid_f16 = ... &&
+!use_iq2_batch_selected_addr`). The real routed-expert output divergence (ffn_moe_out
+0.018) is in the **down+sum6** stage + tiny route-weight diff, not gate/up. The expert
+weight LOAD is not shared across tokens in either path → cost saving unrealized.
+
+**Revised impl focus:** (a) share expert weight loads (gate/up + down) across the 2
+tokens via a union-expert load-once kernel (reusing `_impl` for the gate/up MAC) — the
+verify_ms cost saving; (b) make the down+sum6 bit-exact with decode (gate/up already
+are). Fidelity gate (M=2 ffn_moe_out == M=1, max_abs==0) validates both. Recorded in
+`artifacts/lead08_stage_divergence/fused_stage_design.md` (spec-read refinement section).
+No kernel code written yet — impl-stage-kernel is the next concrete step.
+
+### 2026-07-13 — design-fused-stage: bit-exact M=2 routed-expert kernel design + fidelity-gate spec recorded
+
+Read the M=1 reference `kernel_mul_mv_id_iq2_xxs_pair_swiglu_f32` (moe.metal:1022,
+N_R0=4) and the host dispatch (`routed_moe_one_tensor` ds4_metal.m:22362,
+`routed_moe_batch_tensor` :24622). Design recorded in
+`artifacts/lead08_stage_divergence/fused_stage_design.md`.
+
+**Bit-exactness mechanism (strategy A):** the M=2 variant shares the gate/up IQ2XXS
+weight dequant (grid+sign+scale, weight-only) across both tokens and keeps TWO
+separate per-token accumulator sets using the IDENTICAL MAC order + `simd_sum`+`*0.25`
+reduction as M=1 → each token's gate/up output is bit-identical to a standalone M=1
+call, by construction. Union-expert handling mirrors `routed_moe_batch` (≤12 union
+experts, per-token router routing + sum). Plug-in: env-gated
+(`DS4_DSPARK_FUSED_ROUTED_M2=1`) branch inside `metal_graph_verify_decode2_exact`
+replacing the two `routed_moe_one` calls with one M=2 dispatch; rest of the layer
+stays per-token (exact).
+
+**Fidelity-gate spec:** reuse the diagnose-divergence dump-tag harness — compare the
+M=2 fused `ffn_moe_out`/`routed_out` vs the M=1 decode reference at a clean-input
+position (pos 61, layer 40 + a second layer); **pass = max_abs == 0.0 bit-for-bit**,
+plus 0 argmax flips on the full exactness corpus (temp=0) vs plain decode. Gate must
+pass before any timing number; on failure → codex bug-hunt, fix, re-gate.
+
+**Open build-time questions:** down-projection fusion (same kernel family?) vs
+keep-per-token initially; parameterized single-family vs a new `_m2` kernel (prefer
+parameterized for reduction identity); confirm per-expert tensor layout
+(gate/up/down large point divergences). The fidelity gate resolves the layout/
+numerics question empirically.
+
+### 2026-07-13 — diagnose-divergence (empirical map): routed IQ2XXS experts confirmed; attention is the larger per-output divergence
+
+Built a stage-level divergence harness via a minimal dump-path tag in the dist-probe
+(`ds4_metal_dump_path_tag`, ~10 lines in ds4.c: tags dumps `b_` around
+`verify_suffix_tops` and `s_` around the sequential `eval_token_raw_swa_top` loop).
+Ran `code_topk` (DS4_DSPARK_VERIFY_DIST_PROBE=1, layer 40, pos 61 = cycle 2 where both
+paths ran from identical committed state). Artifact:
+`artifacts/lead08_stage_divergence/stage_divergence_map.json` (+ `dumps/`).
+
+Findings: **expert selection (topk) IDENTICAL** batch-vs-seq for token 0 (no router
+selection divergence). Reliable per-stage max_abs: attention/hidden (KVcur 0.125,
+hc_attn_pre 0.086, attn_out 0.064) > FFN output (ffn_out 0.019, ffn_moe_out 0.018,
+ffn_shexp 0.014, router logits 0.023). Expert-internal (gate/up/down) show large point
+divergences (6.7–331) — the IQ2XXS matmul divergence amplified through the down
+projection (per-expert layout to confirm at build). Per-stage TVs (0.0003–0.004) are
+**consistent with the known final-logit TV ~0.0035** → sanity-check PASS.
+
+**Chosen fusion stage: routed IQ2XXS experts** (highest cost, self-contained,
+thesis-central). Nuance recorded honestly: the routed-expert OUTPUT divergence is
+already small (0.018, summation cancellation), so the prototype's measurable
+contribution is primarily the verify_ms **cost saving** (shared dequant), not a
+final-TV reduction; the attention path is the larger per-output divergence and will
+need fusing too for full-path exactness (→ follow-up). Harness + tagging retained in
+the build for the routed-expert fidelity gate.
+
+### 2026-07-13 — diagnose-divergence (theoretical map): routed IQ2XXS experts chosen as the fusion stage; empirical harness next
+
+Read-only stage-level kernel map (decode `encode_decode_layer` vs batch
+`encode_layer_attention_batch`+`encode_layer_ffn_batch`), ranked by fusion value
+(cost × divergence). Comparable dump points exist in both paths for: `hc_attn_pre`,
+`attn_out`, `hc_ffn_pre`, `ffn_moe_logits/probs/weights_scaled` (router),
+`ffn_moe_weighted_swiglu` + `ffn_moe_down` + `ffn_moe_out` (routed expert),
+`ffn_shexp` (shared expert), `ffn_out`.
+
+| Stage | Decode kernel | Batch kernel | Diverges | Cost |
+|---|---|---|---|---|
+| hc_attn / hc_ffn projection | `matmul_plain_tensor` | `matmul_f16_tensor` | yes (plain vs f16) | low–mid |
+| Attention (MLA) | `decode_kv_store`+flash per-token | `encode_layer_attention_batch` | yes | mid |
+| Router | `matmul_plain`+`router_select` | `matmul_f16`+`router_select_batch` | yes (selection-critical) | low |
+| **Routed experts (IQ2XXS)** | **`routed_moe_one_tensor`** | **`routed_moe_batch_tensor`** | **yes (distinct kernels)** | **HIGHEST (~5 GiB sel / 72.56 full)** |
+| Shared expert (Q8_0) | `matmul_q8_0` (single) | `matmul_q8_0` (n_tokens) | maybe | mid |
+
+**Chosen fusion stage: the routed IQ2XXS experts.** Rationale: highest weight-load
+cost (the dominant bandwidth term) AND a distinct batched kernel
+(`routed_moe_batch` vs `routed_moe_one`) → highest fusion value (cost × divergence).
+It is also the marquee stage for the Lead 08 thesis and self-contained (input:
+`ffn_norm` hidden state + selected experts; output: `routed_out`). The single-stage
+prototype = `decode2_exact`'s exact per-token structure with the `routed_moe_one`
+call (×2) replaced by one bit-exact M=2 union-load kernel sharing the expert dequant.
+Empirical per-stage divergence (to confirm + quantify, and sanity-validate vs the
+known final TV ~0.0035) is the next step — harness design: compare decode vs batch
+intermediate tensors at the anchor position (identical inputs there) on `code_topk`.
+
+### 2026-07-12 — build-gate diagnostic: divergence is structural & spread across the layer; multi-backend surface
+
+Mapped the decode vs batch per-layer kernel sequences (read-only) to scope the fused
+N=2 work. **Decode path** (`metal_graph_encode_decode_layer`, ds4.c:15198) runs the
+M=1 sequence inline: rms_norm → `matmul_plain_tensor` (hc_attn) → hc_pre/comb →
+qkv norms → `decode_kv_store` → flash_attn → attn_out/hc_expand → rms_norm →
+`matmul_plain_tensor` (hc_ffn) → ffn hc_pre → router (`matmul_plain`) → routed IQ2XXS
+experts (`kernel_mul_mv_id_iq2_xxs_pair_swiglu_f32`, single-token) + shared Q8_0 expert.
+**Batch path** (`metal_graph_encode_layer_batch`, ds4.c:19647 → `attention_batch` 17699
++ `ffn_batch` 19166) uses DIFFERENT primitives: `ds4_gpu_matmul_f16_tensor`,
+`ds4_gpu_router_select_batch_tensor`, `metal_graph_matmul_q8_0_named_tensor(...,n_tokens)`,
+batched routed-expert dispatch, with Metal/ROCm/CUDA branches + SSD readahead.
+
+Finding: the batch-vs-decode divergence is **structural and spread across the whole
+layer** (hc projections, attention QKV/out, router, shared expert, routed experts) — not
+concentrated in one kernel. decode2_exact (exact, linear, ~49.5 ms) uses the decode
+kernels ×2; verify_suffix_tops (sublinear, ~27.3 ms, not exact) uses the batch kernels.
+The fused N=2 target = batch's weight-sharing cost (~27–30 ms) + decode's bit-exact
+reductions, i.e. M=2 variants matching the M=1 reduction across ALL stages. This is a
+multi-week Metal/ROCm/CUDA engineering effort on a large production engine; pinning the
+exact divergence source to design the minimal fusion needs either deeper kernel-reduction
+reading or a stage-level measurement. **Paused to align on slicing** (diagnostic/design
+vs single-stage prototype vs full multi-session commit) — see pause note.
+
+### 2026-07-12 — lock-exactness: strategy A (bit-exact fused kernel by construction) chosen; margin-guard deferred
+
+Locked the exactness strategy for the N=2 milestone BEFORE any kernel build.
+
+**Chosen: strategy A — single-family fused kernel, bit-exact by construction.** The
+fused M=2 kernel uses the identical dequant + GEMM reduction as the M=1 decode path
+(same FP accumulation order per row), so per-row logits are bit-identical to decode →
+argmax never flips → exact greedy AND distribution-exact. **Fidelity-gate target:
+`max_abs_logit_diff = 0` and token-for-token greedy match vs the decode path.**
+
+**Deferred: strategy B (margin-guarded fallback) — NOT used for N=2.** Empirical basis
+(from `artifacts/rejection_acceptance/verify_dist_probe_exactness.jsonl`, 156 positions,
+90 probed cycles): flip rate 0.641% (1/156), median TV 0.0035 — but the logit-space
+divergence is large: `max_abs_logit_diff` median **0.28**, max **4.56**, and the single
+flip occurred at a cycle with divergence **1.75 logits**. A margin-guard safe enough to
+catch that flip would need threshold ≥ ~1.75 logits; since small top-2 margins are common
+(`conf_logits` shows ~0.29-logit top-2 gaps), it would re-verify a large fraction of
+positions → eating the gain. The artifact also lacks the per-position top-2 divergence
+needed to derive a tight threshold. Strategy B is revisitable only if the fused kernel
+proves unable to reach bit-exactness AND a later per-position top-2 measurement shows a
+tight margin-guard is viable.
+
+**Threshold reference (empirical):** the gate target is `max_abs_logit_diff = 0`. The
+current batched baseline (median 0.28 / max 4.56 divergence, 0.64% flip, median TV
+0.0035) is the divergence being eliminated. The doc's >5% re-verification abort applies
+if the fused kernel shows non-bit-exact residual divergence.
+
+### 2026-07-12 — Phase B orientation (read-only): assets verified, kernel surfaces located
+
+Read the lead + the Phase A canonical summary + the spec model it feeds. Verified all
+claimed assets exist: `./ds4-spec-bench` binary; `issue468/run_mtp_verifier_bench_long.py`;
+`artifacts/mtp_phaseA_profile/summary.json` (Phase A headroom, 19–22 ms/cycle);
+`artifacts/rejection_acceptance/verify_dist_probe_exactness.jsonl` (flip distribution,
+median TV 0.0035 / flip 0.64%); model GGUFs (target 86.7 GB IQ2XXS, drafter 11.5 GB).
+Machine clean (~88 GB free, no heavy proc); on `dspark-research` branch.
+
+Engine kernel surfaces located (file:line):
+- `metal_graph_verify_suffix_tops` — `ds4.c:21626` (batched, sublinear, NOT exact:
+dispatches `metal_graph_encode_layer_batch` → the `kernel_mul_mv_ext_q8_0_f32_r1_*`
+multi-token dense kernels + batched expert path).
+- `metal_graph_verify_decode2_exact` — `ds4.c:21808` (exact, LINEAR: runs
+`metal_graph_encode_decode_layer` ×2 in one command stream, one per token). Its own
+comment states the thesis: "the generic batch prefill path is fast, but…small row-wise
+differences in HC/MoE/output kernels are enough to flip future greedy tokens."
+- Decode path: `metal_graph_encode_decode_layer` (`ds4.c:15198`) → dense
+`kernel_mul_mv_q8_0_f32` (`metal/dense.metal:181`, M=1) + expert
+`kernel_mul_mv_id_iq2_xxs_pair_swiglu_f32` (`metal/moe.metal:1022`, single-token, N_R0=4);
+dequant `dequantize_iq2_xxs` (`metal/moe.metal:278`).
+- **Multi-token Q8_0 dense kernels already exist** — `kernel_mul_mv_ext_q8_0_f32_r1_2..5`
+(`metal/dense.metal:912–915`), using `dequantize_q8_0_t4`. So a fused dense N=2 may be
+partly present; the open question is whether the M=2 reduction is bit-identical to M=1.
+
+Key orientation findings: (1) a **known-good exact reference already exists** — the
+Lead 06 anchor-reuse path is bit-exact (greedy 10/10 byte-for-byte, temp>0
+`max_abs=0`), usable as the fidelity-gate reference. (2) The fused-N=2 challenge is
+*adding exactness to the batched cost level*, not reaching it — `verify_suffix_tops`
+already hits ~27.3 ms at K=2 (code_4k, near the ≤30 ms target) but flips greedy tokens.
+(3) **Discrepancy for the build task:** `metal_graph_encode_layer_batch` (`ds4.c:19647`)
+itself routes through `metal_graph_encode_decode_layer` in some branches (19723, 19787),
+so the batch/decode split is conditional — the exactness-divergence source must be pinned
+to the specific kernel/branch in the build task, not assumed. No new measurement started.
 
 ### 2026-07-12 — doc refreshed for Phase B launch
 

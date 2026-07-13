@@ -1,0 +1,42 @@
+{
+  "lead": "lead_08_fused_verify_kernel",
+  "task": "diagnose-divergence",
+  "date": "2026-07-13",
+  "method": "dist-probe (DS4_DSPARK_VERIFY_DIST_PROBE=1) with dump-path tagging (ds4_metal_dump_path_tag b_/s_ around batched verify_suffix_tops vs sequential eval_token_raw_swa_top). Compared batch row0 vs seq at layer 40, pos 61 (cycle 2 of code_topk; identical committed input state at that position -> per-stage kernel divergence, no upstream contamination). Metrics: max_abs over the stage tensor; TV on softmax-normalized values (comparable to the final-logit TV reference).",
+  "prompt": "code_topk",
+  "layer": 40,
+  "pos": 61,
+  "chosen_stage": "routed_iq2xxs_experts",
+  "chosen_stage_rationale": "Highest weight-load cost (dominant bandwidth term: ~5 GiB selected / 72.56 GiB full layer set) AND a distinct batched kernel (routed_moe_batch vs routed_moe_one) AND self-contained (input ffn_norm + selected experts -> routed_out) AND the marquee stage for the Lead 08 thesis. The single-stage prototype = decode2_exact per-token structure with routed_moe_one (x2) replaced by one bit-exact M=2 union-load kernel sharing the expert dequant.",
+  "expert_selection": {"batch_row0_topk": [186,104,22,105,195,202], "seq_topk": [186,104,22,105,195,202], "match": true, "note": "no router selection divergence at this position"},
+  "per_stage_divergence": [
+    {"stage":"ffn_moe_down","dim":24576,"max_abs":331.2,"tv":0.99996,"layout_note":"per-expert pre-sum (6x4096); large point divergence amplified through down projection; per-expert layout to confirm at build"},
+    {"stage":"ffn_moe_up_clamped","dim":12288,"max_abs":7.5526,"tv":0.50708,"layout_note":"per-expert; layout to confirm"},
+    {"stage":"ffn_moe_gate_clamped","dim":12288,"max_abs":6.7362,"tv":0.47611,"layout_note":"per-expert; layout to confirm"},
+    {"stage":"KVcur","dim":512,"max_abs":0.125,"tv":0.00212},
+    {"stage":"hc_attn_post","dim":16384,"max_abs":0.11317,"tv":0.00074},
+    {"stage":"hc_ffn_post","dim":16384,"max_abs":0.11223,"tv":0.00121},
+    {"stage":"hc_attn_pre","dim":4096,"max_abs":0.08602,"tv":0.00341},
+    {"stage":"hc_ffn_pre","dim":4096,"max_abs":0.07838,"tv":0.00392},
+    {"stage":"kqv_back","dim":32768,"max_abs":0.07296,"tv":0.00076},
+    {"stage":"kqv_out","dim":32768,"max_abs":0.07296,"tv":0.00074},
+    {"stage":"attn_out","dim":4096,"max_abs":0.06351,"tv":0.00350},
+    {"stage":"attn_low","dim":8192,"max_abs":0.04572,"tv":0.00169},
+    {"stage":"ffn_moe_weighted_swiglu","dim":12288,"max_abs":0.02996,"tv":0.00044},
+    {"stage":"KVnorm","dim":512,"max_abs":0.02330,"tv":0.00262},
+    {"stage":"ffn_moe_logits","dim":256,"max_abs":0.02323,"tv":0.00266},
+    {"stage":"ffn_out","dim":4096,"max_abs":0.01884,"tv":0.00191},
+    {"stage":"ffn_moe_out","dim":4096,"max_abs":0.01765,"tv":0.00176},
+    {"stage":"ffn_shexp","dim":4096,"max_abs":0.01430,"tv":0.00067},
+    {"stage":"ffn_norm","dim":4096,"max_abs":0.01413,"tv":0.00156},
+    {"stage":"attn_norm","dim":4096,"max_abs":0.00467,"tv":0.00037},
+    {"stage":"ffn_moe_probs","dim":256,"max_abs":0.00328,"tv":0.00031}
+  ],
+  "interpretation": {
+    "reliable_per_token_outputs": "Attention/hidden stages (KVcur 0.125, hc_attn_pre 0.086, attn_out 0.064) diverge MORE per-element than the FFN output stages (ffn_out 0.019, ffn_moe_out 0.018, ffn_shexp 0.014, router 0.023). The routed-expert OUTPUT (ffn_moe_out) is small due to summation cancellation across the 6 selected experts.",
+    "expert_internal": "gate_clamped/up_clamped/down show large point divergences (6.7-331), consistent with the IQ2XXS expert matmul (routed_moe_one vs routed_moe_batch) diverging and the down projection amplifying; per-expert tensor layout to be confirmed at build time (fidelity gate).",
+    "sanity_vs_final_tv": "Per-stage TVs (0.0003-0.004) and max_abs (0.005-0.13) at layer 40 are consistent with the known final-logit median TV ~0.0035 / max_abs median ~0.28 accumulating over 61 layers. SANITY-CHECK PASS.",
+    "prototype_implication": "Fusing the routed experts bit-exactly yields the largest verify_ms COST saving (biggest weight load) and proves the M=2 IQ2XXS fusion mechanism. Because the routed-expert OUTPUT divergence is already small (0.018), the prototype's measurable contribution is primarily the verify_ms cost saving, NOT a final-TV reduction; full-path exactness will also require fusing the attention path (larger per-output divergence) - that is the follow-up."
+  },
+  "dumps_dir": "issue468/artifacts/lead08_stage_divergence/dumps/"
+}

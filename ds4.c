@@ -11065,6 +11065,11 @@ static ds4_gpu_tensor *metal_graph_alloc_kv_cache_tensor(bool managed, uint64_t 
  * the command batch, so it is intentionally isolated here.
  */
 
+/* Optional path tag for distinguishing dump sources (e.g. batched vs sequential
+ * verify during the DS4_DSPARK_VERIFY_DIST_PROBE comparison). Empty by default so
+ * dump paths are unchanged when not in use. */
+static const char *ds4_metal_dump_path_tag = "";
+
 static bool metal_graph_debug_wants(const char *name, uint32_t il, uint32_t pos) {
     const char *prefix = getenv("DS4_METAL_GRAPH_DUMP_PREFIX");
     if (!prefix || !prefix[0]) return false;
@@ -11112,7 +11117,7 @@ static void metal_graph_debug_dump_tensor(
     float *buf = xmalloc((size_t)n_f32 * sizeof(buf[0]));
     if (ds4_gpu_tensor_read(t, 0, buf, n_f32 * sizeof(buf[0])) != 0) {
         char path[1024];
-        snprintf(path, sizeof(path), "%s_%s-%u_pos%u.bin", prefix, name, il, pos);
+        snprintf(path, sizeof(path), "%s_%s%s-%u_pos%u.bin", prefix, ds4_metal_dump_path_tag, name, il, pos);
         if (write_f32_binary_file(path, buf, n_f32)) {
             fprintf(stderr, "ds4: dumped %s layer %u pos %u to %s\n", name, il, pos, path);
         }
@@ -11143,7 +11148,7 @@ static void metal_graph_debug_dump_f16_tensor(
     if (ds4_gpu_tensor_read(t, 0, hbuf, n_f16 * sizeof(hbuf[0])) != 0) {
         for (uint64_t i = 0; i < n_f16; i++) fbuf[i] = f16_to_f32(hbuf[i]);
         char path[1024];
-        snprintf(path, sizeof(path), "%s_%s-%u_pos%u.bin", prefix, name, il, pos);
+        snprintf(path, sizeof(path), "%s_%s%s-%u_pos%u.bin", prefix, ds4_metal_dump_path_tag, name, il, pos);
         if (write_f32_binary_file(path, fbuf, n_f16)) {
             fprintf(stderr, "ds4: dumped %s layer %u pos %u to %s\n", name, il, pos, path);
         }
@@ -11173,7 +11178,7 @@ static void metal_graph_debug_dump_i32_tensor(
     int32_t *buf = xmalloc((size_t)n_i32 * sizeof(buf[0]));
     if (ds4_gpu_tensor_read(t, 0, buf, n_i32 * sizeof(buf[0])) != 0) {
         char path[1024];
-        snprintf(path, sizeof(path), "%s_%s-%u_pos%u.i32", prefix, name, il, pos);
+        snprintf(path, sizeof(path), "%s_%s%s-%u_pos%u.i32", prefix, ds4_metal_dump_path_tag, name, il, pos);
         FILE *fp = fopen(path, "wb");
         if (fp) {
             if (fwrite(buf, sizeof(buf[0]), (size_t)n_i32, fp) == (size_t)n_i32) {
@@ -28661,6 +28666,7 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
             bool dist_ok = have_df;
             if (dist_ok) {
                 for (int i = 0; i < verify_n; i++) token_vec_push(&s->checkpoint, drafts[i]);
+                ds4_metal_dump_path_tag = "b_";
                 const double batched_t0 = now_sec();
                 dist_ok = metal_graph_verify_suffix_tops(&s->graph, &e->model, &e->weights,
                                                          &s->checkpoint, dist_start, (uint32_t)verify_n,
@@ -28677,6 +28683,7 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
             s->dspark_last_cycle.verify_dist.present = true;
             s->dspark_last_cycle.verify_dist.batched_verify_ms = dist_batched_ms;
         }
+        ds4_metal_dump_path_tag = "s_";
         for (int i = 0; i < verify_n && n_accept < accepted_cap; i++) {
             if (target_top != drafts[i]) break;
             const double verify_decode_t0 = dspark_timing ? now_sec() : 0.0;
@@ -28704,6 +28711,7 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
             verified++;
             if (drafts[i] == eos_token) break;
         }
+        ds4_metal_dump_path_tag = "";
         double logits_read_ms = 0.0;
         if (verified > 0 && !logits_on_host) {
             const double logits_read_t0 = dspark_timing ? now_sec() : 0.0;

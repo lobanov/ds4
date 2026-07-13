@@ -227,6 +227,21 @@ Create a trustworthy active dossier that makes it easy to:
   `verify_ms(K) - floor_ms(K)` headroom at K=3..5 is roughly **19–22 ms/cycle**, above the
   lead's `~15 ms` proceed gate. Recommendation: **proceed to Phase B** if verifier
   acceleration remains in scope.
+- **Lead 08 Phase B characterization (2026-07-13): go/no-go verdict = HOLD/inconclusive
+  (codex-gated A+B).** Reframed Phase B from "build a single-stage fused kernel" to a
+  measurement-driven go/no-go before committing to multi-week kernel work.
+  `summaries/lead08_phaseB_floor_clearance_verdict.md`. **Robust:** the +20% gate clears at
+  **`verify_ms(4) ≤ 50.5 ms`**; decode effective bandwidth is **~410–450 GB/s** (resolved
+  from byte data — the "300 GB/s" assertion was conservative); the K=4 verify floor at
+  decode bandwidth is **~39 ms → 1.44× (clears)**; the ~21 ms headroom is GPU
+  `layer_execute` bandwidth inefficiency, not host overhead. **Corrected (the draft
+  overclaimed):** the divergence is NOT F16-vs-F32 (decode uses F16 too) — it is
+  reduction/path/order; the gate/up large divergences are real (not a layout artifact);
+  pos-61 is not clean-input. **Verdict: do NOT commit to the novel-kernel build.** The one
+  decisive test (gate B): profile a **bit-exact K=4 verifier** (likely via batch-path
+  HC/compressor/attention kernel-selection swaps, NOT novel IQ2_XXS kernels) — `≤ 50.5 ms`
+  → GO, else NO-GO. Artifacts + reviews under `issue468/artifacts/lead08_stage_divergence/`
+  and `issue468/artifacts/dspark_codex_reviews/2026-07-13_*`.
 - **Current DSpark runtime path is correctness-gated and benchmarkable, but the
   cleaned-up semantic path is weaker than the previous provisional runtime headline
   and now points first at verifier/state-update economics, not a simple “GPU drafter
