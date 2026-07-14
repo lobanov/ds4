@@ -204,6 +204,17 @@ complete + valid. The gap is non-fatal during generation — present in the ds4-
 ~0.9× plain on exactness, ~0.73× on 8k. The +20% over plain is NOT reachable with levers 2+3 alone — the verify is the bottleneck
 (Lead 08 territory). Lever 2 is a real win over the DSpark-batched baseline (+10.5%) + score-neutral on the gate.
 
+### 2026-07-14 — lever 3 BREAKTHROUGH: Metal drafter ENGAGES (draft=6.9ms vs CPU 45ms) but drafts are WRONG (parity issue)
+
+**Fixed the hidden-flow + the dspark model registration — the Metal drafter now ENGAGES** (committed `2005696`):
+- **The capture** (`metal_graph_capture_dspark_metal_main_hidden`): ported the PR's `metal_graph_capture_dspark_main_hidden` — a `ds4_gpu_hc_weighted_sum_tensor` (hc→embd via `dspark_mean_weights`) for the 3 target layers (40/41/42). Wired into `metal_graph_encode_token_raw_swa` (the anchor decode, after the cur_hc swap — uses `cur_hc` = the post-FFN hc), NOT the verify (the PR captures in the anchor decode, not the batched verify).
+- **The dspark model registration**: the `ds4_gpu_wrap_model_range` (the matmul's weight lookup) only finds registered `g_model_views` — the dspark model wasn't registered (only the target). Fixed: exposed `ds4_gpu_add_model_view_range` + called it for the dspark model after `model_open` (coexisting with the target's views, no clear) + `ds4_gpu_init()` before it (the device wasn't init at the engine-init stage → `maxBufferLength=0`).
+- **Anchor-reuse disabled when Metal is on**: the Metal drafter needs the anchor decode (the capture), but the anchor-reuse skips it (chicken-and-egg). So `anchor_reuse = ... && !dspark_draft_metal_enabled()`.
+
+**Result (smoke, short prompt):** the Metal drafter ENGAGES — `drafted=4.25`, **`draft=6.9 ms`** (vs the CPU's ~45 ms — the lever-3 draft reduction is real!), `cycles=12` (multiple tokens/cycle). BUT `verified=1` (low acceptance) → **the drafts are WRONG** (the Metal drafter's output doesn't match the target). The t/s=17.4 (low — the wrong drafts → rejections → the verify overhead).
+
+**Next (the parity debugging):** the Metal drafter produces wrong drafts. The likely cause is in the capture (the hc→embd reduction, the timing), the main_proj matmul, the drafter's forward (the noncausal attention, the KV cache), the output-head, OR the markov bias. The drafter parity gate (draft-token + conf-logit vs the CPU reference, one-time) is the check. Need a focused comparison: run the Metal + the CPU drafter on the same input + diff the drafts.
+
 ### 2026-07-14 — lever 3 (GPU drafter) PORT + WIRE done; runs but FAILS at input_stage (hidden-flow gap)
 
 **Ported + wired (builds clean, the branch fires):**
