@@ -204,6 +204,23 @@ complete + valid. The gap is non-fatal during generation — present in the ds4-
 ~0.9× plain on exactness, ~0.73× on 8k. The +20% over plain is NOT reachable with levers 2+3 alone — the verify is the bottleneck
 (Lead 08 territory). Lever 2 is a real win over the DSpark-batched baseline (+10.5%) + score-neutral on the gate.
 
+### 2026-07-14 — lever 3 BREAKTHROUGH: the commit lifecycle WIRED — the Metal drafter now produces CORRECT drafts (verified>0, full-accept observed)
+
+**Root cause found + fixed**: the Metal drafter's drafts were wrong because the **commit lifecycle was missing** — `dspark_n_real` stayed 0 every cycle, so the drafter's KV cache (`dspark_kv_cache`) never accumulated the committed tokens' context. The drafter was predicting from only the current anchor's `main_x` (1 KV row), not the full prior context. The codex's claim that "the first draft should work with n_real=0" was too optimistic — the MTP drafter NEEDS the accumulated KV context.
+
+**The fix (3 pieces, all ported faithfully from PR #502):**
+1. **The batch capture** (`metal_graph_capture_dspark_batch_main_hidden`, ported): during the batched verify, reduce the target's per-position post-FFN hc (layers 40/41/42) → `dspark_verify_hidden` (embd, per position) via the `dspark_mean_weights`. Wired next to the existing `dspark_batch_capture_hc` capture, gated on `DS4_DSPARK_DRAFT_METAL`.
+2. **The GPU fast-commit** (`metal_graph_dspark_refresh_verified_rows`, was ported but UNUSED — now wired): on the batched-verify commit (full-accept + partial-accept), project `dspark_verify_hidden` → the drafter's `dspark_kv_cache` at rows `base_real+1..base_real+verified` (row0=`base_real+1`, pos0=`bstart` for the rope, n_tokens=`verified`).
+3. **The n_real advance** (the `KEEP_ACCEPTED` macro, ported): `dspark_n_real = base_real + 1 + verified` (the anchor + the committed drafts), wrapped at `DS4_N_SWA`. **Crucially, the anchor is always committed (decoded standalone), so n_real advances by 1 even when verified=0** — this breaks the cold-start trap where verified=0 left n_real stuck at 0 (no accumulated context).
+
+**Verification (parity probe, `DS4_DSPARK_DRAFT_PARITY=1`):** `base_real` now advances every cycle (0→1→2→3→7→8→14→15→17→22). The first-draft accuracy improved from ~40% (stuck at base_real=0) to ~50% with context accumulating; cycle 6 got a **full accept (verified=5)**. The Metal drafter's acceptance (14 drafts/10 cycles) matches the CPU drafter's (15/9) — confirming the ~50% first-draft accuracy is the expected MTP accuracy, NOT a bug. When the first draft is right, the continuation is good (verified=2-5).
+
+**The cold-start caveat**: the first few cycles (base_real=0, no prior context) still have low accuracy (~25-40%) — the MTP drafter needs a few cycles to accumulate context. This is expected (the PR has the same cold-start). Once the n_real advances, the accuracy stabilizes at ~50-60%.
+
+**Throughput (smoke, short prompt)**: ~20 t/s (slower than plain 35.5 t/s) — the draft reduction (45→7.8 ms) is real, but the verify dominates (65 ms when rejected, 140 ms when accepted), AND the Metal drafter uses a fixed verify_n=5 (no STS — it doesn't set `dspark_conf_logits`). The CPU drafter's STS adapts the verify_n (1-5), so it's more efficient. The STS composition for the Metal drafter is a follow-up (out of scope for this goal).
+
+**Status**: the Metal drafter is FUNCTIONALLY CORRECT (the drafts are right, the commit lifecycle works, the acceptance matches the CPU). Next: the 20-question no-regression gate → codex gate A → the large-corpus bench → codex gate B.
+
 ### 2026-07-14 — lever 3 parity CODEX review: empty KV (dspark_n_real=0) + pos off-by-one (fixed, didn't help) + the commit lifecycle missing
 
 **Codex review** (gpt-5.5 xhigh, report at `dspark_codex_reviews/2026-07-14_gpt55_xhigh_lever3_parity_codex.md`):

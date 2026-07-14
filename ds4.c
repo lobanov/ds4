@@ -17421,6 +17421,8 @@ static uint32_t metal_graph_token_split_after_layers(void) {
 /* Encode a full single-token decode step on Metal.  This is the generation
  * hot path: update caches, run all layers, then produce logits. */
 static bool metal_graph_capture_dspark_metal_main_hidden(ds4_gpu_graph *g, uint32_t il);
+static bool metal_graph_capture_dspark_batch_main_hidden(ds4_gpu_graph *g, uint32_t il, uint32_t n_tokens);
+static bool dspark_draft_metal_enabled(void);
 
 static bool metal_graph_encode_token_raw_swa(
         ds4_gpu_graph *g,
@@ -19774,6 +19776,11 @@ static bool metal_graph_encode_layer_batch(
                                      g->batch_cur_hc, 0,
                                      (uint64_t)n_tokens * hc_dim * sizeof(float)) != 0;
         }
+        /* m3 lever 3: when the Metal drafter is on, also reduce the per-position hc
+         * into dspark_verify_hidden (embd) for the GPU fast-commit (refresh_verified_rows). */
+        if (ok && dspark_draft_metal_enabled()) {
+            ok = metal_graph_capture_dspark_batch_main_hidden(g, il, n_tokens);
+        }
     }
     return ok;
 }
@@ -21753,6 +21760,48 @@ static bool metal_graph_capture_dspark_metal_main_hidden(ds4_gpu_graph *g, uint3
                                                    DS4_N_HC) != 0;
     ds4_gpu_tensor_free(dst);
     return ok;
+}
+
+/* m3 lever 3: batch capture — reduce the verify's per-position post-FFN hc
+ * (layers 40/41/42) into dspark_verify_hidden (embd, per position) so the
+ * GPU fast-commit (metal_graph_dspark_refresh_verified_rows) can project the
+ * committed tokens' hiddens into the drafter's KV. Ported from PR #502. */
+static bool metal_graph_capture_dspark_batch_main_hidden(ds4_gpu_graph *g,
+                                                         uint32_t il,
+                                                         uint32_t n_tokens) {
+    if (!g || !g->dspark_enabled) return true;
+    if (!g->batch_cur_hc || !g->dspark_verify_hidden || !g->dspark_mean_weights ||
+        n_tokens == 0 || n_tokens > DS4_DSPARK_BLOCK) {
+        return false;
+    }
+    const uint32_t target_ids[DS4_DSPARK_STAGES] = { 40u, 41u, 42u };
+    const uint64_t hc_dim = (uint64_t)DS4_N_HC * DS4_N_EMBD;
+    const uint64_t hidden_row_bytes =
+        (uint64_t)DS4_DSPARK_STAGES * DS4_N_EMBD * sizeof(float);
+    const uint64_t stage_bytes = (uint64_t)DS4_N_EMBD * sizeof(float);
+    for (uint32_t s = 0; s < DS4_DSPARK_STAGES; s++) {
+        if (target_ids[s] != il) continue;
+        for (uint32_t row = 0; row < n_tokens; row++) {
+            ds4_gpu_tensor *src = ds4_gpu_tensor_view(
+                    g->batch_cur_hc,
+                    (uint64_t)row * hc_dim * sizeof(float),
+                    hc_dim * sizeof(float));
+            ds4_gpu_tensor *dst = ds4_gpu_tensor_view(
+                    g->dspark_verify_hidden,
+                    (uint64_t)row * hidden_row_bytes + (uint64_t)s * stage_bytes,
+                    stage_bytes);
+            const bool ok = src && dst &&
+                            ds4_gpu_hc_weighted_sum_tensor(dst,
+                                                           src,
+                                                           g->dspark_mean_weights,
+                                                           DS4_N_EMBD,
+                                                           DS4_N_HC) != 0;
+            ds4_gpu_tensor_free(dst);
+            ds4_gpu_tensor_free(src);
+            if (!ok) return false;
+        }
+    }
+    return true;
 }
 
 static bool metal_graph_verify_suffix_tops(
@@ -29626,6 +29675,9 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
         int verify_n = draft_n;
         if (draft_eval_n < 0) draft_eval_n = 0;
         if (draft_eval_n > (int)DS4_DSPARK_BLOCK - anchor_off) draft_eval_n = (int)DS4_DSPARK_BLOCK - anchor_off;
+        uint32_t metal_base_real = 0;
+        bool metal_drafted = false;
+        bool metal_refresh_done = false;
         const bool draft_metal = dspark_draft_metal_enabled() && draft_eval_n > 0;
         if (draft_metal) {
             int metal_draft_n = draft_eval_n;
@@ -29639,6 +29691,15 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
                 return n_accept;
             }
             draft_eval_n = metal_draft_n;
+            metal_base_real = base_real;
+            metal_drafted = true;
+            if (getenv("DS4_DSPARK_DRAFT_PARITY")) {
+                const int tgt_next = sample_argmax(s->logits, DS4_N_VOCAB);
+                fprintf(stderr, "ds4: dspark-metal-parity base_real=%u draft0=%d target_next=%d match=%d drafts=[",
+                        base_real, drafts[anchor_off], tgt_next, drafts[anchor_off] == tgt_next);
+                for (int i = 0; i < metal_draft_n && i < 8; i++) fprintf(stderr, "%d%s", drafts[anchor_off + i], i + 1 < metal_draft_n && i + 1 < 8 ? "," : "");
+                fprintf(stderr, "]\n");
+            }
         } else if (batched_scheduled_draft && draft_eval_n > 0) {
             int cont_eval_n = dspark_schedule_batch_limit(draft_eval_n);
             s->dspark_last_cycle.schedule_batch_limit = cont_eval_n;
@@ -29862,6 +29923,25 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
                 snprintf(err, errlen, "%s batched verify commit failed", ds4_backend_name(e->backend));
                 return -1;
             }
+            /* m3 lever 3: GPU fast-commit — project the verified drafts' hiddens
+             * (captured in dspark_verify_hidden during the batch verify) into the
+             * drafter's KV (dspark_kv_cache) so the next cycle's drafts have the
+             * accumulated context. Advances dspark_n_real past the anchor + the
+             * committed drafts. Mirrors the PR #502 refresh_verified_rows + the
+             * KEEP_ACCEPTED macro. */
+            if (metal_drafted && batched_committed && verified > 0) {
+                if (!metal_graph_dspark_refresh_verified_rows(&s->graph,
+                                                               &e->dspark_model,
+                                                               &e->dspark_weights,
+                                                               metal_base_real + 1u,
+                                                               bstart,
+                                                               (uint32_t)verified)) {
+                    /* non-fatal: the drafter's KV stays stale; the next cycle degrades */
+                    if (dspark_log) fprintf(stderr, "ds4: dspark-metal refresh_verified_rows failed\n");
+                } else {
+                    metal_refresh_done = true;
+                }
+            }
         }
         if (!batched_committed) {
         ds4_metal_dump_path_tag = "s_";
@@ -29991,6 +30071,17 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
                     push_verify_ms,
                     verify_decode_ms,
                     logits_read_ms);
+        }
+        /* m3 lever 3: advance the drafter's KV context (dspark_n_real) past the
+         * anchor (+ the committed drafts if the GPU fast-commit persisted them).
+         * The anchor is always committed (decoded standalone), so n_real always
+         * advances by 1 — this breaks the cold-start trap where verified=0 left
+         * n_real stuck at 0 (no accumulated context). Wraps at DS4_N_SWA. */
+        if (metal_drafted) {
+            uint32_t keep = metal_refresh_done
+                ? metal_base_real + 1u + (uint32_t)verified
+                : metal_base_real + 1u;
+            s->graph.dspark_n_real = (keep >= DS4_N_SWA) ? 0u : keep;
         }
         s->dspark_last_cycle.verified = verified;
         s->dspark_last_cycle.accepted = n_accept;
