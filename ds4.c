@@ -10602,6 +10602,7 @@ typedef struct {
     uint32_t spec_prefix_n_comp[DS4_DSPARK_BLOCK][DS4_MAX_LAYER];
     uint32_t spec_prefix_n_index_comp[DS4_DSPARK_BLOCK][DS4_MAX_LAYER];
     bool spec_capture_prefix;
+    bool spec_prefix_capture_valid;
     uint32_t raw_cap;
     /* Maximum compressed-row capacity across layers.  Shared work buffers use
      * this worst-case size because ratio-4 indexer layers can still reach it. */
@@ -18289,6 +18290,7 @@ static bool metal_graph_encode_layer_attention_batch(
         } else {
             const bool aligned_chunk = (pos0 % ratio) == 0u && (n_tokens % ratio) == 0u;
             if (aligned_chunk) {
+                g->spec_prefix_capture_valid = false;  /* m3: aligned path skips prefix capture — slots stale */
                 const uint32_t comp_before = g->layer_n_comp[il];
                 const uint32_t comp_chunk = n_tokens / ratio;
                 if (comp_before + comp_chunk > g->layer_comp_cap[il]) {
@@ -18606,6 +18608,7 @@ static bool metal_graph_encode_layer_attention_batch(
             } else {
                 const bool aligned_chunk = (pos0 % ratio) == 0u && (n_tokens % ratio) == 0u;
                 if (aligned_chunk) {
+                    g->spec_prefix_capture_valid = false;
                     const uint32_t index_before = g->layer_n_index_comp[il];
                     const uint32_t index_chunk = n_tokens / ratio;
                     if (index_before + index_chunk > g->layer_comp_cap[il]) {
@@ -21752,6 +21755,7 @@ static bool metal_graph_verify_suffix_tops(
             s_prefix_checkpoint = (pc && strcmp(pc, "0") && strcasecmp(pc, "off")) ? 1 : 0;
         }
         g->spec_capture_prefix = (n_tokens >= 2) && s_prefix_checkpoint;
+        g->spec_prefix_capture_valid = g->spec_capture_prefix;
     }
 
     ok = ds4_gpu_begin_commands() != 0;
@@ -28994,7 +28998,7 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
                         verified++;
                         target_top = sample_argmax(s->logits, DS4_N_VOCAB);
                         batched_committed = true;
-                    } else if (dspark_prefix_checkpoint_enabled() && commit_n >= 1 && commit_n < verify_n &&
+                    } else if (dspark_prefix_checkpoint_enabled() && s->graph.spec_prefix_capture_valid && commit_n >= 1 && commit_n < verify_n &&
                                spec_frontier_commit_prefix(s, commit_n, verify_n) &&
                                metal_graph_read_spec_logits_row(&s->graph, (uint32_t)(commit_n - 1), s->logits)) {
                         /* m3 verifier-improvements: prefix-checkpoint commit — restore the prefix attention
