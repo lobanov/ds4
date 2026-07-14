@@ -1,0 +1,1 @@
+ (where $e$ is the eccentricity of the vertical load and $h$ is the thickness of the member). The cross-section of the member is shown in the figure below. The cross-section area $A=0.2 \mathrm{~m}^{2}$, the thickness $h=0.2 \mathrm

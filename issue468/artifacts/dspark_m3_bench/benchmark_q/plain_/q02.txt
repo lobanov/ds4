@@ -1,0 +1,6 @@
+_b$ is a perfect square.
+
+---
+**Step-by-Step Solution:**
+
+1. **Interpretation:** The notation $17_b$ means the number 17 in base $b$. This is $1 \cdot b + 7 = b + 7$. We need $b + 7$ to be a perfect

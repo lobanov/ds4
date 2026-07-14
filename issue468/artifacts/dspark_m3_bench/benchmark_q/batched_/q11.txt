@@ -1,0 +1,6 @@
+. The 9 members, in how many ways can they be seated at a round table so that two particular members must sit together?
+
+---
+We need to count the number of ways to seat 9 members around a round table, with the condition that two particular members must sit together.
+
+Interpretation: "two particular members

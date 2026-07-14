@@ -1,0 +1,1 @@
+ (where $e$ is the eccentricity of the vertical load and $h$ is the thickness of the member) and $h / h_{U}=0.9$ (where $h_{U}$ is the effective height). The member is subjected to vertical load and horizontal shear. The vertical load is in

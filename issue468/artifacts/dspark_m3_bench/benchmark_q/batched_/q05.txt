@@ -1,0 +1,3 @@
+$ lie on a circle, and $AD$, $BE$ and $CF$ are concurrent. Show that $AB$, $CD$ and $EF$ are concurrent (or parallel). (The converse is also true, but you do not have to prove it.)
+
+We need to prove: Given six points A,

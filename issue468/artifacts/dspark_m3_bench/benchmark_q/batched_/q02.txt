@@ -1,0 +1,6 @@
+_b$ is a perfect square.
+
+---
+**Step-by-Step Solution:**
+
+1. **Interpretation**: The notation $17_b$ means the number 17 interpreted in base $b$. That is, $17_b = 1 \cdot b + 7 = b + 7$. We need to find all integer

@@ -1,0 +1,1 @@
+ \vec{v} (so \gamma \approx 1), the Lorentz force gives a_parallel = 0, a_perp = (q/m)(\vec{v}_perp \times \vec{B}). For a uniform magnetic field, the motion is a helix (a circle in the plane perpendicular to B,

@@ -1,0 +1,1 @@
+$ are collinear in that order, and points $B, F, G$, and $C$ are collinear in that order. The line through $D$ parallel to $AC$ meets line $FG$ at $H$, and the line through $E$ parallel to $BC$ meets line $FG

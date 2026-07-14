@@ -1,0 +1,1 @@
+$ are collinear in that order, and points $B, F, G$, and $C$ are collinear in that order. $AD = 3, DE = 1, EB = 2, BF = 4, FG = 2, GC = 1$, and the area of $\

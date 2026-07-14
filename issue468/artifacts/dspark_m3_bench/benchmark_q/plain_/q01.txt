@@ -1,0 +1,1 @@
+ into hay cubes. The density of hay cubes is 0.2, and the density of hay powder is 0.1. The density of grass pellets is 0.5, and the density of grass powder is 0.1. The density of hay cubes is 0.2, and the density

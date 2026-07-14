@@ -1,0 +1,5 @@
+$ lie on a circle, and $AB, CD$ and $EF$ are diameters. The lines $AD, BE$ and $CF$ all intersect at the point $P$. Show that $P$ lies on the circle.
+
+---
+
+We need to show that point P (intersection of AD, BE,

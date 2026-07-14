@@ -1,0 +1,1 @@
+ of radius $a$ with its centre at a distance $d$ from the centre of the conductor ($d > a$). A point charge $q$ is placed inside the cavity at a distance $x$ from the centre of the conductor ($x < d$). Find the force exerted on the charge $q

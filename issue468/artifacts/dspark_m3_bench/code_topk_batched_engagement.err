@@ -1,0 +1,92 @@
+ds4: warming mapped tensor pages: 80.76 GiB
+ds4: warmed tensor pages in 4.290s (checksum=651939327)
+ds4: DSpark support model loaded: /Users/lobanov/Projects/ds4/gguf/dspark.gguf (draft=1)
+ds4: Metal device Apple M5 Max, 128.00 GiB RAM
+ds4: Metal 4 tensor API enabled for Tensor kernels
+ds4: drift-patch flags hc_stable=on norm_unify=on kv_raw_f32=off rope_exp2_log2=off math_safe=off tensor_matmul=on
+ds4: Metal model views created in 1.709 ms, residency requested in 306.384 ms, warmup 2.967 ms (mapped 82697.67 MiB from offset 5.09 MiB)
+ds4: Metal mapped mmaped model as 2 overlapping shared buffers
+ds4: metal backend initialized for graph diagnostics
+ds4: Metal model range 3.51..3.56 GiB is not covered by mapped model views
+ds4: Metal model range 3.51..3.56 GiB is not covered by mapped model views
+ds4: Metal model range 3.51..3.56 GiB is not covered by mapped model views
+ds4: Metal model range 3.51..3.56 GiB is not covered by mapped model views
+ds4: dspark timing drafted=3 verify=2 verified=2 decode=28.747 ms draft=309.110 ms verify=52.040 ms total=389.956 ms
+ds4: dspark timing detail pushes_init=2 pushes_verify=2 push_init=2.468 ms push_verify=1.373 ms verify_decode=0.000 ms logits_read=0.000 ms
+ds4: Metal model range 3.51..3.56 GiB is not covered by mapped model views
+ds4: Metal model range 3.51..3.56 GiB is not covered by mapped model views
+ds4: dspark timing drafted=2 verify=1 verified=1 decode=27.537 ms draft=132.168 ms verify=39.350 ms total=199.115 ms
+ds4: dspark timing detail pushes_init=1 pushes_verify=1 push_init=0.906 ms push_verify=0.864 ms verify_decode=0.000 ms logits_read=0.000 ms
+ds4: Metal model range 3.51..3.56 GiB is not covered by mapped model views
+ds4: Metal model range 3.51..3.56 GiB is not covered by mapped model views
+ds4: dspark timing drafted=3 verify=2 verified=1 decode=25.812 ms draft=137.328 ms verify=51.499 ms total=214.700 ms
+ds4: dspark timing detail pushes_init=1 pushes_verify=1 push_init=0.790 ms push_verify=0.781 ms verify_decode=0.000 ms logits_read=0.000 ms
+ds4: Metal model range 3.51..3.56 GiB is not covered by mapped model views
+ds4: Metal model range 3.51..3.56 GiB is not covered by mapped model views
+ds4: dspark timing drafted=2 verify=1 verified=1 decode=27.508 ms draft=98.850 ms verify=39.528 ms total=165.945 ms
+ds4: dspark timing detail pushes_init=1 pushes_verify=1 push_init=0.870 ms push_verify=0.758 ms verify_decode=0.000 ms logits_read=0.000 ms
+ds4: Metal model range 3.51..3.56 GiB is not covered by mapped model views
+ds4: dspark timing drafted=2 verify=1 verified=0 decode=25.862 ms draft=109.168 ms verify=37.942 ms total=173.032 ms
+ds4: dspark timing detail pushes_init=1 pushes_verify=0 push_init=0.825 ms push_verify=0.000 ms verify_decode=0.000 ms logits_read=0.000 ms
+ds4: Metal model range 3.51..3.56 GiB is not covered by mapped model views
+ds4: Metal model range 3.51..3.56 GiB is not covered by mapped model views
+ds4: Metal model range 3.51..3.56 GiB is not covered by mapped model views
+ds4: Metal model range 3.51..3.56 GiB is not covered by mapped model views
+ds4: dspark timing drafted=4 verify=3 verified=3 decode=26.268 ms draft=123.436 ms verify=59.786 ms total=209.550 ms
+ds4: dspark timing detail pushes_init=1 pushes_verify=3 push_init=1.272 ms push_verify=2.217 ms verify_decode=0.000 ms logits_read=0.000 ms
+ds4: Metal model range 3.51..3.56 GiB is not covered by mapped model views
+ds4: Metal model range 3.51..3.56 GiB is not covered by mapped model views
+ds4: Metal model range 3.51..3.56 GiB is not covered by mapped model views
+ds4: dspark timing drafted=3 verify=2 verified=2 decode=26.031 ms draft=131.123 ms verify=51.354 ms total=208.569 ms
+ds4: dspark timing detail pushes_init=1 pushes_verify=2 push_init=0.830 ms push_verify=1.562 ms verify_decode=0.000 ms logits_read=0.000 ms
+ds4: Metal model range 3.51..3.56 GiB is not covered by mapped model views
+ds4: dspark timing drafted=2 verify=1 verified=0 decode=25.831 ms draft=81.130 ms verify=36.307 ms total=143.328 ms
+ds4: dspark timing detail pushes_init=1 pushes_verify=0 push_init=0.817 ms push_verify=0.000 ms verify_decode=0.000 ms logits_read=0.000 ms
+ds4: Metal model range 3.51..3.56 GiB is not covered by mapped model views
+ds4: Metal model range 3.51..3.56 GiB is not covered by mapped model views
+ds4: Metal model range 3.51..3.56 GiB is not covered by mapped model views
+ds4: Metal model range 3.51..3.56 GiB is not covered by mapped model views
+ds4: dspark timing drafted=4 verify=3 verified=3 decode=26.126 ms draft=148.987 ms verify=61.999 ms total=237.171 ms
+ds4: dspark timing detail pushes_init=1 pushes_verify=3 push_init=0.799 ms push_verify=2.894 ms verify_decode=0.000 ms logits_read=0.000 ms
+ds4: Metal model range 3.51..3.56 GiB is not covered by mapped model views
+ds4: Metal model range 3.51..3.56 GiB is not covered by mapped model views
+ds4: Metal model range 3.51..3.56 GiB is not covered by mapped model views
+ds4: Metal model range 3.51..3.56 GiB is not covered by mapped model views
+ds4: Metal model range 3.51..3.56 GiB is not covered by mapped model views
+ds4: dspark timing drafted=5 verify=4 verified=4 decode=25.830 ms draft=236.607 ms verify=69.192 ms total=331.688 ms
+ds4: dspark timing detail pushes_init=1 pushes_verify=4 push_init=0.825 ms push_verify=2.992 ms verify_decode=0.000 ms logits_read=0.000 ms
+ds4: Metal model range 3.51..3.56 GiB is not covered by mapped model views
+ds4: Metal model range 3.51..3.56 GiB is not covered by mapped model views
+ds4: Metal model range 3.51..3.56 GiB is not covered by mapped model views
+ds4: Metal model range 3.51..3.56 GiB is not covered by mapped model views
+ds4: Metal model range 3.51..3.56 GiB is not covered by mapped model views
+ds4: dspark timing drafted=5 verify=4 verified=4 decode=27.930 ms draft=120.309 ms verify=72.099 ms total=220.399 ms
+ds4: dspark timing detail pushes_init=1 pushes_verify=4 push_init=1.333 ms push_verify=3.847 ms verify_decode=0.000 ms logits_read=0.000 ms
+ds4: Metal model range 3.51..3.56 GiB is not covered by mapped model views
+ds4: Metal model range 3.51..3.56 GiB is not covered by mapped model views
+ds4: Metal model range 3.51..3.56 GiB is not covered by mapped model views
+ds4: dspark timing drafted=3 verify=2 verified=2 decode=26.353 ms draft=62.814 ms verify=50.225 ms total=139.451 ms
+ds4: dspark timing detail pushes_init=1 pushes_verify=2 push_init=1.215 ms push_verify=1.520 ms verify_decode=0.000 ms logits_read=0.000 ms
+ds4: Metal model range 3.51..3.56 GiB is not covered by mapped model views
+ds4: Metal model range 3.51..3.56 GiB is not covered by mapped model views
+ds4: dspark timing drafted=4 verify=3 verified=1 decode=27.554 ms draft=109.093 ms verify=83.538 ms total=220.244 ms
+ds4: dspark timing detail pushes_init=1 pushes_verify=1 push_init=1.038 ms push_verify=0.829 ms verify_decode=0.000 ms logits_read=0.000 ms
+ds4: Metal model range 3.51..3.56 GiB is not covered by mapped model views
+ds4: Metal model range 3.51..3.56 GiB is not covered by mapped model views
+ds4: Metal model range 3.51..3.56 GiB is not covered by mapped model views
+ds4: Metal model range 3.51..3.56 GiB is not covered by mapped model views
+ds4: Metal model range 3.51..3.56 GiB is not covered by mapped model views
+ds4: Metal model range 3.51..3.56 GiB is not covered by mapped model views
+ds4: dspark timing drafted=5 verify=5 verified=5 decode=25.757 ms draft=96.890 ms verify=81.947 ms total=204.654 ms
+ds4: dspark timing detail pushes_init=1 pushes_verify=5 push_init=0.750 ms push_verify=4.009 ms verify_decode=0.000 ms logits_read=0.000 ms
+ds4: Metal model range 3.51..3.56 GiB is not covered by mapped model views
+ds4: dspark timing drafted=2 verify=1 verified=0 decode=27.656 ms draft=97.860 ms verify=39.095 ms total=164.681 ms
+ds4: dspark timing detail pushes_init=1 pushes_verify=0 push_init=0.888 ms push_verify=0.000 ms verify_decode=0.000 ms logits_read=0.000 ms
+ds4: Metal model range 3.51..3.56 GiB is not covered by mapped model views
+ds4: dspark timing drafted=2 verify=1 verified=0 decode=26.158 ms draft=44.225 ms verify=30.314 ms total=100.757 ms
+ds4: dspark timing detail pushes_init=1 pushes_verify=0 push_init=0.834 ms push_verify=0.000 ms verify_decode=0.000 ms logits_read=0.000 ms
+ds4: Metal model range 3.51..3.56 GiB is not covered by mapped model views
+ds4: Metal model range 3.51..3.56 GiB is not covered by mapped model views
+ds4: Metal model range 3.51..3.56 GiB is not covered by mapped model views
+ds4: dspark timing drafted=2 verify=2 verified=2 decode=26.010 ms draft=72.185 ms verify=51.086 ms total=149.340 ms
+ds4: dspark timing detail pushes_init=1 pushes_verify=2 push_init=0.825 ms push_verify=1.696 ms verify_decode=0.000 ms logits_read=0.000 ms

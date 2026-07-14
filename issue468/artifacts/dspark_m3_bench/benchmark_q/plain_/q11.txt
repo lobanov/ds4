@@ -1,0 +1,3 @@
+. The 9 members, in how many ways can they be arranged in a line so that the pitcher is not at the first place and the batter is not at the last place?
+
+Options: (A) 9! - 2*8! + 7! (B) 9! - 2

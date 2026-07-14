@@ -1,0 +1,5 @@
+, rest mass of each is 0, and mass of Pi is 140 MeV/c^2.
+
+The problem asks: "Find KE of product particles in, Pi(+) = mu(+) + nu here, rest mass of each is 0, and mass of Pi is 140 MeV/c^2."
+
+Interpretation

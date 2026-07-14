@@ -1,0 +1,1 @@
+ of instantaneous travel between their system and ours. They have sent a fleet of 10 identical spacecraft, each carrying a crew of 100, to explore our solar system. However, their navigation system suffers from a subtle flaw: each spacecraft has a \( 1 - 1/e \) probability of being lost in transit,
