@@ -29632,7 +29632,7 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
             uint32_t base_real = 0;
             if (!metal_graph_eval_dspark_draft_block(&s->graph, &e->model, &e->weights,
                                                      &e->dspark_model, &e->dspark_weights,
-                                                     first_token, (uint32_t)s->checkpoint.len,
+                                                     first_token, (uint32_t)(s->checkpoint.len > 0 ? s->checkpoint.len - 1 : 0),
                                                      (uint32_t)draft_eval_n, drafts + anchor_off,
                                                      &metal_draft_n, &base_real, NULL, NULL)) {
                 if (anchor_reuse) { if (ds4_session_eval(s, first_token, err, errlen) != 0) return -1; accepted[n_accept++] = first_token; return n_accept; }
