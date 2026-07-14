@@ -10745,6 +10745,16 @@ typedef struct {
     bool streaming_static_decode_map_current;
     bool mtp_enabled;
     bool dspark_enabled;
+    /* m3 lever 3: GPU drafter state (the Metal drafter port from PR #502).
+     * dspark_metal_main_hidden is the GPU 3-target-layer hidden (our CPU
+     * dspark_main_hidden is the capture/push buffer — kept separate to avoid the
+     * float* vs ds4_gpu_tensor* conflict). */
+    ds4_gpu_tensor *dspark_metal_main_hidden;
+    ds4_gpu_tensor *dspark_main_x;
+    ds4_gpu_tensor *dspark_verify_hidden;
+    ds4_gpu_tensor *dspark_verify_main_x;
+    ds4_gpu_tensor *dspark_kv_cache[DS4_DSPARK_STAGES];
+    uint32_t dspark_n_real;
     float *cpu_router_norm;
 } ds4_gpu_graph;
 
@@ -10845,6 +10855,11 @@ static void metal_graph_free(ds4_gpu_graph *g) {
         ds4_gpu_tensor_free(g->dspark_batch_capture_hc[i]);
     }
     ds4_gpu_tensor_free(g->dspark_stage_kv);
+    for (uint32_t s = 0; s < DS4_DSPARK_STAGES; s++) ds4_gpu_tensor_free(g->dspark_kv_cache[s]);
+    ds4_gpu_tensor_free(g->dspark_metal_main_hidden);
+    ds4_gpu_tensor_free(g->dspark_main_x);
+    ds4_gpu_tensor_free(g->dspark_verify_hidden);
+    ds4_gpu_tensor_free(g->dspark_verify_main_x);
     ds4_gpu_tensor_free(g->dspark_main_input);
     ds4_gpu_tensor_free(g->dspark_mean_weights);
     ds4_gpu_tensor_free(g->spec_logits);
@@ -11471,6 +11486,17 @@ static bool metal_graph_alloc_raw_cap(
         g->dspark_main_input = ds4_gpu_tensor_alloc((uint64_t)3u * DS4_N_EMBD * sizeof(float));
         g->dspark_mean_weights = ds4_gpu_tensor_alloc((uint64_t)DS4_N_HC * sizeof(float));
         g->dspark_stage_kv = ds4_gpu_tensor_alloc((uint64_t)3u * DS4_N_HEAD_DIM * sizeof(float));
+        /* m3 lever 3: GPU drafter state (the Metal drafter port from PR #502). */
+        g->dspark_metal_main_hidden = ds4_gpu_tensor_alloc((uint64_t)DS4_DSPARK_STAGES * DS4_N_EMBD * sizeof(float));
+        g->dspark_main_x = ds4_gpu_tensor_alloc((uint64_t)DS4_N_EMBD * sizeof(float));
+        g->dspark_verify_hidden = ds4_gpu_tensor_alloc((uint64_t)DS4_DSPARK_BLOCK * DS4_DSPARK_STAGES * DS4_N_EMBD * sizeof(float));
+        g->dspark_verify_main_x = ds4_gpu_tensor_alloc((uint64_t)DS4_DSPARK_BLOCK * DS4_N_EMBD * sizeof(float));
+        for (uint32_t s = 0; s < DS4_DSPARK_STAGES; s++) {
+            g->dspark_kv_cache[s] = metal_graph_alloc_kv_cache_tensor(
+                    managed_kv_cache,
+                    (uint64_t)(DS4_N_SWA + DS4_DSPARK_BLOCK) * DS4_N_HEAD_DIM * sizeof(float));
+        }
+        g->dspark_n_real = 0;
         g->dspark_capture_host = xmalloc((size_t)3 * hc_dim * sizeof(float));
         g->dspark_main_hidden = xmalloc((size_t)3 * DS4_N_EMBD * sizeof(float));
         g->dspark_main_hidden_valid = false;

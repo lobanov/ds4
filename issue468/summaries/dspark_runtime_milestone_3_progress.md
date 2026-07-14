@@ -204,6 +204,22 @@ complete + valid. The gap is non-fatal during generation — present in the ds4-
 ~0.9× plain on exactness, ~0.73× on 8k. The +20% over plain is NOT reachable with levers 2+3 alone — the verify is the bottleneck
 (Lead 08 territory). Lever 2 is a real win over the DSpark-batched baseline (+10.5%) + score-neutral on the gate.
 
+### 2026-07-14 — lever 3 (GPU drafter) ORIENTATION + graph extension done; port plan
+
+**Orientation (PR #502 `metal_graph_dspark_*`):** the Metal drafter is ~509 lines (`metal_graph_eval_dspark_draft_block` + `metal_graph_dspark_input_stage` + `metal_graph_dspark_encode_attention` + `metal_graph_dspark_refresh_main_rows`/`_verified_rows` + `metal_graph_encode_output_head_dspark_batch`) + it **reuses the existing Metal kernels** (the PR's `ds4_metal.m` has only 1 dspark ref — the drafter is built from `ds4_gpu_matmul_q8_0_tensor` / `ds4_gpu_rms_norm_weight_tensor` / `metal_graph_encode_layer_ffn_batch` / `metal_graph_upload_prompt_tokens`, all present in our branch). So **no new `ds4_metal.m` shaders** — the port is C-side.
+
+**Our branch already has** most deps: `metal_graph_upload_prompt_tokens`, `ds4_gpu_matmul_q8_0_tensor`, `metal_graph_encode_layer_ffn_batch`, + the GPU buffers `dspark_mean_weights` + `dspark_stage_kv` (partial prior state). **Missing graph buffers (ADDED this slice, builds clean):** `dspark_main_x`, `dspark_kv_cache[DS4_DSPARK_STAGES]`, `dspark_verify_hidden`, `dspark_verify_main_x`, `dspark_n_real`, + `dspark_metal_main_hidden` (GPU; our `dspark_main_hidden` is a CPU `float*` capture buffer — kept separate to avoid the type conflict). Struct + alloc + free wired. Committed (this slice).
+
+**Weights adaptation (our `ds4_dspark_weights` vs the PR's `ds4_mtp_weights`):** `mtp->stage[s]`→`dspark_weights.block[s]`; `mtp->main_proj`/`main_norm`/`norm`/`hc_head_*`→our fields (present); `mtp->dspark.block_size`→`DS4_DSPARK_BLOCK`; `mtp->dspark.n_mtp_layers`→`DS4_DSPARK_STAGES`; `mtp->dspark.noise_token_id`→a constant/lookup; `mtp->kind`→`DS4_MTP_DRAFT_DSPARK`. Mechanical.
+
+**Port plan (remaining):**
+1. Port the 6 `metal_graph_dspark_*` functions (adapted to `ds4_dspark_weights` + the `dspark_metal_main_hidden` rename) — ~509 lines.
+2. Wire into `ds4_session_eval_speculative_argmax`: env-gated `DS4_DSPARK_DRAFT_METAL` (off=CPU drafter, on=Metal drafter); the CPU drafter stays as the one-time parity reference.
+3. Drafter parity (draft-token + confidence-logit vs CPU, one-time) + 20-question no-regression gate.
+4. codex A → large-corpus bench (ds4-spec-bench) → codex B.
+
+**Projection:** the draft is **memory-bound** (`-t 8` vs `-t 14` flat) → the GPU drafter (shared unified memory) is marginal (~1.5–2× → draft 45→~25 ms). The full stack (reuse+prefix-checkpoint+Metal drafter) on 8k → ~39 t/s ≈ **1.1× of plain (+10%)** — the closest to +20%, but not there. On the short corpus, less (the verify dominates). refresh_verified_rows (the GPU fast-commit, replaces the CPU push) ports with lever 3 (it refreshes the drafter's GPU state).
+
 ### 2026-07-14 — verifier-improvements (prefix-checkpoint) IMPLEMENTED + codex gate A (stale-KV bug FIXED) + 20-Q gate EXACT match + large-corpus bench (+26.8% over reuse-alone; context-dependent vs plain)
 
 **Prefix-checkpoint implemented** (env `DS4_DSPARK_VERIFY_PREFIX_CHECKPOINT`, default-off): generalized our EXISTING prefix-1 infra (`spec_prefix1_attn_state_kv` + `metal_graph_capture_prefix1_attn_state` + `spec_frontier_commit_prefix1`, single slot for n_tokens==2) to `block_size-1` slots. New: multi-slot buffers (`spec_prefix_attn_state_kv`, slots×bytes) + `metal_graph_capture_prefix_attn_state(g,il,prefix_len)` (slot=prefix_len-1, a `ds4_gpu_tensor_copy` — no custom kernel) + `spec_frontier_commit_prefix(s,accepted,draft_n)` (slot=accepted-1) + the verify hook (capture all prefix_len during `metal_graph_encode_layer_attention_batch`) + the wiring (partial-accept uses `spec_frontier_commit_prefix` instead of the sequential replay, env-gated). Committed f631fcc.
