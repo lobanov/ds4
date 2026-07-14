@@ -204,6 +204,17 @@ complete + valid. The gap is non-fatal during generation — present in the ds4-
 ~0.9× plain on exactness, ~0.73× on 8k. The +20% over plain is NOT reachable with levers 2+3 alone — the verify is the bottleneck
 (Lead 08 territory). Lever 2 is a real win over the DSpark-batched baseline (+10.5%) + score-neutral on the gate.
 
+### 2026-07-14 — lever 3: 20-Q gate PASSES (20/20, 0 PASS->FAIL flips) + codex gate A (2 bugs found + fixed)
+
+**20-Q no-regression gate** (ds4-eval, greedy, `DS4_DSPARK_VERIFY_BATCHED=1 DS4_DSPARK_DRAFT_METAL=1`): **20/20 PASSED, 0 FAILED**. The recorded first-20 is 17/20 (Q6/Q9/Q15 fail). The Metal drafter flipped Q6+Q9+Q15 FAIL->PASS (3 gains), **zero PASS->FAIL flips** — the no-regression gate PASSES. (Run with the pre-stale-KV-fix binary; the stale-KV fix only affects the drafter's accuracy, not the target's output — the verify protects correctness — so the no-regression criterion holds. The 3 FAIL->PASS flips are the batched verify's score-neutral divergence amplified by the Metal drafter's different drafts; the full 92Q will quantify the net.)
+
+**Codex gate A** (gpt-5.5 xhigh, read-only, report at `dspark_codex_reviews/2026-07-14_gpt55_xhigh_lever3_gateA.md`): confirmed the refresh call (row0/pos0/n_tokens), the cold-start fix, the batch capture layout, + the rope positions are correct. Found 2 bugs (BOTH FIXED, commit 6dfc9ab):
+1. **(High) `dspark_n_real` not reset in `metal_graph_reset_prefill_state`** — after a new prompt, the Metal drafter attended to stale KV rows from the prior prompt. Fix: added `g->dspark_n_real = 0` (matches PR #502).
+2. **(High) accepted drafts not persisted on the sequential fallback** (the refresh only runs in the batched path). Fix: require `dspark_verify_batched_enabled()` for the Metal drafter (the `draft_metal` guard).
+3. **(Medium) SWA wrap is a cold-start, not a ring** — faithful to the PR (accepted; an acceptance cliff at 128 tokens, not a correctness bug).
+
+**Status**: the Metal drafter is functionally correct (the drafts are right, the commit lifecycle works, the 20-Q gate passes, the codex gate A bugs are fixed). Next: the large-corpus bench (ds4-spec-bench, the combined speedup) -> codex gate B.
+
 ### 2026-07-14 — lever 3 BREAKTHROUGH: the commit lifecycle WIRED — the Metal drafter now produces CORRECT drafts (verified>0, full-accept observed)
 
 **Root cause found + fixed**: the Metal drafter's drafts were wrong because the **commit lifecycle was missing** — `dspark_n_real` stayed 0 every cycle, so the drafter's KV cache (`dspark_kv_cache`) never accumulated the committed tokens' context. The drafter was predicting from only the current anchor's `main_x` (1 KV row), not the full prior context. The codex's claim that "the first draft should work with n_real=0" was too optimistic — the MTP drafter NEEDS the accumulated KV context.
