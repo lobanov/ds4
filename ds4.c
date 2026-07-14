@@ -28478,6 +28478,11 @@ static bool dspark_prefix_checkpoint_enabled(void) {
     return e && strcmp(e, "0") && strcasecmp(e, "off");
 }
 
+static bool dspark_draft_metal_enabled(void) {
+    const char *e = getenv("DS4_DSPARK_DRAFT_METAL");
+    return e && strcmp(e, "0") && strcasecmp(e, "off");
+}
+
 static float dspark_schedule_threshold(void) {
     float threshold = 0.08f;
     const char *thr_env = getenv("DS4_DSPARK_CONF_THRESHOLD");
@@ -29582,7 +29587,20 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
         int verify_n = draft_n;
         if (draft_eval_n < 0) draft_eval_n = 0;
         if (draft_eval_n > (int)DS4_DSPARK_BLOCK - anchor_off) draft_eval_n = (int)DS4_DSPARK_BLOCK - anchor_off;
-        if (batched_scheduled_draft && draft_eval_n > 0) {
+        const bool draft_metal = dspark_draft_metal_enabled() && draft_eval_n > 0;
+        if (draft_metal) {
+            int metal_draft_n = draft_eval_n;
+            uint32_t base_real = 0;
+            if (!metal_graph_eval_dspark_draft_block(&s->graph, &e->model, &e->weights,
+                                                     &e->dspark_model, &e->dspark_weights,
+                                                     first_token, (uint32_t)s->checkpoint.len,
+                                                     (uint32_t)draft_eval_n, drafts + anchor_off,
+                                                     &metal_draft_n, &base_real, NULL, NULL)) {
+                if (anchor_reuse) { if (ds4_session_eval(s, first_token, err, errlen) != 0) return -1; accepted[n_accept++] = first_token; return n_accept; }
+                return n_accept;
+            }
+            draft_eval_n = metal_draft_n;
+        } else if (batched_scheduled_draft && draft_eval_n > 0) {
             int cont_eval_n = dspark_schedule_batch_limit(draft_eval_n);
             s->dspark_last_cycle.schedule_batch_limit = cont_eval_n;
             if (!dspark_eval_draft_block_cpu_scheduled_batched(s, first_token, cont_eval_n, drafts + anchor_off)) {
@@ -29622,7 +29640,9 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
         for (int i = 0; i < draft_n && i < (int)DS4_DSPARK_BLOCK; i++) {
             s->dspark_last_cycle.conf_logits[i] = s->dspark_conf_logits ? s->dspark_conf_logits[i] : 0.0f;
         }
-        if (batched_scheduled_draft) {
+        if (draft_metal) {
+            verify_n = draft_eval_n + anchor_off;  /* Metal drafter: fixed verify_n (no STS; it doesn't set conf_logits) */
+        } else if (batched_scheduled_draft) {
             /* STS schedules over the continuation; the anchor (drafts[0]) is always
              * verified first, so add anchor_off to the scheduled continuation length. */
             verify_n = dspark_schedule_verify_len(s->dspark_conf_logits, draft_eval_n) + anchor_off;
