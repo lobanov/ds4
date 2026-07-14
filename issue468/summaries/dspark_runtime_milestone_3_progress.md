@@ -204,6 +204,28 @@ complete + valid. The gap is non-fatal during generation — present in the ds4-
 ~0.9× plain on exactness, ~0.73× on 8k. The +20% over plain is NOT reachable with levers 2+3 alone — the verify is the bottleneck
 (Lead 08 territory). Lever 2 is a real win over the DSpark-batched baseline (+10.5%) + score-neutral on the gate.
 
+### 2026-07-14 — GOAL TWEAK applied: add verifier-improvements lever (prefix-checkpoint) before lever 3; demote +20% to "report the actual"; large-corpus bench via ds4-spec-bench
+
+**Tweak:** added a **verifier-side-improvements** lever (port the PR #502 prefix-checkpoint), ordered **before** lever 3 (the Metal drafter). M3's focus reframed to **measuring actuals on the best-possible practical implementation + re-assessing other leads — NOT clearing the +20% gate** (the verify dominates on Apple Silicon; +20% likely needs Lead 08). Bench must use a **sufficiently large prompt corpus** (spec_speedup_model.md-comparable fidelity) via **ds4-spec-bench** (not ds4 loops). Post-measurement lead re-assessment (Lead 08 etc.) added to the final task. `--dspark-schedule-parity` dropped (drafter parity instead).
+
+**refresh_verified_rows is drafter-side (deferred to lever 3):** on reading `metal_graph_dspark_refresh_verified_rows` (PR ds4.c:20228) it delegates to `metal_graph_dspark_refresh_main_rows` with `g->dspark_verify_hidden`/`g->dspark_verify_main_x` + the **draft model** — so it refreshes the DRAFTER's GPU state, NOT the target verify. It's coupled to the Metal drafter (lever 3) + can't replace our CPU `dspark_session_push_batch_hidden` standalone (our drafter is CPU). **Confirmed with the user (goal_question):** verifier-improvements = prefix-checkpoint only (standalone); refresh_verified_rows ports with lever 3.
+
+**Verifier-improvements = the prefix-checkpoint — and our codebase ALREADY has the prefix-1 infra to generalize:**
+- `spec_prefix1_attn_state_kv[DS4_MAX_LAYER]` + `spec_prefix1_attn_state_score` + `spec_prefix1_index_state_{kv,score}` + `spec_prefix1_n_comp` + `spec_capture_prefix1` (ds4.c:10584-10593) — a SINGLE-slot prefix capture.
+- `metal_graph_capture_prefix1_attn_state(g, il)` (13547) — copies `layer_attn_state_kv[il]` into the single slot (a `ds4_gpu_tensor_copy`, NOT a custom kernel).
+- `spec_frontier_commit_prefix1(s)` (24775) — restores from the single slot.
+- Hooked in the verify only for `n_tokens == 2` (21690-21726).
+- The PR's prefix-checkpoint generalizes this to `block_size - 1` slots: `spec_prefix_attn_state_kv` (slots × layer_attn_state_bytes), `metal_graph_capture_prefix_attn_state(g, il, prefix_len)` (slot = prefix_len - 1), `spec_frontier_commit_prefix(s, accepted, draft_n)` (slot = accepted - 1), capture hooked for ALL prefix lengths during the verify.
+
+**Port plan (verifier-improvements = generalize prefix-1 → multi-slot prefix-checkpoint):**
+1. Graph struct: replace the single-slot `spec_prefix1_*` buffers with multi-slot `spec_prefix_*` (slots × bytes) + `spec_prefix_slots` + `spec_prefix_n_comp[slot][il]` + `spec_capture_prefix_tokens`. Alloc in the graph init.
+2. Capture: `metal_graph_capture_prefix_attn_state(g, il, prefix_len)` — `ds4_gpu_tensor_copy` into slot (prefix_len-1).
+3. Commit: `spec_frontier_commit_prefix(s, accepted, draft_n)` — restore from slot (accepted-1); replaces the general-partial sequential replay.
+4. Verify hook: capture for all prefix_len (1..n_tokens-1) during `metal_graph_verify_suffix_tops` (not just n_tokens==2).
+5. Wiring: in our committing batched verify, replace the general-partial replay (the `else if (spec_frontier_restore(...))` sequential replay branch) with `spec_frontier_commit_prefix(s, commit_n, verify_n)`. Keep the full-accept + prefix-1 paths.
+6. Env-gate (extend `DS4_DSPARK_VERIFY_PREFIX_CHECKPOINT` or similar); default-off.
+**Expected win:** ~12 ms (the partial-accept replay saved) on top of the 117 ms verify; stacks with the STS verify_n. Gate: 20-question no-regression (the commit path changes — verify parity vs the replay).
+
 ### 2026-07-14 — lever 3 VIABILITY FINDING: draft is MEMORY-BOUND; GPU forward port is marginal on Apple Silicon (shared unified memory); +20% needs Lead 08
 
 **Batched output-head (CPU, DS4_DSPARK_OUTPUT_BATCHED) implemented + benched — MINOR win (+1.3%):** replaced the `draft_n` separate `matvec_q8_0` output-head calls with one `matmul_q8_0_batch` (reads the ~917 MB output weights once). 8k reuse+OB: draft 45.2→42.1 ms, t/s 25.97→26.31 (+1.3%). **The output-head is only ~3-5 ms** — NOT the dominant cost. My earlier "output-head dominates" reasoning was WRONG.
