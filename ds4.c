@@ -20897,6 +20897,7 @@ static bool metal_graph_reset_prefill_state(ds4_gpu_graph *g) {
     memset(g->layer_n_comp, 0, sizeof(g->layer_n_comp));
     memset(g->layer_n_index_comp, 0, sizeof(g->layer_n_index_comp));
     g->mtp_n_raw = 0;
+    g->dspark_n_real = 0;  /* m3 lever 3: reset the Metal drafter's KV context on prefill reset (PR #502) — otherwise the drafter attends to stale rows from the prior prompt */
     for (uint32_t il = 0; il < DS4_N_LAYER; il++) {
         const uint32_t ratio = ds4_layer_compress_ratio(il);
         if (ratio == 0) continue;
@@ -29678,7 +29679,7 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
         uint32_t metal_base_real = 0;
         bool metal_drafted = false;
         bool metal_refresh_done = false;
-        const bool draft_metal = dspark_draft_metal_enabled() && draft_eval_n > 0;
+        const bool draft_metal = dspark_draft_metal_enabled() && dspark_verify_batched_enabled() && draft_eval_n > 0;
         if (draft_metal) {
             int metal_draft_n = draft_eval_n;
             uint32_t base_real = 0;
