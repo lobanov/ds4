@@ -17420,6 +17420,8 @@ static uint32_t metal_graph_token_split_after_layers(void) {
 
 /* Encode a full single-token decode step on Metal.  This is the generation
  * hot path: update caches, run all layers, then produce logits. */
+static bool metal_graph_capture_dspark_metal_main_hidden(ds4_gpu_graph *g, uint32_t il);
+
 static bool metal_graph_encode_token_raw_swa(
         ds4_gpu_graph *g,
         const ds4_model       *model,
@@ -17467,6 +17469,7 @@ static bool metal_graph_encode_token_raw_swa(
         ds4_gpu_tensor *tmp = g->cur_hc;
         g->cur_hc = g->after_ffn_hc;
         g->after_ffn_hc = tmp;
+        if (ok) ok = metal_graph_capture_dspark_metal_main_hidden(g, il);  /* m3 lever 3: fill dspark_metal_main_hidden for the Metal drafter (anchor decode) */
         if (ok && allow_split_flush && split_after_layers != 0 && il + 1u == split_after_layers) {
             ok = ds4_gpu_flush_commands() != 0;
         }
@@ -21729,6 +21732,29 @@ static bool metal_graph_prefill_chunked(
  * state.  It still reuses the existing batch layer kernels, so it is not yet
  * the final hand-written N=2/N=4 decode microbatch, but it exercises the right
  * verifier contract and removes the obvious diagnostic overheads first. */
+/* m3 lever 3: capture the target's post-FFN hidden (hc -> embd via dspark_mean_weights)
+ * for the 3 drafter target layers (40/41/42) into dspark_metal_main_hidden (GPU), so the
+ * Metal drafter's input_stage (main_proj) can consume it. Ported from PR #502
+ * metal_graph_capture_dspark_main_hidden (uses after_ffn_hc, the post-FFN hc). */
+static bool metal_graph_capture_dspark_metal_main_hidden(ds4_gpu_graph *g, uint32_t il) {
+    if (!g || !g->dspark_enabled) return true;
+    if (!g->cur_hc || !g->dspark_metal_main_hidden || !g->dspark_mean_weights) return false;
+    int s = (il == 40u) ? 0 : (il == 41u) ? 1 : (il == 42u) ? 2 : -1;
+    if (s < 0) return true;
+    ds4_gpu_tensor *dst = ds4_gpu_tensor_view(
+            g->dspark_metal_main_hidden,
+            (uint64_t)s * DS4_N_EMBD * sizeof(float),
+            (uint64_t)DS4_N_EMBD * sizeof(float));
+    const bool ok = dst &&
+                    ds4_gpu_hc_weighted_sum_tensor(dst,
+                                                   g->cur_hc,
+                                                   g->dspark_mean_weights,
+                                                   DS4_N_EMBD,
+                                                   DS4_N_HC) != 0;
+    ds4_gpu_tensor_free(dst);
+    return ok;
+}
+
 static bool metal_graph_verify_suffix_tops(
         ds4_gpu_graph *g,
         const ds4_model       *model,
@@ -26480,6 +26506,18 @@ int ds4_engine_open(ds4_engine **out, const ds4_engine_options *opt) {
         }
         model_open(&e->dspark_model, opt->dspark_path, graph_backend, true);
         dspark_weights_bind(&e->dspark_weights, &e->dspark_model);
+        {
+            if (!ds4_gpu_init()) { fprintf(stderr, "ds4: DSpark Metal device init failed\n"); }
+            /* m3 lever 3: register the dspark model as a Metal model view (coexisting
+             * with the target) so the GPU drafter's matmul (ds4_gpu_wrap_model_range)
+             * can find its weights. Adds views without clearing the target's. */
+            uint64_t dspark_mapped = 0;
+            if (!ds4_gpu_add_model_view_range(e->dspark_model.map, e->dspark_model.size,
+                                              0, e->dspark_model.size, 0, true, &dspark_mapped)) {
+                fprintf(stderr, "ds4: DSpark model Metal view registration failed (size=%llu)\n",
+                        (unsigned long long)e->dspark_model.size);
+            }
+        }
         e->dspark_ready = true;
         fprintf(stderr, "ds4: DSpark support model loaded: %s (draft=%d)\n",
                 opt->dspark_path,
@@ -29529,6 +29567,7 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
          * on (the fold is sublinear only there). Env-gated default-off. */
         const bool anchor_reuse =
             dspark_anchor_reuse_enabled() &&
+            !dspark_draft_metal_enabled() &&
             dspark_verify_batched_enabled() &&
             first_token != eos_token &&
             max_tokens > 1 &&

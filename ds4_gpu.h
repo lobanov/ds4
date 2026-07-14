@@ -635,6 +635,7 @@ int ds4_gpu_attention_decode_raw_batch_heads_noncausal_tensor(
         uint32_t                raw_start,
         uint32_t                n_head,
         uint32_t                head_dim);
+int ds4_gpu_add_model_view_range(const void *model_map, uint64_t model_size, uint64_t map_offset, uint64_t map_size, uint64_t max_tensor_bytes, bool use_default_view_cap, uint64_t *mapped_model_size_out);
 
 int ds4_gpu_attention_decode_mixed_batch_heads_tensor(
         ds4_gpu_tensor       *heads,

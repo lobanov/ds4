@@ -1452,7 +1452,7 @@ static int ds4_gpu_model_residency_request_views(void) {
     return 1;
 }
 
-static int ds4_gpu_add_model_view_range(
+int ds4_gpu_add_model_view_range(
         const void *model_map,
         uint64_t    model_size,
         uint64_t    map_offset,
