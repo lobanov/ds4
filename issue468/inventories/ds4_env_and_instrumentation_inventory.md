@@ -1,6 +1,6 @@
 # DS4 env-gated instrumentation and variation inventory
 
-Date: 2026-07-12. Scope: runtime environment variables read by `ds4.c` in the
+Date: 2026-07-14 (updated for milestone 3). Scope: runtime environment variables read by `ds4.c` in the
 main DS4 implementation. This inventory is meant to track two kinds of switches:
 
 1. **instrumentation / diagnostics** — profiling, tracing, dumps, debug replay,
@@ -220,6 +220,10 @@ meaning materially changes.
 | Variable | Class | Effect |
 |---|---|---|
 | `DS4_DSPARK_VERIFY_K` | variation | Forces a fixed verify length and disables adaptive scheduling when set to a non-negative value. |
+| `DS4_DSPARK_VERIFY_BATCHED` | variation | **M3 lever 1.** Enables the committing sublinear batched verify: the partial-accept commit uses the batched `verify_suffix_tops` rows + a captured-hidden push instead of the exact sequential replay. Divergent-but-score-neutral (NOT byte-exact; temp>0 TV~0.0104, net +4 on 92Q). Default-off. |
+| `DS4_DSPARK_ANCHOR_REUSE` | variation | **M3 lever 2.** When `first_token` is the greedy argmax of the current logits + batched verify is on, skip the standalone anchor decode + fold `first_token` into the batched verify as `drafts[0]` (continuation drafted from the stale DSpark window). Default-off; requires `DS4_DSPARK_VERIFY_BATCHED`. |
+| `DS4_DSPARK_OUTPUT_BATCHED` | variation | Replaces the drafter's `draft_n` separate output-head `matvec_q8_0` calls with one `matmul_q8_0_batch` (reads the ~917 MB target output weights once). Minor (~+1.3%); the output-head is only ~3-5 ms (the 3-stage forward dominates). Default-off. |
+| `DS4_DSPARK_VERIFY_PREFIX_CHECKPOINT` | variation | **M3 verifier-improvements.** Generalizes the prefix-1 capture to `block_size-1` slots, so a partial-accept commit restores the layer attention state from a captured slot instead of a sequential replay. A `spec_prefix_capture_valid` flag gates it (disabled for aligned ratio-4 cycles that skip capture -> falls to the replay, no stale KV). Default-off. |
 | `DS4_DSPARK_CONF_SCHEDULE` | variation | Enables or disables confidence-scheduled verification. |
 | `DS4_DSPARK_CONF_THRESHOLD` | variation | Sets the survival threshold used by DSpark scheduled verification. |
 | `DS4_DSPARK_SCHEDULE_BATCHED` | variation | Enables the experimental batched scheduled-drafter path. |
@@ -232,12 +236,24 @@ meaning materially changes.
 
 ## Inventory notes for current research
 
-- The milestone-2 DSpark migration work currently depends most directly on the
-  `DS4_DSPARK_*` family, `DS4_MTP_ANCHOR_REUSE`, and the `DS4_METAL_*`
-  graph/streaming diagnostics.
+- **Milestone 3** composes `DS4_DSPARK_VERIFY_BATCHED` (lever 1, the committing
+  batched verify) + `DS4_DSPARK_ANCHOR_REUSE` (lever 2) +
+  `DS4_DSPARK_VERIFY_PREFIX_CHECKPOINT` (verifier-improvements) on top of the
+  STS scheduled verify (`DS4_DSPARK_CONF_SCHEDULE` / `DS4_DSPARK_SCHEDULE_BATCHED`).
+  All three are env-gated default-off + divergent-but-score-neutral (the gate is
+  the ds4-eval score match, not byte-identity).
+- Measured (M5 Max, IQ2XXS, warm): the stack reaches **~0.97x of plain on long
+  contexts (8k)** but **~0.73x on short (300-prompt corpus)** - the verify +
+  draft overhead exceeds the amortization on short contexts (cheap decode).
+  The draft is **memory-bound** (`-t 8` vs `-t 14` flat) -> the GPU drafter port
+  (lever 3, `DS4_DSPARK_SCHEDULE_GPU_HEAD` lineage) is marginal on Apple Silicon's
+  shared unified memory. The +20% over plain is NOT reached on the general
+  corpus; the verify is the wall (Lead 08 territory).
 - `DS4_DSPARK_SCHEDULE_BATCHED`, `DS4_DSPARK_SCHEDULE_BATCH_N`, and
-  `DS4_DSPARK_SCHEDULE_GPU_HEAD` are still experimental execution-shape knobs
-  rather than validated production defaults.
+  `DS4_DSPARK_SCHEDULE_GPU_HEAD` remain experimental execution-shape knobs, not
+  production defaults. (`DS4_DSPARK_SCHEDULE_GPU_HEAD` is the prior GPU-head cut
+  line that failed schedule-parity; lever 3 will port the PR #502
+  `metal_graph_dspark_*` Metal drafter to replace the CPU drafter instead.)
 - The largest instrumentation surface in `ds4.c` today is the Metal streaming
   and graph-debug stack. That surface should be treated as part of the research
   harness, not only as production runtime configuration.
@@ -269,3 +285,23 @@ meaning materially changes.
 - **Environment:** `issue468/.venv` + `issue468/requirements.txt` (numpy, torch
   MPS, safetensors, pyarrow, tqdm, modal, huggingface-hub). Single consolidated
   analysis venv for the dossier; recreate from requirements.txt.
+
+## Retained milestone-3 analysis tooling
+
+- **ds4-eval engagement fix** (`ds4_eval.c`): `--dspark` now routes generation
+  through `ds4_session_eval_speculative_argmax` (previously `--dspark` only loaded
+  the drafter; generation used plain `ds4_session_eval`). Gated; the plain path is
+  unchanged. Required for the 20-question no-regression gate (the DSpark path must
+  engage).
+- **ds4-spec-bench token dump** (`DS4_BENCH_DUMP_TOKENS`, `ds4_spec_bench.c`):
+  when set to a directory, writes `<id>.ids` (token ids) + `<id>.txt` (decoded
+  text) per run, for committed-output divergence diffing.
+- **ds4-spec-bench large-corpus bench**: the bulk-config JSONL harness runs the
+  300-prompt corpus (Stage 2 + Lead 03 manifests) via ds4-spec-bench (NOT a `ds4`
+  loop) with per-cycle timing + bootstrap-CI aggregation, for spec_speedup_model.md-
+  comparable fidelity.
+- **dist-probe** (`DS4_DSPARK_VERIFY_DIST_PROBE`, above): the batched-vs-exact
+  distribution-divergence measurement (TV / argmax-flip / max-abs / KL).
+- **PR #502 worktree** at `/Users/lobanov/Projects/ds4-pr502` (branch `pr-502`,
+  fetched as `pull/502/head`): the Metal DSpark drafter port source for lever 3
+  (`metal_graph_dspark_*` + `ds4_metal.m` kernels + `metal_graph_dspark_refresh_verified_rows`).
