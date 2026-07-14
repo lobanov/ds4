@@ -204,6 +204,20 @@ complete + valid. The gap is non-fatal during generation — present in the ds4-
 ~0.9× plain on exactness, ~0.73× on 8k. The +20% over plain is NOT reachable with levers 2+3 alone — the verify is the bottleneck
 (Lead 08 territory). Lever 2 is a real win over the DSpark-batched baseline (+10.5%) + score-neutral on the gate.
 
+### 2026-07-14 — lever 3 parity CODEX review: empty KV (dspark_n_real=0) + pos off-by-one (fixed, didn't help) + the commit lifecycle missing
+
+**Codex review** (gpt-5.5 xhigh, report at `dspark_codex_reviews/2026-07-14_gpt55_xhigh_lever3_parity_codex.md`):
+- **H1 (empty KV) — SOUND**: `metal_graph_dspark_refresh_verified_rows`/`_current_row` have NO call sites; the PR calls them on commit + advances `graph.dspark_n_real`. Our port is missing the entire commit lifecycle.
+- **H2 (input path) — likely-WRONG as stated**: DSpark uses BOTH `main_proj(hidden40..42)` → `main_x` (the drafter's residual) + the target token embeddings for `[anchor, noise...]` → `batch_cur_hc`. Our CPU drafter ISN'T token-only — its push path computes `main_proj` too (ds4.c:28097). So the input paths are the same.
+- **H3 (forward) — SOUND + an off-by-one**: we passed `pos=checkpoint.len` but the PR passes `checkpoint.len - 1`. **FIXED** (didn't help alone — the empty KV dominates).
+- **H4 (output-head/markov) — likely-wrong as primary**: check later.
+- **The KV fill gap**: the PR's verify captures the accepted hiddens into `dspark_verify_hidden` → the commit refresh projects them into the drafter KV (`refresh_verified_rows`) → advances `dspark_n_real`. Missing locally: the refresh is unused; the verify captures into `dspark_batch_capture_hc` (not `dspark_verify_hidden`); the commit only updates the CPU state.
+- **Verified**: `dspark.gguf` metadata — `target_layer_ids=[40,41,42]`, `noise_token_id=128799` (< DS4_N_VOCAB=129280, valid), `main_proj=[12288,4096] Q8_0`.
+
+**Ranked leads**: (1) wire the commit lifecycle (fill dspark_verify_hidden, call refresh, advance dspark_n_real) — medium; (2) fix pos (DONE); (3) unify the verified-hidden source (port the PR's batch capture OR adapt the refresh to consume dspark_batch_capture_hc) — small-medium; (4) build a parity harness (same state, compare Metal vs CPU non-scheduled) — medium; (5) inspect output-head/markov later.
+
+**Status**: the pos fix (committed) didn't change the result (still verified=1, t/s=17.4). The first draft is ALSO wrong (the codex said it should work with n_real=0 — so there's an issue beyond the KV: the forward, the output-head, OR the main_x/batch_cur_hc flow). Next: wire the commit lifecycle (leads 1+3) + trace the forward's use of dspark_main_x + build the parity harness (lead 4).
+
 ### 2026-07-14 — lever 3 BREAKTHROUGH: Metal drafter ENGAGES (draft=6.9ms vs CPU 45ms) but drafts are WRONG (parity issue)
 
 **Fixed the hidden-flow + the dspark model registration — the Metal drafter now ENGAGES** (committed `2005696`):
