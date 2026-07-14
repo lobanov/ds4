@@ -28334,6 +28334,11 @@ static bool dspark_verify_batched_enabled(void) {
     return e && strcmp(e, "0") && strcasecmp(e, "off");
 }
 
+static bool dspark_anchor_reuse_enabled(void) {
+    const char *e = getenv("DS4_DSPARK_ANCHOR_REUSE");
+    return e && strcmp(e, "0") && strcasecmp(e, "off");
+}
+
 static float dspark_schedule_threshold(void) {
     float threshold = 0.08f;
     const char *thr_env = getenv("DS4_DSPARK_CONF_THRESHOLD");
@@ -28617,12 +28622,25 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
         s->dspark_push_count = 0;
         int n_accept = 0;
         if (s->dspark_n_real == 0) (void)dspark_session_push_graph_hidden(s);
-        if (ds4_session_eval(s, first_token, err, errlen) != 0) return -1;
+        /* m3 lever 2: anchor reuse — fold first_token into the batched verify as
+         * drafts[0], skipping the standalone anchor decode (~28 ms). Engages only
+         * when first_token is the greedy continuation of the current logits
+         * (precondition, mirroring DS4_MTP_ANCHOR_REUSE) and the batched verify is
+         * on (the fold is sublinear only there). Env-gated default-off. */
+        const bool anchor_reuse =
+            dspark_anchor_reuse_enabled() &&
+            dspark_verify_batched_enabled() &&
+            first_token != eos_token &&
+            max_tokens > 1 &&
+            first_token == sample_argmax(s->logits, DS4_N_VOCAB);
+        if (!anchor_reuse) {
+            if (ds4_session_eval(s, first_token, err, errlen) != 0) return -1;
+            accepted[n_accept++] = first_token;
+            if (first_token == eos_token || max_tokens == 1 || n_accept >= accepted_cap) return n_accept;
+        }
         const double dspark_t_after_commit = dspark_timing ? now_sec() : 0.0;
         const double dspark_push_ms_after_commit = s->dspark_push_ms;
         const uint32_t dspark_push_count_after_commit = s->dspark_push_count;
-        accepted[n_accept++] = first_token;
-        if (first_token == eos_token || max_tokens == 1 || n_accept >= accepted_cap) return n_accept;
 
         int draft_n = (int)DS4_DSPARK_BLOCK;
         if (draft_n > max_tokens - n_accept) draft_n = max_tokens - n_accept;
@@ -28653,21 +28671,40 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
         int drafts[DS4_DSPARK_BLOCK];
         const bool batched_scheduled_draft = scheduled_verify && dspark_schedule_batched_draft();
         s->dspark_last_cycle.batched_schedule = batched_scheduled_draft;
-        int draft_eval_n = fixed_verify_n > 0 ? fixed_verify_n : draft_n;
+        /* m3 lever 2: anchor reuse — drafts[0] = first_token (the anchor); the drafter
+         * produces the continuation in drafts[anchor_off..]. draft_eval_n counts only
+         * the drafter work (continuation); the verify span = draft_eval_n + anchor_off. */
+        const int anchor_off = anchor_reuse ? 1 : 0;
+        if (anchor_reuse) drafts[0] = first_token;
+        int draft_eval_n = (fixed_verify_n > 0 ? fixed_verify_n : (int)draft_n) - anchor_off;
         int verify_n = draft_n;
-        if (batched_scheduled_draft) {
-            draft_eval_n = dspark_schedule_batch_limit(draft_eval_n);
-            s->dspark_last_cycle.schedule_batch_limit = draft_eval_n;
-            if (!dspark_eval_draft_block_cpu_scheduled_batched(s, first_token, draft_eval_n, drafts)) return n_accept;
-        } else if (scheduled_verify) {
-            if (!dspark_eval_draft_block_cpu_scheduled(s, first_token, draft_n, &draft_eval_n, &verify_n, drafts))
+        if (draft_eval_n < 0) draft_eval_n = 0;
+        if (draft_eval_n > (int)DS4_DSPARK_BLOCK - anchor_off) draft_eval_n = (int)DS4_DSPARK_BLOCK - anchor_off;
+        if (batched_scheduled_draft && draft_eval_n > 0) {
+            int cont_eval_n = dspark_schedule_batch_limit(draft_eval_n);
+            s->dspark_last_cycle.schedule_batch_limit = cont_eval_n;
+            if (!dspark_eval_draft_block_cpu_scheduled_batched(s, first_token, cont_eval_n, drafts + anchor_off)) {
+                if (anchor_reuse) { if (ds4_session_eval(s, first_token, err, errlen) != 0) return -1; accepted[n_accept++] = first_token; return n_accept; }
                 return n_accept;
-        } else {
-            if (!dspark_eval_draft_block_cpu(s, first_token, draft_eval_n, drafts)) return n_accept;
+            }
+            draft_eval_n = cont_eval_n;
+        } else if (scheduled_verify && draft_eval_n > 0) {
+            int cont_eval_n = draft_eval_n, cont_verify_n = verify_n - anchor_off;
+            if (!dspark_eval_draft_block_cpu_scheduled(s, first_token, draft_eval_n, &cont_eval_n, &cont_verify_n, drafts + anchor_off)) {
+                if (anchor_reuse) { if (ds4_session_eval(s, first_token, err, errlen) != 0) return -1; accepted[n_accept++] = first_token; return n_accept; }
+                return n_accept;
+            }
+            draft_eval_n = cont_eval_n;
+            verify_n = cont_verify_n + anchor_off;
+        } else if (draft_eval_n > 0) {
+            if (!dspark_eval_draft_block_cpu(s, first_token, draft_eval_n, drafts + anchor_off)) {
+                if (anchor_reuse) { if (ds4_session_eval(s, first_token, err, errlen) != 0) return -1; accepted[n_accept++] = first_token; return n_accept; }
+                return n_accept;
+            }
         }
         const double dspark_t_after_draft = dspark_timing ? now_sec() : 0.0;
         s->dspark_last_cycle.rows_computed = draft_eval_n;
-        draft_n = draft_eval_n;
+        draft_n = draft_eval_n + anchor_off;
         for (int i = 0; i < draft_n; i++) {
             if (drafts[i] == eos_token) {
                 draft_n = i + 1;
@@ -28684,7 +28721,9 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
             s->dspark_last_cycle.conf_logits[i] = s->dspark_conf_logits ? s->dspark_conf_logits[i] : 0.0f;
         }
         if (batched_scheduled_draft) {
-            verify_n = dspark_schedule_verify_len(s->dspark_conf_logits, draft_n);
+            /* STS schedules over the continuation; the anchor (drafts[0]) is always
+             * verified first, so add anchor_off to the scheduled continuation length. */
+            verify_n = dspark_schedule_verify_len(s->dspark_conf_logits, draft_eval_n) + anchor_off;
         } else if (scheduled_verify) {
             if (verify_n > draft_n) verify_n = draft_n;
         }
@@ -28707,7 +28746,7 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
         }
 
         int verified = 0;
-        int target_top = sample_argmax(s->logits, DS4_N_VOCAB);
+        int target_top = anchor_reuse ? first_token : sample_argmax(s->logits, DS4_N_VOCAB);
         bool logits_on_host = true;
         const double verify_t0 = dspark_timing ? now_sec() : 0.0;
         double verify_decode_ms = 0.0;
