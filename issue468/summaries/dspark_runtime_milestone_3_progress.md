@@ -204,6 +204,14 @@ complete + valid. The gap is non-fatal during generation — present in the ds4-
 ~0.9× plain on exactness, ~0.73× on 8k. The +20% over plain is NOT reachable with levers 2+3 alone — the verify is the bottleneck
 (Lead 08 territory). Lever 2 is a real win over the DSpark-batched baseline (+10.5%) + score-neutral on the gate.
 
+### 2026-07-14 — anchor reuse (lever 2): codex gate A DONE (gpt-5.5 xhigh) — sound + 1 corner-case bug FIXED (VERIFY_K=0)
+
+**Codex gate A** (review of the fold logic; report at `dspark_codex_reviews/2026-07-14_gpt55_xhigh_anchor_reuse_gateA.md`):
+- C1 (guard), C2 (drafts bounds), C4 (window push), C6 (verify_n bounds), C7 (drafter-fail fallback): **sound.** The window-consistency trace confirmed the anchor hidden IS pushed in all 4 batched-verify outcomes (full-accept / prefix-1 / general-partial / reject) + the sequential fallthrough — no missing-hidden leak.
+- C3 (commit_n=1): sound, with **one corner-case bug**: `DS4_DSPARK_VERIFY_K=0` + reuse returned 0 tokens (the reuse guard skipped the standalone decode, but VERIFY_K=0 disables the verify that would fold the anchor). **FIXED**: the `fixed_verify_n==0` early-exit now does the standalone decode + commits the anchor when `anchor_reuse` (smoke: VERIFY_K=0+reuse now emits 24 tokens, not 0).
+- C5 (the 20-Q gate): "questionable" — fairly noted that the Q9 fail→pass flip is **divergence-driven luck** (the batched verify itself is divergent-but-score-neutral), NOT an exactness/improvement signal. The gate (no recorded-pass flipped to fail) holds; the reuse's correctness frame is the SAME as the batched verify (divergent, score-neutral), not byte-exactness. The 8k bench's verified-minus-anchor ~3.18 vs batched 3.25 already shows the window is consistent — a missing anchor hidden would crash acceptance, not hold it.
+- Verdict: anchor reuse is structurally window-safe. The reuse ds4-eval first-20 trace is retained (20 verdicts: 18 PASS / Q6+Q15 FAIL; the run's exit-1 is the pre-existing model-mapping-gap teardown fault, post-grading).
+
 ### 2026-07-14 — ds4-eval engagement fix + full 92Q SCORE comparison + temp>0 distribution-exactness (prior) => relaxing greedy exactness is NET-VIABLE for scores
 
 **ds4-eval engagement fix:** discovered ds4-eval used plain decode (`ds4_session_eval`, ds4_eval.c:3872) — `--dspark`

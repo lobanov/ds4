@@ -28652,6 +28652,13 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
         const bool scheduled_verify = fixed_verify_n < 0 && dspark_schedule_enabled();
         s->dspark_last_cycle.scheduled_verify = scheduled_verify;
         if (fixed_verify_n == 0) {
+            if (anchor_reuse) {
+                /* VERIFY_K=0 disables the verify, so the anchor cannot be folded into
+                 * it; the reuse guard skipped the standalone decode, so decode it now
+                 * (otherwise this cycle would return 0 tokens). */
+                if (ds4_session_eval(s, first_token, err, errlen) != 0) return -1;
+                accepted[n_accept++] = first_token;
+            }
             s->dspark_last_cycle.decode_ms = (dspark_t_after_commit - dspark_t0) * 1000.0;
             s->dspark_last_cycle.total_ms = s->dspark_last_cycle.decode_ms;
             s->dspark_last_cycle.accepted = n_accept;
