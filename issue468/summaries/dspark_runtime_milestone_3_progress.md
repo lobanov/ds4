@@ -72,7 +72,7 @@ near-tie positions) — deferred.
 | lever | what the model assumes | milestone-3 work | prior status (M1/M2) |
 |---|---|---|---|
 | **Committing batched verify** (the +20 % enabler) | `verify_ms(K)` sublinear (the model used the batched bench: K2:43.6, K4:65.8) | wire the existing `metal_graph_verify_suffix_tops` (currently dist-probe-only, ds4.c:28671) for **committing** in the DSpark branch: accept-prefix + correction token + DSpark window-state push; env-gated default-off; measure committed-output divergence (temp=0) + distribution divergence (temp>0) + 92Q scores | **DONE (lever 1).** Env-gated `DS4_DSPARK_VERIFY_BATCHED`; codex gate A ran (3 bugs fixed). Measured (warm): plain 37.2 / seq 16.3 / **batched 20.2 t/s** (verify 52→43 ms, sublinear). NOT committed-output-exact when engaged (56.6 % temp=0 divergence — the 10/10 ds4-eval was plain-vs-plain) BUT **score-neutral on 92Q** (net +4, 89.1 % same verdict); temp>0 TV ~0.0104, 0.64 % argmax-flip. |
-| **Anchor reuse** (folds into the batched verify) | fresh anchor decode only ~S(K); the verify yields the next anchor | fold the anchor into the **batched** verify (skip the standalone `ds4_session_eval(s, first_token)`); compose with the existing STS scheduled verify + the batched verify | Lead 06 made reuse exact but sequential (MTP-only); ~neutral on the exact verify (see fact below); **worthwhile only on the sublinear verify** |
+| **Anchor reuse** (folds into the batched verify) | fresh anchor decode only ~S(K); the verify yields the next anchor | fold the anchor into the **batched** verify (skip the standalone `ds4_session_eval(s, first_token)`); compose with the existing STS scheduled verify + the batched verify | **DONE (lever 2).** Env-gated `DS4_DSPARK_ANCHOR_REUSE` (requires `DS4_DSPARK_VERIFY_BATCHED`); skip the standalone decode when `first_token==argmax(logits)` + batched on; `drafts[0]=first_token`, continuation drafted from the stale window into `drafts[1..]` (Lead 01 de-risked). 8k bench (warm): **+10.5% over batched** (25.97 vs 23.50 t/s), decode 28.2→0.1 ms, verify 104.8→116.9 ms (sublinear), continuation acceptance held (~3.18 vs 3.25). 20-Q no-regression gate PASS (18/20, Q6+Q15 fail; flipped Q9 fail→pass, zero pass→fail). Still 0.73× plain (verify dominates). |
 | **GPU drafter body/head** | `draft_ms ≈ 10 ms` (not the current ~45 ms CPU) | move the **already-batched** CPU drafter (3 stages × 5-row `dspark_block_forward_batch`) + the 5× vocab output-head matvec (reuses the target's output weights) + markov + confidence + argmax onto Metal | not yet attempted; one GPU output-head cut line failed `--dspark-schedule-parity` (known trap to clear) |
 
 Out of scope (deferred): re-implementing the STS scheduler; STS re-training on measured
@@ -170,6 +170,39 @@ verify as a score-neutral interim (temp=0 +4 / temp>0 TV~0.01) OR add the Lead 0
 fallback for strict committed-output byte-exactness.
 
 ## Worklog
+
+### 2026-07-14 — 8k BASELINE refreshed + anchor reuse (lever 2) IMPLEMENTED + benched (+10.5%) + 20-Q gate PASS
+
+**8k baseline (refreshed, warm, `DS4_DSPARK_TIMING=1`, frontier=3072, gen=128, 3 prompts code_8k/synthesis_8k/grounded_8k ~3.9-4.0k tokens):**
+plain **35.50** / seq **19.96** / batched **23.50** t/s. seq cycle: decode 29.3 / draft 85.5 / verify 93.0 / total 207.9 ms, verified 3.10, verify_n 4.42.
+batched cycle: decode 28.2 / draft 48.0 / verify 104.8 / total 181.1 ms, verified 3.25, verify_n 4.50. The longer context raises
+draft+verify (DSpark window + KV grow). draft_ms differs seq vs batched with identical rows_computed (~4.7) — a CPU/GPU timing-overlap
+artifact; total_ms is authoritative. **Recorded first-20 no-regression reference** (from the retained 92Q): plain 17/20 + batched 17/20
+(identical: Q6/Q9/Q15 FAIL). Artifacts: `dspark_m3_bench/bench8k_{plain_seq,batched}.jsonl`.
+
+**Anchor reuse (lever 2) — implemented** (env `DS4_DSPARK_ANCHOR_REUSE`, default-off; requires `DS4_DSPARK_VERIFY_BATCHED`):
+skips the standalone `ds4_session_eval(s, first_token)` when `first_token==sample_argmax(s->logits)` (the precondition, mirroring
+`DS4_MTP_ANCHOR_REUSE`) + batched on + max_tokens>1. `drafts[0]=first_token`; the drafter produces the continuation in `drafts[anchor_off..]`
+(1 fewer continuation token; drafted from the stale window — Lead 01 de-risked). Verify span = continuation + anchor; `target_top = first_token`
+(so `commit_n` starts at 1 — the reject path never fires for reuse). The anchor's hidden is pushed by the batched verify
+(`dspark_session_push_batch_hidden(s,0)` on full-accept / the sequential replay's `push_graph_hidden` on partial). 5 edits in
+`ds4_session_eval_speculative_argmax` (ds4.c ~28338 + ~28618-28713): env-gate fn + the anchor-decode guard + the offset-aware draft +
+STS verify_n + target_top override. Falls back to the standalone decode if the drafter fails or the precondition fails. Smoke:
+decode 26.5→0.1 ms (fold fires ~100% of cycles); reuse-without-batched → decode 26.7 (guard correctly does NOT engage).
+
+**8k REUSE bench (warm):** 25.97 t/s vs batched 23.50 → **+10.5%**. decode 28.2→0.1 ms, verify 104.8→116.9 ms (sublinear +12 ms for the
+folded anchor), total 181.1→162.2 ms. **Continuation acceptance held** (verified-minus-anchor ~3.18 vs batched 3.25) — on the 8k context
+the one-position window staleness is amortized (the short-prompt smoke showed a drop, but 8k does not). Still 0.73× plain (35.5) —
+the verify dominates at ~117 ms. Artifact: `dspark_m3_bench/bench8k_anchor_reuse.jsonl`.
+
+**20-Q no-regression gate (ds4-eval, greedy, engaged):** reuse first-20 = **18/20 (Q6, Q15 FAIL)** vs the recorded reference
+17/20 (Q6, Q9, Q15 FAIL). The reuse flipped Q9 fail→pass (a gain); **zero recorded-pass flipped to fail** → no regression, **gate PASS**.
+(The ds4-eval exits 1 after grading on a teardown fault from the pre-existing 3.51-3.56 GiB model-mapping gap; all 20 verdicts are
+complete + valid. The gap is non-fatal during generation — present in the ds4-spec-bench runs too. Clean --questions 5 re-runs exit 0.)
+
+**Read on the +20% target:** the 8k baseline shows the batched verify dominates at ~105-117 ms (verify_n~4.5); reuse+drafter projects
+~0.9× plain on exactness, ~0.73× on 8k. The +20% over plain is NOT reachable with levers 2+3 alone — the verify is the bottleneck
+(Lead 08 territory). Lever 2 is a real win over the DSpark-batched baseline (+10.5%) + score-neutral on the gate.
 
 ### 2026-07-14 — ds4-eval engagement fix + full 92Q SCORE comparison + temp>0 distribution-exactness (prior) => relaxing greedy exactness is NET-VIABLE for scores
 
