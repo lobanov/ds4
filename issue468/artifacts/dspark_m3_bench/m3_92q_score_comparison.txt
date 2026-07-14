@@ -1,0 +1,61 @@
+# M3 canonical: 92Q score comparison — plain vs DSpark-batched (engaged)
+# date 2026-07-14; greedy (temp 0), --nothink, --tokens 2048, seed 1
+# NOTE: DSpark run TIMED OUT at 50/92 questions (2048-token cap => ~2.5h engaged); plain completed all 92.
+# Engagement: the speculative path is engaged via the ds4-eval fix (--dspark -> ds4_session_eval_speculative_argmax); DS4_DSPARK_VERIFY_BATCHED=1 -> committing batched verify. Proven on a 3Q validation (60 dspark-timing lines). Full run had timing OFF.
+
+PLAIN  (n=92): 60 passed (65.2%)
+DSPARK (n=50, partial): 38 passed (76.0%)
+Overlap (first 50 Qs): same-verdict 43/50 (86.0%); same-extracted-answer 37/50 (74.0%)
+Questions where verdict differs: [21, 24, 25, 28, 30, 37, 49]
+
+per-question (idx: plain_verdict got|exp (tok) | dspark_verdict got|exp (tok)):
+    1: PASSED got=B exp=B (385t) | PASSED got=B exp=B (383t)
+    2: PASSED got=C exp=C (60t) | PASSED got=C exp=C (61t)
+    3: PASSED got=70 exp=70 (288t) | PASSED got=70 exp=70 (289t)
+    4: PASSED got=C exp=C (168t) | PASSED got=C exp=C (167t)
+    5: PASSED got=J exp=J (95t) | PASSED got=J exp=J (95t)
+    6: FAIL got=1873 exp=468 (2048t) | FAIL got=17 exp=468 (2048t)
+    7: PASSED got=B exp=B (573t) | PASSED got=B exp=B (529t)
+    8: PASSED got=E exp=E (60t) | PASSED got=E exp=E (61t)
+    9: FAIL got=7 exp=588 (2048t) | FAIL got=2 exp=588 (2048t)
+   10: PASSED got=B exp=B (508t) | PASSED got=B exp=B (549t)
+   11: PASSED got=A exp=A (59t) | PASSED got=A exp=A (60t)
+   12: PASSED got=16 exp=16 (501t) | PASSED got=16 exp=16 (501t)
+   13: PASSED got=A exp=A (1887t) | PASSED got=A exp=A (389t)
+   14: PASSED got=J exp=J (49t) | PASSED got=J exp=J (50t)
+   15: FAIL got=2 exp=82 (2048t) | FAIL got=4 exp=82 (2048t)
+   16: PASSED got=D exp=D (389t) | PASSED got=D exp=D (439t)
+   17: PASSED got=I exp=I (48t) | PASSED got=I exp=I (49t)
+   18: PASSED got=117 exp=117 (686t) | PASSED got=117 exp=117 (652t)
+   19: PASSED got=B exp=B (293t) | PASSED got=B exp=B (310t)
+   20: PASSED got=E exp=E (285t) | PASSED got=E exp=E (192t)
+   21: PASSED got=106 exp=106 (916t) | FAIL got=13 exp=106 (2048t)  <-- DIFF
+   22: PASSED got=B exp=B (89t) | PASSED got=B exp=B (90t)
+   23: PASSED got=B exp=B (63t) | PASSED got=B exp=B (64t)
+   24: FAIL got=2 exp=279 (2048t) | PASSED got=279 exp=279 (1500t)  <-- DIFF
+   25: FAIL got=D exp=C (2048t) | PASSED got=C exp=C (1407t)  <-- DIFF
+   26: PASSED got=C exp=C (388t) | PASSED got=C exp=C (388t)
+   27: PASSED got=504 exp=504 (555t) | PASSED got=504 exp=504 (590t)
+   28: PASSED got=D exp=D (268t) | FAIL got=C exp=D (257t)  <-- DIFF
+   29: PASSED got=C exp=C (529t) | PASSED got=C exp=C (557t)
+   30: FAIL got=36 exp=293 (2048t) | PASSED got=293 exp=293 (1546t)  <-- DIFF
+   31: PASSED got=C exp=C (295t) | PASSED got=C exp=C (294t)
+   32: PASSED got=J exp=J (349t) | PASSED got=J exp=J (350t)
+   33: FAIL got=12 exp=821 (611t) | FAIL got=693 exp=821 (2048t)
+   34: PASSED got=B exp=B (602t) | PASSED got=B exp=B (585t)
+   35: PASSED got=I exp=I (85t) | PASSED got=I exp=I (86t)
+   36: FAIL got=60671 exp=237 (1307t) | FAIL got=60671 exp=237 (1415t)
+   37: FAIL got=B exp=A (407t) | PASSED got=A exp=A (372t)  <-- DIFF
+   38: PASSED got=E exp=E (45t) | PASSED got=E exp=E (46t)
+   39: PASSED got=77 exp=77 (1565t) | PASSED got=77 exp=77 (1140t)
+   40: PASSED got=B exp=B (525t) | PASSED got=B exp=B (462t)
+   41: FAIL got=E exp=H (45t) | FAIL got=E exp=H (46t)
+   42: FAIL got=4 exp=62 (2048t) | FAIL got=16 exp=62 (2048t)
+   43: PASSED got=A exp=A (150t) | PASSED got=A exp=A (151t)
+   44: PASSED got=A exp=A (176t) | PASSED got=A exp=A (190t)
+   45: FAIL got=150 exp=149 (1039t) | FAIL got=150 exp=149 (1017t)
+   46: PASSED got=C exp=C (308t) | PASSED got=C exp=C (308t)
+   47: PASSED got=A exp=A (444t) | PASSED got=A exp=A (442t)
+   48: FAIL got=77 exp=81 (1535t) | FAIL got=68 exp=81 (1607t)
+   49: FAIL got=C exp=B (2048t) | PASSED got=B exp=B (301t)  <-- DIFF
+   50: FAIL got=E exp=H (87t) | FAIL got=E exp=H (93t)

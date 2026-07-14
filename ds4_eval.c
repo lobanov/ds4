@@ -3869,51 +3869,85 @@ static eval_run_result run_one_case(ds4_engine *engine, ds4_session *session,
             think_close.remaining_budget = remaining_budget;
             think_close.rank = close_rank;
         }
-        if (ds4_session_eval(session, token, err, sizeof(err)) != 0) {
-            plain_reset_color(use_plain_color);
-            ui->generated_tokens[idx] = ui->generated;
-            tui_run_clock_stop(ui);
-            fprintf(stderr, "ds4-eval: decode failed for %s: %s\n", tc->id, err);
-            trace_write_case(trace, cfg, tc, idx, ui->ncases, "ERROR", err,
-                             system, question, raw.v ? raw.v : "", think_mode,
-                             prompt_tokens, ui->generated, now_sec() - t0, "?",
-                             &think_close);
-            free(question);
-            ds4_tokens_free(&think_close_tokens);
-            buf_free(&raw);
-            return EVAL_RUN_ERROR;
-        }
-
-        size_t len = 0;
-        char *text = ds4_token_text(engine, token, &len);
-        buf_append(&raw, text, len);
-        ui->generated++;
-        ui->generated_tokens[idx] = ui->generated;
-        tui_run_clock_tick(ui);
-        if (generation_in_think && raw.v && strstr(raw.v, "</think>")) {
-            generation_in_think = false;
-            if (think_close.kind == EVAL_THINK_CLOSE_NONE) {
-                think_close.kind = EVAL_THINK_CLOSE_NATURAL;
-                think_close.token_index = ui->generated;
-                think_close.remaining_budget = remaining_budget;
-                think_close.rank = 0;
-            }
-        }
-        double elapsed = now_sec() - ui->phase_start_sec;
-        ui->speed_tps = elapsed > 0.001 ? (double)ui->generated / elapsed : 0.0;
-
-        if (tty) {
-            stream_append_token_text(ui, text, len, false);
-            tui_refresh(ui, ui->in_think ? "thinking" : "answer");
-        } else {
-            if (plain_in_think && strstr(raw.v ? raw.v : "", "</think>")) {
-                plain_in_think = false;
+        int produced = 0;
+        int sp_acc[256];
+        if (cfg->dspark_path && cfg->dspark_path[0] && ds4_engine_has_dspark(engine)) {
+            /* m3: engage the DSpark speculative path (--dspark) instead of plain decode. */
+            int sp_remaining = generation_limit - ui->generated;
+            int sp_cap = sp_remaining;
+            if (sp_cap > (int)(sizeof(sp_acc) / sizeof(sp_acc[0]))) sp_cap = (int)(sizeof(sp_acc) / sizeof(sp_acc[0]));
+            if (sp_cap < 1) sp_cap = 1;
+            produced = ds4_session_eval_speculative_argmax(session, token, sp_remaining, eos,
+                                                           sp_acc, sp_cap, err, sizeof(err));
+            if (produced < 0) {
                 plain_reset_color(use_plain_color);
+                ui->generated_tokens[idx] = ui->generated;
+                tui_run_clock_stop(ui);
+                fprintf(stderr, "ds4-eval: speculative decode failed for %s: %s\n", tc->id, err);
+                trace_write_case(trace, cfg, tc, idx, ui->ncases, "ERROR", err,
+                                 system, question, raw.v ? raw.v : "", think_mode,
+                                 prompt_tokens, ui->generated, now_sec() - t0, "?",
+                                 &think_close);
+                free(question);
+                ds4_tokens_free(&think_close_tokens);
+                buf_free(&raw);
+                return EVAL_RUN_ERROR;
             }
-            fwrite(text, 1, len, stdout);
-            fflush(stdout);
+        } else {
+            if (ds4_session_eval(session, token, err, sizeof(err)) != 0) {
+                plain_reset_color(use_plain_color);
+                ui->generated_tokens[idx] = ui->generated;
+                tui_run_clock_stop(ui);
+                fprintf(stderr, "ds4-eval: decode failed for %s: %s\n", tc->id, err);
+                trace_write_case(trace, cfg, tc, idx, ui->ncases, "ERROR", err,
+                                 system, question, raw.v ? raw.v : "", think_mode,
+                                 prompt_tokens, ui->generated, now_sec() - t0, "?",
+                                 &think_close);
+                free(question);
+                ds4_tokens_free(&think_close_tokens);
+                buf_free(&raw);
+                return EVAL_RUN_ERROR;
+            }
+            sp_acc[0] = token;
+            produced = 1;
         }
-        free(text);
+        bool hit_eos = false;
+        for (int ai = 0; ai < produced; ai++) {
+            int t = sp_acc[ai];
+            size_t len = 0;
+            char *text = ds4_token_text(engine, t, &len);
+            buf_append(&raw, text, len);
+            ui->generated++;
+            ui->generated_tokens[idx] = ui->generated;
+            tui_run_clock_tick(ui);
+            if (generation_in_think && raw.v && strstr(raw.v, "</think>")) {
+                generation_in_think = false;
+                if (think_close.kind == EVAL_THINK_CLOSE_NONE) {
+                    think_close.kind = EVAL_THINK_CLOSE_NATURAL;
+                    think_close.token_index = ui->generated;
+                    think_close.remaining_budget = remaining_budget;
+                    think_close.rank = 0;
+                }
+            }
+            double elapsed = now_sec() - ui->phase_start_sec;
+            ui->speed_tps = elapsed > 0.001 ? (double)ui->generated / elapsed : 0.0;
+
+            if (tty) {
+                stream_append_token_text(ui, text, len, false);
+                tui_refresh(ui, ui->in_think ? "thinking" : "answer");
+            } else {
+                if (plain_in_think && strstr(raw.v ? raw.v : "", "</think>")) {
+                    plain_in_think = false;
+                    plain_reset_color(use_plain_color);
+                }
+                fwrite(text, 1, len, stdout);
+                fflush(stdout);
+            }
+            free(text);
+            if (t == eos) { hit_eos = true; break; }
+        }
+        if (hit_eos) break;
+        i += produced - 1;   /* speculative commits `produced` tokens/cycle; keep i in sync with ui->generated */
     }
     if (tty) {
         stream_append_token_text(ui, NULL, 0, true);
