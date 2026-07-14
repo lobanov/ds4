@@ -179,7 +179,14 @@ gate (artifact `issue468/artifacts/dspark_temp_distribution_compare/summary.json
 574 eligible, `max_abs=0.0`, `rms=0.0`, `sampled_lp_diff=0.0` at temp=0.5 and 1.0. Caveat: that gate forces
 `DS4_DSPARK_VERIFY_K=0` (narrow: speculative entry/logit parity, not full multi-token) AND uses the SEQUENTIAL
 (exact) verify — so it proves temp>0 distribution-exactness for the DSpark runtime via the exact verify, NOT for
-the batched (divergent) verify at temp>0 (untested; the ds4-eval fix uses argmax-verify = greedy-only).
+the batched (divergent) verify at temp>0. **Measured the batched verify's temp>0 distribution
+divergence via the dist-probe** (`DS4_DSPARK_VERIFY_DIST_PROBE`, fresh run 2026-07-14, exactness
+corpus; artifact `issue468/artifacts/dspark_m3_bench/distprobe_batched_vs_exact_fresh.jsonl`):
+90 cycles / 156 compared positions — **TV ~0.0104 (mean), argmax-flip 0.64%, max_abs up to 4.56**
+(KL~0.0025). So the batched verify is NOT distribution-exact at temp>0 (small but non-zero
+divergence), vs the sequential verify's TV=0. (The milestone-1 parity test can't measure this — it
+forces VERIFY_K=0, so the verify never runs; the dist-probe is the analog that compares the batched
+vs exact logits. Logits are temp-independent, so this IS the temp>0 sampled-distribution divergence.)
 
 **Viability verdict:** relaxing greedy exactness (using the divergent batched verify) is NET-VIABLE for the
 benchmark scores — the 56% token divergence does not hurt answer scores (net +4 on 92Q, 89.1% same verdict).
