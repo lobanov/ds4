@@ -204,6 +204,16 @@ complete + valid. The gap is non-fatal during generation — present in the ds4-
 ~0.9× plain on exactness, ~0.73× on 8k. The +20% over plain is NOT reachable with levers 2+3 alone — the verify is the bottleneck
 (Lead 08 territory). Lever 2 is a real win over the DSpark-batched baseline (+10.5%) + score-neutral on the gate.
 
+### 2026-07-14 — lever 3 (GPU drafter) ORIENTATION: output-head dominates (~95%); CPU batched output-head is a safer alternative to the GPU port
+
+**Drafter cost breakdown (reasoned + scoped):** the draft_ms ~45 ms (8k) is dominated by the **output-head matvec** — the loop does `draft_n` SEPARATE `matvec_q8_0(base_logits, &e->model, e->weights.output, norm)` calls, each reading the target's full-vocab Q8_0 output weights (~7168×128k ≈ 917 MB). At ~100 GB/s, 5 reads ≈ 43 ms ≈ 95% of the draft. The 3-stage `dspark_block_forward_batch` forward is small (~2 ms); the markov/conf/argmax are small. So **moving the output-head is the lever-3 win**; the forward need not move.
+
+**No `--dspark-schedule-parity` flag exists** in the current tree — the prior GPU-head cut line was removed/reverted, so lever 3 starts fresh. There is **no standalone Metal output-matvec** to reuse (the target computes logits inside the full Metal graph forward); a GPU output-head port needs a new Metal Q8_0 kernel + host glue (upload `norm`, run, download `base_logits`) + a Q8_0 GPU-vs-CPU parity check — the risk the objective flags.
+
+**Safer alternative identified (CPU batched output-head):** `matmul_q8_0_batch` (ds4.c:5373, already used by the drafter forward) can replace the `draft_n` separate `matvec_q8_0` calls with ONE batched matmul (norms[draft_n×n_embd] × output → base_logits[draft_n×vocab]), reading the 917 MB weights **once** → ~5× less memory traffic → output-head ~9 ms (vs ~43 ms) → draft_ms ~11 ms (forward 2 + head 9 + markov/argmax ~0.5). This hits the lever-3 draft_ms target (~10 ms) **on the CPU, no GPU, no Q8_0 parity trap**. The markov (sequential, depends on prev) + conf + argmax stay per-row; only the output matvec is batched.
+
+**Decision point (surfaced to the user):** the objective specifies the GPU port ("onto Metal", "GPU-resident"), but the CPU batched output-head achieves the same draft_ms target with far less risk + is a natural prerequisite for a later GPU port (batch first, then move the batched matmul to Metal). The verify still dominates (~117 ms), so either way levers 2+3 reach ~0.9× plain, NOT +20% (Lead 08 territory).
+
 ### 2026-07-14 — anchor reuse (lever 2): codex gate A DONE (gpt-5.5 xhigh) — sound + 1 corner-case bug FIXED (VERIFY_K=0)
 
 **Codex gate A** (review of the fold logic; report at `dspark_codex_reviews/2026-07-14_gpt55_xhigh_anchor_reuse_gateA.md`):
