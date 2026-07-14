@@ -365,3 +365,27 @@ verifier be pushed down toward the measured headroom without breaking exactness?
 (can the drafter's per-cycle acceptance rise enough to clear the remaining deficit — and can
 the Lead 04 +8–10% float32 FP-ceiling lever be realized, via a float32 drafter / body-LoRA /
 hidden-dequant?).
+
+## Milestone 3 update (2026-07-14): committing batched verify — measured + the exactness split
+
+Measured (warm, exactness corpus, ds4-spec-bench): plain 37.20 / seq 16.29 / **batched 20.19
+t/s**; `verify_ms` 52.4 -> 43.4 ms (sublinear, ~9 ms saved at `verify_n`~2). The committing
+batched verify IS sublinear-faster than the sequential short-circuit at the STS `verify_n` (~2).
+
+Exactness split (the key correction):
+- The batched verify's 0.64%-level argmax flips **propagate to committed output when engaged**:
+  56.6% token divergence on the benchmark, 40% on the exactness corpus. (The earlier "0% on the
+  ds4-eval benchmark" was plain-vs-plain — ds4-eval didn't engage DSpark; now fixed.)
+- **But score-neutral on the 92Q benchmark (greedy):** plain 60/92 (65.2%) vs DSpark-batched
+  64/92 (69.6%), net +4, 89.1% same verdict (codex-verified: NO functional equivalence when
+  engaged, but the divergence doesn't hurt the answer scores).
+- **temp>0 distribution-exact** via the exact sequential verify (milestone-1: `max_abs=0`).
+
+Implication: the "cheap verifier" question splits further — the batched primitive is sublinear +
+score-neutral but NOT committed-output-exact; strict exactness needs the Lead 08 margin-guarded
+fallback (re-verify near-ties). The +20% gate still needs the full stack (batched verify +
+anchor reuse + GPU drafter); levers 2/3 not started. Net: "can DSpark beat baseline locally?" is
+still **no** on the delivered portion (batched 20.2 t/s = 0.54x baseline); the score-neutral
+divergence makes relaxing greedy exactness a **viable interim strategy** pending verifier work.
+GPU push (`metal_graph_push_dspark_hidden`) is a pre-existing general bug (CPU fallback, cheap) —
+separate follow-up.

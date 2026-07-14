@@ -147,7 +147,47 @@ batched verify) → its measurement cycle → `gpu-drafter` → its measurement 
 
 ## Worklog
 
-### 2026-07-13 — bench-batched RESULTS: throughput + attribution + DIVERGENCE (corpus-dependent: 0% benchmark / 40% code)
+### 2026-07-14 — ds4-eval engagement fix + full 92Q SCORE comparison + temp>0 distribution-exactness (prior) => relaxing greedy exactness is NET-VIABLE for scores
+
+**ds4-eval engagement fix:** discovered ds4-eval used plain decode (`ds4_session_eval`, ds4_eval.c:3872) — `--dspark`
+only loaded the drafter, generation never called `ds4_session_eval_speculative_argmax`. So the earlier
+"0% divergence on the ds4-eval 92Q benchmark" (see the entry below) was PLAIN-VS-PLAIN (trivially identical);
+`DS4_DSPARK_VERIFY_BATCHED=1` had no effect on ds4-eval. (This also invalidates the milestone-2
+"ds4-eval 10/10 byte-identical" as plain-vs-plain.) Fixed ds4-eval to engage the speculative path when
+`--dspark` (gated; plain path unchanged; commits `produced` tokens/cycle, syncs the loop counter).
+
+**Corrected engaged divergence** (ds4-spec-bench speculative_argmax + DS4_DSPARK_VERIFY_BATCHED=1;
+engagement proven by 303 dspark-timing lines + by the divergence itself):
+- benchmark reasoning/math (12 extracted ds4-eval Qs): 12/12 prompts, 56.6% of tokens.
+- exactness corpus (code/grounded/synthesis, 10): 40% (7/10).
+- code_topk: 45/48 (first diff @ token 3).
+- seq (exact) speculative_argmax vs plain: 0% (byte-identical) => the divergence is the batched flip, not a bug.
+- Both outputs are SENSIBLE text (real flip + greedy cascade, not garbage). Codex verdict (gpt-5.5 xhigh,
+  `issue468/artifacts/dspark_codex_reviews/2026-07-14_gpt55_xhigh_engaged_divergence_verdict.md`):
+  NO functional equivalence when engaged (medium-high confidence).
+
+**Full 92Q SCORE comparison** (greedy, --nothink, --tokens 2048, temp 0, seed 1; BOTH runs complete;
+canonical artifact `issue468/artifacts/dspark_m3_bench/m3_92q_score_comparison.txt`):
+- PLAIN: 60/92 (65.2%).  DSPARK-batched (engaged): 64/92 (69.6%)  => net +4.
+- same-verdict: 82/92 (89.1%).
+- PASS/FAIL flips: 3 losses (plain-PASS->DSpark-FAIL: Q21, Q28, Q79) + 7 gains (plain-FAIL->DSpark-PASS:
+  Q24, Q25, Q30, Q37, Q49, Q52, Q81). The divergent greedy path sometimes lands on the CORRECT answer
+  where plain greedy failed.
+
+**temp>0 distribution-exactness (PRIOR WORK, conclusive):** milestone-1's `ds4_test --dspark-temp-logit-parity`
+gate (artifact `issue468/artifacts/dspark_temp_distribution_compare/summary.json`) PASSED: 640 sampled steps,
+574 eligible, `max_abs=0.0`, `rms=0.0`, `sampled_lp_diff=0.0` at temp=0.5 and 1.0. Caveat: that gate forces
+`DS4_DSPARK_VERIFY_K=0` (narrow: speculative entry/logit parity, not full multi-token) AND uses the SEQUENTIAL
+(exact) verify — so it proves temp>0 distribution-exactness for the DSpark runtime via the exact verify, NOT for
+the batched (divergent) verify at temp>0 (untested; the ds4-eval fix uses argmax-verify = greedy-only).
+
+**Viability verdict:** relaxing greedy exactness (using the divergent batched verify) is NET-VIABLE for the
+benchmark scores — the 56% token divergence does not hurt answer scores (net +4 on 92Q, 89.1% same verdict).
+Strategy pending future verifier work: batched verify for greedy (score-neutral) + the exact sequential verify
+for temp>0 (distribution-exact, prior work). Strict committed-output byte-exactness still needs the Lead 08
+margin-guarded fallback (re-verify near-tie positions).
+
+### 2026-07-13 — bench-batched RESULTS: throughput + attribution + DIVERGENCE (corpus-dependent: 0% benchmark / 40% code)  ["0% benchmark" SUPERSEDED — see 2026-07-14: ds4-eval was plain-vs-plain]
 
 First real measurement (warm model, exactness corpus + full ds4-eval):
 - **Throughput (warm, exactness corpus, 10 prompts):** plain 37.20 → seq 16.29 → **batched 20.19

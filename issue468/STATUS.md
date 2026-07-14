@@ -364,6 +364,31 @@ Lower-priority housekeeping (mostly done in the 2026-07-12 cleanup):
 instrumentation + retained-tools inventories are current; the milestone-2
 conclusion is consolidated; the fixed-K verify clamp bug is fixed and committed.
 
+## Milestone 3 (2026-07-13/14): committing batched verify — sublinear, divergent but score-neutral
+
+Lever 1 of the milestone-3 runtime plan: a committing batched (sublinear) verify wired into the
+DSpark path (env `DS4_DSPARK_VERIFY_BATCHED`, default-off), using `metal_graph_verify_suffix_tops`
++ a per-position layers-40/41/42 capture + a batch window-push. Codex gate A ran (3 code bugs
+fixed). Measured (warm): plain 37.2 / seq 16.3 / **batched 20.2 t/s** (verify 52→43 ms, sublinear).
+
+Key findings:
+- **Not committed-output-exact when engaged:** the 0.64%-level argmax flips propagate to
+  committed output (56.6% token divergence on the benchmark; 40% on the exactness corpus). The
+  earlier "0% on the ds4-eval benchmark" was a measurement error — ds4-eval used plain decode
+  (fixed to engage DSpark). Codex verdict: NO functional equivalence when engaged.
+- **But score-neutral on the 92Q benchmark (greedy):** plain 60/92 (65.2%) vs DSpark-batched
+  64/92 (69.6%), **net +4**, 89.1% same verdict (3 losses Q21/28/79, 7 gains Q24/25/30/37/49/52/81).
+- **temp>0 distribution-exact** for the DSpark runtime via the exact sequential verify
+  (milestone-1: `max_abs=0`, `rms=0`, `sampled_lp_diff=0`; `DS4_DSPARK_VERIFY_K=0` gate).
+
+⇒ Relaxing greedy exactness (batched verify) is **net-viable for benchmark scores** pending
+future verifier work; strict committed-output byte-exactness needs the Lead 08 margin-guarded
+fallback (re-verify near-ties). The GPU push (`metal_graph_push_dspark_hidden`) is a pre-existing
+general bug (CPU fallback, ~1.85 ms, cheap) — separate follow-up. Levers 2 (anchor reuse) + 3
+(GPU drafter) not started. Artifacts: `issue468/artifacts/dspark_m3_bench/` + codex verdict
+`issue468/artifacts/dspark_codex_reviews/2026-07-14_gpt55_xhigh_engaged_divergence_verdict.md`;
+progress doc `issue468/summaries/dspark_runtime_milestone_3_progress.md`.
+
 ## Canonicality rule
 
 This file is the source of truth for the branch's current research state.
