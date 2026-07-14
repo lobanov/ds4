@@ -204,6 +204,20 @@ complete + valid. The gap is non-fatal during generation — present in the ds4-
 ~0.9× plain on exactness, ~0.73× on 8k. The +20% over plain is NOT reachable with levers 2+3 alone — the verify is the bottleneck
 (Lead 08 territory). Lever 2 is a real win over the DSpark-batched baseline (+10.5%) + score-neutral on the gate.
 
+### 2026-07-14 — lever 3 VIABILITY FINDING: draft is MEMORY-BOUND; GPU forward port is marginal on Apple Silicon (shared unified memory); +20% needs Lead 08
+
+**Batched output-head (CPU, DS4_DSPARK_OUTPUT_BATCHED) implemented + benched — MINOR win (+1.3%):** replaced the `draft_n` separate `matvec_q8_0` output-head calls with one `matmul_q8_0_batch` (reads the ~917 MB output weights once). 8k reuse+OB: draft 45.2→42.1 ms, t/s 25.97→26.31 (+1.3%). **The output-head is only ~3-5 ms** — NOT the dominant cost. My earlier "output-head dominates" reasoning was WRONG.
+
+**The 3-stage forward dominates (~38-40 ms):** the drafter's ~10.7 GB weights (read once per cycle) are the bulk of the draft. Confirmed by the batched output-head experiment (the output-head is small) + the thread-count diagnostic.
+
+**Thread-count diagnostic (decisive):** 8k reuse at `-t 8` vs `-t 14` → draft 38.4 vs 38.3 ms (**FLAT**). More CPU threads do NOT speed up the draft → the forward is **memory-bound** (bandwidth-limited, not compute-limited).
+
+**Implication for the GPU port (lever 3):** on Apple Silicon the CPU + GPU share the unified memory pool. A GPU forward port draws from the SAME bandwidth → at best ~1.5× on the forward (draft ~25-30 ms), NOT the ~10 ms target. The GPU drafter is **marginal + big-effort** (a Metal implementation of the drafter's full transformer, or reusing the target's Metal graph for the drafter's weights) for a ~0.79×-of-plain result.
+
+**Combined projection (levers 2+3):** reuse (0.73× plain) + GPU forward (marginal) ≈ 0.79× plain. The verify (~117 ms) dominates. **+20% over plain is NOT reachable with levers 2+3 on this hardware** — it needs Lead 08 (the fused verify kernel / verify-cost reduction), which is deferred.
+
+**Decision surfaced (paused):** (a) skip lever 3 (not viable as specified — memory-bound on Apple Silicon) + run the final 92Q (plain vs batched+reuse) + propagate, reporting ~0.73× plain + the verify-dominates finding; (b) attempt the GPU forward port anyway (marginal, big effort, "report the actual"); (c) pivot to Lead 08 (the real +20% path). The batched output-head (CPU, +1.3%) is kept as a minor env-gated optimization regardless.
+
 ### 2026-07-14 — lever 3 (GPU drafter) ORIENTATION: output-head dominates (~95%); CPU batched output-head is a safer alternative to the GPU port
 
 **Drafter cost breakdown (reasoned + scoped):** the draft_ms ~45 ms (8k) is dominated by the **output-head matvec** — the loop does `draft_n` SEPARATE `matvec_q8_0(base_logits, &e->model, e->weights.output, norm)` calls, each reading the target's full-vocab Q8_0 output weights (~7168×128k ≈ 917 MB). At ~100 GB/s, 5 reads ≈ 43 ms ≈ 95% of the draft. The 3-stage `dspark_block_forward_batch` forward is small (~2 ms); the markov/conf/argmax are small. So **moving the output-head is the lever-3 win**; the forward need not move.

@@ -28339,6 +28339,11 @@ static bool dspark_anchor_reuse_enabled(void) {
     return e && strcmp(e, "0") && strcasecmp(e, "off");
 }
 
+static bool dspark_output_batched_enabled(void) {
+    const char *e = getenv("DS4_DSPARK_OUTPUT_BATCHED");
+    return e && strcmp(e, "0") && strcasecmp(e, "off");
+}
+
 static float dspark_schedule_threshold(void) {
     float threshold = 0.08f;
     const char *thr_env = getenv("DS4_DSPARK_CONF_THRESHOLD");
@@ -28537,6 +28542,45 @@ static bool dspark_eval_draft_block_cpu_scheduled_batched(
         float *tmp = cur;
         cur = nxt;
         nxt = tmp;
+    }
+
+    /* m3 lever 3: batched output-head — replace the draft_n separate matvec_q8_0 calls
+     * (each reads the ~917 MB target output weights) with ONE matmul_q8_0_batch (reads
+     * them once => ~5x less memory traffic). Env-gated default-off. The markov
+     * (sequential, depends on prev) + conf + argmax stay per-row; only the output
+     * matvec is batched. This is the CPU batching prerequisite for the Metal move. */
+    if (dspark_output_batched_enabled()) {
+        float *norms = xmalloc((size_t)draft_n * DS4_N_EMBD * sizeof(float));
+        for (int t = 0; t < draft_n; t++) {
+            float *nt = norms + (size_t)t * DS4_N_EMBD;
+            dspark_hc_head_one(nt, &e->dspark_model, &e->dspark_weights, cur + (uint64_t)t * hc_dim);
+            rms_norm_weight(nt, nt, tensor_data(&e->dspark_model, e->dspark_weights.norm), DS4_N_EMBD, DS4_RMS_EPS);
+        }
+        float *base_all = xmalloc((size_t)draft_n * DS4_N_VOCAB * sizeof(float));
+        matmul_q8_0_batch(base_all, &e->model, e->weights.output, norms, (uint64_t)draft_n);
+        float markov_emb_b[DS4_DSPARK_MARKOV_RANK];
+        int prev_b = anchor;
+        for (int t = 0; t < draft_n; t++) {
+            float *bl = base_all + (size_t)t * DS4_N_VOCAB;
+            dspark_markov_embed_lookup(markov_emb_b, &e->dspark_model, e->dspark_weights.markov_w1, prev_b);
+            matvec_any(scratch->markov_bias, &e->dspark_model, e->dspark_weights.markov_w2, markov_emb_b);
+            if (s->dspark_conf_logits) {
+                float clogit = dot_f32(norms + (size_t)t * DS4_N_EMBD, scratch->conf_proj, DS4_N_EMBD)
+                             + dot_f32(markov_emb_b, scratch->conf_proj + DS4_N_EMBD, DS4_DSPARK_MARKOV_RANK);
+                s->dspark_conf_logits[t] = clogit;
+            }
+            int best = 0;
+            float bestv = bl[0] + scratch->markov_bias[0];
+            for (uint32_t v = 1; v < DS4_N_VOCAB; v++) {
+                const float cv = bl[v] + scratch->markov_bias[v];
+                if (cv > bestv) { bestv = cv; best = (int)v; }
+            }
+            draft[t] = best;
+            prev_b = best;
+        }
+        free(norms);
+        free(base_all);
+        return true;
     }
 
     float *norm = scratch->norm;
