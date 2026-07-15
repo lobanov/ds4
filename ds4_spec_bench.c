@@ -1011,6 +1011,39 @@ static int auto_ctx_alloc(const spec_run_vec *runs) {
     return max_need > 0 ? max_need : 1;
 }
 
+/* m3: eager frontier>prompt validation — tokenize each run's prompt at startup
+ * and drop entries whose frontier_tokens exceeds the prompt's token count (or
+ * whose prompt fails to tokenize). Previously these failed mid-bench, after the
+ * model load + per-entry setup; dropping them upfront avoids the wasted cycles.
+ * The prompt_cache is populated, so the main loop reuses the tokenization. */
+static int prune_invalid_frontier_runs(spec_run_vec *runs, prompt_cache *cache,
+                                       ds4_engine *engine) {
+    int write = 0, dropped = 0;
+    for (int i = 0; i < runs->len; i++) {
+        spec_run *run = &runs->v[i];
+        char err[256] = {0};
+        const ds4_tokens *tokens = prompt_cache_get(cache, engine, run, err, sizeof(err));
+        if (!tokens) {
+            fprintf(stderr, "ds4-spec-bench: DROP line %d (%s): tokenize failed: %s\n",
+                    run->line_no, run->id ? run->id : "?", err);
+            run_free(run);
+            dropped++;
+            continue;
+        }
+        if ((int)tokens->len < run->frontier_tokens) {
+            fprintf(stderr, "ds4-spec-bench: DROP line %d (%s): prompt has %d tokens, need frontier %d\n",
+                    run->line_no, run->id ? run->id : "?", (int)tokens->len, run->frontier_tokens);
+            run_free(run);
+            dropped++;
+            continue;
+        }
+        if (write != i) runs->v[write] = runs->v[i];
+        write++;
+    }
+    runs->len = write;
+    return dropped;
+}
+
 static const char *active_drafter_name(ds4_engine *engine) {
     if (ds4_engine_has_dspark(engine)) return "dspark";
     if (ds4_engine_has_mtp(engine)) return "mtp";
@@ -1376,6 +1409,15 @@ int main(int argc, char **argv) {
 
     prompt_cache cache = {0};
     int rc = 0;
+    const int dropped = prune_invalid_frontier_runs(&runs, &cache, engine);
+    if (dropped > 0) {
+        fprintf(stderr, "ds4-spec-bench: dropped %d run(s) with invalid frontier>prompt at startup; %d remaining\n",
+                dropped, runs.len);
+    }
+    if (runs.len == 0) {
+        fprintf(stderr, "ds4-spec-bench: no valid runs remain after frontier validation\n");
+        rc = 2;
+    }
     for (int i = 0; i < runs.len; i++) {
         spec_run *run = &runs.v[i];
         char err[256] = {0};

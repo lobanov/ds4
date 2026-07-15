@@ -28571,6 +28571,14 @@ static bool dspark_draft_metal_enabled(void) {
     return e && strcmp(e, "0") && strcasecmp(e, "off");
 }
 
+/* m3 lever 3 STS composition: when on, the Metal drafter computes the learned
+ * confidence (conf_logits via the conf_proj head) + the STS adapts the batch
+ * verify_n. Off (default) = fixed verify_n = draft_n. Requires the Metal drafter. */
+static bool dspark_metal_sts_enabled(void) {
+    const char *e = getenv("DS4_DSPARK_DRAFT_METAL_STS");
+    return e && strcmp(e, "0") && strcasecmp(e, "off");
+}
+
 static float dspark_schedule_threshold(void) {
     float threshold = 0.08f;
     const char *thr_env = getenv("DS4_DSPARK_CONF_THRESHOLD");
@@ -28938,9 +28946,11 @@ static void dspark_markov_bias_worker(void *vctx, uint64_t row0, uint64_t row1) 
 static void dspark_apply_markov_bias(float *logits,
                                      const ds4_model *m,
                                      const ds4_dspark_weights *w,
-                                     int prev_token) {
+                                     int prev_token,
+                                     float *markov_emb_out) {
     if (!logits || !m || !w || !w->markov_w1 || !w->markov_w2 ||
         prev_token < 0 || prev_token >= (int)DS4_N_VOCAB) {
+        if (markov_emb_out) memset(markov_emb_out, 0, DS4_DSPARK_MARKOV_RANK * sizeof(float));
         return;
     }
 
@@ -28957,6 +28967,7 @@ static void dspark_apply_markov_bias(float *logits,
         ds4_die("DSpark Markov rank exceeds local buffer");
     }
     tensor_plain_row_to_f32(latent, m, w->markov_w1, (uint64_t)prev_token);
+    if (markov_emb_out) memcpy(markov_emb_out, latent, rank * sizeof(float));
 
     dspark_markov_bias_ctx ctx = {
         .logits = logits,
@@ -29490,7 +29501,9 @@ static bool metal_graph_eval_dspark_draft_block(
         int                    *draft_n,
         uint32_t               *base_real_out,
         float                  *last_logits,
-        float                  *all_draft_logits) {
+        float                  *all_draft_logits,
+        const float           *conf_proj,
+        float                  *conf_logits_out) {
     if (draft_n) *draft_n = 0;
     if (base_real_out) *base_real_out = 0;
     if (!g || !target_model || !target_weights || !dspark_model || !w ||
@@ -29551,6 +29564,8 @@ static bool metal_graph_eval_dspark_draft_block(
 
     const uint64_t row_bytes = (uint64_t)DS4_N_VOCAB * sizeof(float);
     float *row_logits = xmalloc((size_t)row_bytes);
+    const bool want_conf = (conf_proj && conf_logits_out);
+    float *norm_buf = want_conf ? xmalloc((size_t)DS4_N_EMBD * sizeof(float)) : NULL;
     for (uint32_t i = 0; ok && i < block_size; i++) {
         ok = ds4_gpu_tensor_read(g->spec_logits,
                                  (uint64_t)i * row_bytes,
@@ -29558,8 +29573,21 @@ static bool metal_graph_eval_dspark_draft_block(
                                  row_bytes) != 0;
         if (!ok) break;
         const int prev = i == 0 ? anchor_token : drafts[i - 1u];
-        dspark_apply_markov_bias(row_logits, dspark_model, w, prev);
+        float markov_emb[DS4_DSPARK_MARKOV_RANK];
+        dspark_apply_markov_bias(row_logits, dspark_model, w, prev, want_conf ? markov_emb : NULL);
         drafts[i] = sample_argmax(row_logits, DS4_N_VOCAB);
+        if (want_conf) {
+            /* m3 STS composition: read the drafter's rms-normed hidden (the output-head's
+             * output_norm, in batch_ffn_norm) + compute the learned confidence (clogit)
+             * via the conf_proj head, matching the CPU drafter's dspark_conf_logits. */
+            ok = ds4_gpu_tensor_read(g->batch_ffn_norm,
+                                     (uint64_t)i * DS4_N_EMBD * sizeof(float),
+                                     norm_buf,
+                                     (uint64_t)DS4_N_EMBD * sizeof(float)) != 0;
+            if (!ok) break;
+            conf_logits_out[i] = dot_f32(norm_buf, conf_proj, DS4_N_EMBD)
+                               + dot_f32(markov_emb, conf_proj + DS4_N_EMBD, DS4_DSPARK_MARKOV_RANK);
+        }
         if (all_draft_logits) {
             memcpy(all_draft_logits + (uint64_t)i * DS4_N_VOCAB, row_logits, (size_t)row_bytes);
         }
@@ -29568,6 +29596,7 @@ static bool metal_graph_eval_dspark_draft_block(
         }
     }
     free(row_logits);
+    if (norm_buf) free(norm_buf);
     if (!ok) return false;
     *draft_n = (int)block_size;
     return true;
@@ -29683,11 +29712,18 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
         if (draft_metal) {
             int metal_draft_n = draft_eval_n;
             uint32_t base_real = 0;
+            /* m3 STS composition: pass the conf_proj + the conf_logits buffer so the
+             * Metal drafter computes the learned confidence (the STS then adapts
+             * verify_n). Off (no env) -> NULL, NULL -> fixed verify_n. */
+            const float *mconf_proj = dspark_metal_sts_enabled() ? s->dspark_scratch.conf_proj : NULL;
+            float *mconf_out = (dspark_metal_sts_enabled() && s->dspark_conf_logits) ? s->dspark_conf_logits : NULL;
+            if (mconf_out) memset(mconf_out, 0, (size_t)DS4_DSPARK_BLOCK * sizeof(float));
             if (!metal_graph_eval_dspark_draft_block(&s->graph, &e->model, &e->weights,
                                                      &e->dspark_model, &e->dspark_weights,
                                                      first_token, (uint32_t)(s->checkpoint.len > 0 ? s->checkpoint.len - 1 : 0),
                                                      (uint32_t)draft_eval_n, drafts + anchor_off,
-                                                     &metal_draft_n, &base_real, NULL, NULL)) {
+                                                     &metal_draft_n, &base_real, NULL, NULL,
+                                                     mconf_proj, mconf_out)) {
                 if (anchor_reuse) { if (ds4_session_eval(s, first_token, err, errlen) != 0) return -1; accepted[n_accept++] = first_token; return n_accept; }
                 return n_accept;
             }
@@ -29742,7 +29778,13 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
             s->dspark_last_cycle.conf_logits[i] = s->dspark_conf_logits ? s->dspark_conf_logits[i] : 0.0f;
         }
         if (draft_metal) {
-            verify_n = draft_eval_n + anchor_off;  /* Metal drafter: fixed verify_n (no STS; it doesn't set conf_logits) */
+            /* m3 STS composition: if the Metal drafter computed the conf_logits, adapt
+             * verify_n via the STS; otherwise fixed verify_n = draft_eval_n. */
+            if (dspark_metal_sts_enabled() && s->dspark_conf_logits) {
+                verify_n = dspark_schedule_verify_len(s->dspark_conf_logits, draft_eval_n) + anchor_off;
+            } else {
+                verify_n = draft_eval_n + anchor_off;
+            }
         } else if (batched_scheduled_draft) {
             /* STS schedules over the continuation; the anchor (drafts[0]) is always
              * verified first, so add anchor_off to the scheduled continuation length. */

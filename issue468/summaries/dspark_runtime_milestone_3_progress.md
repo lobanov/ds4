@@ -204,6 +204,19 @@ complete + valid. The gap is non-fatal during generation — present in the ds4-
 ~0.9× plain on exactness, ~0.73× on 8k. The +20% over plain is NOT reachable with levers 2+3 alone — the verify is the bottleneck
 (Lead 08 territory). Lever 2 is a real win over the DSpark-batched baseline (+10.5%) + score-neutral on the gate.
 
+### 2026-07-15 — lever 3 STS composition: verify_n now adapts (drafted=5, verify=1-5) — Metal drafter ~20→~31.7 t/s (0.89× of plain)
+
+**The STS composition is wired** (env `DS4_DSPARK_DRAFT_METAL_STS`). The Metal drafter now computes the learned confidence (`dspark_conf_logits`) via the already-loaded `conf_proj` head + the STS adapts the batch `verify_n`:
+- `metal_graph_eval_dspark_draft_block` now reads the drafter's rms-normed hidden (`batch_ffn_norm`, the output-head's `output_norm`) per draft + computes `clogit = dot(norm, conf_proj) + dot(markov_emb, conf_proj+EMBD)` (the `markov_emb` exposed via a new `dspark_apply_markov_bias` out-param; the `conf_proj` from the CPU scratch). Stores into `s->dspark_conf_logits`.
+- The Metal branch now calls `dspark_schedule_verify_len(s->dspark_conf_logits, draft_eval_n)` (when the STS is on) instead of the fixed `verify_n = draft_n`.
+- Env-gated default-off (off = fixed verify_n, on = STS-adapted). NOT a re-train (reuses the existing confidence head + STS selector).
+
+**Result (smoke, short prompt):** verify_n adapts 1-5 (verify_ms 29ms@1, 53ms@3, 67ms@5 — sublinear). The cycle totals dropped: ~24 tokens / ~758ms = **~31.7 t/s** (vs ~20 t/s without STS, vs plain 35.5 = **0.89× of plain**). The STS picks verify_n ≈ E[a] ≈ 1-3 when the confidence is low (the ~50% acceptance → quick survival drop), halving the verify cost on rejected cycles. The conf_proj readback + the dot products add negligible overhead (~0.3ms/cycle; draft stays ~7.6ms).
+
+**Also done this slice:** the ds4-spec-bench eager `frontier>prompt` validation (env-gated... no, always-on at startup) — tokenizes each bulk-config entry's prompt at startup + drops the invalid ones BEFORE the bench (we wasted cycles on mid-bench frontier>prompt failures). Verified on c_plain.jsonl: 83 dropped, 93 remaining (matches the previous n=93 bench subset exactly).
+
+**Status:** the STS composition works + improves the Metal drafter from a net slowdown to ~0.89× of plain. Next: the 20-Q no-regression gate (with the STS) → the large-corpus bench (the full stack: reuse+prefix-ckp+Metal+STS) → codex gate B.
+
 ### 2026-07-14 — lever 3: 20-Q gate PASSES (20/20, 0 PASS->FAIL flips) + codex gate A (2 bugs found + fixed)
 
 **20-Q no-regression gate** (ds4-eval, greedy, `DS4_DSPARK_VERIFY_BATCHED=1 DS4_DSPARK_DRAFT_METAL=1`): **20/20 PASSED, 0 FAILED**. The recorded first-20 is 17/20 (Q6/Q9/Q15 fail). The Metal drafter flipped Q6+Q9+Q15 FAIL->PASS (3 gains), **zero PASS->FAIL flips** — the no-regression gate PASSES. (Run with the pre-stale-KV-fix binary; the stale-KV fix only affects the drafter's accuracy, not the target's output — the verify protects correctness — so the no-regression criterion holds. The 3 FAIL->PASS flips are the batched verify's score-neutral divergence amplified by the Metal drafter's different drafts; the full 92Q will quantify the net.)
