@@ -1,5 +1,17 @@
 # Speculative-decode speedup model — DSPark drafter on the ds4 target
 
+> **M3 UPDATE (2026-07-15) — the headline below is SUPERSEDED.** The full DSpark stack
+> (committing batched verify + anchor-reuse + prefix-checkpoint + the GPU Metal drafter +
+> the STS) now **BEATS plain ds4 by +4.9 %** (40.04 vs 38.16 t/s on the full 176-entry
+> corpus; +4.8 % on the long-context baseline_corpus), and is **score-neutral** on the 92Q
+> (61/92 vs plain 60/92, 90.2 % same verdict, net +1). This is the first config to beat
+> plain locally. The win came from attacking both the draft cost (Metal drafter 45→7.6 ms)
+> and the verify overhead (batched + prefix-checkpoint + anchor-reuse-for-Metal). The old
+> "does NOT beat plain" conclusion held for the *exact* sequential-reuse verifier (M2);
+> the committing batched verify + the GPU drafter changed it. **+20 % is still not reached —
+> the verify dominates (~80 % of the cycle, ~16 ms/token); +20 % needs Lead 08 (a fused
+> verify kernel).** See `dspark_runtime_milestone_3_progress.md` for the full M3 record.
+
 Date: 2026-07-06 (cycle-cost model); **holistic integration 2026-07-08** of Lead 01
 (anchor-reuse falsifier), Lead 02 (confidence-scheduled verification), and Lead 03
 (powered acceptance + realistic-trajectory); **Lead 04 Phase B (FP hidden-precision

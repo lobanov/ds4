@@ -1,0 +1,7 @@
+=== M3 final 92Q score comparison (canonical --nothink --tokens 2048 --temp 0 --seed 1) ===
+plain:      ds4-eval: 60/92 passed, 32 failed, runtime 00h:29m
+full-stack: ds4-eval: 61/92 passed, 31 failed, runtime 00h:24m
+
+FAIL->PASS gains: [6, 30, 41, 52, 81]
+PASS->FAIL reg: [28, 34, 79, 92]
+net: 1  same verdict: 83 /92

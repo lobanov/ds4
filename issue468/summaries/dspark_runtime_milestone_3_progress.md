@@ -81,6 +81,20 @@ near-tie positions) — deferred.
 
 Out of scope (deferred): **Lead 08** (the fused verify kernel / verify-cost reduction — the real **+20%** path; the verify still dominates even with the full stack); STS re-training (re-training the confidence model — the recalibration is a constants tweak, not a re-train); Lead 04 (target hidden-state precision / F16-blocked); N=3/4/5 (the draft-6 experiment was in scope; other block sizes not explored). The **exact sequential verify** is retained as the byte-exact (temp=0) / distribution-exact (temp=0, TV=0) fallback (default when the batched verify is off).
 
+## Lead re-assessment (post-M3 measurement)
+
+**The measured actual**: the full DSpark stack (batched verify + anchor-reuse + prefix-checkpoint + Metal drafter + STS) **BEATS plain ds4 by +4.9%** (40.04 vs 38.16 t/s on the full 176-entry corpus; +4.8% on the long-context baseline_corpus) — the first config to beat plain locally. The draft reduction is real (45→7.6ms, 3.9×); anchor-reuse recovered the standalone-anchor decode; the prefix-checkpoint removed the partial-accept replay.
+
+**The verify still dominates.** Even with the full stack, the cycle is ~decode(0.1) + draft(7.6) + **verify(59ms)** — the verify is ~80% of the cycle + ~16ms/token (sublinear). The draft side is now cheap + fully amortized; further draft-side gains (draft-6, STS recalibration) are marginal (within noise) because the verify is the bottleneck, not the draft.
+
+- **Lead 08 (the fused verify kernel) — the real +20% path.** This is now unambiguously the highest-value lead. The verify wall-time is dominated by the GPU layer execution (the existing `metal_graph_verify_suffix_tops` reuses the batched primitive but isn't fused). A **fused low-K verifier kernel** (combining the per-layer KV update + the attention + the output in one pass, or a fused multi-layer kernel) that shaves the ~16ms/token verify cost is the only structural lever left for +20%. The M3 stack gives it a clean baseline to measure against (the verify_n + the acceptance are well-characterized).
+- **Lever 3 (Metal drafter)** — DONE. The draft is cheap (7.6ms); drafting more (draft-6) is marginal (the 6th ~50% accepted, ~break-even against the marginal verify cost).
+- **Lever 4 (anchor-reuse-for-Metal)** — DONE (viable). Recovered the ~25.8ms decode; needed the prefix-checkpoint + the dspark_n_real fix.
+- **Lever 5 (STS recalibration)** — DONE (marginal, within noise). The conf_proj/temp (acceptance) unchanged; the threshold re-tune (0.15) is +1% (the cost-optimal shifted with the smaller fixed overhead C).
+- **Out of scope, not re-assessed**: Lead 04 (target hidden-state precision / F16-blocked), the STS model re-training.
+
+**Bottom line**: M3 turned DSpark from a net slowdown (M2: −16% vs plain) into a **+4.9% win** by attacking both the draft cost (Metal drafter) AND the verify overhead (batched + prefix-checkpoint + anchor-reuse). But +20% is NOT reachable by further draft/anchor/STS tuning — it needs **Lead 08 (a cheaper verify)**.
+
 ## What "validate a lever" means here (M2 methodology, gate re-stated)
 
 A lever is `validated` only when: (1) the implementation exists, env-gated default-off;
@@ -201,6 +215,20 @@ complete + valid. The gap is non-fatal during generation — present in the ds4-
 **Read on the +20% target:** the 8k baseline shows the batched verify dominates at ~105-117 ms (verify_n~4.5); reuse+drafter projects
 ~0.9× plain on exactness, ~0.73× on 8k. The +20% over plain is NOT reachable with levers 2+3 alone — the verify is the bottleneck
 (Lead 08 territory). Lever 2 is a real win over the DSpark-batched baseline (+10.5%) + score-neutral on the gate.
+
+### 2026-07-15 — FINAL 92Q + verdict: the full DSpark stack BEATS plain (+4.9% throughput, 61/92 vs 60/92 score-neutral)
+
+**Full 92Q score comparison (canonical `--nothink --tokens 2048 --temp 0 --seed 1`):**
+- plain: **60/92** (32 failed)
+- full stack (batched+anchor-reuse+prefix-ckp+Metal-drafter+STS): **61/92** (31 failed)
+- flips: 5 FAIL→PASS gains (Q6,30,41,52,81), 4 PASS→FAIL regressions (Q28,34,79,92), **net +1**, **90.2% same verdict** (83/92). Score-neutral (the batched verify's FP divergence: ~10% different verdicts, net +1) — no quality regression.
+
+**The combined speedup (the actual):**
+- full 176-entry corpus: full stack **40.04** vs plain **38.16** = **+4.9%** (CIs don't overlap → significant).
+- long-context baseline_corpus (4k/8k/16k): **+4.8%** (36.01 vs 34.37).
+- (the 93-subset showed break-even — it was biased short; the full corpus reveals the real +4.9% win.)
+
+**The final verdict**: M3 turned DSpark from a net slowdown (M2: −16% vs plain, exact anchor-reuse) into a **+4.9% win** that is also **score-neutral** (61/92 vs 60/92). This is the first config to beat plain ds4 locally. The win came from attacking BOTH the draft cost (the Metal drafter: 45→7.6ms) AND the verify overhead (the batched verify + the prefix-checkpoint + the anchor-reuse-for-Metal). The +20% target is NOT reached — the verify still dominates (~80% of the cycle, ~16ms/token) — so +20% needs **Lead 08 (a fused verify kernel)**. Draft-side + anchor-side + STS tuning are now exhausted (draft-6 marginal, STS recalibration within noise).
 
 ### 2026-07-15 — lever 5: STS threshold re-tune (0.08→0.15 Metal-specific, marginal) + draft-6 ASSESSED (marginal, not worth it) + long-context bench
 

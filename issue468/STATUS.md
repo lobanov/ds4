@@ -6,6 +6,10 @@ Framework established for a compact DSpark research dossier.
 
 This branch starts from `main` and is intended to host a curated, low-noise version of the DSpark research record under `issue468/`.
 
+## Milestone 3 (DSpark runtime) — COMPLETE (2026-07-15)
+
+The full DSpark speculative-decode stack now **BEATS plain ds4 by +4.9 %** (40.04 vs 38.16 t/s, full 176-entry corpus; +4.8 % on the long-context baseline_corpus) and is **score-neutral** on the 92Q (61/92 vs plain 60/92, 90.2 % same verdict, net +1) — the first config to beat plain locally. Levers: (1) committing batched verify, (2) anchor-reuse, (verifier-improvements) prefix-checkpoint, (3) the GPU Metal drafter (draft 45→7.6 ms), (4) anchor-reuse-for-Metal, (5) STS threshold re-tune. **+20 % is not reached — the verify still dominates (~80 % of the cycle); the next lead is Lead 08 (a fused verify kernel).** Full record: `issue468/summaries/dspark_runtime_milestone_3_progress.md`.
+
 ## Current objective
 
 Create a trustworthy active dossier that makes it easy to:
