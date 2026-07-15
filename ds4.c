@@ -28580,7 +28580,13 @@ static bool dspark_metal_sts_enabled(void) {
 }
 
 static float dspark_schedule_threshold(void) {
-    float threshold = 0.08f;
+    /* m3 lever 5: the Metal+anchor-reuse path has a much smaller fixed per-cycle
+     * overhead C (decode+draft ~7.7ms vs the CPU drafter's ~55ms), so the verify
+     * dominates the cycle more -> the cost-optimal verify_n is lower -> a higher
+     * threshold. Threshold sweep on the full corpus found the Metal optimum at
+     * ~0.15 (40.42 t/s, +5.9% over plain) vs 0.08 (40.04, +4.9%). The CPU path
+     * keeps 0.08 (its larger C favors verifying more). */
+    float threshold = (dspark_metal_sts_enabled()) ? 0.15f : 0.08f;
     const char *thr_env = getenv("DS4_DSPARK_CONF_THRESHOLD");
     if (thr_env && thr_env[0]) {
         char *end = NULL;

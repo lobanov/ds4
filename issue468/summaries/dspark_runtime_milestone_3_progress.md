@@ -202,6 +202,14 @@ complete + valid. The gap is non-fatal during generation — present in the ds4-
 ~0.9× plain on exactness, ~0.73× on 8k. The +20% over plain is NOT reachable with levers 2+3 alone — the verify is the bottleneck
 (Lead 08 territory). Lever 2 is a real win over the DSpark-batched baseline (+10.5%) + score-neutral on the gate.
 
+### 2026-07-15 — lever 5: STS threshold re-tune (0.08→0.15 Metal-specific, marginal) + draft-6 ASSESSED (marginal, not worth it) + long-context bench
+
+**The STS threshold re-tune (the answer to "re-train the STS curve for the new cycle timings")**: the conf_proj head + the temp array predict the ACCEPTANCE (unchanged — same drafter, same accuracy) → NO model re-training. But the STS **threshold** encodes the cost tradeoff, + the Metal+anchor-reuse path's fixed per-cycle overhead C dropped ~7× (decode+draft ~7.7ms vs the CPU's ~55ms), so the verify dominates more → the cost-optimal verify_n shifted down → a higher threshold. **Threshold sweep on the full corpus:** 0.04→38.73 (verify more, worse), 0.08→40.04 (current), 0.12→40.23, **0.15→40.42 (peak)**, 0.20→40.37 (plateau). **Locked in a Metal-specific default 0.15** (when DS4_DSPARK_DRAFT_METAL_STS on; the CPU keeps 0.08). Caveat: the re-bench (39.85) was within the run-to-run noise (±1 t/s) vs 0.08 (40.04) — the gain is marginal (~+1%, not robust), but the cost analysis supports it + it's not worse.
+
+**Draft-6 assessment (NOT implemented — not worth it):** on the long context, P(accept all 5)=21% (vs 7% short); the 6th token's conditional acceptance ~50% (extrapolated from the 73.9→67.2→58.8 trend) → accepted in ~10% of cycles. The gain (+1 token in ~10% ≈ +3.6% tokens) is roughly offset by the marginal verify cost (~6ms sublinear × the ~20% verify_n=6 cycles ≈ +4% cycle). **Net ≈ break-even** — the verify is too expensive per marginal ~50%-accepted token. Not worth the complexity. The real lever is Lead 08 (reduce the verify cost).
+
+**Long-context bench (baseline_corpus: code/synthesis/grounded × 4k/8k/16k, 9 prompts, gen=128):** plain 34.37 / full stack 36.01 t/s = **+4.8%** (≈ the full-corpus +4.9% — the speedup doesn't grow with context; the verify dominates regardless). Long-context acceptance is higher (P(verified=5)=21% vs 7% short; mean continuation accepted 1.81).
+
 ### 2026-07-15 — FULL CORPUS (176 entries, unbiased): the full stack is +4.9% over plain (40.04 vs 38.16 t/s) — a real WIN
 
 **The ds4-spec-bench FAIL-on-invalid-config fix (commit 03a53e7) + --rewrite-frontier regenerated the config to the full 176-entry corpus (was 93 after the silent drop). Re-bench (n=176, bootstrap CI):**
