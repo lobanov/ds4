@@ -29646,11 +29646,15 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
          * on (the fold is sublinear only there). Env-gated default-off. */
         const bool anchor_reuse =
             dspark_anchor_reuse_enabled() &&
-            !dspark_draft_metal_enabled() &&
             dspark_verify_batched_enabled() &&
             first_token != eos_token &&
             max_tokens > 1 &&
             first_token == sample_argmax(s->logits, DS4_N_VOCAB);
+        /* m3 lever 4: anchor-reuse now composes with the Metal drafter — the Metal
+         * drafter uses the last-committed hidden (dspark_metal_main_hidden via the
+         * refresh's keep_last_hidden), the same one-position-stale hidden the CPU
+         * anchor-reuse tolerates. The anchor decode (capture) is skipped; the
+         * drafter drafts the continuation from the committed context. */
         if (!anchor_reuse) {
             if (ds4_session_eval(s, first_token, err, errlen) != 0) return -1;
             accepted[n_accept++] = first_token;
