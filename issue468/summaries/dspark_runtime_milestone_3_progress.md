@@ -236,6 +236,8 @@ complete + valid. The gap is non-fatal during generation — present in the ds4-
 
 **Draft-6 assessment (NOT implemented — not worth it):** on the long context, P(accept all 5)=21% (vs 7% short); the 6th token's conditional acceptance ~50% (extrapolated from the 73.9→67.2→58.8 trend) → accepted in ~10% of cycles. The gain (+1 token in ~10% ≈ +3.6% tokens) is roughly offset by the marginal verify cost (~6ms sublinear × the ~20% verify_n=6 cycles ≈ +4% cycle). **Net ≈ break-even** — the verify is too expensive per marginal ~50%-accepted token. Not worth the complexity. The real lever is Lead 08 (reduce the verify cost).
 
+**Draft-6 MEASURED (block=6, long context): a NET LOSS — -2.5% (35.10 vs 36.01 t/s).** The measurement confirmed the assessment (marginal) but tipped slightly negative: P(verified=6)=10.3% (the 6th accepted in ~10% of cycles, as estimated), P(verify_n=6)=25.7% (the 6th is *verified* in ~26% of cycles), and the verify cost of that 26% outweighs the +1 token in 10%. **Conclusion: draft-6 is not worth it** (reverted to block=5). The verify dominates — drafting more tokens that are ~50% likely correct, at ~6ms marginal verify each, is a poor trade.
+
 **Long-context bench (baseline_corpus: code/synthesis/grounded × 4k/8k/16k, 9 prompts, gen=128):** plain 34.37 / full stack 36.01 t/s = **+4.8%** (≈ the full-corpus +4.9% — the speedup doesn't grow with context; the verify dominates regardless). Long-context acceptance is higher (P(verified=5)=21% vs 7% short; mean continuation accepted 1.81).
 
 ### 2026-07-15 — FULL CORPUS (176 entries, unbiased): the full stack is +4.9% over plain (40.04 vs 38.16 t/s) — a real WIN
