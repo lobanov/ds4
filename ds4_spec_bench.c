@@ -39,6 +39,7 @@ typedef struct {
     bool ssd_streaming;
     bool ssd_streaming_cold;
     char *dump_hidden_dir;
+    char *rewrite_frontier_path;
 } spec_bench_config;
 
 typedef struct {
@@ -326,6 +327,8 @@ static spec_bench_config parse_options(int argc, char **argv) {
             c.dspark_path = need_arg(&i, argc, argv, arg);
         } else if (!strcmp(arg, "--bulk-config")) {
             c.bulk_config_path = need_arg(&i, argc, argv, arg);
+        } else if (!strcmp(arg, "--rewrite-frontier")) {
+            c.rewrite_frontier_path = need_arg(&i, argc, argv, arg);
         } else if (!strcmp(arg, "--jsonl-out")) {
             c.jsonl_path = need_arg(&i, argc, argv, arg);
         } else if (!strcmp(arg, "--default-system")) {
@@ -1012,36 +1015,66 @@ static int auto_ctx_alloc(const spec_run_vec *runs) {
 }
 
 /* m3: eager frontier>prompt validation — tokenize each run's prompt at startup
- * and drop entries whose frontier_tokens exceeds the prompt's token count (or
- * whose prompt fails to tokenize). Previously these failed mid-bench, after the
- * model load + per-entry setup; dropping them upfront avoids the wasted cycles.
- * The prompt_cache is populated, so the main loop reuses the tokenization. */
-static int prune_invalid_frontier_runs(spec_run_vec *runs, prompt_cache *cache,
-                                       ds4_engine *engine) {
-    int write = 0, dropped = 0;
+ * + report any entry whose frontier_tokens exceeds the prompt's token count. The
+ * bench REFUSES to run if any entry is invalid (previously it silently dropped
+ * them, producing a biased subset + missing prompts). Use --rewrite-frontier OUT
+ * to emit a corrected config (frontier = prompt_tokens). */
+static int validate_frontier_runs(spec_run_vec *runs, prompt_cache *cache,
+                                  ds4_engine *engine) {
+    int invalid = 0;
     for (int i = 0; i < runs->len; i++) {
         spec_run *run = &runs->v[i];
         char err[256] = {0};
         const ds4_tokens *tokens = prompt_cache_get(cache, engine, run, err, sizeof(err));
         if (!tokens) {
-            fprintf(stderr, "ds4-spec-bench: DROP line %d (%s): tokenize failed: %s\n",
+            fprintf(stderr, "ds4-spec-bench: INVALID line %d (%s): tokenize failed: %s\n",
                     run->line_no, run->id ? run->id : "?", err);
-            run_free(run);
-            dropped++;
-            continue;
+            invalid++;
+        } else if ((int)tokens->len < run->frontier_tokens) {
+            fprintf(stderr, "ds4-spec-bench: INVALID line %d (%s): frontier %d > prompt %d tokens (set frontier_tokens<=%d)\n",
+                    run->line_no, run->id ? run->id : "?", run->frontier_tokens,
+                    (int)tokens->len, (int)tokens->len);
+            invalid++;
         }
-        if ((int)tokens->len < run->frontier_tokens) {
-            fprintf(stderr, "ds4-spec-bench: DROP line %d (%s): prompt has %d tokens, need frontier %d\n",
-                    run->line_no, run->id ? run->id : "?", (int)tokens->len, run->frontier_tokens);
-            run_free(run);
-            dropped++;
-            continue;
-        }
-        if (write != i) runs->v[write] = runs->v[i];
-        write++;
     }
-    runs->len = write;
-    return dropped;
+    return invalid;
+}
+
+/* m3: --rewrite-frontier OUT — tokenize each run's prompt + emit a corrected
+ * config with frontier_tokens = the prompt's token count (so no entry is invalid).
+ * The bench REFUSES to run an invalid config (no silent skips); this regenerates
+ * a valid one to re-run with. */
+static int rewrite_frontier_config(spec_run_vec *runs, prompt_cache *cache,
+                                   ds4_engine *engine, const char *out_path) {
+    FILE *fp = fopen(out_path, "wb");
+    if (!fp) {
+        fprintf(stderr, "ds4-spec-bench: failed to open %s for rewrite: %s\n", out_path, strerror(errno));
+        return 1;
+    }
+    for (int i = 0; i < runs->len; i++) {
+        spec_run *run = &runs->v[i];
+        char err[256] = {0};
+        const ds4_tokens *tokens = prompt_cache_get(cache, engine, run, err, sizeof(err));
+        int prompt_len = tokens ? (int)tokens->len : run->frontier_tokens;
+        fprintf(fp, "{\"frontier_tokens\":%d", prompt_len);  /* corrected; first field */
+        fprintf(fp, ",\"mode\":\"%s\"", mode_name(run->mode));
+        fprintf(fp, ",\"gen_tokens\":%d", run->gen_tokens);
+        if (run->id) { fprintf(fp, ",\"id\":"); json_write_string(fp, run->id); }
+        if (run->prompt_path) { fprintf(fp, ",\"prompt_file\":"); json_write_string(fp, run->prompt_path); }
+        if (run->chat_prompt_path) { fprintf(fp, ",\"chat_prompt_file\":"); json_write_string(fp, run->chat_prompt_path); }
+        if (run->system) { fprintf(fp, ",\"system\":"); json_write_string(fp, run->system); }
+        if (run->temperature != 0.0f) fprintf(fp, ",\"temperature\":%g", (double)run->temperature);
+        if (run->top_k > 0) fprintf(fp, ",\"top_k\":%d", run->top_k);
+        if (run->top_p != 1.0f) fprintf(fp, ",\"top_p\":%g", (double)run->top_p);
+        if (run->min_p > 0.0f) fprintf(fp, ",\"min_p\":%g", (double)run->min_p);
+        if (run->seed != 0) fprintf(fp, ",\"seed\":%llu", (unsigned long long)run->seed);
+        if (run->exclude_eos) fprintf(fp, ",\"exclude_eos\":true");
+        if (run->think_mode != 0) fprintf(fp, ",\"think\":%d", run->think_mode);
+        fprintf(fp, "}\n");
+    }
+    fclose(fp);
+    fprintf(stderr, "ds4-spec-bench: rewrote %d run(s) -> %s (frontier_tokens = prompt token count)\n", runs->len, out_path);
+    return 0;
 }
 
 static const char *active_drafter_name(ds4_engine *engine) {
@@ -1409,16 +1442,21 @@ int main(int argc, char **argv) {
 
     prompt_cache cache = {0};
     int rc = 0;
-    const int dropped = prune_invalid_frontier_runs(&runs, &cache, engine);
-    if (dropped > 0) {
-        fprintf(stderr, "ds4-spec-bench: dropped %d run(s) with invalid frontier>prompt at startup; %d remaining\n",
-                dropped, runs.len);
+    bool did_rewrite = false;
+    if (cfg.rewrite_frontier_path) {
+        rc = rewrite_frontier_config(&runs, &cache, engine, cfg.rewrite_frontier_path);
+        did_rewrite = true;
+    } else {
+        const int invalid = validate_frontier_runs(&runs, &cache, engine);
+        if (invalid > 0) {
+            fprintf(stderr, "ds4-spec-bench: REFUSING to run — %d of %d run(s) have invalid frontier>prompt. "
+                            "Fix the config (set frontier_tokens <= prompt length for every entry) or run with "
+                            "--rewrite-frontier OUT to emit a corrected config, then re-run. Aborting (no silent skips).\n",
+                    invalid, runs.len);
+            rc = 2;
+        }
     }
-    if (runs.len == 0) {
-        fprintf(stderr, "ds4-spec-bench: no valid runs remain after frontier validation\n");
-        rc = 2;
-    }
-    for (int i = 0; i < runs.len; i++) {
+    for (int i = 0; rc == 0 && !did_rewrite && i < runs.len; i++) {
         spec_run *run = &runs.v[i];
         char err[256] = {0};
         if (cfg.dump_hidden_dir && run->id && run->id[0]) {
