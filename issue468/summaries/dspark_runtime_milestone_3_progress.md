@@ -204,6 +204,14 @@ complete + valid. The gap is non-fatal during generation — present in the ds4-
 ~0.9× plain on exactness, ~0.73× on 8k. The +20% over plain is NOT reachable with levers 2+3 alone — the verify is the bottleneck
 (Lead 08 territory). Lever 2 is a real win over the DSpark-batched baseline (+10.5%) + score-neutral on the gate.
 
+### 2026-07-15 — FULL CORPUS (176 entries, unbiased): the full stack is +4.9% over plain (40.04 vs 38.16 t/s) — a real WIN
+
+**The ds4-spec-bench FAIL-on-invalid-config fix (commit 03a53e7) + --rewrite-frontier regenerated the config to the full 176-entry corpus (was 93 after the silent drop). Re-bench (n=176, bootstrap CI):**
+- plain: **38.16** t/s [38.09, 38.23]
+- **full stack (batched+prefix-ckp+Metal+STS+anchor-reuse): 40.04** t/s [39.14, 40.99] — **1.049× of plain (+4.9%)**
+
+The CIs don't overlap (plain max 38.23 < full-stack min 39.14) → statistically significant. The longer prompts (the jsonex entries dropped in the 93-subset) amortize the verify better → the real benefit (the 93-subset showed break-even because it was biased short). **The full DSpark stack now BEATS plain by +4.9% on the full corpus.**
+
 ### 2026-07-15 — lever 4 (anchor-reuse-for-Metal) REVISED: VIABLE with the prefix-checkpoint + the dspark_n_real fix — 38.02 t/s (0.995× of plain, break-even)
 
 **Correction to the earlier "NET LOSS" entry**: the codex review (lever 4 gate) REFUTED the "inherent net loss" claim — the loss was the **missing prefix-checkpoint** (the partial-accept commit fell back to the sequential replay, ~25.5ms/replayed token) + a **dspark_n_real double-count bug** (with anchor-reuse, `verified` already includes the anchor, but the advance was `base_real + 1 + verified` — the +1 double-counted the standalone anchor, causing KV drift).
