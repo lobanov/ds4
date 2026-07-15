@@ -204,6 +204,23 @@ complete + valid. The gap is non-fatal during generation — present in the ds4-
 ~0.9× plain on exactness, ~0.73× on 8k. The +20% over plain is NOT reachable with levers 2+3 alone — the verify is the bottleneck
 (Lead 08 territory). Lever 2 is a real win over the DSpark-batched baseline (+10.5%) + score-neutral on the gate.
 
+### 2026-07-15 — lever 3 large-corpus bench: Metal+STS = 31.55 t/s (0.83× of plain, +11.8% over reuse+prefix-ckp) — the best DSpark config, but still below plain on the short corpus
+
+**Bench (ds4-spec-bench, c_spec/c_plain, n=93 after the eager validation, bootstrap CI, warm):**
+- plain: **38.18** t/s [38.05, 38.30]
+- reuse+prefix-ckp (no Metal): **28.21** t/s [27.40, 29.07] (0.74× of plain)
+- **Metal+STS (full stack): 31.55** t/s [30.53, 32.66] (**0.83× of plain**, **+11.8%** over reuse+prefix-ckp)
+
+**Cycle-cost (mean/cycle, Metal+STS vs reuse+prefix-ckp):**
+- draft: **7.6ms** (vs 29.5ms CPU — 3.9× faster; the lever-3 win)
+- verify: **47.5ms** (vs 59.6ms — the STS cut verify_n 3.63→2.54)
+- decode: **25.8ms** (vs 0.1ms — the Metal drafter can't use anchor-reuse: the chicken-and-egg of needing the anchor decode for the capture; this is the remaining overhead)
+- total: **81.0ms** (vs 89.2ms) — faster per-cycle despite lower acceptance (verified 1.60 vs 2.54)
+
+**The verdict**: the Metal+STS is the best DSpark config (+11.8% over the CPU drafter), but it's STILL below plain on this short corpus (0.83×). The two bottlenecks: (1) the verify dominates (47.5ms, even with the STS-cut verify_n), + (2) the standalone anchor decode (25.8ms, since anchor-reuse can't compose with the Metal drafter). On the 8k (long context) the stack was 0.97× of plain (near break-even) — the short-context amortization gap is the issue on the large corpus. **+20% is NOT reachable with levers 2+3 on the general corpus — the verify dominates; +20% needs Lead 08 (the fused verify kernel).**
+
+**Status**: bench-drafter done (the combined speedup measured). Next: codex gate B → the final 92Q (--nothink --tokens 2048 --temp 0 --seed 1) → the lead re-assessment + propagate.
+
 ### 2026-07-15 — lever 3 STS composition: verify_n now adapts (drafted=5, verify=1-5) — Metal drafter ~20→~31.7 t/s (0.89× of plain)
 
 **The STS composition is wired** (env `DS4_DSPARK_DRAFT_METAL_STS`). The Metal drafter now computes the learned confidence (`dspark_conf_logits`) via the already-loaded `conf_proj` head + the STS adapts the batch `verify_n`:
