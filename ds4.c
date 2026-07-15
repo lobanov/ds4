@@ -30121,13 +30121,19 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
         }
         /* m3 lever 3: advance the drafter's KV context (dspark_n_real) past the
          * anchor (+ the committed drafts if the GPU fast-commit persisted them).
-         * The anchor is always committed (decoded standalone), so n_real always
-         * advances by 1 — this breaks the cold-start trap where verified=0 left
-         * n_real stuck at 0 (no accumulated context). Wraps at DS4_N_SWA. */
+         * Wraps at DS4_N_SWA. NOTE (codex lever-4 review): with anchor_reuse the
+         * anchor is folded into `verified` (drafts[0] is always accepted), so it
+         * must NOT get the extra +1 (that +1 is for the standalone-decoded anchor
+         * in the no-reuse path, where verified counts only the continuation). */
         if (metal_drafted) {
-            uint32_t keep = metal_refresh_done
-                ? metal_base_real + 1u + (uint32_t)verified
-                : metal_base_real + 1u;
+            uint32_t keep;
+            if (anchor_reuse) {
+                keep = metal_base_real + (uint32_t)verified;  /* anchor already in verified */
+            } else {
+                keep = metal_refresh_done
+                    ? metal_base_real + 1u + (uint32_t)verified
+                    : metal_base_real + 1u;
+            }
             s->graph.dspark_n_real = (keep >= DS4_N_SWA) ? 0u : keep;
         }
         s->dspark_last_cycle.verified = verified;

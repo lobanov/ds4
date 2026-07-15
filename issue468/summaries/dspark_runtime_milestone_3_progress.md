@@ -204,6 +204,24 @@ complete + valid. The gap is non-fatal during generation — present in the ds4-
 ~0.9× plain on exactness, ~0.73× on 8k. The +20% over plain is NOT reachable with levers 2+3 alone — the verify is the bottleneck
 (Lead 08 territory). Lever 2 is a real win over the DSpark-batched baseline (+10.5%) + score-neutral on the gate.
 
+### 2026-07-15 — lever 4 (anchor-reuse-for-Metal) REVISED: VIABLE with the prefix-checkpoint + the dspark_n_real fix — 38.02 t/s (0.995× of plain, break-even)
+
+**Correction to the earlier "NET LOSS" entry**: the codex review (lever 4 gate) REFUTED the "inherent net loss" claim — the loss was the **missing prefix-checkpoint** (the partial-accept commit fell back to the sequential replay, ~25.5ms/replayed token) + a **dspark_n_real double-count bug** (with anchor-reuse, `verified` already includes the anchor, but the advance was `base_real + 1 + verified` — the +1 double-counted the standalone anchor, causing KV drift).
+
+**The fixes** (commit pending):
+1. Enabled `DS4_DSPARK_VERIFY_PREFIX_CHECKPOINT=1` in the lever-4 bench (partial-accepts now use the cheap slot-restore, not the replay).
+2. Fixed the `dspark_n_real` advance: with `anchor_reuse`, `keep = metal_base_real + verified` (the anchor is in verified); without, `base_real + 1 + verified` (the +1 for the standalone anchor).
+
+**Re-measured bench (n=93, bootstrap CI):**
+- plain: 38.18 t/s
+- Metal+STS (baseline): 31.55 t/s
+- Metal+anchor-reuse (bug, no prefix-ckp): 28.55 t/s (the false "net loss")
+- **Metal+anchor-reuse+prefix-ckp (FIXED): 38.02 t/s** [36.81, 39.22] — **0.995× of plain (break-even)**
+
+**Cycle-cost (fixed):** verify_ms 82.4→59.7 (the prefix-ckp killed the replay), total 89.2→66.4ms. verify_n=3.56 (the conf_logits on the stale hidden read higher — so anchor-reuse ALSO fixes the STS over-conservatism that lever 5 was meant to address; the recalibration is likely redundant).
+
+**Verdict**: anchor-reuse-for-Metal is VIABLE (brings the Metal from 31.55 to 38.02, break-even with plain). Codex concurrence pending. The full DSpark stack (batched+prefix-ckp+Metal+STS+anchor-reuse) is now break-even with plain on this corpus.
+
 ### 2026-07-15 — lever 4 (anchor-reuse-for-Metal): NET LOSS (28.55 t/s vs Metal+STS 31.55) — the verify dominates, the anchor fold doesn't amortize
 
 **Implemented**: removed the `!dspark_draft_metal_enabled()` guard from the anchor_reuse condition (commit 571bebe). The Metal drafter now composes with anchor reuse — the decode is recovered (25.8→0.1ms) + the drafts are still accepted (verified=1-5). The 20-Q gate (--nothink canonical) passes: **17/20, exactly matching the recorded** (Q6/Q9/Q15). The stale-hidden drafts don't regress.
