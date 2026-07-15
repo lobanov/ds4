@@ -204,6 +204,17 @@ complete + valid. The gap is non-fatal during generation — present in the ds4-
 ~0.9× plain on exactness, ~0.73× on 8k. The +20% over plain is NOT reachable with levers 2+3 alone — the verify is the bottleneck
 (Lead 08 territory). Lever 2 is a real win over the DSpark-batched baseline (+10.5%) + score-neutral on the gate.
 
+### 2026-07-15 — lever 4 (anchor-reuse-for-Metal): NET LOSS (28.55 t/s vs Metal+STS 31.55) — the verify dominates, the anchor fold doesn't amortize
+
+**Implemented**: removed the `!dspark_draft_metal_enabled()` guard from the anchor_reuse condition (commit 571bebe). The Metal drafter now composes with anchor reuse — the decode is recovered (25.8→0.1ms) + the drafts are still accepted (verified=1-5). The 20-Q gate (--nothink canonical) passes: **17/20, exactly matching the recorded** (Q6/Q9/Q15). The stale-hidden drafts don't regress.
+
+**But the bench shows it's a net loss**: Metal+anchor-reuse+STS = **28.55 t/s** vs Metal+STS (no anchor-reuse) = 31.55 t/s. The cycle-cost explains why:
+- decode: 0.1ms (recovered ✓) BUT verify: **82.4ms** (vs 47.5ms for Metal+STS).
+- The anchor fold moves the anchor's decode *into the batched verify* (the anchor is drafts[0] in the verify batch). But the Metal's batched verify carries the refresh/commit-lifecycle overhead (the GPU fast-commit projects the verified hiddens into the drafter's KV), so the anchor fold is NOT amortized the way the CPU's is. The CPU anchor-reuse saves (+10.5%) because its batched verify amortizes the weight-loading (+~7ms/token); the Metal's verify adds ~the full per-token cost (~25ms for the anchor) + the refresh overhead. Net: the ~25ms decode savings are offset by the +35ms verify increase → a loss.
+- Also: the STS verify_n rose to 3.57 (the conf_logits on the stale hidden read higher) → more tokens verified → more verify cost.
+
+**Verdict**: anchor-reuse-for-Metal is a net loss on this hardware. **Fall back: keep the Metal+STS (no anchor-reuse) as the best config.** The guard removal stays (env-gated off by default; documents that it's possible but not beneficial). The verify dominates — this reinforces that +20% needs Lead 08 (a cheaper verify), not draft-side or anchor-side tricks.
+
 ### 2026-07-15 — lever 3 large-corpus bench: Metal+STS = 31.55 t/s (0.83× of plain, +11.8% over reuse+prefix-ckp) — the best DSpark config, but still below plain on the short corpus
 
 **Bench (ds4-spec-bench, c_spec/c_plain, n=93 after the eager validation, bootstrap CI, warm):**
