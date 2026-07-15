@@ -28585,8 +28585,11 @@ static float dspark_schedule_threshold(void) {
      * dominates the cycle more -> the cost-optimal verify_n is lower -> a higher
      * threshold. Threshold sweep on the full corpus found the Metal optimum at
      * ~0.15 (40.42 t/s, +5.9% over plain) vs 0.08 (40.04, +4.9%). The CPU path
-     * keeps 0.08 (its larger C favors verifying more). */
-    float threshold = (dspark_metal_sts_enabled()) ? 0.15f : 0.08f;
+     * keeps 0.08 (its larger C favors verifying more). Gate on BOTH the Metal STS
+     * env AND the Metal drafter env, so the CPU scheduled drafter never inherits the
+     * 0.15 if DS4_DSPARK_DRAFT_METAL_STS is set without the Metal drafter running
+     * (codex lever-5 review found the env-only gate violated the 'CPU keeps 0.08' invariant). */
+    float threshold = (dspark_metal_sts_enabled() && dspark_draft_metal_enabled()) ? 0.15f : 0.08f;
     const char *thr_env = getenv("DS4_DSPARK_CONF_THRESHOLD");
     if (thr_env && thr_env[0]) {
         char *end = NULL;
