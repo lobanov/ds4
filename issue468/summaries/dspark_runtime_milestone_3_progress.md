@@ -1,6 +1,6 @@
 # DSpark runtime milestone 3 — committing batched verify + anchor reuse + GPU drafter
 
-Date: 2026-07-13. Status: **active** (lever 1 implemented + measured; levers 2/3 pending).
+Date: 2026-07-13 (updated 2026-07-15). Status: **levers 1–4 DONE + measured; the full stack is +4.9 % over plain (40.04 vs 38.16 t/s, full corpus) — a real WIN; lever 5 skipped (codex: redundant); the final 92Q + propagate pending.**
 Goal: add a **committing batched (sublinear) verify** (the +20 % enabler), **anchor reuse**
 (folding the anchor into the batched verify), and a **GPU-resident drafter** to the DSpark
 runtime; measure the decode speedup (target ≥ +20 % over baseline; report the actual).
@@ -67,21 +67,19 @@ verify is retained as the byte-exact / distribution-exact fallback (it cannot cl
 Strict committed-output byte-exactness needs the Lead 08 margin-guarded fallback (re-verify
 near-tie positions) — deferred.
 
-## Scope: the levers under validation
+## Scope: the levers pulled (M3)
 
-| lever | what the model assumes | milestone-3 work | prior status (M1/M2) |
-|---|---|---|---|
-| **Committing batched verify** (the +20 % enabler) | `verify_ms(K)` sublinear (the model used the batched bench: K2:43.6, K4:65.8) | wire the existing `metal_graph_verify_suffix_tops` (currently dist-probe-only, ds4.c:28671) for **committing** in the DSpark branch: accept-prefix + correction token + DSpark window-state push; env-gated default-off; measure committed-output divergence (temp=0) + distribution divergence (temp>0) + 92Q scores | **DONE (lever 1).** Env-gated `DS4_DSPARK_VERIFY_BATCHED`; codex gate A ran (3 bugs fixed). Measured (warm): plain 37.2 / seq 16.3 / **batched 20.2 t/s** (verify 52→43 ms, sublinear). NOT committed-output-exact when engaged (56.6 % temp=0 divergence — the 10/10 ds4-eval was plain-vs-plain) BUT **score-neutral on 92Q** (net +4, 89.1 % same verdict); temp>0 TV ~0.0104, 0.64 % argmax-flip. |
-| **Anchor reuse** (folds into the batched verify) | fresh anchor decode only ~S(K); the verify yields the next anchor | fold the anchor into the **batched** verify (skip the standalone `ds4_session_eval(s, first_token)`); compose with the existing STS scheduled verify + the batched verify | **DONE (lever 2).** Env-gated `DS4_DSPARK_ANCHOR_REUSE` (requires `DS4_DSPARK_VERIFY_BATCHED`); skip the standalone decode when `first_token==argmax(logits)` + batched on; `drafts[0]=first_token`, continuation drafted from the stale window into `drafts[1..]` (Lead 01 de-risked). 8k bench (warm): **+10.5% over batched** (25.97 vs 23.50 t/s), decode 28.2→0.1 ms, verify 104.8→116.9 ms (sublinear), continuation acceptance held (~3.18 vs 3.25). 20-Q no-regression gate PASS (18/20, Q6+Q15 fail; flipped Q9 fail→pass, zero pass→fail). Still 0.73× plain (verify dominates). |
-| **GPU drafter body/head** | `draft_ms ≈ 10 ms` (not the current ~45 ms CPU) | move the **already-batched** CPU drafter (3 stages × 5-row `dspark_block_forward_batch`) + the 5× vocab output-head matvec (reuses the target's output weights) + markov + confidence + argmax onto Metal | not yet attempted; one GPU output-head cut line failed `--dspark-schedule-parity` (known trap to clear) |
+| lever | milestone-3 work | status + measured result |
+|---|---|---|
+| **1. Committing batched verify** | wire `metal_graph_verify_suffix_tops` for **committing** (accept-prefix + correction token + window-state push); env `DS4_DSPARK_VERIFY_BATCHED` | **DONE.** 20.2 t/s, sublinear (verify 52→43 ms). Divergent-but-**score-neutral** on 92Q (net +4, 89.1% same verdict); temp>0 TV ~0.0104. |
+| **2. Anchor reuse** (CPU drafter) | fold the anchor into the batched verify (skip the standalone anchor decode); env `DS4_DSPARK_ANCHOR_REUSE` (requires batched) | **DONE.** 8k bench **+10.5% over batched** (25.97 vs 23.50 t/s, decode 28→0 ms). 20-Q gate PASS. |
+| **Verifier-improvements (prefix-checkpoint)** | port the prefix-checkpoint (generalize prefix-1 to block_size-1 slots; partial-accept commit via slot restore, no replay); env `DS4_DSPARK_VERIFY_PREFIX_CHECKPOINT` | **DONE.** Large-corpus **+26.8% over reuse-alone** (27.95 vs 22.04 t/s, verify 84→61 ms). 20-Q gate exact match. (Critical for lever 4 — avoids the partial-accept replay that otherwise kills it.) |
+| **3. GPU Metal drafter** (port PR #502) | port the 6 `metal_graph_dspark_*` functions + the noncausal attention + the capture + the **commit lifecycle** (batch capture + `refresh_verified_rows` + `dspark_n_real` advance) + the **STS composition** (conf_logits via conf_proj → `dspark_schedule_verify_len`); env `DS4_DSPARK_DRAFT_METAL` (+ `DS4_DSPARK_DRAFT_METAL_STS`) | **DONE.** draft **45→7.6 ms (3.9× faster)**; the commit lifecycle fixed the parity (was dspark_n_real=0); the STS adapts verify_n. 20-Q gate 20/20. draft reduction is real but alone it's a net slowdown (verify dominates). |
+| **4. anchor-reuse-for-Metal** | remove the `!dspark_draft_metal_enabled()` guard so the Metal drafter composes with anchor reuse (uses the last-committed hidden — same one-position-stale as the CPU anchor-reuse); recovered the ~25.8 ms standalone-anchor decode | **DONE (viable, codex-concurred).** Required the prefix-checkpoint (else the partial-replay killed it — a false "net loss" earlier) + the `dspark_n_real` double-count fix (codex-found). 20-Q gate 18/20 (0 pass→fail). |
+| **Full stack (1+2+verifier+3+4)** | the combined measurement | **+4.9% over plain** — full stack 40.04 vs plain 38.16 t/s (full 176-entry corpus, CIs don't overlap → significant). **A real WIN.** (The 93-subset showed break-even — it was biased short; the longer prompts amortize the verify better.) |
+| **5. STS recalibration + draft-6** | re-calibrate the STS threshold for the Metal's GPU conf_logits + the draft-6 experiment | **SKIPPED** (codex: redundant — anchor-reuse already raised the continuation verify_n to ~2.56 ≈ the CPU's 2.62; draft-6 marginal at this acceptance/cost). Optional sweep. |
 
-Out of scope (deferred): re-implementing the STS scheduler; STS re-training on measured
-timings; the Lead 08 **fused bit-exact sublinear kernel + margin-guarded fallback** (the path
-to verify-level bit-exactness AND committed-output byte-exactness — the batched primitive is
-NOT exact: score-neutral interim at temp=0 / TV~0.0104 at temp>0); target hidden-state
-precision / Lead 04 (F16-blocked); N=3/4/5/6. The **exact sequential verify is retained** as
-the byte-exact (temp=0) / distribution-exact (temp=0, TV=0) fallback (default when the batched
-verify is off); it cannot clear +20 %.
+Out of scope (deferred): **Lead 08** (the fused verify kernel / verify-cost reduction — the real **+20%** path; the verify still dominates even with the full stack); STS re-training (re-training the confidence model — the recalibration is a constants tweak, not a re-train); Lead 04 (target hidden-state precision / F16-blocked); N=3/4/5 (the draft-6 experiment was in scope; other block sizes not explored). The **exact sequential verify** is retained as the byte-exact (temp=0) / distribution-exact (temp=0, TV=0) fallback (default when the batched verify is off).
 
 ## What "validate a lever" means here (M2 methodology, gate re-stated)
 
