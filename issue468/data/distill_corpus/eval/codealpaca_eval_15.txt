@@ -1,0 +1,2 @@
+Create a Python function to print out a string in reverse order.
+"This is a string"

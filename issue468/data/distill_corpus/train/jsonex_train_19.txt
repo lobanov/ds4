@@ -1,0 +1,12 @@
+Extract the sponsor and principal investigator details from the email into a JSON format.
+
+Dear Participant,
+
+I hope this email finds you well. I wanted to provide you with some important information about the clinical trial you have enrolled in. The study is being sponsored by Acme Pharmaceuticals, a leading pharmaceutical company in the medical research field. The principal investigator overseeing this trial is Dr. Olivia Sato, a highly respected researcher with extensive experience in conducting clinical studies.
+
+The purpose of this trial is to evaluate the efficacy and safety of a new medication for the treatment of chronic pain. As a participant, you will be closely monitored by the research team, and we will be collecting data on your symptoms, side effects, and overall response to the treatment.
+
+Please let me know if you have any other questions or concerns. I'm here to support you throughout the duration of the study.
+
+Best regards,
+Clinical Trial Coordinator

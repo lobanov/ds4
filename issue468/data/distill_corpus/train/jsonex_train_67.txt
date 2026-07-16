@@ -1,0 +1,11 @@
+Extract the relevant information from the provided text into a structured JSON format.
+
+Dear Bookstore Inventory Team,
+
+I am writing to inform you of our current stock levels for the upcoming holiday season. Our collection of popular fiction titles remains well-stocked, with 75 copies of the latest bestselling novel "Enchanted Realms" currently available. Additionally, we have 30 units of the newly released non-fiction work "Exploring the Wonders of the Natural World" in our inventory.
+
+Please let me know if you have any other questions or require further details.
+
+Sincerely,
+Jane Doe
+Store Manager

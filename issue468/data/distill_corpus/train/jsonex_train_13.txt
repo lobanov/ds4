@@ -1,0 +1,10 @@
+Extract the key details about the software product and customer feedback into a structured JSON format.
+
+- Software Product: Collaboration Platform
+- Description: Enterprise-grade collaboration software with real-time messaging, video conferencing, and document sharing features.
+- Customer Feedback:
+  - Overall Rating: 4.8/5
+  - Ease of Use: 5/5
+  - Customer Support: 4.6/5
+  - Value for Money: 4.7/5
+  - Recommended by 92% of users

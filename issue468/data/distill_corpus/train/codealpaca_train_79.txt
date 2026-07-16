@@ -1,0 +1,2 @@
+Using the list as an example, remove all elements from the list that have a value of 0.
+my_list = [0, 5, 7, 0, 9]

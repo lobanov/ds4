@@ -1,0 +1,16 @@
+Extract the details of a flight ticket refund request from the provided email, including the traveler's name, the flight date, the reason for the refund, the refund amount, and any additional notes.
+
+Hi there,
+
+I'm writing to request a refund for my flight ticket. I had booked a flight from New York to Los Angeles for March 15th, but unfortunately, I need to cancel my trip due to a family emergency.
+
+My name is Olivia Wilkins, and the confirmation number for my booking is ABC123. The flight was scheduled to depart at 6 PM, and the total cost of the ticket was $450. I would greatly appreciate a full refund, as this unexpected situation has put a significant strain on my finances.
+
+The reason for the refund is that my elderly grandmother has fallen ill, and I need to be there to support my family during this difficult time. I apologize for the short notice, but I hope you can understand the urgency of my situation.
+
+Please let me know if you need any additional information from me, and I'll be happy to provide it. I look forward to hearing back from you as soon as possible.
+
+Thank you for your assistance.
+
+Best regards,
+Olivia Wilkins

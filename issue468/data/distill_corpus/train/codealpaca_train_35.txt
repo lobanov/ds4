@@ -1,0 +1,5 @@
+Connect to a MySQL database and display the table data.
+host = "localhost"
+user = "root"
+password = "password"
+database = "mydb"

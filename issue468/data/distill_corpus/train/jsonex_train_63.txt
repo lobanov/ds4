@@ -1,0 +1,17 @@
+Extract the key information about the patient's health assessment from the provided internal memo.
+
+To: Dr. Sarah Emerson
+From: Nurse Practitioner Alex Garcia
+Date: June 15, 2023
+Subject: Patient Health Assessment for John Doe
+
+Dear Dr. Emerson,
+
+I wanted to provide you with an update on the health assessment for our patient, John Doe. During his most recent visit, we conducted a thorough evaluation of his current condition.
+
+The patient's respiratory rate was measured at 18 breaths per minute, which falls within the normal range. Additionally, his blood pressure reading was 124/80 mmHg, indicating a healthy cardiovascular state.
+
+Please let me know if you have any other questions or require further information regarding Mr. Doe's health assessment.
+
+Sincerely,
+Nurse Practitioner Alex Garcia

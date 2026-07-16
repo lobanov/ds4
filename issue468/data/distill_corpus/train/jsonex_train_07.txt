@@ -1,0 +1,18 @@
+Please extract the production schedule information from the following internal memo into a JSON format.
+
+Dear Team,
+
+I am writing to provide an update on the production schedule for the upcoming quarter. We have made some adjustments to the shift patterns to accommodate the increased demand for our flagship product.
+
+Effective immediately, we will be implementing a new "Evening Shift" from 18:00 to 02:00, with a 45-minute break. This shift will be in addition to our existing "Day Shift" from 07:00 to 15:00, with a 1-hour break, and the "Night Shift" from 22:00 to 06:00, with a 30-minute break.
+
+The shift IDs and names are as follows:
+- "6c8a2f1e-4e3b-4b7c-9d1f-a3b2c4d5e6f": "Day Shift"
+- "9e7d6c5b-4a3b-2c1d-8e7f-6g5h4i3j": "Evening Shift"
+- "2k1l3m4n-5o6p-7q8r-9s0t-a1b2c3d": "Night Shift"
+
+Please let me know if you have any questions or concerns about these changes.
+
+Regards,
+[Your Name]
+Production Manager

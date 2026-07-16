@@ -1,0 +1,2 @@
+Construct a for loop to print a list of order numbers in ascending order.
+order_num = [1530, 3489, 7421, 4792]

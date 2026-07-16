@@ -1,0 +1,3 @@
+Extract the medical procedures and patient information from the narrative paragraph about an electronic health record.
+
+John, a 45-year-old patient, visited the hospital for a routine checkup. The doctor performed a thorough physical examination, including measuring his blood pressure, heart rate, and temperature. Based on the findings, the doctor recommended a series of tests, including a blood test, an X-ray, and an MRI scan, to better understand John's overall health condition. The doctor also prescribed a new medication to manage John's high cholesterol levels and advised him to make some lifestyle changes, such as adopting a healthier diet and increasing physical activity, to improve his well-being.

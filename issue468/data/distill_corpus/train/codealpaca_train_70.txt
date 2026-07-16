@@ -1,0 +1,1 @@
+Given a string and an integer N, write a Python function to construct the Nth palindromic string.

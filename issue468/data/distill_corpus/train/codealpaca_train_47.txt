@@ -1,0 +1,1 @@
+Create a fizz-buzz Python program to print numbers from 1 to 50 but for multiple of 3 print “Fizz” and for the multiple of 5 print “Buzz” and for numbers which are multiple of both 3 and 5 print “FizzBuzz”.

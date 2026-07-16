@@ -1,0 +1,1 @@
+Generate a properly formatted JSON object in Python to represent the following details: name = John, age = 34

@@ -1,0 +1,14 @@
+Please extract the relevant information from the following formal business letter into a JSON format.
+
+Dear Travel Coordinator,
+
+I am writing to request a change to my upcoming travel itinerary. Due to a family emergency that has arisen, I need to reschedule my flight to an earlier date.
+
+My current travel details are as follows: Departure from New York (JFK) to Los Angeles (LAX) on June 15th, 2023. I would like to change this to depart on June 12th, 2023, if possible.
+
+I understand this may require additional fees or charges, and I am willing to cover any associated costs. Please let me know the best way to proceed with this change request.
+
+Thank you for your assistance. I appreciate your prompt attention to this matter.
+
+Sincerely,
+[Your Name]

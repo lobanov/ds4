@@ -1,0 +1,2 @@
+Find the maximum value in a given array of integers.
+[4, 6, 9, 11, 15]

@@ -1,0 +1,1 @@
+Construct a for loop to iterate over a range of 10 numbers, printing out the square of each.

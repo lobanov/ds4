@@ -1,0 +1,16 @@
+Please extract the relevant website user session data from the provided formal business letter into a JSON format.
+
+Dear Sir or Madam,
+
+I am writing to you on behalf of our company, Acme Corporation, regarding the recent website analytics for our online platform. Over the past month, we have observed a significant increase in user engagement and activity on our website.
+
+One particular user session that caught our attention was that of Mr. John Doe, who spent an impressive 240 seconds navigating our "Products" page and scrolling through 90% of the content. This level of engagement suggests a strong interest in our product offerings and is a valuable data point for our marketing and product development teams.
+
+We would greatly appreciate if you could extract the relevant user session information, including the pageUrl, pageTitle, timeSpent, and scrollDepth, into a structured JSON format for further analysis.
+
+Thank you for your attention to this matter. Please let me know if you require any additional information.
+
+Sincerely,
+Jane Smith
+Marketing Manager
+Acme Corporation

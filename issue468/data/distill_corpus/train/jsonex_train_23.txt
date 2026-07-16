@@ -1,0 +1,3 @@
+Extract the shopping cart item details into JSON.
+
+OrderItems: [ItemId:book_1, Qty:3, MaxQty:10], [ItemId:puzzle_2, Qty:1, MaxQty:5]

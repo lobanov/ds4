@@ -1,0 +1,7 @@
+Extract key information about the Medical Research Data Retention Policy from the provided bullet-point notes.
+
+• MedicalStudyDataRetentionPolicy
+• ID: RM-002
+• Title: Medical Research Data Preservation Guidelines
+• RetentionPeriod: 15 years
+• LastUpdated: 2022-11-04T09:15:00Z

@@ -1,0 +1,3 @@
+Extract relevant information about a video game cheat code from the provided text.
+
+Attention team, we've just discovered a new cheat code for the hit game "Galactic Conquest". The code is "LIGHTSPEED" and it grants the player unlimited hyperspace jumps, allowing them to rapidly traverse the galaxy. This could give players a significant advantage, but use it carefully as it may trigger anti-cheat measures. Let me know if you need any other details.

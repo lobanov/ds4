@@ -1,0 +1,5 @@
+Extract the details about the product sale event from the notes.
+
+• Product: Deluxe Widget
+• Price Drop: 25% off
+• Sale End: Dec 31

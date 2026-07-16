@@ -1,0 +1,9 @@
+Extract the relevant information from the business employment contract notes into a JSON format.
+
+• Employment Contract
+• Employee: Michelle Sinclair
+• Position: Sales Manager
+• Salary: $80,000 per year
+• Start Date: 2023-06-01
+• Probation Period: 3 months
+• Benefits: Health insurance, 401(k) plan, 15 days paid vacation

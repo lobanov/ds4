@@ -1,0 +1,1 @@
+Classify each of the following cloud-based service as either AWS, Azure, or GCP: Redshift, Big Query, Lambda, Purview, Looker.

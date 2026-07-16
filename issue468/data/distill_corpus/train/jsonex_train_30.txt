@@ -1,0 +1,19 @@
+Please extract the relevant information from the following email about a business trip and provide it in a concise JSON format.
+
+Dear Team,
+
+I hope this email finds you well. I wanted to provide an update on my recent business trip to San Francisco. As you know, I was there for a conference and to meet with a few key clients. The trip was a great success, and I'm happy to report that we were able to secure some new business opportunities.
+
+During the trip, I incurred the following expenses:
+
+- Uber ride from the airport to the hotel: $35.00
+- Two-night stay at the Marriott Hotel: $280.00
+- Dinner at a local restaurant with a client: $65.00
+- Souvenirs and gifts for the team: $45.00
+
+I've attached the receipts for all of these expenses. Please let me know if you need any additional information or have any questions.
+
+Thank you for your continued support.
+
+Best regards,
+[Your Name]

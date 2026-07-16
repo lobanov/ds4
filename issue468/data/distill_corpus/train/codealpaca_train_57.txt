@@ -1,0 +1,2 @@
+Generate a Python code to convert list of strings to list of integers.
+strings = ['23', '45', '7', '67']

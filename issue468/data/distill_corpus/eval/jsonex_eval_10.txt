@@ -1,0 +1,12 @@
+Please extract the key details about the movie soundtracks mentioned in the email into a JSON format with approximately 3 fields.
+
+Hey there, 
+
+I just wanted to share my thoughts on the incredible movie soundtracks I've been listening to lately. One that's really been standing out is the score for the new sci-fi thriller "Celestial Horizon" composed by the talented Evelyn Sinclair. The atmospheric synths and sweeping orchestral arrangements perfectly capture the film's sense of wonder and adventure. 
+
+Another soundtrack I've been loving is for the period drama "Whispers of the Past" - the composer, Liam Blackwood, blended traditional folk instrumentation with haunting vocal melodies to create a truly immersive listening experience. It really helps transport you to the bygone era depicted in the film.
+
+Let me know if you'd like any other recommendations! I'm always happy to share my thoughts on great movie music.
+
+Cheers,
+Alex

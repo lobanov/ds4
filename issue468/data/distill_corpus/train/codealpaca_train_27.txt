@@ -1,0 +1,2 @@
+Make a method that takes a given list and shuffles it.
+arr = [1, 2, 3, 4, 5, 6]

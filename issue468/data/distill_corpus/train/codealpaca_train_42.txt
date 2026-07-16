@@ -1,0 +1,2 @@
+Write a function that can generate all permutations of a given string.
+string = "ABC"

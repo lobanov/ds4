@@ -1,0 +1,7 @@
+Parse the following HTML string and return the list of id's.
+<form> 
+  <input name="user_id" type="text" id="user_id" value="123456"> 
+  <input name="name" type="text" id="name" value="John Doe"> 
+  <input name="email" type="text" id="email" value="john@example.com"> 
+  <input name="password" type="password" id="password" value="password123">
+</form>

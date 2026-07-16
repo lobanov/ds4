@@ -1,0 +1,11 @@
+Extract the key details from the chat transcript about the business meeting agenda, including the location, meeting start/end times, attendees, and main topics discussed.
+
+Hey team, just wanted to send over the agenda for our upcoming business meeting on Thursday. We'll be gathering at the Willow Grove office, which is located at 123 Main St, Greenville, WV 24701. The meeting will run from 9:30 AM to 12:00 PM. 
+
+The main agenda items are:
+1. Review Q3 sales performance and projections
+2. Discuss plans for the holiday marketing campaign 
+3. Get updates on the new product development timeline
+4. Address any open questions or concerns from the team
+
+Please let me know if you have any other items you'd like to add. Looking forward to a productive meeting!

@@ -1,0 +1,13 @@
+Extract the key information from the provided internal memo about a media podcast transcript into a JSON format with approximately 4 fields.
+
+Memo from the Director of Podcast Production
+To: Content Management Team
+Date: April 15, 2023
+
+Dear Team,
+
+I wanted to provide an update on the status of our latest podcast episode focused on the evolution of social media platforms. In this episode, we will explore the historical development of prominent social media networks, the key technological advancements that enabled their growth, and the significant societal impacts these platforms have had over the past two decades.
+
+The podcast will be divided into three distinct segments. The first segment will delve into the origins of social media, tracing the initial conceptualization and creation of platforms like MySpace, Friendster, and the early iterations of Facebook. We will hear from Jane Doe, a social media historian, who will provide insights into the motivations and visions of the pioneers who laid the foundations for this transformative technology.
+
+The second segment will focus on the rapid proliferation of social media and the emergence of dominant

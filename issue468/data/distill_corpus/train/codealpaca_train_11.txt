@@ -1,0 +1,3 @@
+Using Python, write a function to format a given date.
+Date: "2021-02-14"
+Format: "dd/mm/yyyy"

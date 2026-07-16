@@ -1,0 +1,2 @@
+Use the Gaussian algorithm to learn the optimal parameters of a 2D linear regression model.
+Training dataset: {(x1,y1), (x2,y2), (x3,y3)}

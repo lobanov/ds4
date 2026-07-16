@@ -1,0 +1,4 @@
+Extract key information from the business sales contract into a structured JSON format.
+
+• Transaction Date: April 15, 2023
+• Payment Terms: Net 60 days

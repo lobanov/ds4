@@ -1,0 +1,2 @@
+Use a for loop to add up all odd elements in a list
+list=[4,5,7,9,11,3]

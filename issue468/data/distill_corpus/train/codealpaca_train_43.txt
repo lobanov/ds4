@@ -1,0 +1,1 @@
+Find the GCD (greatest common divisor) of 12 and 18.

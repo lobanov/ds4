@@ -1,0 +1,3 @@
+Extract the key details from the provided business ethics code text into a concise JSON format. Ensure the fields capture the core information about the code's principles and standards.
+
+The Acme Corporation Business Ethics Code outlines the guiding principles and behavioral standards for all employees. The code emphasizes the importance of integrity, respect, and compliance with laws and regulations. It covers topics such as conflicts of interest, bribery, harassment, and privacy. Employees are expected to report any violations of the code to their supervisor or the company's ethics hotline.

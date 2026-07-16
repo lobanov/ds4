@@ -1,0 +1,2 @@
+Create a function to split a string into substrings based on a given separator.
+string = "apple,banana,cherry"

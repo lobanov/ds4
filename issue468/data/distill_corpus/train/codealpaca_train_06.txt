@@ -1,0 +1,2 @@
+Write a Python class that implements a sorted list.
+No input.

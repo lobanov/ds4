@@ -1,0 +1,3 @@
+Extract the passenger information from the news article excerpt into a JSON object.
+
+Jamal Hussain, a frequent business traveler, was en route to a crucial meeting in London when his flight was unexpectedly delayed due to inclement weather. Despite the setback, Jamal remained calm and collected, using the extra time to review his presentation materials. As he approached the boarding gate, the airline staff greeted him with a warm smile and quickly processed his boarding pass. "We apologize for the delay, Mr. Hussain," the gate agent said. "Your flight is now ready for boarding. Please proceed to the aircraft whenever you're ready."

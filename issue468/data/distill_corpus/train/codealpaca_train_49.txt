@@ -1,0 +1,3 @@
+Write code for a substring search
+String: "Hello World"
+Substring: "llo"

@@ -1,0 +1,2 @@
+Write a Python program to remove duplicates from a list of dictionaries based on their values for a given key.
+original_list = [{'name':'John', 'age': 25}, {'name':'Jim', 'age': 25}, {'name':'Lisa', 'age': 20}]

@@ -1,0 +1,3 @@
+Extract the key information from the technical specification into a structured JSON format.
+
+The Zephyr Express is a high-speed intercity rail service operated by Transcontinental Rail. The Zephyr Express departs from Central Station at 6:30 PM on April 15th, 2023 and arrives at West Terminal at 11:00 PM the same day. Passengers are advised to arrive at the departure platform no later than 6:00 PM to complete boarding procedures. Onboard amenities include comfortable seating, complimentary snacks and beverages, and access to high-speed Wi-Fi. For more information or to purchase tickets, please visit the Transcontinental Rail website or contact their customer service team.

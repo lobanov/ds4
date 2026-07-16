@@ -1,0 +1,3 @@
+Extract the comic book information from the text into a JSON object.
+
+Marvel's Black Panther made his debut in Fantastic Four #52 (1966-07-01). The comic featured the reclusive king of the fictional African nation of Wakanda, T'Challa, who possessed enhanced strength, speed, and agility. Black Panther's first appearance alongside the Fantastic Four team helped establish him as a key figure in the Marvel universe.

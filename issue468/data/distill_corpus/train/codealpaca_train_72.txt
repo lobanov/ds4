@@ -1,0 +1,2 @@
+Write a function that creates a new array from a given array of integers, leaving out the negative ones.
+list1 = [-1, 1, 2, -2, 3, -3]

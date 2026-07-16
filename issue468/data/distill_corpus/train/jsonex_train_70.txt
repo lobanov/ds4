@@ -1,0 +1,3 @@
+Extract the key details about a security alert from the provided text into a JSON format.
+
+Whoa, you're not going to believe this. There was a major security incident at the office last night - some hacker tried to break into our network through a vulnerable web server. The security team caught it right away and blocked the attacker, but they're still trying to figure out the full extent of the damage. The alert said the source IP was 172.16.0.50 and they were trying to access our customer database on port 3306. Yikes, that's not good. Anyway, the security team is on top of it and they're working to patch that web server and tighten up our defenses. I'm just glad they stopped the attack before it caused any real harm.

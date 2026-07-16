@@ -1,0 +1,1 @@
+How do you run a Python script from the command line?

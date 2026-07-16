@@ -1,0 +1,3 @@
+Hey, could you help me extract some key details from this raw materials inspection report? I need to get the inspection date and the name of the approver into a nice JSON format.
+
+Last week, the team did a thorough inspection of the latest batch of raw materials that arrived at the plant. The inspection was carried out by our senior quality engineer, Michael Thompson, on March 15th. After a careful review, he determined that the materials were up to standard and approved them for use in our upcoming production run. The report was then signed off by our operations manager, Sophia Hernandez.

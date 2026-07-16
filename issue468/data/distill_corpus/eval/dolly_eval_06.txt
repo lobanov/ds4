@@ -1,0 +1,1 @@
+Classify each of these as ground transportation or aviation transportation: airplane, truck, bicycle, unicycle, jet, wagon, helicopter.

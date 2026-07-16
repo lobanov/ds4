@@ -1,0 +1,3 @@
+Extract comic book information from the provided text.
+
+Ultimate Spider-Man #1, May 2000, $2.99, Spider-Man, Marvel Comics, 2000-05-01

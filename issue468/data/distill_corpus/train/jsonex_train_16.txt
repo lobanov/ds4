@@ -1,0 +1,11 @@
+Extract the relevant information from the internal memo into a JSON object with camelCase field names.
+
+Dear colleagues,
+
+I am writing to inform you about a significant development in our company's operations. As part of our ongoing commitment to promoting healthy and active lifestyles, we are launching a new initiative focused on employee wellness.
+
+This initiative will include the introduction of a fitness center within our office premises, providing our staff with access to a range of exercise equipment and fitness classes. Additionally, we will be organizing regular seminars and workshops on topics such as nutrition, stress management, and work-life balance.
+
+We believe that this investment in employee well-being will not only improve the overall health and productivity of our workforce but also enhance our company's reputation as a caring and supportive employer. I encourage all of you to take advantage of these new resources and to actively participate in the wellness activities.
+
+Please let me know if you have any questions or suggestions regarding this initiative. I look forward to working with all of y

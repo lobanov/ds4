@@ -1,0 +1,1 @@
+Construct a function with two parameters to return the sum of the squares of the parameters.

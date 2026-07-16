@@ -1,0 +1,3 @@
+Extract the key product review details from the provided text.
+
+My name is Samantha Brown. I recently purchased the PROD-ABC123 Smartwatch and I'm very pleased with it. The battery life is excellent and it has a sleek, modern design. I would give it a rating of 4 out of 5 stars.

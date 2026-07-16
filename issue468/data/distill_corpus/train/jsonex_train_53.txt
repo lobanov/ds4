@@ -1,0 +1,7 @@
+Extract the business continuity plan details into a JSON object.
+
+- Incident response plan
+- Recovery strategies
+- Backup and restore procedures
+- Communication protocols
+- Alternate business sites

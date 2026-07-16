@@ -1,0 +1,3 @@
+Extract the product rating information from the customer review into a JSON object.
+
+I recently purchased the Acme Turbo 3000 air purifier and I'm really impressed with its performance. The air in my apartment feels so much cleaner and fresher since I started using it. The unit is very quiet and unobtrusive, and I love how the digital display shows the current air quality reading. I was a little hesitant about the price at first, but after seeing the difference it's made, I can say it was definitely worth the investment. I'd give this product a solid 4 out of 5 stars - the only thing that would make it better is if it had a remote control option.

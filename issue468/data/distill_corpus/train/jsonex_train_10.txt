@@ -1,0 +1,6 @@
+Extract the key details from the bullet-point notes into a structured JSON format.
+
+- OrderNumber: PROD-2304
+- ItemCount: 15
+- DeliveryWindow: 2023-04-01 to 2023-04-15
+- UnitType: Crates

@@ -1,0 +1,1 @@
+Write a function to create a list with all the prime numbers in the range of 0 to 100.

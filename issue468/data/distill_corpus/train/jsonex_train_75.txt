@@ -1,0 +1,3 @@
+Extract the podcast title and episode URL from the customer review.
+
+I'm a huge fan of The Joe Rogan Experience podcast. The latest episode was particularly insightful, with Rogan and his guest diving deep into the science behind human cognition and consciousness. The discussion was engaging and thought-provoking, covering a wide range of topics from neuroscience to philosophy. I highly recommend checking out this episode if you're interested in exploring the intricacies of the human mind. The episode can be found at https://podcasts.apple.com/us/podcast/the-joe-rogan-experience/id360084250?i=1000551763766.

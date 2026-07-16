@@ -1,0 +1,20 @@
+Please extract the relevant information from the following form response into a JSON format.
+
+Software Deployment Checklist for New Accounting Application
+This form is to be completed by the project manager prior to the deployment of a new accounting software application. It covers the key steps to ensure a smooth and successful implementation.
+
+Deployment Project Name: Acme Accounting Software v2.0
+Deployment Date: 2023-06-15
+Deployment Location: Head Office, 123 Main St, Anytown USA
+Deployment Team:
+- Project Manager: Jane Doe
+- IT Manager: John Smith
+- Accounting Manager: Sarah Lee
+
+Deployment Checklist:
+- Verify all hardware and software requirements are met
+- Ensure data migration from legacy system is complete and accurate
+- Schedule downtime with key stakeholders and communicate plan
+- Conduct training sessions for all affected departments
+- Designate go-live support team and establish escalation procedures
+- Plan post-deployment review and continuous improvement process

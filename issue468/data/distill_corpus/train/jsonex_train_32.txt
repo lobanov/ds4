@@ -1,0 +1,4 @@
+Extract the key information from the technical specification into a JSON format.
+
+Technical Specification for Virtual Conference System v2.1
+The Virtual Conference System allows attendees to join a video conference for an upcoming company-wide meeting. Registered participants will receive a unique Meeting ID and password to access the virtual event. The system tracks the Attendees, including their FullName, EmailAddress, and JoinTimestamp. The meeting will be recorded and available for playback after the event concludes.

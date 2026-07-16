@@ -1,0 +1,9 @@
+Extract the software update details from the provided form response.
+
+Software Update ID: SU003
+Title: Bug Fix for Package C
+Description: This update resolves several critical bugs in Package C. Users are advised to install this update as soon as possible.
+Release Date: 2023-05-01
+Package Name: Package C
+Package Version: 3.2.4
+Publisher: Omega Software

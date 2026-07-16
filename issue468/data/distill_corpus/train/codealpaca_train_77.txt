@@ -1,0 +1,2 @@
+Read two strings from the user and check if they are anagrams.
+string1 = 'listen', string2 = 'silent'

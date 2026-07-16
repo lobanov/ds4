@@ -1,0 +1,18 @@
+Extract the relevant information from the internal memo into a JSON format with approximately 4 fields.
+
+Dear colleagues,
+
+I am writing to inform you about the new Cloud Service Subscription for our organization. This subscription will provide us with access to the latest cloud-based technologies and services, enabling us to enhance our operational efficiency and stay ahead of the competition.
+
+The subscription details are as follows:
+
+- Subscription Status: Active
+- Subscription Type: Enterprise
+- Subscription Term: 3 Years
+- Subscription Description: This cloud service subscription will grant our organization access to a suite of advanced cloud computing tools and platforms, including virtual machine provisioning, data storage, and analytics capabilities. We believe this investment will significantly improve our ability to deliver innovative solutions to our clients.
+
+Please let me know if you have any questions or require additional information.
+
+Sincerely,
+[Your Name]
+[Your Title]
