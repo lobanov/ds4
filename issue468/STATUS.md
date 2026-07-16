@@ -20,7 +20,7 @@ cycle (~16 ms/token off the target).
 | Goal | ≥20 % greedy throughput on ds4 IQ2XXS, output-preserved |
 | Current best | Full DSpark stack **+4.9 %** over plain (40.04 vs 38.16 t/s; score-neutral 61/92) — M3 |
 | The gap | +20 % not reached; verify ≈80 % of the cycle |
-| Open lever | **Verify cost remains the open +20 % lever** — Lead 08's fused-2-token-kernel thesis **NO-GO (prototype 4.4× slower than batch, codex-confirmed)**; needs a different mechanism |
+| Open lever | **Verify cost remains the open +20 % lever** — Lead 08 fused-2-token-kernel thesis **NO-GO (4.4× slower, codex-confirmed)**; the de-dup is real but compute-fusion was occupancy-bound → **Lead 09** proposes the corrected mechanism (de-dup loads, sequential single-token compute) |
 | Closed (negative) | Drafter/input quality (Lead 07), drafter quant (Q4_K), non-expert finetune (Stage 2), DFlash, quant-mismatch |
 
 ## Investigation arc
