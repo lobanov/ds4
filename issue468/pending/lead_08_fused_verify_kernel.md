@@ -97,6 +97,17 @@ current acceptance" table above (draft=10/decode=26) is **superseded**. Full
 detail in `issue468/artifacts/lead08_reassessment/01_reorient_bar_redrivation.md`
 + `02_sublead1_fusion_prospect_and_probe.md`.
 
+> **2026-07-16 codex revision.** An adversarial avenues/experiments review
+> (`dspark_codex_reviews/2026-07-16_gpt55_xhigh_lead08_reassess_avenues.md`,
+> independently verified) **downgraded the lead from GO to CONDITIONAL HOLD**: the
+> prize math + the per-pair de-dup duplication are real, but the "~190 GB/s →
+> scattered access → recoverable to decode bw" attribution is **unsupported**
+> (the logged GiB is unique-union bytes, not physical per-pair; the slope is
+> inconsistent; cache-hit-vs-miss unresolved), and the de-dup ceiling is only
+> ~21–30%. The reliable prize is ~6–8 ms (de-dup → borderline +20%); the ~16 ms
+> needs verification. The first experiment is now the **free stage-profile sweep**
+> (not a synthetic-load microbench). Details below + in artifact 02 (revised).
+
 ### The live baseline (the bar to beat)
 
 Measured from the M3 full-stack bench (`dspark_m3_bench/large_corpus/full_stack.jsonl`,
@@ -123,58 +134,73 @@ X/(69.38−X), stacking on +4.9%:
 **Lead target: ~10 ms off the verify = +20% over plain.** The earlier "8–18% of
 the verify = marginal" was wrong — it conflated % of verify with % of cycle.
 
-### Avenues to explore — the two fusion mechanisms
+### Avenues to explore — the two fusion mechanisms (tempered post-codex)
 
 Traffic is weight-dominated (activation round-trips ~0.5 MB/token/layer,
-negligible vs ~GB weights), so "reuse data in registers/cache" means the
-**dequanted expert weights**, not activations. Two distinct fusion mechanisms
-(the second is bigger than the load-sharing alone):
+negligible vs ~GB weights — codex confirmed the attention→FFN activation fusion is
+sub-ms, ~5 MiB) → the register/cache reuse that matters is the **dequanted expert
+weights**. Two mechanisms:
 
-1. **Dequant-once-apply-to-all-tokens** (register reuse of weights across the K
-   tokens) — the load-sharing. Saves redundant dequant (compute) + redundant
-   fetch. **~5–8 ms if the path is partly dequant-bound.** Confirmed real: the
-   batch expert kernel `kernel_mul_mv_addr_iq2_xxs_pair_swiglu_f32`
-   (moe.metal:1257) dequants per-(token,expert) — two tokens selecting the same
-   expert re-dequant independently (the dense matmul, by contrast, IS shared via
-   the multi-token `r1_2..5` kernels dense.metal:912–915).
-2. **Coalesced union access → decode bandwidth** (the bigger lever). The verify
-   expert stream runs at **~190 GB/s vs decode's ~410–450 GB/s (63%)** — likely
-   the scattered per-(token,expert) access pattern (poor coalescing). A fused
-   kernel processing each union expert once (weights resident in registers/L1
-   across the token applications) is coalesced → could reach decode bw. Expert
-   stream ~28 ms @ 190 GB/s → ~12.5 ms @ decode bw → **~16 ms recoverable**.
+1. **Dequant-once-apply-to-all-tokens** (load-sharing / de-dup). Saves the
+   redundant per-(token,expert) dequant + fetch. **Reliable prize ~6–8 ms — but
+   only if the redundant loads are DRAM cache-misses; if L2-hit, only the dequant
+   compute is saved (smaller).** De-dup ceiling ~**21–30%** of the routed cost
+   (high expert overlap: union ≈19–21 of 24–30 pairs at K4–5 — codex). Confirmed
+   real: moe.metal:1257 dequants per-(token,expert); the dense matmul IS shared
+   via the multi-token `r1_2..5` kernels (dense.metal:912–915).
+2. **Coalesced union access → decode bandwidth.** **SPECULATIVE — attribution
+   unsupported (see "crux" below).** IF the expert stream is memory-bound at
+   ~190 GB/s due to scattered access AND recoverable to decode bw ~410–450 GB/s
+   → ~16 ms. Unestablished.
 
-Expert-fusion prize: **~8–16 ms** → +22% to +36% over plain. The single-stage
-expert prototype could clear +20% on its own — *if* the ~190 GB/s gap is
-recoverable, not fundamental.
+**Revised prize: reliable ~6–8 ms (→ +13–18.6% over plain, borderline +20%);
+speculative up to ~16 ms (→ +36%) IF the bandwidth attribution holds. Clearing
++20% is uncertain until the bandwidth question is settled.**
 
-### The crux — why is the verify at ~190 GB/s?
+### The crux — why is the verify expert stream slow? (attribution UNSUPPORTED, codex-verified)
 
-| hypothesis | implication | prize |
+The prior "190 GB/s because scattered access" came from the K3→K4 slope of the
+logged "selected GiB". Codex (verified): that GiB is **unique-union bytes
+(ds4.c:12401)**, not physical per-pair traffic; the kernel still reloads per-pair
+(ds4_metal.m:20945, `z = n_tokens × n_selected`); the slope is **inconsistent**
+(K3→K4 ≈186 vs K4→K5 ≈56 vs others ≈88–135 GB/s); the instrumentation does NOT
+separate ALU/dequant, address divergence, occupancy, L2 hit rate, or physical
+memory traffic. Sharper hypotheses + their decisive test:
+
+| hypothesis | decisive test | prize |
 |---|---|---|
-| scattered access (coalescing) | fixable by a coalesced fused kernel | ~16 ms bandwidth (mechanism 2) |
-| dequant-compute-bound (the "190 GB/s" is a misleading effective number) | the prize is dequant load-sharing | ~5–8 ms compute (mechanism 1) |
-| fundamental (batch-attn scattered KV / inherent dequant) | smaller / needs the full build | TBD |
+| physical per-pair loads are DRAM cache-misses (bandwidth-bound, redundant) | L2 hit rate (Instruments); time tracks physical pairs | de-dup ~6–8 ms (mechanism 1) |
+| L2 hits → dequant-COMPUTE-bound (the "186 GB/s" is misleading) | ALU utilization; time doesn't track bytes | dequant load-sharing (smaller) |
+| scattered access fixable by coalescing → decode bw | counters: memory-bound + low L2 + poor coalescing | ~16 ms (mechanism 2, speculative) |
+| fundamental (batch-attn scattered KV / inherent dequant) | attention+dense share bounds it | TBD |
 
-### Sub-lead 1 — the decisive GO/NO-GO gate (4 probe measurements, NO novel kernel)
+### Sub-lead 1 — the decisive gate (REVISED post-codex; 5 measurements, NO novel kernel)
 
-Run before any kernel build (measurement-first):
+The synthetic-load microbench is **dropped** (not runnable without a new kernel).
+The first experiment is now the **free stage-profile sweep** (the 4 flags already
+exist). Full spec + decision rule in artifact `02_sublead1` (revised); summary:
 
-1. **Synthetic contiguous union-expert load microbench** (stream the union bytes
-   coalesced, no compute): does it hit ~410–450 GB/s? **If yes → access pattern
-   is the culprit → the ~16 ms prize is real → strong GO.** (Most important.)
-2. **Compute(dequant)-vs-bandwidth split** of the expert matmul (GPU ALU-vs-
-   memory counters, or real-vs-cached-weights timing) — sizes mechanism 1 vs 2.
-3. **Expert overlap / union size at verify_n≈3.78** (derive from selected-GiB
-   logging) — sets the load-sharing ceiling.
-4. **Attention + dense share of the verify + improvability** — bounds how much
-   of the remaining ~34 ms the full build could touch (batch-attention
-   scattered KV is the expected hard part).
+1. **Fixed-K stage-profile sweep** (K=2..5; flags `DS4_MTP_VERIFY_PROFILE` +
+   `DS4_MTP_VERIFY_EXPERT_PROFILE` + `DS4_METAL_LAYER_STAGE_PROFILE` +
+   `DS4_METAL_MOE_ONE_STAGE_PROFILE`). Bounds the real prize (routed gate/up/down
+   ms, attention share, dense/share). **The one decisive experiment first** (free).
+2. **Pair-vs-unique correlation** — routed stage time vs physical pairs
+   (`n_ids = verify_n × 6`) vs unique experts: the de-dup-vs-coalescing fork.
+3. **Instruments/Metal GPU counters** on the batch `addr` kernel vs the decode
+   `id` kernel (memory throughput, **L2 hit rate**, occupancy, ALU) — the ONLY way
+   to settle bandwidth-vs-compute.
+4. **Readahead/overlap flag sweep** (decode readahead ds4.c:14596; batch FFN hooks
+   ds4.c:19466) — a cheap pre-kernel avenue (medium/high prize, low effort).
+5. **Exactness margin probe** — top1/top2 margins on disagreement rows → simulate
+   a margin-guarded fallback (may compose with the cost work).
 
-**Decision rule:** GO (escalate to the single-stage expert prototype) if probe 1
-≥ ~380 GB/s OR probe 2 shows recoverable dequant-compute; NO-GO if probe 1 caps
-< ~250 GB/s AND probe 2 is bandwidth-bound with no recoverable redundancy.
-(Exactness-viability then becomes a separate sub-lead.)
+**Decision rule (revised):** run 1+2 first (free) → **GO** (build the M=2 grouped
+prototype, INCLUDING down/sum6) if routed gate/up/down is ~25–30 ms isolated AND
+(time tracks physical pairs [de-dup real] OR Instruments shows memory-bound +
+recoverable [coalescing real]); **CONDITIONAL HOLD** (codex) — settle the bandwidth
+attribution with 2+3 before committing to the build; **NO-GO / redirect** if
+compute-bound with a low de-dup ceiling → readahead/overlap, STS re-tune, or the
+margin-guard exactness path.
 
 ### The greedy-exactness secondary (unchanged from Phase B item 6)
 
@@ -270,6 +296,31 @@ sufficient." (Confirmatory: a literal identical-input MoE kernel-equality harnes
 verify-bandwidth slope re-measure.)
 
 ## Worklog
+
+### 2026-07-16 — codex avenues/experiments review of the re-assessed doc → CONDITIONAL HOLD; sub-lead-1 probe REVISED
+
+Commissioned an adversarial codex review (gpt-5.5 xhigh, read-only) of the
+folded re-assessment to find missed avenues + better experiments
+(`dspark_codex_reviews/2026-07-16_gpt55_xhigh_lead08_reassess_avenues.md`).
+Independently verified its decisive claims. **Verdict: CONDITIONAL HOLD**
+(downgraded from the GO my synthetic-load probe implied). Confirmed: prize math
+(89.5%, ~10 ms = +20%), per-pair de-dup duplication, dense-shared/experts-aren't.
+Corrected: (a) the "190 GB/s → scattered access → recoverable" attribution is
+UNSUPPORTED — the logged GiB is **unique-union bytes** (ds4.c:12401), not
+physical per-pair; the slope is inconsistent (186/56/88–135 GB/s);
+cache-hit-vs-miss unresolved; (b) the de-dup ceiling is only ~21–30% (high expert
+overlap, union ≈19–21 of 24–30 pairs); (c) the synthetic-load microbench is not
+runnable without a new kernel. Revised the prize: **reliable ~6–8 ms (de-dup,
+borderline +20%); ~16 ms speculative (needs the bandwidth attribution)**. Revised
+sub-lead 1: dropped the synthetic-load probe; the **free stage-profile sweep**
+(K=2..5, the 4 existing flags) + the **pair-vs-unique correlation** are now the
+decisive first experiments; added the readahead/overlap flag sweep (cheap
+pre-kernel avenue), Instruments/GPU counters (the only bandwidth-vs-compute
+settler), + the exactness margin probe. Codex also ranked missed avenues
+(readahead/overlap first; STS re-tune; margin-guard fallback) + ruled out (shared
+Q8 expert already batched; activation fusion sub-ms; on-GPU argmax already done).
+Updated this doc (§"Re-assessment" — tempered mechanisms, revised crux + sub-lead-1)
++ artifact `02_sublead1` (revised).
 
 ### 2026-07-15 — re-assessment (post-M3): folded the re-derivation + sub-lead-1 probe into this doc as avenues; corrected the "marginal" mischaracterization
 
