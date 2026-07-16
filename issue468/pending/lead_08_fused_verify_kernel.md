@@ -1,13 +1,28 @@
 # Lead 08 — Fused low-K batch-verify kernel (close the verify-vs-floor gap)
 
-Date: 2026-07-07 (refreshed 2026-07-12). Status: **Phase A resolved 2026-07-11
-→ Phase B active** (the fused-kernel work; this doc stays in `pending/` as the
-active lead). Phase A result:
-`issue468/summaries/mtp_verifier_engineering_and_phaseA.md`.
+Date: 2026-07-07 (refreshed 2026-07-12; re-assessed 2026-07-15 post-M3). Status:
+**Phase B verdict = NO-GO via swaps → bounded build attempt; NOW re-assessed
+post-M3 via the sub-lead-1 probe (the decisive GO/NO-GO gate before any kernel
+build).** This doc stays in `pending/` as the active lead. Phase A result:
+`issue468/summaries/mtp_verifier_engineering_and_phaseA.md`; Phase B canonical
+summary `issue468/summaries/lead08_phaseB_floor_clearance_verdict.md`.
 **Two-phase: a cheap profiling gate first (DONE, passed), kernel work only if
 the gate passes (it did — proceed to Phase B).**
 Related to lead 06 but a distinct thesis: the verifier is above its *own*
 bandwidth floor, independent of the redundant anchor decode.
+
+> **2026-07-15 re-assessment (post-M3).** Milestone-3 delivered the runtime
+> stack the Phase-B verdict assumed (anchor-reuse + GPU Metal drafter + STS) and
+> the full DSpark stack now **beats plain by +4.9%** (40.04 vs 38.16 t/s). The
+> re-assessment re-derives the prize from the LIVE M3 cycle (the pre-M3 "Prize
+> at current acceptance" table below is superseded): the verify is now **89.5%
+> of the cycle** (62.07 ms of 69.38 ms total at verify_n≈3.78), so a verify saving
+> amplifies ~1:1 into throughput — **~10 ms off the verify = +20% over plain**
+> (the prior "marginal" framing was wrong). The decisive gate before any kernel
+> build is **sub-lead 1: the verify-cost-decomposition probe** (4 cheap
+> measurements, NO novel kernel). See §"Re-assessment (2026-07-15)" below +
+> artifacts `issue468/artifacts/lead08_reassessment/01_reorient_bar_redrivation.md`
+> and `02_sublead1_fusion_prospect_and_probe.md`.
 
 > **2026-07-12 refresh.** The milestone-2 model-on-Metal validation confirmed
 > this lead is the **swing term**: recovering the ~19 ms verify headroom flips
@@ -71,6 +86,104 @@ E[a|4]≈2.2), because the sequential path stops at the first mismatch. So the
 fused kernel's prize is hitting **~45 ms — below the sequential ~57 ms**, not
 merely below the current 66 ms. That is why Phase B (a new kernel) is needed
 rather than just reusing `verify_suffix_tops`.
+
+## Re-assessment (2026-07-15, post-M3): the corrected prize + avenues to explore
+
+Milestone-3 delivered the runtime stack the Phase-B verdict *assumed*
+(anchor-reuse + GPU Metal drafter + STS) and the full DSpark stack now **beats
+plain by +4.9%** (40.04 vs 38.16 t/s, full 176-entry corpus). This re-assessment
+re-derives the Lead 08 prize from the **live M3 cycle** — the pre-M3 "Prize at
+current acceptance" table above (draft=10/decode=26) is **superseded**. Full
+detail in `issue468/artifacts/lead08_reassessment/01_reorient_bar_redrivation.md`
++ `02_sublead1_fusion_prospect_and_probe.md`.
+
+### The live baseline (the bar to beat)
+
+Measured from the M3 full-stack bench (`dspark_m3_bench/large_corpus/full_stack.jsonl`,
+n=176): the current batch verifier (`metal_graph_verify_suffix_tops`) runs at
+**62.07 ms/cycle at verify_n≈3.78 — 89.5% of the 69.38 ms cycle** (draft 6.64,
+decode 0.67). The verify is now even more dominant than the Phase-B "~46% of
+cycle" (M3 made draft+decode cheap). Reconciles with the Phase-B fit
+`verify_ms(K) ≈ 40 + 6.6·K` (at K=3.78 ≈ 65 ms ✓ — the verify kernel didn't
+change in M3).
+
+### The corrected prize — a verify saving amplifies ~1:1 into throughput
+
+Because the verify is 89.5% of the cycle, a saving X gives throughput gain
+X/(69.38−X), stacking on +4.9%:
+
+| verify saving X | over current full stack | vs plain (38.16) |
+|---|---|---|
+| 5 ms | +7.8% | +13.1% |
+| 8 ms | +13.0% | +18.6% |
+| **10 ms** | **+16.8%** | **+22.6%** ← clears **+20%** |
+| 12 ms | +20.9% | +26.8% |
+| 16 ms | +30.0% | +36.3% |
+
+**Lead target: ~10 ms off the verify = +20% over plain.** The earlier "8–18% of
+the verify = marginal" was wrong — it conflated % of verify with % of cycle.
+
+### Avenues to explore — the two fusion mechanisms
+
+Traffic is weight-dominated (activation round-trips ~0.5 MB/token/layer,
+negligible vs ~GB weights), so "reuse data in registers/cache" means the
+**dequanted expert weights**, not activations. Two distinct fusion mechanisms
+(the second is bigger than the load-sharing alone):
+
+1. **Dequant-once-apply-to-all-tokens** (register reuse of weights across the K
+   tokens) — the load-sharing. Saves redundant dequant (compute) + redundant
+   fetch. **~5–8 ms if the path is partly dequant-bound.** Confirmed real: the
+   batch expert kernel `kernel_mul_mv_addr_iq2_xxs_pair_swiglu_f32`
+   (moe.metal:1257) dequants per-(token,expert) — two tokens selecting the same
+   expert re-dequant independently (the dense matmul, by contrast, IS shared via
+   the multi-token `r1_2..5` kernels dense.metal:912–915).
+2. **Coalesced union access → decode bandwidth** (the bigger lever). The verify
+   expert stream runs at **~190 GB/s vs decode's ~410–450 GB/s (63%)** — likely
+   the scattered per-(token,expert) access pattern (poor coalescing). A fused
+   kernel processing each union expert once (weights resident in registers/L1
+   across the token applications) is coalesced → could reach decode bw. Expert
+   stream ~28 ms @ 190 GB/s → ~12.5 ms @ decode bw → **~16 ms recoverable**.
+
+Expert-fusion prize: **~8–16 ms** → +22% to +36% over plain. The single-stage
+expert prototype could clear +20% on its own — *if* the ~190 GB/s gap is
+recoverable, not fundamental.
+
+### The crux — why is the verify at ~190 GB/s?
+
+| hypothesis | implication | prize |
+|---|---|---|
+| scattered access (coalescing) | fixable by a coalesced fused kernel | ~16 ms bandwidth (mechanism 2) |
+| dequant-compute-bound (the "190 GB/s" is a misleading effective number) | the prize is dequant load-sharing | ~5–8 ms compute (mechanism 1) |
+| fundamental (batch-attn scattered KV / inherent dequant) | smaller / needs the full build | TBD |
+
+### Sub-lead 1 — the decisive GO/NO-GO gate (4 probe measurements, NO novel kernel)
+
+Run before any kernel build (measurement-first):
+
+1. **Synthetic contiguous union-expert load microbench** (stream the union bytes
+   coalesced, no compute): does it hit ~410–450 GB/s? **If yes → access pattern
+   is the culprit → the ~16 ms prize is real → strong GO.** (Most important.)
+2. **Compute(dequant)-vs-bandwidth split** of the expert matmul (GPU ALU-vs-
+   memory counters, or real-vs-cached-weights timing) — sizes mechanism 1 vs 2.
+3. **Expert overlap / union size at verify_n≈3.78** (derive from selected-GiB
+   logging) — sets the load-sharing ceiling.
+4. **Attention + dense share of the verify + improvability** — bounds how much
+   of the remaining ~34 ms the full build could touch (batch-attention
+   scattered KV is the expected hard part).
+
+**Decision rule:** GO (escalate to the single-stage expert prototype) if probe 1
+≥ ~380 GB/s OR probe 2 shows recoverable dequant-compute; NO-GO if probe 1 caps
+< ~250 GB/s AND probe 2 is bandwidth-bound with no recoverable redundancy.
+(Exactness-viability then becomes a separate sub-lead.)
+
+### The greedy-exactness secondary (unchanged from Phase B item 6)
+
+Independent of the cost question: the fused kernel's reduction must match M=1
+bit-for-bit (gate/up already bit-identical via the shared `_impl`; the divergence
+is down/sum6 + attention). Fidelity gate: `max_abs==0` vs M=1 + 0 argmax flips
+on the exactness corpus (temp=0). The single-stage expert prototype proves the
+mechanism on one stage; **full** greedy-exactness needs all divergent stages
+fused (the full build). Keeps the Phase-B abort condition (>5% re-verification).
 
 ## Content of work
 
@@ -137,6 +250,12 @@ rather than just reusing `verify_suffix_tops`.
 
 ## Next steps
 
+**2026-07-15 re-assessment (current):** the sub-lead-1 probe (§"Re-assessment
+(2026-07-15)" above) is the decisive gate BEFORE any kernel build. Run the 4
+cheap measurements → GO/NO-GO. The corrected target is ~10 ms off the verify
+(= +20% over plain), well within the expert-fusion prize range (~8–16 ms) IF
+the ~190 GB/s gap is recoverable.
+
 **Milestone COMPLETE (2026-07-13): Phase B characterization + decisive measurements →
 FINAL verdict = NO-GO via swaps → bounded build attempt with a hard exit gate
 (codex-gated A+B+C; propagated).** Canonical summary:
@@ -151,6 +270,25 @@ sufficient." (Confirmatory: a literal identical-input MoE kernel-equality harnes
 verify-bandwidth slope re-measure.)
 
 ## Worklog
+
+### 2026-07-15 — re-assessment (post-M3): folded the re-derivation + sub-lead-1 probe into this doc as avenues; corrected the "marginal" mischaracterization
+
+Milestone-3 delivered the runtime stack + the full DSpark stack now beats plain
++4.9% (40.04 vs 38.16 t/s). Re-derived the Lead 08 prize from the LIVE M3 cycle:
+the verify is **89.5% of the cycle** (62.07 ms of 69.38 ms), so a verify saving
+amplifies ~1:1 into throughput — **~10 ms = +20% over plain** (the prior "8–18%
+of verify = marginal" was wrong; conflated % of verify with % of cycle).
+Identified the two fusion mechanisms (dequant load-sharing ~5–8 ms + coalesced
+union access → decode bw ~16 ms) + the crux (why is the verify at ~190 GB/s?).
+Locked **sub-lead 1**: the 4-measurement probe (synthetic union-load bandwidth,
+compute/bandwidth split, expert overlap, attention share) as the decisive
+GO/NO-GO gate before any kernel build. Code-verified the load-sharing premise
+(the batch expert kernel `kernel_mul_mv_addr_iq2_xxs_pair_swiglu_f32` moe.metal:1257
+dequants per-(token,expert); the dense matmul IS shared via `r1_2..5`). Folded
+into this doc (§"Re-assessment (2026-07-15)") + artifacts
+`lead08_reassessment/01_reorient_bar_redrivation.md` +
+`02_sublead1_fusion_prospect_and_probe.md`. Codex review of this doc
+commissioned next (missed avenues/experiments).
 
 ### 2026-07-13 — cycle timing breakdown + strategic correction: the lever is anchor reuse + GPU drafter, NOT novel verify kernels
 
