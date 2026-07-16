@@ -10,6 +10,10 @@ This branch starts from `main` and is intended to host a curated, low-noise vers
 
 The full DSpark speculative-decode stack now **BEATS plain ds4 by +4.9 %** (40.04 vs 38.16 t/s, full 176-entry corpus; +4.8 % on the long-context baseline_corpus) and is **score-neutral** on the 92Q (61/92 vs plain 60/92, 90.2 % same verdict, net +1) — the first config to beat plain locally. Levers: (1) committing batched verify, (2) anchor-reuse, (verifier-improvements) prefix-checkpoint, (3) the GPU Metal drafter (draft 45→7.6 ms), (4) anchor-reuse-for-Metal, (5) STS threshold re-tune. **+20 % is not reached — the verify still dominates (~80 % of the cycle); the next lead is Lead 08 (a fused verify kernel).** Full record: `issue468/summaries/dspark_runtime_milestone_3_progress.md`.
 
+## Lead 07 (crossed FP/IQ2 oracle) — CLOSED NEGATIVE (2026-07-16)
+
+Experiment 1 complete: the crossed FP/IQ2 2×2 oracle, run on a **teacher-forced common trajectory** (the IQ2XXS-vs-native greedy trajectories diverge ~6%, so no common prefix exists — alignment was created by a new `teacher_force` ds4-spec-bench submode, commit bb9c01f, driving the IQ2 model through the FP greedy tokens). **Verdict: PIVOT — the native-vs-IQ2 acceptance gain is NOT a recoverable hidden-side effect.** On a common trajectory the FP-vs-IQ2 p1 lift is +0.007 (CI includes 0); the *recoverable* hidden-side effect (FP hidden with deployable IQ2 labels) is ~0 in both p1 and E[a|4]; the FP ceiling's block advantage (E[a|4] 2.786) requires the FP target's labels (Y_fp), which are undeployable on IQ2XXS; the residual native-vs-IQ2 gap (~5pp) is target-trajectory difficulty, not hidden precision. Experiment 2 (recovery test) **not warranted**; Lead 07 closes negative. The drafter is not hidden-input-limited relative to FP on a common context — the runtime +20% remains Lead 08 (fused verify kernel). Full record: `issue468/summaries/lead07_crossed_oracle_verdict.md`.
+
 ## Current objective
 
 Create a trustworthy active dossier that makes it easy to:

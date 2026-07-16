@@ -1,6 +1,14 @@
 # Lead 07 - Native-hidden recoverability on IQ2XXS
 
-Date: 2026-07-11. Status: **narrowed proposed follow-up; not yet executed.**
+Date: 2026-07-11. Status: **CLOSED NEGATIVE (2026-07-16).** Experiment 1 (the crossed FP/IQ2
+oracle, run on a teacher-forced common trajectory — the IQ2XXS-vs-native trajectories
+diverge ~6%, so no common prefix exists) **PIVOTs**: on a common trajectory the FP-vs-IQ2
+p1 lift is +0.007 (CI includes 0); the *recoverable* hidden-side effect (FP hidden with
+deployable IQ2 labels) is ~0 in both p1 and E[a|4]; the FP ceiling's block advantage
+requires the FP target's labels (Y_fp), which are undeployable on IQ2XXS; the residual
+native-vs-IQ2 gap (~5pp) is target-trajectory difficulty, not hidden precision.
+Experiment 2 (recovery test) is **not warranted**. See
+`summaries/lead07_crossed_oracle_verdict.md` for the full attribution + decision.
 
 Purpose: resolve the **remaining drafter-quality question left open after Stage 2 and
 Lead 04**:
