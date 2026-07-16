@@ -1,14 +1,89 @@
 # Lead 07 - Native-hidden recoverability on IQ2XXS
 
-Date: 2026-07-11. Status: **CLOSED NEGATIVE (2026-07-16).** Experiment 1 (the crossed FP/IQ2
-oracle, run on a teacher-forced common trajectory — the IQ2XXS-vs-native trajectories
-diverge ~6%, so no common prefix exists) **PIVOTs**: on a common trajectory the FP-vs-IQ2
-p1 lift is +0.007 (CI includes 0); the *recoverable* hidden-side effect (FP hidden with
-deployable IQ2 labels) is ~0 in both p1 and E[a|4]; the FP ceiling's block advantage
-requires the FP target's labels (Y_fp), which are undeployable on IQ2XXS; the residual
-native-vs-IQ2 gap (~5pp) is target-trajectory difficulty, not hidden precision.
-Experiment 2 (recovery test) is **not warranted**. See
-`summaries/lead07_crossed_oracle_verdict.md` for the full attribution + decision.
+Date: 2026-07-11. **Status: resolved & archived 2026-07-16 (moved from `issue468/pending/`).
+Result: PIVOT — closed negative (codex-concurred).** Experiment 1 (the crossed FP/IQ2
+oracle, run on a teacher-forced common trajectory) verdicted PIVOT; Experiment 2 is
+**not warranted**. The full attribution + decision are below (§ Result). The original
+proposal (Purpose → One-line verdict) is retained after it as provenance.
+
+## Result — Experiment 1 verdict (2026-07-16)
+
+**PIVOT — the native-vs-IQ2 drafter-acceptance gain is NOT a recoverable hidden-side
+effect on IQ2XXS.** Run on a **teacher-forced common trajectory**: the IQ2XXS-vs-native
+greedy trajectories diverge (~6% token agreement, no common prefix, no offset), so the
+proposal's "common-prefix" alignment does not exist. It was created by teacher-forcing
+the IQ2 model onto the FP trajectory via a new `teacher_force` ds4-spec-bench submode
+(commit `bb9c01f`) — `ds4_session_argmax()` records the IQ2 argmax (Y_iq2_tf) *before*
+`ds4_session_eval(forced)` drives the model through the FP greedy tokens (Y_fp), and
+`DS4_DSPARK_DUMP_HIDDEN` captures H_iq2_tf. Fidelity gate PASS (A(D_f32,H_iq2_tf,Y_fp)
+p1=0.891, sane band vs ceiling 0.922 / IQ2-native 0.852).
+
+**Setup.** 59 prompts (lead3_corpus, codealpaca/dolly/jsonex × 0080–0099; 1 skipped —
+too few anchors for the block), 5554 anchors, common FP trajectory. D_f32 torch drafter;
+anchors always = Y_fp (the FP-trajectory context tokens). H_fp/Y_fp from the retained
+Lead 04 Modal captures (not re-captured); H_iq2_tf/Y_iq2_tf from the teacher-force.
+ds4 chat-templated prompt length == FP prompt_tokens for 0/60 (clean alignment);
+Y_iq2_tf==Y_fp at 92.5% on the common trajectory (per-step label-drift 7.5%; the ~94%
+full-trajectory divergence is compounding, not large per-step drift).
+
+**The 2×2 (common FP trajectory):**
+
+| cell | p=1 [CI95] | E[a\|4] |
+|---|---|---|
+| ceiling  `A(D_f32, H_fp,     Y_fp )`    | **0.849** [.828,.869] | **2.786** |
+| baseline `A(D_f32, H_iq2_tf, Y_iq2_tf)` | 0.842 [.820,.863] | 2.660 |
+| hidden   `A(D_f32, H_fp,     Y_iq2_tf)` | 0.835 [.812,.858] | 2.666 |
+| label    `A(D_f32, H_iq2_tf, Y_fp )`    | 0.833 [.810,.855] | 2.660 |
+
+**Attribution** (prompt-clustered bootstrap, n=59):
+- lift (ceiling − baseline) p1 = **+0.007, CI[-0.002, +0.016]** — includes 0. Negligible.
+- hidden-side main effect p1 = +0.005; label-side main effect p1 = +0.002 (both ~0).
+- interaction p1 = +0.023; at E[a\|4] the interaction dominates (ceiling 2.786 is an
+  outlier — crossing *either* H or Y drops E[a\|4] to ~2.66).
+- **recoverable hidden-side (hidden − baseline = FP hidden + deployable IQ2 labels) =
+  −0.0068, CI[-0.0137, −0.0004]** — significantly *negative*: FP-like hiddens would
+  *hurt* (~0.7 pp) against the IQ2 target's own labels.
+- IQ2-native reference (deployable IQ2 trajectory) p1 = 0.792.
+
+**Why PIVOT (neither):**
+1. On a common trajectory, FP and IQ2 hiddens are equivalent for the drafter (p1 lift
+   +0.007, CI incl 0).
+2. The recoverable hidden-side effect (the deployable case: FP hidden with IQ2 labels)
+   is ~0 in p1 and significantly *negative* (−0.0068) — there is no hidden-side lever.
+3. The FP ceiling's block advantage (E[a\|4] 2.786) requires *both* H_fp and Y_fp (the
+   self-consistent diagonal) — an interaction / self-consistency effect, not a
+   hidden-side main effect. Y_fp (the native-FP argmax) is **undeployable on IQ2XXS**.
+4. The residual native-vs-IQ2 p1 gap (ceiling 0.849 vs IQ2-native 0.792 ≈ 0.057) is
+   target-trajectory difficulty (the IQ2 model, run freely, generates a
+   harder-to-draft trajectory), not hidden precision.
+
+Per Lead 07's rule ("neither cell much better than IQ2 baseline → stop"), **Experiment 2
+(the body-side adapter recovery test) is not warranted; Lead 07 closes negative.**
+
+**Codex gate (gpt-5.5 xhigh — retained: `issue468/artifacts/dspark_codex_reviews/
+2026-07-16_lead07_crossed_oracle_gate.md`).** C1–C4 sound; codex reproduced dolly_0090
+exactly (baseline 0.90625/hidden 0.9375/label 0.890625/ceiling 0.921875, n=64) +
+recomputed anchor-weighted lift +0.0043 CI[-0.0040,+0.0128]. Independently re-verified
+by the dispatcher (dolly_0090 match + anchor-weighted lift match + the −0.0068 finding).
+**Caveat (P1, load-bearing):** the PIVOT is conditional on the retained Lead 04 FP
+captures being faithful (their `mhc_post` fidelity was never algebraically proven — the
+F16-on-FP anomaly). Robustness: a subtle F32-masked error cannot manufacture a large
+*positive* recoverable effect, so the qualitative PIVOT holds; the decisive resolution
+(a same-stack native-FP recapture through ds4) is infeasible — ds4 only supports
+IQ2XXS/Q2_K experts — so it reduces to the Lead-04 hidden-capture-fidelity follow-up.
+
+**Resolves / leaves open.** *Resolved:* the Lead-04 native-hidden ceiling is NOT an
+IQ2XXS-recoverable hidden-precision effect; the drafter is not hidden-input-limited
+relative to FP on a common context; the +5–15% native ceiling is a target-trajectory +
+FP-self-consistency artifact. *Open (other leads):* the runtime +20% remains Lead 08
+(fused verify kernel); the target-trajectory difficulty (~5 pp) is a target/quantization
+property, not a drafter-fixable hidden-side lever.
+
+**Artifacts.** `issue468/artifacts/lead07_crossed_oracle/`: `run_crossed_oracle.py`,
+`crossed_oracle_result.json` (cells, attribution, per-source, per-prompt rows),
+`fidelity_gate.py`, `prep_recapture.py`, `verify_recapture.py`. Raw captures
+(`fp_captures_raw/`, `tf_dump_full/`, `force_tokens/`) gitignored (reproducible from
+Modal + `ds4-spec-bench teacher_force`). Commits `bb9c01f`/`37789b5`/`49b9284`.
 
 Purpose: resolve the **remaining drafter-quality question left open after Stage 2 and
 Lead 04**:
@@ -224,8 +299,9 @@ Lead 07 does **not** include:
   the bounded recovery test fails to pull IQ2XXS meaningfully toward the native
   ceiling.
 
-## One-line verdict
+## One-line verdict (proposal, pre-execution — superseded by § Result above)
 
-Lead 07 remains justified only as a **narrow post-Lead-04 recoverability lead**:
-first attribute the native-hidden gain with a crossed FP/IQ2 oracle, then test at
-most one deployable hidden-side recovery path.
+Lead 07 was justified as a **narrow post-Lead-04 recoverability lead**: first attribute
+the native-hidden gain with a crossed FP/IQ2 oracle, then test at most one deployable
+hidden-side recovery path. **Outcome (§ Result): the oracle PIVOTs — no recoverable
+hidden-side lever; the lead closes negative; Experiment 2 does not run.**
