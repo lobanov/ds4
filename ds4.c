@@ -22121,6 +22121,38 @@ int metal_graph_test_m2_fidelity_unit(const ds4_model *model, const ds4_weights 
         fprintf(stderr, "lead08_m2_fid: il=%u routed_out max_abs=%.3e l1_rel=%.3e argmax_flip=%d | gate+up(mid) max_abs=%.3e l1_rel=%.3e\n",
             il, max_out, sum_ref>0.0?sum_l1/sum_ref:0.0, (ar0!=am0||ar1!=am1)?1:0, max_mid, sum_mref>0.0?sum_ml1/sum_mref:0.0);
     }
+    /* ---- cost (COLD/production): sweep ALL layers so each layer's experts are fresh (DRAM),
+     * not re-hit from the prior iteration's cache. A tight single-layer loop (iters 2..N re-hit
+     * L2) measures compute-only and hides the de-dup DRAM saving, so it's useless here. Compare
+     * M=2 (fused, de-dup) vs M=1 x2 (per-token, no de-dup = batch-verifier-equivalent routed MoE). */
+    {
+        const int PASSES = 3;
+        int valid = 0;
+        for (uint32_t il=0; il<n_layer; il++) {
+            const ds4_layer_weights *L = &weights->layer[il];
+            if ((uint32_t)L->ffn_gate_exps->dim[1]==expert_mid_dim && (uint32_t)L->ffn_down_exps->dim[1]==out_dim && L->ffn_gate_exps->type==L0->ffn_gate_exps->type) valid++;
+        }
+        double t0=now_sec();
+        for (int p=0;p<PASSES;p++) for (uint32_t il=0; il<n_layer; il++) {
+            const ds4_layer_weights *L = &weights->layer[il];
+            if ((uint32_t)L->ffn_gate_exps->dim[1]!=expert_mid_dim || (uint32_t)L->ffn_down_exps->dim[1]!=out_dim || L->ffn_gate_exps->type!=L0->ffn_gate_exps->type) continue;
+            if(!ds4_gpu_begin_commands()) break;
+            (void)ds4_gpu_routed_moe_pair_tensor(mo[0],mo[1],mg[0],mg[1],mu[0],mu[1],mm[0],mm[1],model->map,model->size,L->ffn_gate_exps->abs_offset,L->ffn_up_exps->abs_offset,L->ffn_down_exps->abs_offset,L->ffn_gate_exps->type,L->ffn_down_exps->type,gate_expert_bytes,gate_row_bytes,down_expert_bytes,down_row_bytes,expert_in_dim,expert_mid_dim,out_dim,selh[0],wh[0],selh[1],wh[1],sel[0],sel[1],DS4_N_EXPERT,DS4_SWIGLU_CLAMP_EXP,x[0],x[1]);
+            ds4_gpu_end_commands();
+        }
+        double m2_ms = valid>0 ? (now_sec()-t0)/((double)PASSES*(double)valid)*1000.0 : 0.0;
+        double t1=now_sec();
+        for (int p=0;p<PASSES;p++) for (uint32_t il=0; il<n_layer; il++) {
+            const ds4_layer_weights *L = &weights->layer[il];
+            if ((uint32_t)L->ffn_gate_exps->dim[1]!=expert_mid_dim || (uint32_t)L->ffn_down_exps->dim[1]!=out_dim || L->ffn_gate_exps->type!=L0->ffn_gate_exps->type) continue;
+            if(!ds4_gpu_begin_commands()) break;
+            (void)ds4_gpu_routed_moe_one_tensor(ro[0],rg[0],ru[0],rm[0],rd[0],model->map,model->size,L->ffn_gate_exps->abs_offset,L->ffn_up_exps->abs_offset,L->ffn_down_exps->abs_offset,L->ffn_gate_exps->type,L->ffn_down_exps->type,gate_expert_bytes,gate_row_bytes,down_expert_bytes,down_row_bytes,expert_in_dim,expert_mid_dim,out_dim,sel[0],w[0],DS4_N_EXPERT,n_exp,DS4_SWIGLU_CLAMP_EXP,x[0],il);
+            (void)ds4_gpu_routed_moe_one_tensor(ro[1],rg[1],ru[1],rm[1],rd[1],model->map,model->size,L->ffn_gate_exps->abs_offset,L->ffn_up_exps->abs_offset,L->ffn_down_exps->abs_offset,L->ffn_gate_exps->type,L->ffn_down_exps->type,gate_expert_bytes,gate_row_bytes,down_expert_bytes,down_row_bytes,expert_in_dim,expert_mid_dim,out_dim,sel[1],w[1],DS4_N_EXPERT,n_exp,DS4_SWIGLU_CLAMP_EXP,x[1],il);
+            ds4_gpu_end_commands();
+        }
+        double m1_ms = valid>0 ? (now_sec()-t1)/((double)PASSES*(double)valid)*1000.0 : 0.0;
+        fprintf(stderr, "lead08_m2_fid: COST_COLD passes=%d layers=%d selA=[0..5] selB=[3..8] (n_union=9 of 12) M2=%.3f ms/layer M1x2=%.3f ms/layer saving=%.3f ms (%.1f%%)\n", PASSES, valid, m2_ms, m1_ms, m1_ms-m2_ms, m1_ms>0.0?(m1_ms-m2_ms)/m1_ms*100.0:0.0);
+    }
     fprintf(stderr, "lead08_m2_fid: SUMMARY layers=%d worst_routed_out=%.3e worst_gateup_mid=%.3e argmax_flip=%d -> %s\n",
         nl, worst_out, worst_mid, worst_flip,
         worst_out==0.0?"BIT_EXACT":(worst_mid<1e-5?"CLOSE_FASTMATH_NOISE(loc gate+up)":"DIVERGENT"));
