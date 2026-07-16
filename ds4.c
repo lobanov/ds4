@@ -21998,6 +21998,136 @@ static bool metal_graph_copy_batch_hc_row(
  * decode kernels and cache update order, but encodes the two proposed tokens
  * layer-by-layer in one command stream.  It returns the exact target top after
  * token0, and exact logits after token1. */
+/* Lead 08 M=2 fidelity unit test (DS4_M2_FIDELITY_TEST): self-contained — no forward/capture.
+ * Fills deterministic random inputs (ffn_norm + router selections WITH overlap + weights),
+ * runs M=1 (ds4_gpu_routed_moe_one_tensor x2) and M=2 (ds4_gpu_routed_moe_pair_tensor) on the
+ * SAME inputs in one command buffer, then diffs routed_out. Avoids the encode_decode_layer
+ * capture's CPU-readback-of-current-buffer problem. Returns 0=BIT_EXACT, 1=divergent, -1=error. */
+int metal_graph_test_m2_fidelity_unit(const ds4_model *model, const ds4_weights *weights) {
+    if (!model || !weights || !weights->layer) { fprintf(stderr, "lead08_m2_fid: null model/weights\n"); return -1; }
+    const uint32_t n_layer = DS4_N_LAYER;
+    if (n_layer == 0) { fprintf(stderr, "lead08_m2_fid: n_layer=0\n"); return -1; }
+    const ds4_layer_weights *L0 = &weights->layer[0];
+    const uint64_t gate_row_bytes    = routed_expert_row_bytes(L0->ffn_gate_exps);
+    const uint64_t gate_expert_bytes = (uint64_t)L0->ffn_gate_exps->dim[1] * gate_row_bytes;
+    const uint64_t down_row_bytes    = routed_expert_row_bytes(L0->ffn_down_exps);
+    const uint64_t down_expert_bytes = (uint64_t)L0->ffn_down_exps->dim[1] * down_row_bytes;
+    const uint32_t expert_in_dim  = (uint32_t)L0->ffn_gate_exps->dim[0];
+    const uint32_t expert_mid_dim = (uint32_t)L0->ffn_gate_exps->dim[1];
+    const uint32_t out_dim        = (uint32_t)L0->ffn_down_exps->dim[1];
+    const uint32_t n_exp = DS4_N_EXPERT_USED;
+    const uint64_t embd_bytes = (uint64_t)expert_in_dim * sizeof(float);
+    const uint64_t out_bytes  = (uint64_t)out_dim * sizeof(float);
+    const uint64_t sel_bytes  = (uint64_t)n_exp * sizeof(int32_t);
+    const uint64_t w_bytes    = (uint64_t)n_exp * sizeof(float);
+    const uint64_t mid_bytes  = (uint64_t)n_exp * (uint64_t)expert_mid_dim * sizeof(float);
+    const uint64_t down_scr_bytes = (uint64_t)n_exp * (uint64_t)out_dim * sizeof(float);
+    const uint64_t m2_mid_bytes = (uint64_t)12u * (uint64_t)expert_mid_dim * sizeof(float);
+
+    ds4_gpu_tensor *x[2]={0},*sel[2]={0},*w[2]={0};
+    ds4_gpu_tensor *ro[2]={0},*rg[2]={0},*ru[2]={0},*rm[2]={0},*rd[2]={0};
+    ds4_gpu_tensor *mo[2]={0},*mg[2]={0},*mu[2]={0},*mm[2]={0};
+    int ok=1;
+    for (int t=0;t<2&&ok;t++){
+        x[t]=ds4_gpu_tensor_alloc(embd_bytes); sel[t]=ds4_gpu_tensor_alloc(sel_bytes); w[t]=ds4_gpu_tensor_alloc(w_bytes);
+        ro[t]=ds4_gpu_tensor_alloc(out_bytes); rg[t]=ds4_gpu_tensor_alloc(mid_bytes);
+        ru[t]=ds4_gpu_tensor_alloc(mid_bytes); rm[t]=ds4_gpu_tensor_alloc(mid_bytes); rd[t]=ds4_gpu_tensor_alloc(down_scr_bytes);
+        mo[t]=ds4_gpu_tensor_alloc(out_bytes); mg[t]=ds4_gpu_tensor_alloc(m2_mid_bytes);
+        mu[t]=ds4_gpu_tensor_alloc(m2_mid_bytes); mm[t]=ds4_gpu_tensor_alloc(m2_mid_bytes);
+        if(!x[t]||!sel[t]||!w[t]||!ro[t]||!rg[t]||!ru[t]||!rm[t]||!rd[t]||!mo[t]||!mg[t]||!mu[t]||!mm[t]) ok=0;
+    }
+    if(!ok){ fprintf(stderr,"lead08_m2_fid: alloc failed\n"); return -1; }
+
+    unsigned int rng=2463534242u;
+    float *xh=(float*)malloc(embd_bytes);
+    if(!xh){ fprintf(stderr,"lead08_m2_fid: xh alloc failed\n"); return -1; }
+    int32_t selh[2][6] = { {0,1,2,3,4,5}, {3,4,5,6,7,8} };  /* overlap {3,4,5} -> exercises the union de-dup */
+    float wh[2][6];
+    for (int t=0;t<2;t++){
+        for (uint32_t i=0;i<expert_in_dim;i++){ rng=rng*1103515245u+12345u; xh[i]=((float)((rng>>8)&0xffff)/65535.0f-0.5f)*0.5f; }
+        ds4_gpu_tensor_write(x[t],0,xh,embd_bytes);
+        for (int e=0;e<6;e++){ rng=rng*1103515245u+12345u; wh[t][e]=(float)((rng>>8)&0x3ff)/1024.0f*0.5f+0.05f; }
+        ds4_gpu_tensor_write(w[t],0,wh[t],w_bytes);
+        ds4_gpu_tensor_write(sel[t],0,selh[t],sel_bytes);
+    }
+    free(xh);
+
+    uint32_t layers[5]; int nl=0;
+    layers[nl++]=0;
+    if(n_layer>1) layers[nl++]=n_layer/4;
+    if(n_layer>2) layers[nl++]=n_layer/2;
+    if(n_layer>3) layers[nl++]=(3u*n_layer)/4;
+    if(n_layer>4) layers[nl++]=n_layer-1;
+
+    float *r0=malloc(out_bytes),*r1=malloc(out_bytes),*m0=malloc(out_bytes),*m1=malloc(out_bytes);
+    float *k0=malloc(mid_bytes),*k1=malloc(mid_bytes),*n0=malloc(mid_bytes),*n1=malloc(mid_bytes);
+    if(!r0||!r1||!m0||!m1||!k0||!k1||!n0||!n1){ fprintf(stderr,"lead08_m2_fid: host alloc failed\n"); return -1; }
+    double worst_out=0.0, worst_mid=0.0; int worst_flip=0;
+
+    for (int li=0; li<nl; li++) {
+        const uint32_t il = layers[li];
+        const ds4_layer_weights *L = &weights->layer[il];
+        if ((uint32_t)L->ffn_gate_exps->dim[1]!=expert_mid_dim || (uint32_t)L->ffn_down_exps->dim[1]!=out_dim ||
+            L->ffn_gate_exps->type!=L0->ffn_gate_exps->type) {
+            fprintf(stderr,"lead08_m2_fid: il=%u dims/type differ from layer 0, skip\n", il); continue;
+        }
+        if (!ds4_gpu_begin_commands()) { fprintf(stderr,"lead08_m2_fid: begin_commands failed il=%u\n", il); return -1; }
+        int dispatched=1;
+        for (int t=0;t<2&&dispatched;t++){
+            dispatched = ds4_gpu_routed_moe_one_tensor(ro[t],rg[t],ru[t],rm[t],rd[t],
+                model->map,model->size,
+                L->ffn_gate_exps->abs_offset,L->ffn_up_exps->abs_offset,L->ffn_down_exps->abs_offset,
+                L->ffn_gate_exps->type,L->ffn_down_exps->type,
+                gate_expert_bytes,gate_row_bytes,down_expert_bytes,down_row_bytes,
+                expert_in_dim,expert_mid_dim,out_dim,
+                sel[t],w[t],DS4_N_EXPERT,n_exp,DS4_SWIGLU_CLAMP_EXP,x[t],il) != 0;
+        }
+        if (dispatched) dispatched = ds4_gpu_routed_moe_pair_tensor(
+                mo[0],mo[1],mg[0],mg[1],mu[0],mu[1],mm[0],mm[1],
+                model->map,model->size,
+                L->ffn_gate_exps->abs_offset,L->ffn_up_exps->abs_offset,L->ffn_down_exps->abs_offset,
+                L->ffn_gate_exps->type,L->ffn_down_exps->type,
+                gate_expert_bytes,gate_row_bytes,down_expert_bytes,down_row_bytes,
+                expert_in_dim,expert_mid_dim,out_dim,
+                selh[0],wh[0],selh[1],wh[1],
+                sel[0],sel[1],DS4_N_EXPERT,DS4_SWIGLU_CLAMP_EXP,x[0],x[1]) != 0;
+        if (!ds4_gpu_end_commands()) { fprintf(stderr,"lead08_m2_fid: end_commands failed il=%u\n", il); return -1; }
+        if (!dispatched) { fprintf(stderr,"lead08_m2_fid: dispatch failed (M=1 or M=2 returned 0) il=%u\n", il); continue; }
+
+        int rb = ds4_gpu_tensor_read(ro[0],0,r0,out_bytes) && ds4_gpu_tensor_read(ro[1],0,r1,out_bytes)
+              && ds4_gpu_tensor_read(mo[0],0,m0,out_bytes) && ds4_gpu_tensor_read(mo[1],0,m1,out_bytes)
+              && ds4_gpu_tensor_read(rm[0],0,k0,mid_bytes) && ds4_gpu_tensor_read(rm[1],0,k1,mid_bytes)
+              && ds4_gpu_tensor_read(mm[0],0,n0,mid_bytes) && ds4_gpu_tensor_read(mm[1],0,n1,mid_bytes);
+        if (!rb) { fprintf(stderr,"lead08_m2_fid: readback failed il=%u\n", il); continue; }
+
+        double max_out=0.0,sum_l1=0.0,sum_ref=0.0; uint32_t ar0=0,am0=0,ar1=0,am1=0;
+        for (uint32_t i=0;i<out_dim;i++){
+            if(fabsf(r0[i])>fabsf(r0[ar0]))ar0=i; if(fabsf(m0[i])>fabsf(m0[am0]))am0=i;
+            if(fabsf(r1[i])>fabsf(r1[ar1]))ar1=i; if(fabsf(m1[i])>fabsf(m1[am1]))am1=i;
+            double d0=fabs((double)m0[i]-(double)r0[i]), d1=fabs((double)m1[i]-(double)r1[i]);
+            if(d0>max_out)max_out=d0; if(d1>max_out)max_out=d1;
+            sum_l1+=d0+d1; sum_ref+=fabs((double)r0[i])+fabs((double)r1[i]);
+        }
+        double max_mid=0.0,sum_ml1=0.0,sum_mref=0.0;
+        const uint64_t n_mid = (uint64_t)n_exp * (uint64_t)expert_mid_dim;
+        for (uint64_t i=0;i<n_mid;i++){
+            double d0=fabs((double)n0[i]-(double)k0[i]), d1=fabs((double)n1[i]-(double)k1[i]);
+            if(d0>max_mid)max_mid=d0; if(d1>max_mid)max_mid=d1;
+            sum_ml1+=d0+d1; sum_mref+=fabs((double)k0[i])+fabs((double)k1[i]);
+        }
+        if(max_out>worst_out)worst_out=max_out;
+        if(max_mid>worst_mid)worst_mid=max_mid;
+        if(ar0!=am0||ar1!=am1)worst_flip=1;
+        fprintf(stderr, "lead08_m2_fid: il=%u routed_out max_abs=%.3e l1_rel=%.3e argmax_flip=%d | gate+up(mid) max_abs=%.3e l1_rel=%.3e\n",
+            il, max_out, sum_ref>0.0?sum_l1/sum_ref:0.0, (ar0!=am0||ar1!=am1)?1:0, max_mid, sum_mref>0.0?sum_ml1/sum_mref:0.0);
+    }
+    fprintf(stderr, "lead08_m2_fid: SUMMARY layers=%d worst_routed_out=%.3e worst_gateup_mid=%.3e argmax_flip=%d -> %s\n",
+        nl, worst_out, worst_mid, worst_flip,
+        worst_out==0.0?"BIT_EXACT":(worst_mid<1e-5?"CLOSE_FASTMATH_NOISE(loc gate+up)":"DIVERGENT"));
+    free(r0);free(r1);free(m0);free(m1);free(k0);free(k1);free(n0);free(n1);
+    return (worst_out==0.0)?0:1;
+}
+
 static bool metal_graph_verify_decode2_exact(
         ds4_gpu_graph *g,
         const ds4_model       *model,
@@ -22016,6 +22146,35 @@ static bool metal_graph_verify_decode2_exact(
     ds4_gpu_tensor *next0 = metal_graph_tensor_row_view(g->batch_next_hc, 0, hc_dim);
     ds4_gpu_tensor *next1 = metal_graph_tensor_row_view(g->batch_next_hc, 1, hc_dim);
     bool ok = cur0 && cur1 && next0 && next1;
+
+    /* Lead 08 M=2 fidelity-first test mode (DS4_DSPARK_FUSED_ROUTED_M2_TEST).
+     * Additive + diagnostic only: for ONE layer it re-runs the fused M=2 routed-expert
+     * orchestrator on the captured 2-token inputs and diffs routed_out vs the M=1
+     * reference decode2_exact already produced. It does NOT alter the decode result. */
+    static int s_m2_test = -1;
+    if (s_m2_test < 0) s_m2_test = getenv("DS4_DSPARK_FUSED_ROUTED_M2_TEST") != NULL ? 1 : 0;
+    const bool m2_test = (s_m2_test != 0);
+    static int s_m2_test_layer = -2;
+    if (s_m2_test_layer == -2) {
+        const char *ly = getenv("DS4_DSPARK_FUSED_ROUTED_M2_TEST_LAYER");
+        s_m2_test_layer = ly ? atoi(ly) : 0;
+    }
+    const uint32_t m2_il = (uint32_t)s_m2_test_layer;
+    if (m2_test) fprintf(stderr, "lead08_m2_fidelity: decode2_exact entry (target il=%u, n_layer=%u)\n", m2_il, (uint32_t)DS4_N_LAYER);
+    bool m2_have = false;
+    static ds4_gpu_tensor *m2_x[2] = {0}, *m2_sel[2] = {0}, *m2_w[2] = {0}, *m2_ref[2] = {0};
+    if (m2_test && ok) {
+        const uint64_t embd_bytes = (uint64_t)DS4_N_EMBD * sizeof(float);
+        const uint64_t sel_bytes  = (uint64_t)DS4_N_EXPERT_USED * sizeof(int32_t);
+        const uint64_t w_bytes    = (uint64_t)DS4_N_EXPERT_USED * sizeof(float);
+        for (int t = 0; t < 2; t++) {
+            if (!m2_x[t])   m2_x[t]   = ds4_gpu_tensor_alloc(embd_bytes);
+            if (!m2_sel[t]) m2_sel[t] = ds4_gpu_tensor_alloc(sel_bytes);
+            if (!m2_w[t])   m2_w[t]   = ds4_gpu_tensor_alloc(w_bytes);
+            if (!m2_ref[t]) m2_ref[t] = ds4_gpu_tensor_alloc(embd_bytes);
+            if (!m2_x[t] || !m2_sel[t] || !m2_w[t] || !m2_ref[t]) { ok = false; }
+        }
+    }
 
     if (ok) ok = ds4_gpu_embed_token_hc_tensor(cur0,
                                                   model->map,
@@ -22056,6 +22215,16 @@ static bool metal_graph_verify_decode2_exact(
                                              metal_graph_raw_span_for_batch(g, pos0, 1),
                                              token0);
         if (!ok) break;
+        if (m2_test && il == m2_il) {
+            const uint64_t eb = (uint64_t)DS4_N_EMBD * sizeof(float);
+            const uint64_t sb = (uint64_t)DS4_N_EXPERT_USED * sizeof(int32_t);
+            const uint64_t wb = (uint64_t)DS4_N_EXPERT_USED * sizeof(float);
+            ok = ds4_gpu_tensor_copy(m2_x[0],   0, g->ffn_norm,        0, eb) != 0;
+            if (ok) ok = ds4_gpu_tensor_copy(m2_sel[0], 0, g->router_selected, 0, sb) != 0;
+            if (ok) ok = ds4_gpu_tensor_copy(m2_w[0],   0, g->router_weights,  0, wb) != 0;
+            if (ok) ok = ds4_gpu_tensor_copy(m2_ref[0], 0, g->routed_out,      0, eb) != 0;
+            if (!ok) break;
+        }
         ok = metal_graph_capture_prefix1_attn_state(g, il) &&
              metal_graph_capture_prefix1_index_state(g, il);
         if (!ok) break;
@@ -22073,6 +22242,17 @@ static bool metal_graph_verify_decode2_exact(
                                              metal_graph_raw_span_for_batch(g, pos1, 1),
                                              token1);
         if (!ok) break;
+        if (m2_test && il == m2_il) {
+            const uint64_t eb = (uint64_t)DS4_N_EMBD * sizeof(float);
+            const uint64_t sb = (uint64_t)DS4_N_EXPERT_USED * sizeof(int32_t);
+            const uint64_t wb = (uint64_t)DS4_N_EXPERT_USED * sizeof(float);
+            ok = ds4_gpu_tensor_copy(m2_x[1],   0, g->ffn_norm,        0, eb) != 0;
+            if (ok) ok = ds4_gpu_tensor_copy(m2_sel[1], 0, g->router_selected, 0, sb) != 0;
+            if (ok) ok = ds4_gpu_tensor_copy(m2_w[1],   0, g->router_weights,  0, wb) != 0;
+            if (ok) ok = ds4_gpu_tensor_copy(m2_ref[1], 0, g->routed_out,      0, eb) != 0;
+            if (!ok) break;
+            m2_have = true;
+        }
 
         ds4_gpu_tensor *tmp = cur0; cur0 = next0; next0 = tmp;
         tmp = cur1; cur1 = next1; next1 = tmp;
@@ -22082,6 +22262,83 @@ static bool metal_graph_verify_decode2_exact(
     g->spec_capture_prefix1 = saved_capture;
     g->cur_hc = saved_cur;
     g->after_ffn_hc = saved_after;
+
+    if (m2_test && ok && m2_have) {
+        const ds4_layer_weights *L = &weights->layer[m2_il];
+        const uint64_t gate_row_bytes    = routed_expert_row_bytes(L->ffn_gate_exps);
+        const uint64_t gate_expert_bytes = (uint64_t)L->ffn_gate_exps->dim[1] * gate_row_bytes;
+        const uint64_t down_row_bytes    = routed_expert_row_bytes(L->ffn_down_exps);
+        const uint64_t down_expert_bytes = (uint64_t)L->ffn_down_exps->dim[1] * down_row_bytes;
+        const uint32_t expert_in_dim  = (uint32_t)L->ffn_gate_exps->dim[0];
+        const uint32_t expert_mid_dim = (uint32_t)L->ffn_gate_exps->dim[1];
+        const uint32_t out_dim_v      = (uint32_t)L->ffn_down_exps->dim[1];
+        static ds4_gpu_tensor *m2_out[2] = {0}, *m2_g[2] = {0}, *m2_u[2] = {0}, *m2_mid[2] = {0};
+        const uint64_t mid_buf = (uint64_t)12u * (uint64_t)expert_mid_dim * sizeof(float);
+        const uint64_t out_buf = (uint64_t)DS4_N_EMBD * sizeof(float);
+        for (int t = 0; t < 2; t++) {
+            if (!m2_out[t]) m2_out[t] = ds4_gpu_tensor_alloc(out_buf);
+            if (!m2_g[t])   m2_g[t]   = ds4_gpu_tensor_alloc(mid_buf);
+            if (!m2_u[t])   m2_u[t]   = ds4_gpu_tensor_alloc(mid_buf);
+            if (!m2_mid[t]) m2_mid[t] = ds4_gpu_tensor_alloc(mid_buf);
+        }
+        int32_t sel_cpu[2][6]; float w_cpu[2][6];
+        int m2_ok = (m2_out[0] && m2_out[1] && m2_g[0] && m2_g[1] &&
+                     m2_u[0] && m2_u[1] && m2_mid[0] && m2_mid[1]);
+        if (m2_ok) m2_ok = ds4_gpu_tensor_read(m2_sel[0], 0, sel_cpu[0], sizeof(sel_cpu[0]));
+        if (m2_ok) m2_ok = ds4_gpu_tensor_read(m2_sel[1], 0, sel_cpu[1], sizeof(sel_cpu[1]));
+        if (m2_ok) m2_ok = ds4_gpu_tensor_read(m2_w[0],   0, w_cpu[0],   sizeof(w_cpu[0]));
+        if (m2_ok) m2_ok = ds4_gpu_tensor_read(m2_w[1],   0, w_cpu[1],   sizeof(w_cpu[1]));
+        const int began = (m2_ok) ? ds4_gpu_begin_commands() : 0;
+        int dispatched = 0;
+        if (began) dispatched = ds4_gpu_routed_moe_pair_tensor(
+                    m2_out[0], m2_out[1],
+                    m2_g[0], m2_g[1], m2_u[0], m2_u[1], m2_mid[0], m2_mid[1],
+                    model->map, model->size,
+                    L->ffn_gate_exps->abs_offset, L->ffn_up_exps->abs_offset, L->ffn_down_exps->abs_offset,
+                    L->ffn_gate_exps->type, L->ffn_down_exps->type,
+                    gate_expert_bytes, gate_row_bytes, down_expert_bytes, down_row_bytes,
+                    expert_in_dim, expert_mid_dim, out_dim_v,
+                    sel_cpu[0], w_cpu[0], sel_cpu[1], w_cpu[1],
+                    m2_sel[0], m2_sel[1],
+                    DS4_N_EXPERT, DS4_SWIGLU_CLAMP_EXP,
+                    m2_x[0], m2_x[1]) != 0;
+        if (began) (void)ds4_gpu_end_commands();   /* commit + wait, regardless of dispatch */
+        m2_ok = m2_ok && began && dispatched;
+        if (m2_ok) {
+            const uint64_t n = (uint64_t)DS4_N_EMBD;
+            float *ref0 = (float *)malloc(n * sizeof(float));
+            float *ref1 = (float *)malloc(n * sizeof(float));
+            float *out0 = (float *)malloc(n * sizeof(float));
+            float *out1 = (float *)malloc(n * sizeof(float));
+            if (ref0 && ref1 && out0 && out1 &&
+                ds4_gpu_tensor_read(m2_ref[0], 0, ref0, n * sizeof(float)) &&
+                ds4_gpu_tensor_read(m2_ref[1], 0, ref1, n * sizeof(float)) &&
+                ds4_gpu_tensor_read(m2_out[0], 0, out0, n * sizeof(float)) &&
+                ds4_gpu_tensor_read(m2_out[1], 0, out1, n * sizeof(float))) {
+                double max_abs = 0.0, sum_l1 = 0.0, sum_ref = 0.0;
+                for (uint64_t i = 0; i < n; i++) {
+                    const double d0 = fabs((double)out0[i] - (double)ref0[i]);
+                    const double d1 = fabs((double)out1[i] - (double)ref1[i]);
+                    if (d0 > max_abs) max_abs = d0;
+                    if (d1 > max_abs) max_abs = d1;
+                    sum_l1  += d0 + d1;
+                    sum_ref += fabs((double)ref0[i]) + fabs((double)ref1[i]);
+                }
+                fprintf(stderr, "lead08_m2_fidelity: il=%u wa=[%.4f,%.4f,%.4f,%.4f,%.4f,%.4f] "
+                        "wb=[%.4f,%.4f,%.4f,%.4f,%.4f,%.4f] max_abs=%.3e l1_rel=%.3e %s\n",
+                        m2_il,
+                        w_cpu[0][0],w_cpu[0][1],w_cpu[0][2],w_cpu[0][3],w_cpu[0][4],w_cpu[0][5],
+                        w_cpu[1][0],w_cpu[1][1],w_cpu[1][2],w_cpu[1][3],w_cpu[1][4],w_cpu[1][5],
+                        max_abs, sum_ref > 0.0 ? sum_l1 / sum_ref : 0.0,
+                        max_abs == 0.0 ? "BIT_EXACT" : (max_abs < 1e-5 ? "CLOSE" : "DIVERGENT"));
+            } else {
+                fprintf(stderr, "lead08_m2_fidelity: READBACK FAILED il=%u\n", m2_il);
+            }
+            free(ref0); free(ref1); free(out0); free(out1);
+        } else {
+            fprintf(stderr, "lead08_m2_fidelity: DISPATCH FAILED il=%u\n", m2_il);
+        }
+    }
 
     if (ok) {
         g->cur_hc = cur0;
@@ -26387,6 +26644,12 @@ static bool ds4_engine_preload_pro_q4_expert_tables(
 #endif
 }
 
+/* Lead 08: bench entry point for the M=2 fidelity unit test (DS4_M2_FIDELITY_TEST). */
+int ds4_engine_m2_fidelity_test(ds4_engine *e) {
+    if (!e) return -1;
+    return metal_graph_test_m2_fidelity_unit(&e->model, &e->weights);
+}
+
 int ds4_engine_open(ds4_engine **out, const ds4_engine_options *opt) {
     ds4_engine *e = xcalloc(1, sizeof(*e));
     e->model.fd = -1;
@@ -30352,6 +30615,13 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
     const bool use_decode2_exact =
         !mtp_anchor_reuse &&
         draft_n == 2 && strict_mtp && getenv("DS4_MTP_BATCH_VERIFY") == NULL;
+    if (getenv("DS4_DSPARK_FUSED_ROUTED_M2_TEST")) {
+        fprintf(stderr, "lead08_m2_fidelity: gate use_decode2_exact=%d "
+                "(anchor_reuse=%d draft_n=%d strict_mtp=%d batch_verify=%p mtp_strict_env=%p quality=%d)\n",
+                use_decode2_exact, mtp_anchor_reuse, draft_n, strict_mtp,
+                (const void *)getenv("DS4_MTP_BATCH_VERIFY"),
+                (const void *)getenv("DS4_MTP_STRICT"), e->quality);
+    }
     if (use_decode2_exact) {
         ds4_spec_frontier frontier;
         memset(&frontier, 0, sizeof(frontier));

@@ -1497,6 +1497,15 @@ int main(int argc, char **argv) {
         return 1;
     }
 
+    /* Lead 08: self-contained M=2 fidelity unit test (runs under --dspark; exits after). */
+    if (getenv("DS4_M2_FIDELITY_TEST")) {
+        int fr = ds4_engine_m2_fidelity_test(engine);
+        ds4_engine_close(engine);
+        for (int i = 0; i < runs.len; i++) run_free(&runs.v[i]);
+        free(runs.v);
+        return (fr == 0) ? 0 : 1;
+    }
+
     FILE *out = stdout;
     if (cfg.jsonl_path) {
         out = fopen(cfg.jsonl_path, "wb");

@@ -22583,7 +22583,6 @@ static uint32_t ds4_moe_pair_compute_union(
 static id<MTLBuffer> g_moe_pair_union_scratch_buf = nil;  /* 5 arrays x 12 int32 = 240 B */
 
 int ds4_gpu_routed_moe_pair_tensor(
-        id<MTLCommandBuffer>        cb,
         ds4_gpu_tensor             *out_a, ds4_gpu_tensor *out_b,
         ds4_gpu_tensor             *gate_a, ds4_gpu_tensor *gate_b,
         ds4_gpu_tensor             *up_a,   ds4_gpu_tensor *up_b,
@@ -22609,7 +22608,7 @@ int ds4_gpu_routed_moe_pair_tensor(
         float                       clamp,
         ds4_gpu_tensor             *x_a, ds4_gpu_tensor *x_b) {
     if (!g_initialized && !ds4_gpu_init()) return 0;
-    if (!cb || !out_a || !out_b || !gate_a || !gate_b || !up_a || !up_b || !mid_a || !mid_b ||
+    if (!g_batch_cb || !out_a || !out_b || !gate_a || !gate_b || !up_a || !up_b || !mid_a || !mid_b ||
         !model_map || !sel_a_ids || !sel_b_ids || !w_a || !w_b || !selected_a || !selected_b ||
         !x_a || !x_b || n_total_expert == 0 ||
         gate_expert_bytes == 0 || down_expert_bytes == 0 ||
@@ -22672,7 +22671,7 @@ int ds4_gpu_routed_moe_pair_tensor(
 
         /* 5. dispatch the M=2 fused gate+up+swiglu over the union (shared dequant) */
         int ok = ds4_gpu_encode_mul_mv_id_pair_swiglu_m2(
-                cb,
+                g_batch_cb,
                 g_moe_mul_mv_id_iq2_xxs_pair_swiglu_m2_pipeline,
                 &gate_args, &act_args,
                 gate_buf, (NSUInteger)gate_inner,
@@ -22699,14 +22698,14 @@ int ds4_gpu_routed_moe_pair_tensor(
                 down_row_bytes, down_expert_bytes,
                 6u, 6u, 1u, down_nr0);
         if (ok) ok = ds4_gpu_encode_mul_mv_id_sum6(
-                cb, g_moe_mul_mv_id_q2_k_sum6_pipeline, &down_args,
+                g_batch_cb, g_moe_mul_mv_id_q2_k_sum6_pipeline, &down_args,
                 down_buf, (NSUInteger)down_inner,
                 ds4_gpu_tensor_buffer(mid_a), ds4_gpu_tensor_offset(mid_a),
                 ds4_gpu_tensor_buffer(out_a), ds4_gpu_tensor_offset(out_a),
                 ds4_gpu_tensor_buffer(selected_a), ds4_gpu_tensor_offset(selected_a),
                 down_smem, 2);
         if (ok) ok = ds4_gpu_encode_mul_mv_id_sum6(
-                cb, g_moe_mul_mv_id_q2_k_sum6_pipeline, &down_args,
+                g_batch_cb, g_moe_mul_mv_id_q2_k_sum6_pipeline, &down_args,
                 down_buf, (NSUInteger)down_inner,
                 ds4_gpu_tensor_buffer(mid_b), ds4_gpu_tensor_offset(mid_b),
                 ds4_gpu_tensor_buffer(out_b), ds4_gpu_tensor_offset(out_b),
