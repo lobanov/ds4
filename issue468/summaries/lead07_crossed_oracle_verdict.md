@@ -1,6 +1,10 @@
 # Lead 07 — Crossed FP/IQ2 oracle: VERDICT
 
-Date: 2026-07-16. Status: **PIVOT — closed negative.** (codex gate pending)
+Date: 2026-07-16. Status: **PIVOT — closed negative (codex-concurred).** (codex gate:
+C1–C4 sound; dolly_0090 independently reproduced with exact match; anchor-weighted lift
++0.0043 CI[-0.0040,+0.0128] still incl 0. Caveat: the conclusion is conditional on P1 —
+the retained Lead 04 FP captures being faithful; if they have a representation error the
+ceiling/hidden cells are contaminated. See the codex-gate section below.)
 
 Experiment 1 (`issue468/pending/lead_07_upstream_quality_ceiling.md`) is complete. The
 crossed 2×2 FP/IQ2 oracle, run on a **teacher-forced common trajectory** (the IQ2XXS-vs-native
@@ -79,6 +83,36 @@ target labels; the remaining gap is target-trajectory difficulty). **Lead 07 clo
   verify dominates the cycle). The *target-trajectory difficulty* (IQ2 generates harder-to-draft
   continuations than FP) is a real ~5pp p1 effect but is a target/quantization property, not a
   drafter-fixable hidden-side lever.
+
+## Codex gate (2026-07-16, gpt-5.5 xhigh — retained: `artifacts/dspark_codex_reviews/2026-07-16_lead07_crossed_oracle_gate.md`)
+
+- **C1 capture / C3 measure: sound.** Codex verified all 60 dumps (record-count == Y_fp,
+  dump-tok == Y_fp) and independently reproduced dolly_0090 with an exact match
+  (baseline 0.90625 / hidden 0.9375 / label 0.890625 / ceiling 0.921875, n=64). I
+  re-verified this myself — match. Anchors = Y_fp for all cells is correct (the context is
+  the FP-forced trajectory; mixing Y_iq2_tf anchors would commit a non-context token).
+- **C4 decision: sound.** Anchor-weighted lift +0.0043 CI[-0.0039,+0.0125] (incl 0);
+  recoverable hidden-side E[a|4] (hidden−baseline) ~0 CI incl 0; the ceiling E[a|4]
+  advantage (+0.11, CI excl 0) is real but is a label/trajectory self-consistency
+  interaction, not a hidden-side lever.
+- **Stronger negative (my independent re-check):** the recoverable hidden-side effect at
+  p1 (hidden − baseline = FP-hidden with deployable IQ2 labels) = **−0.0068,
+  CI[−0.0137, −0.0004]** — *significantly negative*. Making the IQ2 hidden FP-like would
+  *hurt* (~0.7 pp) against the IQ2 target's own labels. Definitively not a recoverable lever.
+- **C2 metadata hazard (no metric impact):** the tf_dump positions are DSpark-relative
+  (0..n-1) while the FP-bundle positions are absolute; `measure_crossed` ignores positions,
+  so the result is unaffected — but the stored positions on this crossed artifact are not
+  trustworthy for position-keyed lookups.
+- **P1 sensitivity (load-bearing):** the PIVOT is conditional on the retained Lead 04 FP
+  captures being faithful. If their `mhc_post` representation has the error hinted by the
+  Lead-04 F16-on-FP anomaly, the ceiling + hidden cells are contaminated. However: (a) the
+  drafter-on-FP-hiddens fidelity gate passed (sane p1 ~0.85 at F32); (b) a subtle
+  F32-masked error would deflate H_fp slightly, making the recoverable hidden-side more
+  negative — it cannot manufacture a large *positive* recoverable effect; (c) the
+  qualitative PIVOT (no recoverable hidden-side lever) is robust. The decisive resolution —
+  a same-stack native-FP recapture through the ds4 dump path — is **infeasible** (ds4 only
+  supports IQ2_XXS/Q2_K experts, per Lead 04); it reduces to the Lead-04 hidden-capture-
+  fidelity follow-up (a separate, harder lead, out of scope here).
 
 ## Artifacts
 
