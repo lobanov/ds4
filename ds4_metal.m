@@ -20305,6 +20305,74 @@ static int ds4_gpu_encode_mul_mv_id_pair_swiglu(
     return 1;
 }
 
+/* Lead 08 M=2 (DS4_DSPARK_FUSED_ROUTED_M2): encode (dispatch) the M=2 fused
+ * gate+up+swiglu kernel over the UNION of the two tokens' experts. Mirrors
+ * ds4_gpu_encode_mul_mv_id_pair_swiglu but binds the M=2 kernel's two-token buffer
+ * layout (src1_a/b, dst_{gate,up,mid}_a/b, ids, sel_a/b, weights_a/b). tgpig.z =
+ * args.nei0*nei1 = n_union (the union slot). */
+static int ds4_gpu_encode_mul_mv_id_pair_swiglu_m2(
+        id<MTLCommandBuffer>        cb,
+        id<MTLComputePipelineState> pipeline,
+        const ds4_gpu_mul_mv_id_args *args,
+        const ds4_gpu_dsv4_moe_swiglu_weight_args *act,
+        id<MTLBuffer>               src0_gate, NSUInteger src0_gate_off,
+        id<MTLBuffer>               src0_up,   NSUInteger src0_up_off,
+        id<MTLBuffer>               src1_a,    NSUInteger src1_a_off,
+        id<MTLBuffer>               src1_b,    NSUInteger src1_b_off,
+        id<MTLBuffer>               dst_gate_a, NSUInteger dst_gate_a_off,
+        id<MTLBuffer>               dst_gate_b, NSUInteger dst_gate_b_off,
+        id<MTLBuffer>               dst_up_a,  NSUInteger dst_up_a_off,
+        id<MTLBuffer>               dst_up_b,  NSUInteger dst_up_b_off,
+        id<MTLBuffer>               dst_mid_a, NSUInteger dst_mid_a_off,
+        id<MTLBuffer>               dst_mid_b, NSUInteger dst_mid_b_off,
+        id<MTLBuffer>               ids,       NSUInteger ids_off,
+        id<MTLBuffer>               sel_a,     NSUInteger sel_a_off,
+        id<MTLBuffer>               sel_b,     NSUInteger sel_b_off,
+        id<MTLBuffer>               weights_a, NSUInteger weights_a_off,
+        id<MTLBuffer>               weights_b, NSUInteger weights_b_off,
+        NSUInteger                  threadgroup_bytes,
+        NSUInteger                  nsg,
+        bool                        rows_per_group_is_nr0) {
+    if (!cb || !pipeline || !args || !act ||
+        !src0_gate || !src0_up || !src1_a || !src1_b ||
+        !dst_gate_a || !dst_gate_b || !dst_up_a || !dst_up_b || !dst_mid_a || !dst_mid_b ||
+        !ids || !sel_a || !sel_b || !weights_a || !weights_b ||
+        args->ne00 <= 0 || args->ne01 <= 0 || args->nei0 <= 0 || args->nei1 <= 0) {
+        return 0;
+    }
+    const NSUInteger nr0 = (NSUInteger)args->nr0;
+    const NSUInteger rows_per_group = rows_per_group_is_nr0 ? nr0 : nr0 * nsg;
+    const NSUInteger row_groups = ((NSUInteger)args->ne01 + rows_per_group - 1u) / rows_per_group;
+    const NSUInteger pairs = (NSUInteger)args->nei0 * (NSUInteger)args->nei1;  /* n_union */
+
+    id<MTLComputeCommandEncoder> enc = ds4_gpu_compute_encoder(cb);
+    [enc setComputePipelineState:pipeline];
+    [enc setBytes:args length:sizeof(*args) atIndex:0];
+    [enc setBytes:act  length:sizeof(*act)  atIndex:1];
+    [enc setBuffer:src0_gate  offset:src0_gate_off  atIndex:2];
+    [enc setBuffer:src0_up    offset:src0_up_off    atIndex:3];
+    [enc setBuffer:src1_a     offset:src1_a_off     atIndex:4];
+    [enc setBuffer:src1_b     offset:src1_b_off     atIndex:5];
+    [enc setBuffer:dst_gate_a offset:dst_gate_a_off atIndex:6];
+    [enc setBuffer:dst_gate_b offset:dst_gate_b_off atIndex:7];
+    [enc setBuffer:dst_up_a   offset:dst_up_a_off   atIndex:8];
+    [enc setBuffer:dst_up_b   offset:dst_up_b_off   atIndex:9];
+    [enc setBuffer:dst_mid_a  offset:dst_mid_a_off  atIndex:10];
+    [enc setBuffer:dst_mid_b  offset:dst_mid_b_off  atIndex:11];
+    [enc setBuffer:ids        offset:ids_off        atIndex:12];
+    [enc setBuffer:sel_a      offset:sel_a_off      atIndex:13];
+    [enc setBuffer:sel_b      offset:sel_b_off      atIndex:14];
+    [enc setBuffer:weights_a  offset:weights_a_off  atIndex:15];
+    [enc setBuffer:weights_b  offset:weights_b_off  atIndex:16];
+    if (threadgroup_bytes != 0) {
+        [enc setThreadgroupMemoryLength:threadgroup_bytes atIndex:0];
+    }
+    [enc dispatchThreadgroups:MTLSizeMake(row_groups, 1, pairs)
+         threadsPerThreadgroup:MTLSizeMake(32, nsg, 1)];
+    ds4_gpu_end_compute_encoder(cb, enc);
+    return 1;
+}
+
 static int ds4_gpu_encode_mul_mv_table_q4_pair_swiglu(
         id<MTLCommandBuffer>        cb,
         id<MTLComputePipelineState> pipeline,
