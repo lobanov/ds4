@@ -15,6 +15,7 @@ typedef enum {
     SPEC_MODE_ARGMAX,
     SPEC_MODE_SAMPLE,
     SPEC_MODE_SPECULATIVE_ARGMAX,
+    SPEC_MODE_TEACHER_FORCE,
 } spec_mode;
 
 typedef struct {
@@ -39,6 +40,7 @@ typedef struct {
     bool ssd_streaming;
     bool ssd_streaming_cold;
     char *dump_hidden_dir;
+    char *force_tokens_dir;
     char *rewrite_frontier_path;
 } spec_bench_config;
 
@@ -366,6 +368,8 @@ static spec_bench_config parse_options(int argc, char **argv) {
             c.ssd_streaming_cold = true;
         } else if (!strcmp(arg, "--dump-hidden-dir")) {
             c.dump_hidden_dir = xstrdup0(need_arg(&i, argc, argv, arg));
+        } else if (!strcmp(arg, "--force-tokens-dir")) {
+            c.force_tokens_dir = xstrdup0(need_arg(&i, argc, argv, arg));
         } else if (!strcmp(arg, "--ssd-streaming-cache-experts")) {
             uint32_t experts = 0;
             uint64_t bytes = 0;
@@ -627,6 +631,7 @@ static const char *mode_name(spec_mode mode) {
     case SPEC_MODE_ARGMAX: return "argmax";
     case SPEC_MODE_SAMPLE: return "sample";
     case SPEC_MODE_SPECULATIVE_ARGMAX: return "speculative_argmax";
+    case SPEC_MODE_TEACHER_FORCE: return "teacher_force";
     }
     return "unknown";
 }
@@ -642,6 +647,10 @@ static bool parse_mode(const char *s, spec_mode *out) {
     }
     if (!strcmp(s, "speculative") || !strcmp(s, "speculative_argmax")) {
         *out = SPEC_MODE_SPECULATIVE_ARGMAX;
+        return true;
+    }
+    if (!strcmp(s, "teacher_force") || !strcmp(s, "teacher-force") || !strcmp(s, "force")) {
+        *out = SPEC_MODE_TEACHER_FORCE;
         return true;
     }
     return false;
@@ -1083,6 +1092,19 @@ static const char *active_drafter_name(ds4_engine *engine) {
     return "none";
 }
 
+/* Read whitespace-separated forced token IDs from `path` into `out` (up to `max`).
+ * Returns the count read, or -1 if the file cannot be opened. Used by the
+ * teacher_force mode to drive the model through a provided (e.g. FP) trajectory
+ * so DS4_DSPARK_DUMP_HIDDEN captures H on that common trajectory. */
+static int read_force_tokens(const char *path, int *out, int max) {
+    FILE *fp = fopen(path, "r");
+    if (!fp) return -1;
+    int n = 0, tok, got;
+    while (n < max && (got = fscanf(fp, "%d", &tok)) == 1) out[n++] = tok;
+    fclose(fp);
+    return n;
+}
+
 static run_result execute_run(
         ds4_engine        *engine,
         int                ctx_alloc,
@@ -1125,6 +1147,22 @@ static run_result execute_run(
     int accepted_max = 0;
     int tok_out[8192];
     int tok_n = 0;
+    int force_tok[8192];   /* teacher_force: the forced (FP) trajectory tokens */
+    int force_n = 0;
+    int argmax_out[8192];  /* teacher_force: the model argmax (Y_iq2_tf) per step */
+    int argmax_n = 0;
+    if (run->mode == SPEC_MODE_TEACHER_FORCE) {
+        const char *fpath = getenv("DS4_FORCE_TOKENS_PATH");
+        if (!fpath || !fpath[0]) {
+            snprintf(res.err, sizeof(res.err), "teacher_force: DS4_FORCE_TOKENS_PATH not set (use --force-tokens-dir)");
+            goto done;
+        }
+        force_n = read_force_tokens(fpath, force_tok, 8192);
+        if (force_n <= 0) {
+            snprintf(res.err, sizeof(res.err), "teacher_force: no forced tokens read from %s", fpath);
+            goto done;
+        }
+    }
 
     while (emitted < run->gen_tokens) {
         const int remaining = run->gen_tokens - emitted;
@@ -1160,6 +1198,26 @@ static run_result execute_run(
                 goto done;
             }
             if (tok_n < 8192) tok_out[tok_n++] = token;
+            produced = 1;
+        } else if (run->mode == SPEC_MODE_TEACHER_FORCE) {
+            /* Teacher-force: drive the model through the FP greedy tokens. At step k,
+             * record the model's logit-argmax (Y_iq2_tf[k] — NOT the forced token) and
+             * commit the forced token. DS4_DSPARK_DUMP_HIDDEN captures H_iq2_tf[k].
+             * The dumped `tok` is the committed (forced) token = Y_fp[k] (a cross-check). */
+            const int k = emitted;
+            if (k >= force_n) break;  /* forced tokens exhausted -> normal end */
+            int argmax_tok = ds4_session_argmax(session);
+            if (argmax_tok < 0) {
+                snprintf(res.err, sizeof(res.err), "teacher_force: argmax failed at step %d", k);
+                goto done;
+            }
+            if (argmax_n < 8192) argmax_out[argmax_n++] = argmax_tok;
+            const int forced = force_tok[k];
+            if (ds4_session_eval(session, forced, err, sizeof(err)) != 0) {
+                snprintf(res.err, sizeof(res.err), "teacher_force decode failed: %s", err);
+                goto done;
+            }
+            if (tok_n < 8192) tok_out[tok_n++] = forced;
             produced = 1;
         } else {
             int first = run->exclude_eos ? ds4_session_argmax_excluding(session, eos)
@@ -1234,6 +1292,17 @@ static run_result execute_run(
                     if (piece) { fwrite(piece, 1, plen, fp); free(piece); }
                 }
                 fclose(fp);
+            }
+        }
+    }
+    if (run->mode == SPEC_MODE_TEACHER_FORCE && argmax_n > 0) {
+        const char *ap = getenv("DS4_IQ2_ARGMAX_PATH");
+        if (ap && ap[0]) {
+            FILE *af = fopen(ap, "w");
+            if (af) {
+                for (int i = 0; i < argmax_n; i++)
+                    fprintf(af, "%d%s", argmax_out[i], i + 1 < argmax_n ? " " : "");
+                fclose(af);
             }
         }
     }
@@ -1466,6 +1535,23 @@ int main(int argc, char **argv) {
         } else {
             unsetenv("DS4_DSPARK_DUMP_HIDDEN");
         }
+        /* teacher_force: per-prompt forced-token input + IQ2-argmax output paths */
+        if (run->mode == SPEC_MODE_TEACHER_FORCE) {
+            if (cfg.force_tokens_dir && run->id && run->id[0]) {
+                char fpath[2048];
+                snprintf(fpath, sizeof(fpath), "%s/%s.tokens", cfg.force_tokens_dir, run->id);
+                setenv("DS4_FORCE_TOKENS_PATH", fpath, 1);
+            } else {
+                unsetenv("DS4_FORCE_TOKENS_PATH");
+            }
+            if (cfg.dump_hidden_dir && run->id && run->id[0]) {
+                char apath[2048];
+                snprintf(apath, sizeof(apath), "%s/%s.iq2argmax", cfg.dump_hidden_dir, run->id);
+                setenv("DS4_IQ2_ARGMAX_PATH", apath, 1);
+            } else {
+                unsetenv("DS4_IQ2_ARGMAX_PATH");
+            }
+        }
         const ds4_tokens *tokens = prompt_cache_get(&cache, engine, run, err, sizeof(err));
         run_result res = {0};
         if (!tokens) {
@@ -1473,6 +1559,9 @@ int main(int argc, char **argv) {
         } else if (run->mode == SPEC_MODE_SPECULATIVE_ARGMAX &&
                    !ds4_engine_has_dspark(engine) && !ds4_engine_has_mtp(engine)) {
             snprintf(res.err, sizeof(res.err), "speculative_argmax requested but engine has no speculative drafter");
+        } else if (run->mode == SPEC_MODE_TEACHER_FORCE &&
+                   (!ds4_engine_has_dspark(engine) || !cfg.dump_hidden_dir || !cfg.force_tokens_dir)) {
+            snprintf(res.err, sizeof(res.err), "teacher_force requires dspark loaded + --dump-hidden-dir + --force-tokens-dir");
         } else {
             res = execute_run(engine, cfg.ctx_alloc, run, tokens);
         }

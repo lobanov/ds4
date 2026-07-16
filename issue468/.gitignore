@@ -21,3 +21,7 @@ dspark_train/runs/
 dspark_train/data/
 
 data/corpus_source/
+# Lead 07 crossed-oracle raw captures (large; reproducible from Modal + ds4-spec-bench teacher_force)
+artifacts/lead07_crossed_oracle/fp_captures_raw/
+artifacts/lead07_crossed_oracle/tf_dump/
+artifacts/lead07_crossed_oracle/force_tokens/
