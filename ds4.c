@@ -26682,6 +26682,13 @@ int ds4_engine_m2_fidelity_test(ds4_engine *e) {
     return metal_graph_test_m2_fidelity_unit(&e->model, &e->weights);
 }
 
+/* Lead 08 iter-1 (DS4_TOP_R): override the routed-expert top-r at runtime (after the model
+ * shape loads) to probe MoE-Spec-style expert budgeting. Env-gated; 0 = no override. */
+void ds4_override_expert_used(uint32_t r) {
+    if (r == 0) return;
+    g_ds4_shape.n_expert_used = r;
+}
+
 int ds4_engine_open(ds4_engine **out, const ds4_engine_options *opt) {
     ds4_engine *e = xcalloc(1, sizeof(*e));
     e->model.fd = -1;

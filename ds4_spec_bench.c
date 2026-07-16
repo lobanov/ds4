@@ -1497,6 +1497,9 @@ int main(int argc, char **argv) {
         return 1;
     }
 
+    /* Lead 08 iter-1 (DS4_TOP_R): MoE-Spec-style top-r expert budgeting probe. */
+    { const char *tr = getenv("DS4_TOP_R"); if (tr && *tr) { uint32_t r = (uint32_t)atoi(tr); ds4_override_expert_used(r); fprintf(stderr, "ds4-spec-bench: DS4_TOP_R=%u -> n_expert_used overridden\n", r); } }
+
     /* Lead 08: self-contained M=2 fidelity unit test (runs under --dspark; exits after). */
     if (getenv("DS4_M2_FIDELITY_TEST")) {
         int fr = ds4_engine_m2_fidelity_test(engine);
