@@ -22462,6 +22462,49 @@ int ds4_gpu_routed_moe_set_selected_override(const int32_t *selected, uint32_t n
     return 1;
 }
 
+/* Lead 08 M=2 fused routed-expert (DS4_DSPARK_FUSED_ROUTED_M2): compute the union of two
+ * tokens' top-6 expert selections + the per-token slot mappings. Output (sized >= 12):
+ * union_ids[n_union] (unique expert ids), sel_a/sel_b[n_union] (each token's slot 0..5 for
+ * that expert, or -1 if not selected), union_w_a/union_w_b[n_union] (route weight, 0 if not
+ * selected). Returns n_union (<= 12). Pure CPU; the M=2 dispatch reads back the two tokens'
+ * selections/weights, calls this, then uploads the union to GPU buffers. Shared experts
+ * (sel_a>=0 && sel_b>=0) are loaded once by the M=2 kernel and applied to both tokens
+ * (the de-dup). Validated 2026-07-16 (python equivalent). */
+static uint32_t ds4_moe_pair_compute_union(
+        const int32_t *sel_a_ids, const float *w_a,
+        const int32_t *sel_b_ids, const float *w_b,
+        int32_t *union_ids, int32_t *sel_a, int32_t *sel_b,
+        float *union_w_a, float *union_w_b) {
+    uint32_t n_union = 0;
+    for (uint32_t i = 0; i < 6; ++i) {
+        union_ids[n_union] = sel_a_ids[i];
+        sel_a[n_union] = (int32_t)i;
+        sel_b[n_union] = -1;
+        union_w_a[n_union] = w_a[i];
+        union_w_b[n_union] = 0.f;
+        ++n_union;
+    }
+    for (uint32_t j = 0; j < 6; ++j) {
+        const int32_t ej = sel_b_ids[j];
+        int32_t found = -1;
+        for (uint32_t k = 0; k < n_union; ++k) {
+            if (union_ids[k] == ej) { found = (int32_t)k; break; }
+        }
+        if (found >= 0) {
+            sel_b[found] = (int32_t)j;
+            union_w_b[found] = w_b[j];
+        } else {
+            union_ids[n_union] = ej;
+            sel_a[n_union] = -1;
+            sel_b[n_union] = (int32_t)j;
+            union_w_a[n_union] = 0.f;
+            union_w_b[n_union] = w_b[j];
+            ++n_union;
+        }
+    }
+    return n_union;
+}
+
 int ds4_gpu_routed_moe_one_tensor(
         ds4_gpu_tensor       *out,
         ds4_gpu_tensor       *gate,
