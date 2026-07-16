@@ -175,6 +175,24 @@ of the band; cycle-jump the realistic edge.
 > gate** — GO is **unconfirmed** until an end-to-end K=4 bit-exact verifier profiles
 > `verify_ms(4) ≤ 50.5 ms`. See `summaries/lead08_phaseB_floor_clearance_verdict.md`.
 
+> **2026-07-16 Lead 08 re-assessment + prototype VERDICT: NO-GO on cost (codex-gate-B-confirmed).**
+> Post-M3 the verify is **89.5 % of the cycle** (62.07 ms of 69.38 ms) so a saving amplifies ~1:1
+> (~10 ms = +20 %). The sub-lead-1 probe was decisive-GO: pair-vs-unique showed the routed cost
+> tracks **PHYSICAL pairs** (DRAM cache-miss) → expert de-dup is a real saving (~6–8 ms reliable).
+> So the M=2 fused routed-expert kernel (shared gate/up loads across 2 tokens + per-token
+> selection-ordered down) was built + measured via a self-contained harness under `--dspark`:
+> - **Fidelity (relaxed bar met):** M=2 vs M=1 routed_out max_abs ≈ 4.8e-08, argmax_flip=0 over
+>   5 layers — sub-ULP Metal fast-math noise localized to the fused gate+up (NOT bit-exact).
+> - **Cost (FAIL):** cold all-layers sweep **M=2 = 13.3 ms/layer vs M=1×2 = 3.0 → 4.4× SLOWER**.
+>   The de-dup is overwhelmed by the fused kernel's register-pressure/occupancy overhead (2×
+>   per-thread state → low occupancy). Codex gate B: even fixing the M=2's 18-vs-12-stream bug,
+>   the bound is ~2.9× slower — a new kernel design, not a bounded fix.
+> **The fused-2-token-kernel mechanism is occupancy-bound here; falsified.** The de-dup is real
+> but fusing the per-token compute is the wrong lever. A GPU union-kernel that de-dups LOADS
+> without fusing compute, or a down-fusion, would be a fresh lead. Artifacts
+> `lead08_reassessment/05_m2_fidelity_unit_test.md` + `06_m2_cost_cold_sweep.md` + the gate-B
+> report; verdict block in `pending/lead_08_fused_verify_kernel.md`.
+
 - **Corpus-dependent** (cycle-jump K=4 speedup): jsonex **+2.3%**, codealpaca −1.9%, dolly
   −5.6%. The mix is on the easy side — the old 10-prompt code/synthesis exactness corpus was
   E[a|4]=2.175 (harder than all three families), so a code/synthesis-heavy deployment would

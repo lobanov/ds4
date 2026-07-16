@@ -45,3 +45,26 @@ even further behind. Either way: M=2 loses on cost.
 ## Status
 Cost-gate: **FAIL** (M=2 routed-MoE ms NOT < batch-verifier-equivalent; it's 4.4× worse, cold).
 Pending codex gate B (independent assessment of fixability + the verdict).
+
+## Codex gate B corrections (2026-07-16, gpt-5.5 xhigh — report retained)
+Codex independently confirmed **NO-GO stands**, with these corrections to my analysis above:
+1. **My "same compute as M=1×2" claim was WRONG.** The M=2 kernel computes BOTH tokens' gate/up
+   MAC for every union slot (the sa/sb checks gate only the final writes, not the inner MAC) →
+   18 token-expert streams for the 9-union/12-pair case, not 12. So the artifact's "same compute,
+   fewer loads" premise is false. Fixing this (gating the inner MAC) bounds M=2 at
+   13.33 × 12/18 ≈ 8.9 ms → **still 2.9× slower than M=1×2**. The bug is real but does not rescue it.
+2. The slowdown is better described as `1.5× wasted-singleton compute × ~3× slower per token-expert
+   unit` (register/occupancy), not a flat 6× per expert. A real fix is a new kernel design, not bounded.
+3. **M=1×2 is NOT literally "batch-verifier-equivalent"** (suffix_tops batches all layers in one
+   command stream + has a distinct batch MoE path). But M=1×2 is a *lenient* bar — losing 4.4× to
+   it means losing worse to the real batch verifier.
+4. **Timing-order caveat**: M=2 always ran before M=1×2; a rigorous repeat should alternate. But a
+   4.4× gap is too large to be an order artifact. (Also corrected: M=1×2's two calls share ONE
+   begin/end block, so it does NOT pay 2× dispatch overhead as I claimed.)
+5. Correctness indexing confirmed sound (union, mid selection-order, the `weights[slot]` fix).
+   Fidelity localization fair; the "bit-exact by construction" comment is too strong — soften.
+6. Latent (non-blocking): the down path always dispatches the Q2_K sum6 pipeline without enforcing
+   `down_type==Q2_K`; the M=2 kernel hard-codes 384 experts instead of `args.ne02`.
+
+**Net: the fused-kernel approach is occupancy-bound here; the de-dup is overwhelmed. NO-GO on cost
+is sound and not a bounded bug-hunt away from viability.**

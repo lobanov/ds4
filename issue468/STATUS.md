@@ -20,13 +20,26 @@ cycle (~16 ms/token off the target).
 | Goal | ≥20 % greedy throughput on ds4 IQ2XXS, output-preserved |
 | Current best | Full DSpark stack **+4.9 %** over plain (40.04 vs 38.16 t/s; score-neutral 61/92) — M3 |
 | The gap | +20 % not reached; verify ≈80 % of the cycle |
-| Open lever | **Lead 08** — a sublinear bit-exact fused verify kernel (bounded build, exit gate `verify_ms(4) ≤ 50.5 ms`) |
+| Open lever | **Verify cost remains the open +20 % lever** — Lead 08's fused-2-token-kernel thesis **NO-GO (prototype 4.4× slower than batch, codex-confirmed)**; needs a different mechanism |
 | Closed (negative) | Drafter/input quality (Lead 07), drafter quant (Q4_K), non-expert finetune (Stage 2), DFlash, quant-mismatch |
 
 ## Investigation arc
 
 Reverse-chronological. Each entry: what was tested → verdict → canonical record.
 
+- **2026-07-16 — Lead 08 (fused low-K verify kernel): NO-GO on cost, codex-gate-B-confirmed.**
+  Built the single-stage M=2 routed-expert fused-kernel prototype (shared gate/up expert loads
+  across 2 tokens = "de-dup" + per-token selection-ordered down) + a self-contained fidelity/cost
+  unit-test harness (runs under `--dspark`; decode2_exact is MTP-only/unreachable). **Fidelity
+  (secondary): relaxed bar met** — M=2 vs M=1 routed_out max_abs≈4.8e-08, argmax_flip=0 across 5
+  layers (sub-ULP Metal fast-math noise, localized to the fused gate+up; NOT bit-exact). **Cost
+  (primary): FAIL** — cold all-layers sweep M=2=13.3 ms/layer vs M=1×2=3.0 ms/layer → **4.4×
+  slower**; the de-dup is overwhelmed by the fused kernel's register-pressure/occupancy overhead.
+  Codex gate B (gpt-5.5 xhigh): NO-GO stands (found a real M=2 perf bug — 18 vs 12 streams — but
+  even fixed the bound is ~2.9× slower; a real fix is a new kernel design, not bounded). The
+  probe's "de-dup is real" (pair-vs-unique) holds, but fusing the per-token compute is the wrong
+  mechanism — occupancy-bound here. M=2 code stays env-gated/dormant; do NOT productionize.
+  Artifacts 05/06 + the gate-B report; `pending/lead_08_fused_verify_kernel.md` (verdict block).
 - **2026-07-16 — Lead 07 (crossed FP/IQ2 oracle): PIVOT, closed negative.** The native-vs-IQ2
   drafter-acceptance gain is **not a recoverable hidden-side effect**. On a teacher-forced
   common trajectory the FP-vs-IQ2 p1 lift is +0.007 (CI incl 0); the recoverable hidden-side

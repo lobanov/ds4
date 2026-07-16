@@ -1,5 +1,30 @@
 # Lead 08 — Fused low-K batch-verify kernel (close the verify-vs-floor gap)
 
+> **VERDICT (2026-07-16): NO-GO (cost), codex-gate-B-confirmed.** The single-stage M=2
+> routed-expert fused-kernel prototype was built (5/6 dispatch pieces + a self-contained
+> fidelity/cost unit-test harness, all under `--dspark`) and measured:
+> - **Fidelity (secondary, relaxed bar MET):** M=2 vs M=1 routed_out max_abs ≈ 4.8e-08,
+>   gate+up mid ≈ 7.5e-08, **argmax_flip=0** across 5 layers — sub-ULP Metal fast-math
+>   reordering noise localized to the fused gate+up (NOT bit-exact; the distinct M=2 kernel
+>   changes compiler scheduling/register pressure). Meets the user-granted relaxed bar
+>   (distribution-close + argmax-stable). (artifact 05)
+> - **Cost (primary, FAIL):** cold all-layers sweep (43 layers × 3 passes, fresh experts →
+>   DRAM) gives **M=2 = 13.3 ms/layer vs M=1×2 = 3.0 ms/layer → M=2 is 4.4× SLOWER.** The
+>   de-dup (3 of 12 expert loads) is overwhelmed by the fused kernel's per-expert overhead
+>   (register pressure: 2× per-thread state → low occupancy). (artifact 06)
+> - **Codex gate B (gpt-5.5 xhigh):** NO-GO stands. Found a real M=2 perf bug (computes both
+>   tokens' MAC for every union slot — 18 streams vs 12), but even fixing it the bound is
+>   ~8.9 ms → still 2.9× slower. A real fix is a new kernel design, not a bounded bug-hunt.
+>   Report retained: `issue468/artifacts/dspark_codex_reviews/2026-07-16_gpt55_xhigh_lead08_gateB_prototype.md`.
+>
+> **Conclusion:** the fused-2-token-kernel approach is occupancy-bound on this hardware; the
+> de-dup saving (real, per the probe) cannot cover the fused kernel's overhead. The verify
+> cost remains the swing term for ≥20%, but Lead 08's specific mechanism (a single-stage
+> fused routed-expert kernel) is **falsified**. Do NOT productionize. The M=2 dispatch code
+> stays env-gated/default-off (dormant); a different mechanism (e.g. a GPU union kernel that
+> de-dups loads WITHOUT fusing the per-token compute, or a down-fusion that shares more) would
+> be a fresh lead, not a revival of this one.
+
 Date: 2026-07-07 (refreshed 2026-07-12; re-assessed 2026-07-15 post-M3). Status:
 **Phase B verdict = NO-GO via swaps → bounded build attempt; NOW re-assessed
 post-M3 via the sub-lead-1 probe (the decisive GO/NO-GO gate before any kernel
