@@ -136,15 +136,31 @@ for the gates.
    verdict itself: does it follow from the data? Is it scoped honestly
    (significance vs non-inferiority)? Are stale framings (old break-evens, old
    estimators) creeping in? Independently verify; soften/expand as warranted.
-8. **Propagate honestly + completely.** Write a canonical `summaries/<topic>.md`;
-   update `STATUS.md` (conclusions + inventory); update `spec_speedup_model.md` (or
-   whatever model the lead feeds) with the new numbers; **sweep downstream docs for
-   stale numbers the finding changes** and flag them. When a resolved lead changes a
-   canonical model/result summary, **rewrite that summary into the best current single
-   account** rather than layering a "Lead NN update" overlay on top of superseded
-   framing. Keep the lead file as the
-   worklog (it stays in `pending/` until the goal completes). On completion, archive
-   it to `archive/leads/` (update header + all links). **Commit on `dspark-research`.**
+8. **Propagate honestly + completely — update STATUS as a NARRATIVE, not a log.**
+   `STATUS.md` has a fixed structure — **Bottom line** (snapshot + status table) /
+   **Investigation arc** (reverse-chrono) / **Findings by axis** / **What exists** (a
+   one-line pointer) / **Next step** / **Canonicality rule** — and the artifact/tool
+   inventory lives in **`inventories/dossier_inventory.md`** (STATUS's "What exists"
+   is a pointer to it, NOT the inventory itself). When a lead resolves, update STATUS by:
+   - **Bottom line** — refresh the snapshot/table if the lead changes the current best,
+     the gap, the open lever, or a closed axis.
+   - **Investigation arc** — add **one** reverse-chrono line (date → what was tested →
+     verdict → canonical record).
+   - **Findings by axis** — **rewrite** the relevant axis's finding to the new verdict;
+     do NOT append a new bullet. **Demote any superseded framing to a one-line arc beat**
+     (e.g. a prior "primary gate not achievable" becomes a historical beat once a later
+     milestone beats baseline) — never leave two generations of the same conclusion both
+     reading as current.
+   - **Next step** — update if the lead opens or closes a direction.
+   - **Inventory** — add new artifacts/tools/captures/harnesses to
+     `inventories/dossier_inventory.md` under the right axis group, NOT to STATUS.
+   Then write a canonical `summaries/<topic>.md` for the detail; update `spec_speedup_model.md`
+   (or whatever model the lead feeds); **sweep downstream docs for stale numbers +
+   superseded framings**. When a resolved lead changes a canonical model/result summary,
+   **rewrite it into the best current single account**, never layer a "Lead NN update"
+   overlay. Keep the lead file as the worklog (stays in `pending/` until the goal
+   completes). On completion, archive to `archive/leads/` (header + all links).
+   **Commit on `dspark-research`.**
 
 ## Adaptive-policy evidence ladder
 
@@ -181,11 +197,17 @@ leave a resolved lead in `pending/` (it should hold only unstarted/in-progress l
    and `/archive/`); update each hit to `archive/leads/lead_NN_`. Typical sites:
    `STATUS.md` inventory entry, the canonical `summaries/*.md`, codex-review prompt
    artifacts, and other leads that reference it.
-4. **STATUS.md inventory** line: `worklog (running; stays in pending/)` →
-   `worklog (resolved, archived): archive/leads/lead_NN_*.md`.
-5. **Verify** no `pending/lead_NN_` references remain (the `grep` returns nothing
+4. **Update `STATUS.md` as a narrative** per workflow step 8 (NOT a new result section):
+   refresh the Bottom line if the headline moved, add one Investigation-arc line, **rewrite**
+   the relevant Findings-by-axis entry (demoting any superseded framing it replaces), and
+   update Next step if the direction changed. STATUS must still read as one coherent
+   current account after the edit.
+5. **Update `inventories/dossier_inventory.md`** — repoint the lead's entry to its archived
+   location (`archive/leads/lead_NN_*.md`) and add any new artifacts/tools/captures/harnesses
+   under the right axis group. (Do not grow the inventory inside STATUS — it is a pointer.)
+6. **Verify** no `pending/lead_NN_` references remain (the `grep` returns nothing
    outside venvs/archive); confirm `pending/` now holds only unstarted leads.
-6. **Commit** on `dspark-research` with a message noting the move + link sweep.
+7. **Commit** on `dspark-research` with a message noting the move + STATUS/inventory update.
 
 The canonical *result* lives in `summaries/` + `STATUS.md`; the archived worklog is
 *provenance*. Both must agree on the numbers.
@@ -227,6 +249,15 @@ Don't let them drift — numbers must match.
   model summary) and flag the supersession.
 - **Never integrate a resolved lead as an overlay if it changes a canonical model.**
   Rewrite the target summary so it reads as one coherent current account.
+- **Never layer a new result section on `STATUS.md`.** It is a single coherent narrative
+  (Bottom line / Investigation arc / Findings by axis / Next step). A resolved lead
+  **rewrites** the relevant axis finding + adds one arc line + refreshes the Bottom line;
+  it never appends a standalone result section or leaves a superseded verdict reading as
+  current. (This was learned the hard way: ~6 generations of layered M-section/lead
+  sections had to be collapsed back into one narrative.)
+- **Never grow the artifact/tool inventory inside `STATUS.md`.** New artifacts, tools,
+  captures, and harnesses go in `inventories/dossier_inventory.md`; STATUS's "What exists"
+  stays a one-line pointer to it.
 - **Never present oracle / expected-opt / in-sample-tuned policy results as if they were
   frozen out-of-sample or deployed evidence.** Label the policy tier explicitly.
 
