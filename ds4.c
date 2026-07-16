@@ -22007,6 +22007,7 @@ int metal_graph_test_m2_fidelity_unit(const ds4_model *model, const ds4_weights 
     if (!model || !weights || !weights->layer) { fprintf(stderr, "lead08_m2_fid: null model/weights\n"); return -1; }
     const uint32_t n_layer = DS4_N_LAYER;
     if (n_layer == 0) { fprintf(stderr, "lead08_m2_fid: n_layer=0\n"); return -1; }
+    fprintf(stderr, "lead08_m2_fid: DS4_N_EXPERT=%u DS4_N_EXPERT_USED=%u n_layer=%u\n", (uint32_t)DS4_N_EXPERT, (uint32_t)DS4_N_EXPERT_USED, n_layer);
     const ds4_layer_weights *L0 = &weights->layer[0];
     const uint64_t gate_row_bytes    = routed_expert_row_bytes(L0->ffn_gate_exps);
     const uint64_t gate_expert_bytes = (uint64_t)L0->ffn_gate_exps->dim[1] * gate_row_bytes;
@@ -22152,6 +22153,23 @@ int metal_graph_test_m2_fidelity_unit(const ds4_model *model, const ds4_weights 
         }
         double m1_ms = valid>0 ? (now_sec()-t1)/((double)PASSES*(double)valid)*1000.0 : 0.0;
         fprintf(stderr, "lead08_m2_fid: COST_COLD passes=%d layers=%d selA=[0..5] selB=[3..8] (n_union=9 of 12) M2=%.3f ms/layer M1x2=%.3f ms/layer saving=%.3f ms (%.1f%%)\n", PASSES, valid, m2_ms, m1_ms, m1_ms-m2_ms, m1_ms>0.0?(m1_ms-m2_ms)/m1_ms*100.0:0.0);
+
+        /* overlap-vs-disjoint probe (no new kernel): does M=1x2 cost track unique experts or
+         * physical pairs? overlapped n_unique=9; disjoint n_unique=12; both 12 physical pairs. */
+        int32_t selh_disj[2][6] = { {0,1,2,3,4,5}, {6,7,8,9,10,11} };
+        ds4_gpu_tensor_write(sel[0],0,selh_disj[0],sel_bytes);
+        ds4_gpu_tensor_write(sel[1],0,selh_disj[1],sel_bytes);
+        double td=now_sec();
+        for (int p=0;p<PASSES;p++) for (uint32_t il=0; il<n_layer; il++) {
+            const ds4_layer_weights *L = &weights->layer[il];
+            if ((uint32_t)L->ffn_gate_exps->dim[1]!=expert_mid_dim || (uint32_t)L->ffn_down_exps->dim[1]!=out_dim || L->ffn_gate_exps->type!=L0->ffn_gate_exps->type) continue;
+            if(!ds4_gpu_begin_commands()) break;
+            (void)ds4_gpu_routed_moe_one_tensor(ro[0],rg[0],ru[0],rm[0],rd[0],model->map,model->size,L->ffn_gate_exps->abs_offset,L->ffn_up_exps->abs_offset,L->ffn_down_exps->abs_offset,L->ffn_gate_exps->type,L->ffn_down_exps->type,gate_expert_bytes,gate_row_bytes,down_expert_bytes,down_row_bytes,expert_in_dim,expert_mid_dim,out_dim,sel[0],w[0],DS4_N_EXPERT,n_exp,DS4_SWIGLU_CLAMP_EXP,x[0],il);
+            (void)ds4_gpu_routed_moe_one_tensor(ro[1],rg[1],ru[1],rm[1],rd[1],model->map,model->size,L->ffn_gate_exps->abs_offset,L->ffn_up_exps->abs_offset,L->ffn_down_exps->abs_offset,L->ffn_gate_exps->type,L->ffn_down_exps->type,gate_expert_bytes,gate_row_bytes,down_expert_bytes,down_row_bytes,expert_in_dim,expert_mid_dim,out_dim,sel[1],w[1],DS4_N_EXPERT,n_exp,DS4_SWIGLU_CLAMP_EXP,x[1],il);
+            ds4_gpu_end_commands();
+        }
+        double m1d_ms = valid>0 ? (now_sec()-td)/((double)PASSES*(double)valid)*1000.0 : 0.0;
+        fprintf(stderr, "lead08_m2_fid: OVERLAP_PROBE M1x2 overlapped(n_unique=9)=%.3f ms/layer vs disjoint(n_unique=12)=%.3f ms/layer -> %s\n", m1_ms, m1d_ms, fabs(m1_ms-m1d_ms)<0.15?"EQUAL (cost~physical pairs; no cross-dispatch reuse -> grouped kernel has headroom)":"DIFFERS (cross-dispatch reuse)");
     }
     fprintf(stderr, "lead08_m2_fid: SUMMARY layers=%d worst_routed_out=%.3e worst_gateup_mid=%.3e argmax_flip=%d -> %s\n",
         nl, worst_out, worst_mid, worst_flip,
