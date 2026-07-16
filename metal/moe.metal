@@ -1158,6 +1158,183 @@ kernel void kernel_mul_mv_id_iq2_xxs_pair_swiglu_f32(
     (void)tiitg;
 }
 
+/* Lead 08 M=2 fused routed-expert gate+up+swiglu (single-stage prototype).
+ * Processes ONE union expert (shared IQ2XXS dequant across the 2 tokens) and applies
+ * it to the token(s) that selected it (sel_a/sel_b = the token's expert slot, or -1).
+ * Bit-exact per-expert vs the M=1 kernel_mul_mv_id_iq2_xxs_pair_swiglu_f32: each
+ * token's gate/up accumulator sees the IDENTICAL dequant + MAC order (the dequant
+ * is shared, the per-token MAC order is unchanged). The expert SUM (down+sum6) is
+ * run per-token selection-ordered via the existing id_q2_K_sum6 x2 -> preserves FP
+ * sum order -> bit-exact end-to-end. Env-gated via DS4_DSPARK_FUSED_ROUTED_M2. */
+kernel void kernel_mul_mv_id_iq2_xxs_pair_swiglu_f32_m2(
+        constant ds4_metal_args_mul_mv_id & args,
+        constant ds4_metal_dsv4_moe_swiglu_weight_args & act,
+        device const char * src0_gate,
+        device const char * src0_up,
+        device const char * src1_a,
+        device const char * src1_b,
+        device       char * dst_gate_a,
+        device       char * dst_gate_b,
+        device       char * dst_up_a,
+        device       char * dst_up_b,
+        device       char * dst_mid_a,
+        device       char * dst_mid_b,
+        device const int32_t * ids,        /* [n_union] union expert ids            */
+        device const int32_t * sel_a,      /* [n_union] token A slot (0..5) or -1    */
+        device const int32_t * sel_b,      /* [n_union] token B slot (0..5) or -1    */
+        device const float   * weights_a,  /* token A route weights, indexed by slot */
+        device const float   * weights_b,
+        threadgroup  char * shmem [[threadgroup(0)]],
+        uint3  tgpig[[threadgroup_position_in_grid]],
+        ushort tiitg[[thread_index_in_threadgroup]],
+        ushort tiisg[[thread_index_in_simdgroup]],
+        ushort sgitg[[simdgroup_index_in_threadgroup]]) {
+    const short NSG = FC_mul_mv_nsg;
+    const int slot = tgpig.z;     /* union expert slot */
+    tgpig.z = 0;
+
+    const int32_t i02 = ids[slot];
+    if (i02 < 0 || i02 >= 384) return;
+    const int32_t sa = sel_a[slot];
+    const int32_t sb = sel_b[slot];
+    if (sa < 0 && sb < 0) return;  /* neither token selected this union expert */
+
+    const int nb = args.ne00 / QK_K;
+    const int first_row = (tgpig.x * NSG + sgitg) * N_R0_IQ2_XXS;
+    const int nb32 = nb * (QK_K / 32);
+
+    device const block_iq2_xxs *xg =
+        (device const block_iq2_xxs *)(src0_gate + (uint64_t)i02 * args.nb02 + (uint64_t)first_row * args.nb01);
+    device const block_iq2_xxs *xu =
+        (device const block_iq2_xxs *)(src0_up   + (uint64_t)i02 * args.nb02 + (uint64_t)first_row * args.nb01);
+    device const float *ya = (device const float *)src1_a;  /* token A ffn_norm (1 token -> i11=i12=0) */
+    device const float *yb = (device const float *)src1_b;  /* token B ffn_norm */
+
+    float yl_a[32];
+    float yl_b[32];
+    float sumg_a[N_R0_IQ2_XXS] = {0.f};
+    float sumu_a[N_R0_IQ2_XXS] = {0.f};
+    float sumg_b[N_R0_IQ2_XXS] = {0.f};
+    float sumu_b[N_R0_IQ2_XXS] = {0.f};
+
+    threadgroup uint64_t *svalues = (threadgroup uint64_t *)(shmem);
+    threadgroup uint8_t  *ssigns  = (threadgroup uint8_t *)(svalues + 256);
+    {
+        int nval = 4;
+        int pos = (32 * sgitg + tiisg) * nval;
+        for (int i = 0; i < nval; ++i) svalues[pos + i] = ds4_metal_iq2xxs_grid[pos + i];
+        nval = 2;
+        pos = (32 * sgitg + tiisg) * nval;
+        for (int i = 0; i < nval; ++i) ssigns[pos + i] = ds4_metal_ksigns_iq2xs[pos + i];
+        threadgroup_barrier(mem_flags::mem_threadgroup);
+    }
+
+    const int ix = tiisg;
+    device const float *y4a = ya + 32 * ix;
+    device const float *y4b = yb + 32 * ix;
+
+    for (int ib32 = ix; ib32 < nb32; ib32 += 32) {
+        for (short i = 0; i < 32; ++i) { yl_a[i] = y4a[i]; }
+        for (short i = 0; i < 32; ++i) { yl_b[i] = y4b[i]; }
+
+        const int ibl = ib32 / (QK_K / 32);
+        const int ib  = ib32 % (QK_K / 32);
+
+        device const block_iq2_xxs *xgr = xg + ibl;
+        device const block_iq2_xxs *xur = xu + ibl;
+        device const uint16_t *qg = xgr->qs + 4 * ib;
+        device const uint16_t *qu = xur->qs + 4 * ib;
+        device const half *dhg = &xgr->d;
+        device const half *dhu = &xur->d;
+
+        for (short row = 0; row < N_R0_IQ2_XXS; row++) {
+            device const uint8_t *aux8g = (device const uint8_t *)qg;
+            device const uint8_t *aux8u = (device const uint8_t *)qu;
+            const uint32_t aux32g = qg[2] | (qg[3] << 16);
+            const uint32_t aux32u = qu[2] | (qu[3] << 16);
+            const float dg = (float)dhg[0] * (0.5f + (aux32g >> 28));
+            const float du = (float)dhu[0] * (0.5f + (aux32u >> 28));
+
+            float sg_a = 0, su_a = 0, sg_b = 0, su_b = 0;
+            for (short l = 0; l < 4; ++l) {
+                const threadgroup uint8_t *gridg = (const threadgroup uint8_t *)(svalues + aux8g[l]);
+                const threadgroup uint8_t *gridu = (const threadgroup uint8_t *)(svalues + aux8u[l]);
+                const uint8_t signg = ssigns[(aux32g >> 7 * l) & 127];
+                const uint8_t signu = ssigns[(aux32u >> 7 * l) & 127];
+                for (short j = 0; j < 8; ++j) {
+                    /* identical FP op-order to M=1: v * grid[j] * sign (NOT v * (grid[j]*sign)) */
+                    const float va = yl_a[8 * l + j];
+                    const float vb = yl_b[8 * l + j];
+                    sg_a += va * gridg[j] * (signg & ds4_metal_kmask_iq2xs[j] ? -1.f : 1.f);
+                    su_a += va * gridu[j] * (signu & ds4_metal_kmask_iq2xs[j] ? -1.f : 1.f);
+                    sg_b += vb * gridg[j] * (signg & ds4_metal_kmask_iq2xs[j] ? -1.f : 1.f);
+                    su_b += vb * gridu[j] * (signu & ds4_metal_kmask_iq2xs[j] ? -1.f : 1.f);
+                }
+            }
+            sumg_a[row] += dg * sg_a;
+            sumu_a[row] += du * su_a;
+            sumg_b[row] += dg * sg_b;
+            sumu_b[row] += du * su_b;
+
+            dhg += args.nb01 / 2;
+            dhu += args.nb01 / 2;
+            qg  += args.nb01 / 2;
+            qu  += args.nb01 / 2;
+        }
+
+        y4a += 32 * 32;
+        y4b += 32 * 32;
+    }
+
+    const float c = act.clamp_value;
+    /* token A (gated by selection) */
+    if (sa >= 0) {
+        device float *dst_gate_a_f32 = (device float *)dst_gate_a + (uint64_t)sa * args.ne0;
+        device float *dst_up_a_f32   = (device float *)dst_up_a   + (uint64_t)sa * args.ne0;
+        device float *dst_mid_a_f32  = (device float *)(dst_mid_a + (uint64_t)sa * act.mid_row_stride);
+        const float route_weight_a = weights_a[sa];
+        for (int row = 0; row < N_R0_IQ2_XXS && first_row + row < args.ne0; ++row) {
+            const float sum_gate = simd_sum(sumg_a[row]);
+            const float sum_up   = simd_sum(sumu_a[row]);
+            if (tiisg == 0) {
+                const uint out_row = first_row + row;
+                const float gate = sum_gate * 0.25f;
+                const float up = sum_up * 0.25f;
+                float g = gate, u = up;
+                if (c > 1.0e-6f) { g = min(g, c); u = clamp(u, -c, c); }
+                dst_gate_a_f32[out_row] = gate;
+                dst_up_a_f32[out_row] = up;
+                const float silu = g / (1.0f + exp(-g));
+                dst_mid_a_f32[out_row] = silu * u * route_weight_a;
+            }
+        }
+    }
+    /* token B (gated by selection) */
+    if (sb >= 0) {
+        device float *dst_gate_b_f32 = (device float *)dst_gate_b + (uint64_t)sb * args.ne0;
+        device float *dst_up_b_f32   = (device float *)dst_up_b   + (uint64_t)sb * args.ne0;
+        device float *dst_mid_b_f32  = (device float *)(dst_mid_b + (uint64_t)sb * act.mid_row_stride);
+        const float route_weight_b = weights_b[sb];
+        for (int row = 0; row < N_R0_IQ2_XXS && first_row + row < args.ne0; ++row) {
+            const float sum_gate = simd_sum(sumg_b[row]);
+            const float sum_up   = simd_sum(sumu_b[row]);
+            if (tiisg == 0) {
+                const uint out_row = first_row + row;
+                const float gate = sum_gate * 0.25f;
+                const float up = sum_up * 0.25f;
+                float g = gate, u = up;
+                if (c > 1.0e-6f) { g = min(g, c); u = clamp(u, -c, c); }
+                dst_gate_b_f32[out_row] = gate;
+                dst_up_b_f32[out_row] = up;
+                const float silu = g / (1.0f + exp(-g));
+                dst_mid_b_f32[out_row] = silu * u * route_weight_b;
+            }
+        }
+    }
+
+    (void)tiitg;
+}
+
 kernel void kernel_mul_mv_slots6_iq2_xxs_pair_swiglu_f32(
         constant ds4_metal_args_mul_mv_id & args,
         constant ds4_metal_dsv4_moe_swiglu_weight_args & act,
