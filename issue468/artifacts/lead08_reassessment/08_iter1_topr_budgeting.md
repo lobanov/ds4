@@ -38,3 +38,23 @@ The no-kernel probes (#2, #4, #5) do not yield ≥20%. **The path is the main ke
 (union-aware grouped MoE, sequential-tile, single-token register state)** for iteration-2, with #3
 (down de-dup) + #4 (cost-aware STS) as composition if it lands. The top-r + prefetch retirements
 de-risk iteration-2 (no point chasing ordering/budgeting when the prize needs a load-sharing kernel).
+
+## Codex review (gpt-5.5 xhigh, report retained at dspark_codex_reviews/2026-07-16_gpt55_xhigh_lead08_iter1_topr.md)
+- **NO-GO confirmed** — traced `DS4_TOP_R` → `g_ds4_shape.n_expert_used` → batch router select →
+  `ds4_gpu_routed_moe_batch_tensor` (n_tokens×n_expert physical rows); the −6% matches 0.40×⅙.
+- **Two probe caveats (don't flip NO-GO):** (i) for n_expert<6 the direct sum6 fast-path is
+  disabled → generic down+sum (not a pure "same kernel, fewer slots"); (ii) early hash-routed
+  layers may mis-stride under the override (hash table loaded as width 6, GPU hash path uses
+  n_expert_used as row width) → the acceptance drop may be a probe artifact, not clean fidelity
+  evidence. NO-GO stands regardless (cost win too small even before quality risk; top-5 t/s down).
+- **Iteration-2 design correction:** a naive "sequential-tile" kernel is NOT magically
+  occupancy-safe — each token needs accumulators across ALL ib32 tiles. Viable design = spill
+  per-token partial accumulators to **threadgroup memory** (register footprint ≈ M=1; shmem
+  traffic the cost). Expert-major grid `(row_groups, unique_count)`, threads `(32, NSG=2)`, write
+  `mid[token,slot,row]` selection-ordered, reuse the existing per-token down/sum6 unchanged.
+- **Measurement-first probe before building:** batch-MoE controlled-selection timing (same K, same
+  physical-pair count; all-overlapped vs mostly-disjoint selections, `DS4_METAL_MOE_STAGE_PROFILE`) —
+  if equal time, the batch MoE does NOT reuse overlap today → the grouped kernel has real headroom.
+- Prize check: 17/24 unique @ K=4 → 28.5% ceiling → ~6–8 ms realistic — enough to beat the batch
+  verifier but **not a guaranteed ≥20% clear** (baseline ~59 ms vs gate ≤50.5 ms); needs the high
+  end + low overhead + composition (down de-dup / STS).
