@@ -853,6 +853,36 @@ int ds4_gpu_routed_moe_one_tensor(
         const ds4_gpu_tensor *x,
         uint32_t                layer_index);
 
+/* Lead 08 M=2 (DS4_DSPARK_FUSED_ROUTED_M2): the fused routed-expert dispatch for 2 tokens.
+ * Uses the active g_batch_cb (caller must ds4_gpu_begin_commands first). The caller reads back
+ * the two tokens' router selections/weights to CPU + passes them as sel_a/b_ids + w_a/b.
+ * Prototype-only fidelity-first path: a GPU union kernel is the production follow-up. */
+int ds4_gpu_routed_moe_pair_tensor(
+        ds4_gpu_tensor             *out_a, ds4_gpu_tensor *out_b,
+        ds4_gpu_tensor             *gate_a, ds4_gpu_tensor *gate_b,
+        ds4_gpu_tensor             *up_a,   ds4_gpu_tensor *up_b,
+        ds4_gpu_tensor             *mid_a,  ds4_gpu_tensor *mid_b,
+        const void                 *model_map,
+        uint64_t                    model_size,
+        uint64_t                    gate_offset,
+        uint64_t                    up_offset,
+        uint64_t                    down_offset,
+        uint32_t                    gate_type,
+        uint32_t                    down_type,
+        uint64_t                    gate_expert_bytes,
+        uint64_t                    gate_row_bytes,
+        uint64_t                    down_expert_bytes,
+        uint64_t                    down_row_bytes,
+        uint32_t                    expert_in_dim,
+        uint32_t                    expert_mid_dim,
+        uint32_t                    out_dim,
+        const int32_t              *sel_a_ids, const float *w_a,
+        const int32_t              *sel_b_ids, const float *w_b,
+        ds4_gpu_tensor             *selected_a, ds4_gpu_tensor *selected_b,
+        uint32_t                    n_total_expert,
+        float                       clamp,
+        ds4_gpu_tensor             *x_a, ds4_gpu_tensor *x_b);
+
 int ds4_gpu_routed_moe_batch_tensor(
         ds4_gpu_tensor       *out,
         ds4_gpu_tensor       *gate,

@@ -1292,7 +1292,7 @@ kernel void kernel_mul_mv_id_iq2_xxs_pair_swiglu_f32_m2(
         device float *dst_gate_a_f32 = (device float *)dst_gate_a + (uint64_t)sa * args.ne0;
         device float *dst_up_a_f32   = (device float *)dst_up_a   + (uint64_t)sa * args.ne0;
         device float *dst_mid_a_f32  = (device float *)(dst_mid_a + (uint64_t)sa * act.mid_row_stride);
-        const float route_weight_a = weights_a[sa];
+        const float route_weight_a = weights_a[slot];  /* uw_a is union-slot-indexed: uw_a[slot]=w_a[sel_a[slot]]=w_a[sa] */
         for (int row = 0; row < N_R0_IQ2_XXS && first_row + row < args.ne0; ++row) {
             const float sum_gate = simd_sum(sumg_a[row]);
             const float sum_up   = simd_sum(sumu_a[row]);
@@ -1314,7 +1314,7 @@ kernel void kernel_mul_mv_id_iq2_xxs_pair_swiglu_f32_m2(
         device float *dst_gate_b_f32 = (device float *)dst_gate_b + (uint64_t)sb * args.ne0;
         device float *dst_up_b_f32   = (device float *)dst_up_b   + (uint64_t)sb * args.ne0;
         device float *dst_mid_b_f32  = (device float *)(dst_mid_b + (uint64_t)sb * act.mid_row_stride);
-        const float route_weight_b = weights_b[sb];
+        const float route_weight_b = weights_b[slot];  /* uw_b is union-slot-indexed: uw_b[slot]=w_b[sel_b[slot]]=w_b[sb] */
         for (int row = 0; row < N_R0_IQ2_XXS && first_row + row < args.ne0; ++row) {
             const float sum_gate = simd_sum(sumg_b[row]);
             const float sum_up   = simd_sum(sumu_b[row]);
