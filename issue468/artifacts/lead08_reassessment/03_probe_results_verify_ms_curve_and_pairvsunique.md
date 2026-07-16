@@ -72,3 +72,9 @@ Ran K4 + K5 with `DS4_METAL_MOE_STAGE_PROFILE=1`. Routed-MoE per-verify (×61, s
 - De-dup prize at K=4: 28.5% of (gate_up+down) expert-load bandwidth. gate_up+down (real) ≈ 28 ms → prize ≈ **~6–8 ms real** (borderline +20%; clearly faster than the batch verifier = the primary bar).
 
 **Verdict: GO for the single-stage expert prototype** (the de-dup targets the dominant marginal cost; the primary bar "faster than batch" is robustly met at ~6–8 ms; +20% is borderline, to be settled by the prototype's cost-gate). The hard exit gate protects if the prototype can't beat the batch. Instruments (L2 hit rate) deferred — the in-tree data (pair-vs-unique + separator) already indicates cache-miss; revisit if the prototype underperforms.
+
+## Measurement 4 (readahead/overlap flag sweep) — NO free win; a robustness insight
+
+The verify (batch FFN) path's selected-expert readahead flags (`DS4_METAL_ENABLE_STREAMING_PREFILL_SELECTED_READAHEAD[_SHARED]`) are **OFF by default**. Enabled `_SHARED` at K=4: layer_execute 54.95→54.91 ms (Δ −0.04, noise) → **no free win**. The expert load is already overlapped via the GPU pipeline / not readahead-limited; the production verifier is already readahead-tuned.
+
+**Robustness insight:** the de-dup (fused kernel) removes the redundant expert **load** AND the redundant **dequant compute** → it helps whether the bottleneck is bandwidth or compute. So the GO is robust to the bandwidth-vs-compute question Instruments would settle (Instruments deferred — not needed for the GO call; revisit only if the prototype underperforms to diagnose why).
