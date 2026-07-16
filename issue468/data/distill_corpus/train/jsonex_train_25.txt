@@ -1,0 +1,3 @@
+Please extract the details of the upcoming calendar event from the provided customer review text. The target JSON structure should have around 4 fields, using the kebab-case naming convention, and the tone should be detailed and thorough.
+
+"I recently booked a weekend getaway at the Sunrise Resort for my anniversary celebration. The process was seamless, and the staff was incredibly helpful in ensuring I had all the details I needed. They sent me a confirmation email with the event details, including the start time of 7:00 PM on April 15th and the method of notification, which will be a push notification to my mobile device. I'm really looking forward to this special occasion, and I appreciate the attention to detail the resort has shown in planning this event."

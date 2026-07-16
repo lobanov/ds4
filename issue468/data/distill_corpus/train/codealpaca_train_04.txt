@@ -1,0 +1,2 @@
+Determine the maximum and minimum value of an array.
+[3, 6, 9, -1, 2]

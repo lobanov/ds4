@@ -1,0 +1,2 @@
+Find the maximum number of left and right parentheses that can be balanced for a given expression.
+Expression: (()()

@@ -1,0 +1,3 @@
+Create a Python code that takes two strings and combine them into a single string.
+str1 = "Hello"
+str2 = "World"

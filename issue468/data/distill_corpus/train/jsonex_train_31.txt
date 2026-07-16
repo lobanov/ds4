@@ -1,0 +1,5 @@
+Extract the key product details from the provided notes.
+
+- Alert ID: PAA-9876543210
+- Product ID: PROD-ABC-456
+- Status: ACTIVE

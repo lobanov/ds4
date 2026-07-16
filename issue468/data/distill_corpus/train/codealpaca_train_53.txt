@@ -1,0 +1,2 @@
+Implement a binary search algorithm in Python for searching for a specific element in a given list of numbers.
+list = [1, 3, 5, 7, 9, 11 ] and target number =7

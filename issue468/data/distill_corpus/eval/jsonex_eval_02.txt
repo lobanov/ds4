@@ -1,0 +1,23 @@
+Extract the key details from the internal memo into a JSON format containing the traveler's firstName, lastName, emailAddress, and phoneNumber.
+
+Memo to Underwriting Team
+
+To: Underwriting Team
+From: James Watkins, Travel Insurance Manager
+Date: June 15, 2023
+Subject: New Travel Insurance Policy Application
+
+I'm forwarding the details for a new travel insurance policy application we received yesterday. The applicant is Samantha Richardson, a frequent business traveler to our international locations. Her contact information is as follows:
+
+First Name: Samantha
+Last Name: Richardson 
+Email Address: srichardson@company.com
+Phone Number: (555) 867-5309
+
+Please review this application and let me know if any additional information is needed to proceed with the underwriting process. I'd like to have this policy issued before Samantha's upcoming trip to our Tokyo office next week.
+
+Thank you for your prompt attention to this matter.
+
+Regards,
+James Watkins
+Travel Insurance Manager

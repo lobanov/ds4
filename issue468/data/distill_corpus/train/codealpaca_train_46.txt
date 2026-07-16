@@ -1,0 +1,3 @@
+Replace the "TODO" comment in this code with logic to calculate the mean of a list of numbers.
+numbers = [1, 2, 3, 4, 5]
+# TODO: calculate the mean

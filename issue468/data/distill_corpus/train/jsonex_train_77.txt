@@ -1,0 +1,3 @@
+Hey, can you help me out here? I need to extract some key info from this customer review about a supplier for a risk assessment report. Just pull out the important details and format it as JSON, alright?
+
+I recently worked with ABC Manufacturing for a big order and I have to say, their supplier Zenith Industries was a pleasure to deal with. The contact person, Samantha Lee, was super responsive and helpful throughout the whole process. They even sent over some additional samples to make sure we were happy with the product. The quality of the parts was top-notch and they met all our deadlines. Definitely going to use Zenith again for our next project!

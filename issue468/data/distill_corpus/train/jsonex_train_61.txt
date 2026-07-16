@@ -1,0 +1,3 @@
+Please carefully read the customer review below and extract the relevant information into a JSON format with fields for ticket class, booking date, number of passengers, and total cost.
+
+I recently booked a bus ticket for my upcoming trip to the city. The reservation process was seamless and efficient. I opted for the Premium class ticket, which offered more legroom and extra amenities. The booking date was March 15th, and I was traveling with 3 other passengers. The total cost for the 4 tickets came out to $120, which I felt was a reasonable price given the quality of service. The bus company provided clear instructions and updates throughout the booking and travel experience. I'm looking forward to a comfortable and stress-free journey.

@@ -1,0 +1,6 @@
+Please extract the key information from the following weather report into a structured JSON format.
+
+Weather Forecast for March 15, 2023
+Location: Los Angeles, California
+Weather Condition: Partly Cloudy
+Humidity Level: 65%

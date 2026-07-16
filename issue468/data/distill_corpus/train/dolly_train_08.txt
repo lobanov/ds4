@@ -1,0 +1,24 @@
+Based on the paragraph below, what are some key elements to consider in designing an OLTP system?
+
+Systems design
+To build an OLTP system, a designer must know that the large number of concurrent users does not interfere with the system's performance. To increase the performance of an OLTP system, a designer must avoid excessive use of indexes and clusters.
+
+The following elements are crucial for the performance of OLTP systems:
+
+Rollback segments
+Rollback segments are the portions of database that record the actions of transactions in the event that a transaction is rolled back. Rollback segments provide read consistency, rollback transactions, and recovery of the database.
+Clusters
+A cluster is a schema that contains one or more tables that have one or more columns in common. Clustering tables in a database improves the performance of join operations.
+Discrete transactions
+A discrete transaction defers all change to the data until the transaction is committed. It can improve the performance of short, non-distributed transactions.
+Block size
+The data block size should be a multiple of the operating system's block size within the maximum limit to avoid unnecessary I/O.
+Buffer cache size
+SQL statements should be tuned to use the database buffer cache to avoid unnecessary resource consumption.
+Dynamic allocation of space to tables and rollback segments
+Transaction processing monitors and the multi-threaded server
+A transaction processing monitor is used for coordination of services. It is like an operating system and does the coordination at a high level of granularity and can span multiple computing devices.
+Partition (database)
+Partition use increases performance for sites that have regular transactions while still maintaining availability and security.
+Database tuning
+With database tuning, an OLTP system can maximize its performance as efficiently and rapidly as possible.

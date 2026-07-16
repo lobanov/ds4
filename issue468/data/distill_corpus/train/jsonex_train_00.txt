@@ -1,0 +1,12 @@
+Extract the key information from the formal business letter into a concise JSON format.
+
+Dear Valued Customer,
+
+We are writing to inform you of the updated Terms of Service governing the use of our platform. These terms outline the rights and responsibilities of both our organization and our users, ensuring a mutually beneficial relationship.
+
+The primary changes involve the collection and usage of personal data. We have expanded our Consent section to provide greater transparency and control for our users. Specifically, we now require explicit consent for the collection and use of certain personal information, such as name, email address, and IP address. This data will be utilized to enhance the user experience through personalized recommendations and service improvements.
+
+We encourage you to review the updated Terms of Service carefully. If you have any questions or concerns, please do not hesitate to contact our customer support team.
+
+Sincerely,
+[Company Name]

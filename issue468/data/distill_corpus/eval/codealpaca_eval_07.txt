@@ -1,0 +1,8 @@
+Estimate the complexity (Big-O) of this algorithm.
+arr = [3, 4, 7, 5, 6]
+
+def find_average(arr):
+    total = 0
+    for num in arr:
+        total += num
+    return total / len(arr)

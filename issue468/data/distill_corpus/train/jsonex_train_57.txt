@@ -1,0 +1,10 @@
+Carefully read the following news article excerpt and extract the key service level objectives and their details into a JSON format.
+
+Acme Cloud, a leading provider of enterprise-grade cloud computing solutions, has announced the details of its latest service level agreement (SLA) for its flagship cloud platform. The SLA outlines the company's commitment to delivering a highly reliable and performant cloud infrastructure to its customers.
+
+The key service level objectives (SLOs) detailed in the SLA include:
+- Uptime: Acme Cloud guarantees an uptime of 99.95% for its core cloud services, ensuring maximum availability for mission-critical workloads.
+- Response Time: The SLA promises an average response time of less than 100 milliseconds for API requests, delivering low-latency access to cloud-hosted applications and data.
+- Data Durability: Acme Cloud's storage services offer a data durability rate of 99.999999999%, providing industry-leading protection against data loss or corruption.
+
+These SLOs are backed by financial service credits in the event that Acme Cloud fails to meet the stated targets, demonstrating the company's confidence in th

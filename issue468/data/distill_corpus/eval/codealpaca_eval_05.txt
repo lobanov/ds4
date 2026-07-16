@@ -1,0 +1,1 @@
+Construct a class that takes a string and capitalizes the first letter.

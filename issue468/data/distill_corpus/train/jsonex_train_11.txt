@@ -1,0 +1,3 @@
+Extract the relevant information about the travel navigation app download from the provided text into a JSON format.
+
+Explore the world with ease using the latest version of the Odyssey Travel Navigation app. This innovative app provides detailed maps, turn-by-turn directions, and real-time traffic updates to help you navigate your journey seamlessly. Whether you're planning a road trip, exploring a new city, or seeking the best hiking trails, Odyssey has you covered. With its intuitive interface and customizable features, you can easily access the information you need, from estimated arrival times to nearby points of interest. Download the Odyssey app today and unlock a world of travel possibilities at your fingertips.

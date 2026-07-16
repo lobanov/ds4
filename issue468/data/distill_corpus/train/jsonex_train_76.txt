@@ -1,0 +1,3 @@
+Extract the relevant details from the provided technical specification into a concise JSON format.
+
+The customer has requested a refund for the defective Precision Gizmo 3000. The item arrived with a faulty power switch and was unable to function as intended. Supporting documentation includes a photo of the product in its damaged state and the original packaging.

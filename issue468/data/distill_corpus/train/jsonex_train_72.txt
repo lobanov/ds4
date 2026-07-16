@@ -1,0 +1,3 @@
+Can you help me compare the prices of different online stores for this awesome product I just bought? I'd love to see the product_name and the best_price in a nice little JSON summary.
+
+Just got the Awesome Product and it's been a game-changer! The quality is amazing and it works so well. I found it on a few different sites but the prices varied quite a bit. Ended up getting it from XYZ Store for $49.99 which I think is a pretty good deal. Definitely recommend checking around to find the best price if you're in the market for this product.

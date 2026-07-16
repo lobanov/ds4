@@ -1,0 +1,2 @@
+Classify the below based on the products they sell.
+Adidas, nike, Pepsi, Sprite, Fanta, FILA

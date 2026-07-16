@@ -1,0 +1,3 @@
+Extract the key product details from the technical specification.
+
+The Acme Superphone XL is a state-of-the-art mobile device featuring a 6.8-inch OLED display, a powerful Octacore processor, and a high-capacity 5000mAh battery. Its advanced camera system includes a 64MP primary lens, a 16MP ultrawide, and a 12MP telephoto for stunning photos and videos. Rugged construction with IP68 water and dust resistance ensures durability. Available in Midnight Black or Arctic White.

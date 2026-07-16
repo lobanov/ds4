@@ -1,0 +1,29 @@
+Extract the stock ticker from the following text
+
+Pfizer (2021).svg
+Corporate logo since 2021
+Pfizer World Headquarters Entrance.jpg
+Headquarters on 42nd Street in Midtown Manhattan
+Type	Public
+Traded as	
+NYSE: PFE
+S&P 100 component
+S&P 500 component
+Industry	
+Pharmaceutical
+Biotechnology
+Founded	1849; 174 years ago in New York City
+Founders	
+Charles Pfizer
+Charles F. Erhart
+Headquarters	New York City, U.S.
+Area served	Worldwide
+Key people	Albert Bourla (CEO)
+Products	
+Pharmaceutical drugsvaccines
+Revenue	Increase US$100.3 billion (2022)
+Operating income	Increase US$31.40 billion (2022)
+Net income	Increase US$31.37 billion (2022)
+Total assets	Increase US$197.2 billion (2022)
+Total equity	Increase US$95.66 billion (2022)
+Number of employees	c. 83,000 (2022)

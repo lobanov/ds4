@@ -1,0 +1,11 @@
+Extract the key information about the artist residency program from the formal business letter into a JSON format with approximately 5 fields.
+
+Dear Applicant,
+
+I am pleased to introduce the prestigious Artist Residency Program at the Westbrook Center for Contemporary Arts. This highly competitive program offers a unique opportunity for emerging and established artists to immerse themselves in a vibrant creative community and advance their practice.
+
+The Westbrook Center is a state-of-the-art facility located in the heart of the thriving arts district. During the residency, artists will have access to well-equipped studios, cutting-edge technology, and a wide range of specialized workshops and masterclasses led by renowned artists and industry professionals.
+
+The residency duration is 3 to 6 months, with flexible start dates to accommodate individual needs. Residents will receive a monthly stipend to cover living expenses, as well as a travel allowance to facilitate their relocation. Additionally, the center will provide exhibition and performance opportunities, allowing residents to showcase their work to the local and international community.
+
+To b

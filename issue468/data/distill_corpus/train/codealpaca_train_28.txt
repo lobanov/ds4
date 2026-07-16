@@ -1,0 +1,2 @@
+Print the element with the second greatest value from an array named 'numbers'.
+numbers = [10, 5, 15, 20, 25]

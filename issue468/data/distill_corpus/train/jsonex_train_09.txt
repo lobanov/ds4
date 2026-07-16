@@ -1,0 +1,3 @@
+Could you help me extract the key details about the data center layout from this customer review? I need to capture the important information in a nice clean JSON format.
+
+Just had our team visit the new data center facility and I've got to say, I'm really impressed! The layout is super efficient and makes it easy for us to access all the equipment we need. The cooling systems are top-notch - no more sweating it out in the server room! Plus, the backup generators are placed strategically to ensure we never lose power, even during the worst outages. Overall, it's a really well-designed space that's going to make our IT operations run so much smoother.

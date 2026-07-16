@@ -1,0 +1,13 @@
+Please extract the relevant medical test information from the provided business letter into a JSON format.
+
+Dear Dr. Avery,
+
+I am writing to inform you of the recent medical test results for your patient, Ms. Emma Wilkins. On March 20th, 2023, Ms. Wilkins underwent a comprehensive metabolic panel at the HealthCare Diagnostic Center located at 789 Oak Avenue, Oakwood, CA 90210. 
+
+The test results indicate that Ms. Wilkins' fasting blood glucose level is 95 mg/dL, which falls within the normal reference range of 70-99 mg/dL. Additionally, her serum creatinine level is 0.8 mg/dL, also within the normal range of 0.6-1.2 mg/dL. These results suggest that Ms. Wilkins' kidney function is operating within the expected parameters.
+
+If you have any further questions or concerns, please do not hesitate to contact the HealthCare Diagnostic Center at 555-987-6543 or diagnostics@healthcare.com.
+
+Sincerely,
+Alex Thompson
+HealthCare Diagnostic Center

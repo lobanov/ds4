@@ -1,0 +1,9 @@
+Extract the key information from the internal memo into a concise JSON format.
+
+Subject: Medical Research Data Retention Policy Update
+To: All Research Investigators
+From: Dr. Emily Huang, Chief Medical Officer
+
+Effective immediately, the data retention policy for medical research studies has been updated. All research data must now be retained for a minimum period of 15 years from the study completion date. This policy applies to clinical, behavioral, and genetic research data.
+
+Please review the updated policy and ensure your research data management practices are compliant. Contact the Office of Research Compliance if you have any questions.

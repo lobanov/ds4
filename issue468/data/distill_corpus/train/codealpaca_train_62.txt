@@ -1,0 +1,2 @@
+Given a string, find the longest palindrome within it.
+string = "ananabay"

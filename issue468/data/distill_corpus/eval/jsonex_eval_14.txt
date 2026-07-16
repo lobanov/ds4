@@ -1,0 +1,18 @@
+Please extract the following information from the email into a JSON object with approximately 4 fields:
+- The maximum number of items allowed in the shopping cart
+- The current number of items in the shopping cart
+- The subtotal of the items in the shopping cart
+- The estimated tax and shipping costs for the order
+
+Hi there,
+
+I wanted to follow up on my recent order for some new home decor items. I'm excited to get everything set up, but I have a quick question about the shopping cart.
+
+When I was checking out, I noticed that the maximum number of items allowed in the cart is 15. I think that's a reasonable limit, but I'm curious if there's any way to increase that for my order. I'm planning to purchase around 20 items, so I'd love to be able to add them all at once instead of having to do it in multiple transactions.
+
+Also, can you let me know the current number of items in my cart? I believe I had added 12 items so far, but I want to double-check. And if possible, could you provide the subtotal for those 12 items, as well as the estimated tax and shipping costs? That will help me prepare my budget for the full order.
+
+Please let me know if you have any other questions! I'm looking forward to getting everything finalized.
+
+Thanks,
+[Your Name]

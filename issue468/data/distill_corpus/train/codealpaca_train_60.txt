@@ -1,0 +1,2 @@
+Write a function that, given a string, returns a dictionary of all the characters in the string and their respective frequencies.
+text = "Hello World"

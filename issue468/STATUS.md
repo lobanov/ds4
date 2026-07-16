@@ -396,6 +396,18 @@ general bug (CPU fallback, ~1.85 ms, cheap) — separate follow-up. Levers 2 (an
 (GPU drafter) not started. Artifacts: `issue468/artifacts/dspark_m3_bench/` + codex verdict
 `issue468/artifacts/dspark_codex_reviews/2026-07-14_gpt55_xhigh_engaged_divergence_verdict.md`;
 progress doc `issue468/summaries/dspark_runtime_milestone_3_progress.md`.
+**Lead 08 — the fused verify kernel** is the primary open path to +20 %. It is a bounded
+sublinear bit-exact batch-path build (HC/compressor/attention on decode reductions + batched
+load sharing) with a hard exit gate: an end-to-end K=4 bit-exact verifier must profile
+`verify_ms(4) ≤ 50.5 ms`. GO is unconfirmed until that gate clears.
+
+**Lead 10 — drafter re-distillation for IQ2XXS (soft labels)** is a proposed, lower-priority
+drafter-quality follow-up: the one untested route after Lead 07 (hidden-side, dead) and Stage 2
+(head-only hard-label, dead). It tests whether the 0.79 IQ2-native acceptance is a distribution
+mismatch a full-body soft-label re-distillation can close, or a capacity ceiling. Powered to
+detect +2 pp on 60 held-out prompts; corpus + capture input prepared (`issue468/data/distill_corpus/`).
+A real but uncertain bet (negative prior); not yet started. Design in
+`issue468/pending/lead_10_drafter_redistillation.md`.
 
 ## Canonicality rule
 

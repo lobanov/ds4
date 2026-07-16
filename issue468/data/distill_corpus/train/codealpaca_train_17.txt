@@ -1,0 +1,2 @@
+Write a Python script to validate the following input
+Validate a Date type field with the following format: YYYY/MM/DD

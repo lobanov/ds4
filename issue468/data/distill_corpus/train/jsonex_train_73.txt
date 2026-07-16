@@ -1,0 +1,13 @@
+Extract the relevant information from the provided business letter into a JSON format.
+
+Dear Mr. Anderson,
+
+I hope this letter finds you well. I am writing to inquire about booking a business trip to San Francisco for our upcoming sales conference. As the regional manager, it is essential that I attend this important event to connect with our key clients and discuss potential partnership opportunities.
+
+The conference is scheduled to take place from June 15th to June 18th. I would like to request reservations for a round-trip flight, as well as accommodations for the duration of the event. Please provide me with the available options and associated costs at your earliest convenience.
+
+Thank you in advance for your assistance in arranging the necessary travel arrangements. I look forward to hearing from you soon.
+
+Sincerely,
+Emily Wilkins
+Regional Sales Manager

@@ -1,0 +1,7 @@
+Rewrite the following code snippet to an equivalent code in Python.
+int i = 0;
+while (i < 10)
+{
+   System.out.println(i);
+   i++;
+}

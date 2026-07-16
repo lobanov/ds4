@@ -1,0 +1,3 @@
+Analyze the technical specification and extract the key details about the finished goods inventory into a structured JSON format.
+
+The manufacturing facility has completed production of a new order of finished goods. The order includes 200 units of product model XYZ-2022, stored in bin location C4 of the warehouse. The reorder quantity for this product is 150 units, to be triggered when the current inventory drops below 50 units. All finished goods are inspected for quality and packed according to customer specifications prior to storage in the warehouse.

@@ -1,0 +1,1 @@
+Implement a vector class in Python that allows for basic vector operations such as vector addition, subtraction and scalar multiplication.

@@ -1,0 +1,1 @@
+Show an example of a while loop in Python.

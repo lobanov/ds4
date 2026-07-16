@@ -1,0 +1,4 @@
+Convert this Ruby code to Python.
+def add_two_numbers(a, b)
+  a + b 
+end

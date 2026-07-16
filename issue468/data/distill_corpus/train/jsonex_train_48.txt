@@ -1,0 +1,3 @@
+Hey there! Can you help me out by extracting the key details from this article about a new product availability alert? I need to get the alert ID and the email address where the alert was sent.
+
+Heads up, shoppers! Our team just launched a new Product Availability Alert system to help you stay on top of all the latest deals. Now, when your favorite items come back in stock, you'll get a friendly notification straight to your inbox. Just signed up my buddy Dave - his alert ID is PAA-5678901234 and he used the email dude@example.net. Pretty neat, right? This new tool is going to make it a breeze to snag those hard-to-find products before they sell out again. Let me know if you have any other questions!

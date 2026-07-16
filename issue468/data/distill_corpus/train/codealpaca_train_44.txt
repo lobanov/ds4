@@ -1,0 +1,2 @@
+Sort the list using Quick Sort
+[2, 3, 5, 6, 1, 4]

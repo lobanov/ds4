@@ -1,0 +1,2 @@
+Create a method to join an array of strings together.
+arr = ['one', 'two', 'three']

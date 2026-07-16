@@ -1,0 +1,11 @@
+Extract the key product information from the provided business letter.
+
+Dear Valued Customer,
+
+Thank you for your interest in our high-quality manufacturing capabilities. We are pleased to share details on the shelf life of our latest Precision Engineering line. Our Precision Engineering line features advanced materials and cutting-edge production methods to ensure exceptional longevity. The Precision Engineering Sensors, for example, have a remarkable 10-year shelf life, making them a reliable choice for mission-critical applications. We are committed to delivering products that exceed industry standards and provide lasting value to our customers.
+
+Please let me know if you have any further questions about our Precision Engineering offerings and their extended shelf life. I would be happy to discuss how these solutions can benefit your business.
+
+Sincerely,
+Edith Williamson
+Manufacturing Manager

@@ -1,0 +1,3 @@
+Extract the key information from the provided technical specification into a concise JSON format.
+
+FlightBooking - Premium Economy Upgrade. Reservation ID: XYZ789. Passenger: Amelia Earhart. Flight: LHR to JFK, Departure: 2023-06-15 18:25, Arrival: 2023-06-16 07:10. Upgrade purchased: Premium Economy class, additional cost: $200.

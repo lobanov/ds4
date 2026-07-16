@@ -1,0 +1,3 @@
+Classify the movies into Romance and Drama genres.
+
+Pyaar Diwana Hota Hai, Bas Itna Sa Khwaab Hai, Paagalpan, Uljhan, Yeh Zindagi Ka Safar

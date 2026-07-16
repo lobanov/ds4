@@ -1,0 +1,3 @@
+Carefully extract the relevant information from the provided form response into a structured JSON format, following a professional and formal tone.
+
+The server patch installation on 2022-09-15 encountered some issues. The initial attempt to install patch-5678 was unsuccessful due to a connectivity problem with the staging server. After troubleshooting the network connection, the installation was retried and completed successfully on the second attempt. The system administrator logged the incident and updated the patch management records.

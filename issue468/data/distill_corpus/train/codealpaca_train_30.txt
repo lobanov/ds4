@@ -1,0 +1,2 @@
+Using the array, sort it using insertion sort.
+arr = [4, 2, 6, 7, 1]

@@ -1,0 +1,16 @@
+Extract the key risk factors related to the business investment prospectus from the provided email.
+
+Hey there, 
+
+I wanted to give you an update on our business investment prospectus. As you know, we're looking to expand our operations and need to raise additional capital. There are a few key risk factors I want to highlight:
+
+First, the widget market is becoming increasingly competitive, with several new players entering the space. We'll need to be strategic in our pricing and marketing to maintain our edge. 
+
+Second, our latest product prototype is still in the development stage, and we haven't fully tested its performance and scalability yet. There's a risk it may not meet all our customers' needs.
+
+Finally, securing the necessary funding for our growth plans is a major concern. The economic climate has been volatile, and we may struggle to attract investors, which could delay our expansion timeline.
+
+Let me know if you have any other questions! I'm happy to discuss these risk factors in more detail.
+
+Cheers,
+Alex

@@ -1,0 +1,3 @@
+Write a Python code to construct a dictionary from the given input.
+key_arr = [100, 200, 300]
+value_arr = ["apple", "banana", "mango"]

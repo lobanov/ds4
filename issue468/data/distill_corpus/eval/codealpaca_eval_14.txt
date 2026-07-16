@@ -1,0 +1,1 @@
+Construct a Python class to model a circle.

@@ -1,0 +1,3 @@
+Extract the relevant information from the technical specification into a JSON object.
+
+The Hotel Concierge Management System (HCMS) provides a comprehensive suite of tools to streamline the check-in and check-out process for hotel guests. The GuestCheckInForm module handles the collection of guest information, including personal details, reservation status, and room assignment. The RoomAvailabilityTracker monitors real-time occupancy levels and enables front desk staff to efficiently manage room inventory.

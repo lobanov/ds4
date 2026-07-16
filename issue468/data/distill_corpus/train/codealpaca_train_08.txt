@@ -1,0 +1,1 @@
+Create an array of random integers between 1 to 10 using the function **np.random.randint**.

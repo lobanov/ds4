@@ -1,0 +1,3 @@
+Extract the key details about the cloud service subscription from the provided technical specification.
+
+Azure Cosmos DB is a globally distributed, multi-model database service that allows developers to work with data using a variety of standard APIs, including SQL, MongoDB, Cassandra, Tables, and Gremlin. It offers automatic and seamless scalability, guarantees single-digit millisecond latencies at the 99th percentile, and provides comprehensive service level agreements (SLAs) for availability, consistency, throughput, and low latency. Azure Cosmos DB is designed to be highly available, durable, and easily scalable to meet the needs of modern, data-driven applications.

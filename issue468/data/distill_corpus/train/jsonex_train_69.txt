@@ -1,0 +1,3 @@
+Hey there! Can you help me out and extract the key details on a film production budget into a nice JSON format? I've got all the info in this casual email, so let's get that extracted, yeah?
+
+Yo, so I just got the numbers back on this new film project we're working on. The total budget for production is looking to be around $400k, which is a bit higher than the initial $350k estimate. But get this - the projected profit is a cool $800k! Crazy, right? The film ID for this one is 3, just to keep things organized. Anyway, let me know if you need anything else from me on this. Cheers!

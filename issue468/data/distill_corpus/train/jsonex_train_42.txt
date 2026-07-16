@@ -1,0 +1,9 @@
+Please extract the relevant product wishlist information from the email text into a JSON format with approximately 5 fields. The JSON should use the kebab-case naming convention, and the tone should be detailed and thorough.
+
+Hi there, I hope this email finds you well! I wanted to let you know about my latest product wishlist that I've been curating. As an avid shopper and tech enthusiast, I'm always on the lookout for the latest and greatest gadgets and gizmos. 
+
+Recently, I've been eyeing the new Quantum Leap smartwatch - it has some really impressive features like heart rate monitoring, sleep tracking, and even a built-in ECG. The sleek and modern design is right up my alley, and I love that it's available in a few different color options to match my style. The battery life is also supposed to be top-notch, which is a huge plus for me since I tend to forget to charge my devices.
+
+Another item on my wishlist is the Orion 4K gaming monitor. I'm a bit of a PC gaming buff, and this monitor would be a game-changer for my setup. The 144Hz refresh rate and HDR support would make my games look absolutely stunning. Plus, the slim bezel and minimalist aesthetic would look great on my desk.
+
+I'm also really intrigued by the Lumina smart l

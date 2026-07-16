@@ -1,0 +1,3 @@
+Hey there! Can you help me extract the key details about the Travel Translator App download from this paragraph? I need to get the app's locale, version, download size, and referral source.
+
+Alright, so I was browsing the travel apps on my phone the other day and came across this really cool translation app. It looked perfect for my upcoming trip to Italy - the app is designed for English speakers and has a ton of languages packed in. I decided to give it a download, and the whole process was super smooth. Looks like the current version is 2.4.1 and the download size was around 12 megabytes. From what I can tell, I found the app through an organic search, not from any specific marketing campaign. Super handy app, can't wait to use it on my travels!

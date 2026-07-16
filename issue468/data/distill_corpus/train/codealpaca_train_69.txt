@@ -1,0 +1,2 @@
+Create a function to print out a numbered list of items from an array.
+array = [‘apple’, ‘banana’, ‘orange’]

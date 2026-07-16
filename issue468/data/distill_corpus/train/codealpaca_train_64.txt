@@ -1,0 +1,2 @@
+Create a list comprehension that finds all elements that are divisible by 3 in a given list.
+numbers =[1, 5, 8, 10, 15, 20]

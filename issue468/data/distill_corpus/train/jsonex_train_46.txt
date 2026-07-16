@@ -1,0 +1,11 @@
+Extract the key details about the IT asset decommissioning options from the provided business letter.
+
+Dear Valued Client,
+
+I am writing to present the IT asset decommissioning plan for your organization. After carefully evaluating your end-of-life technology assets, we have identified two viable options that align with your sustainability goals and budgetary constraints.
+
+The first option is to recycle the assets through our partner, GreenTech Recycling. This certified e-waste recycler will properly dispose of the equipment in an environmentally responsible manner. The estimated cost for this service is $100 per unit, with a turnaround time of 1-2 weeks.
+
+Alternatively, we can facilitate the reuse of your assets through our partnership with TechSoup, a non-profit organization dedicated to technology donations. By donating the equipment to qualified educational and non-profit entities, you can avoid any associated costs while positively impacting the community. The timeline for this option is 2-4 weeks.
+
+Please review the details of these decommissioning options and let me know your preferred course of action.

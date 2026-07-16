@@ -1,0 +1,16 @@
+Extract the relevant information from the provided business letter into a JSON structure.
+
+Dear Valued Supplier,
+
+We are writing to inform you of an update to our Supplier Delivery Schedule. As part of our ongoing efforts to streamline our manufacturing operations, we have made some adjustments to the delivery requirements for your organization.
+
+Effective immediately, we request that all future shipments adhere to the following schedule:
+
+DeliveryDate: 2023-05-15
+SupplierName: Acme Manufacturing Solutions
+
+We appreciate your continued partnership and commitment to meeting our production needs. If you have any questions or concerns, please do not hesitate to contact our Procurement team.
+
+Best regards,
+Procurement Manager
+MegaCorp Industries

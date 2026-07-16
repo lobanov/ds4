@@ -1,0 +1,3 @@
+Can you help me extract the key details about this supplier quality improvement plan from the article? I need to get the plan ID, the date it was created, and the due date.
+
+The manufacturing team over at Apex Industries has been working hard on a new supplier quality improvement plan to streamline their operations. The plan, titled "SQIP-9876", was put in place on March 1st and is set to be completed by April 30th. The goal is to work closely with their top suppliers to identify any issues in the production process and implement corrective actions. This should help Apex deliver higher quality products to their customers while also reducing costly rework and delays. It's an ambitious project, but the team is confident they can make a real difference.

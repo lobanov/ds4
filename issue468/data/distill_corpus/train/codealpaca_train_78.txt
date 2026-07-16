@@ -1,0 +1,2 @@
+Create a method to delete items from a specified array.
+Array: [1, 2, 3, 4, 5]

@@ -1,0 +1,2 @@
+Find the minimum element in an unordered array given in Python.
+arr = [17, 21, 4, 7, 29, 34, 11]

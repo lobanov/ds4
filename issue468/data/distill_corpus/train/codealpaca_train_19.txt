@@ -1,0 +1,3 @@
+Compute the minimum string edit distance between two strings of same length.
+str1 = "kitten"
+str2 = "sitting"

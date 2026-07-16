@@ -1,0 +1,3 @@
+Extract the measurement standards used in the quality control calibration records described in the news article excerpt.
+
+In the latest development at ABC Manufacturing, the company announced significant upgrades to its quality control processes. "We've invested heavily in new calibration equipment and procedures to ensure the highest levels of precision and accuracy in our products," said the VP of Operations. The new calibration program utilizes NIST SRM 54321 and NIST SRM 98765 as the primary measurement standards, providing traceability to national references. "These upgrades demonstrate our commitment to manufacturing excellence and delivering consistent, reliable products to our customers," the executive added.

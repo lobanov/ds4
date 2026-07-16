@@ -1,0 +1,7 @@
+Please extract the key information from the email body into a structured JSON format. The target fields are: name, description, codes, and units. The JSON should use kebab-case for the field names and have a detailed, thorough tone.
+
+Hi there, I wanted to share some details about the new Medical Billing Code Set we've been working on. The name of this code set is "Specialized Chronic Condition Codes" and it's designed to provide more granular billing options for healthcare providers treating patients with complex, long-term medical issues. The description is as follows: "This comprehensive code set includes a wide range of billing codes specific to the diagnosis and treatment of various chronic conditions, allowing for more accurate reporting and reimbursement." 
+
+The individual codes included in this set are: CC101, CC201, CC301, CC401, CC501, and CC601. These codes cover a variety of chronic conditions like diabetes, heart disease, respiratory disorders, neurological issues, and autoimmune diseases. The valid billing units for these codes are Hour, Day, and Month.
+
+Please let me know if you need any other details! I'm happy to provide more information about this new code set.

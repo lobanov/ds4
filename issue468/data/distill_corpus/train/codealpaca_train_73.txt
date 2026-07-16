@@ -1,0 +1,2 @@
+Write a Python program to check if a string starts with a letter 'A'.
+str = "I love apples"

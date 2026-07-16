@@ -1,0 +1,1 @@
+Write a Python function to create a dictionary from two given lists. The first list should be the keys and the second list should be the values.

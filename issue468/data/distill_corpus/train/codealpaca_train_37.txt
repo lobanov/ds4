@@ -1,0 +1,12 @@
+Create a function to parse the given HTML and return an array containing the text content of all the <p> tags.
+html:
+<html>
+<head>
+  <title>Parsing HTML</title>
+</head>
+<body>
+  <h1>Parsing HTML</h1>
+  <p>This is the first paragraph.</p>
+  <p>This is the second paragraph.</p>
+</body>
+</html>
