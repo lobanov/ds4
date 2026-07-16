@@ -48,7 +48,27 @@ De-dup removes the redundant physical load (28.5% of the expert physical at K=4 
 3. The prize assumes the fused kernel runs the union bytes at the same ~208 GB/s with no offsetting overhead (the union-expert dispatch + shared dequant). The prototype + cost-gate settle this.
 
 ## Still open (deferred unless gate A requests)
-- **Measurement 1 completeness — the in-tree stage profile is UNRELIABLE.** The single-layer stage profile (layer 40, K=4) returned attn=96% / ffn=4% but **misses the routed experts entirely** — they're dispatched via the SSD-streaming selected-expert path, outside the in-layer `attn`/`ffn` boundaries (DS4_METAL_MOE_ONE_STAGE_PROFILE didn't fire on the batch path either). Confirms codex's skepticism of in-tree stage profiling. **Use the linear fit instead** (expert ~33.5 ms, non-expert ~21 ms at K=4) — that's the reliable decomposition. The attention/dense split within the 21 ms non-expert stays unmeasured (it bounds the FULL-build prize, not the single-stage GO).
-- Measurement 3 (Instruments L2 hit rate): the pair-vs-unique correlation already settled cache-miss decisively; Instruments would confirm + give the coalescing headroom magnitude.
-- Measurement 4 (readahead/overlap flag sweep): a cheap parallel avenue (could win ms without a fused kernel).
+- **Measurement 1 completeness — the in-tree stage profile is UNRELIABLE for attn/ffn** (it returns attn=96%/ffn=4% but misses the routed experts — dispatched via the SSD-streaming path, outside the in-layer boundaries). **BUT `DS4_METAL_MOE_STAGE_PROFILE` (the batch-path flag) DOES capture the routed-MoE stages** (gate_up/down/activation_weight/sum). Use the linear fit for the expert-vs-non-expert split + the MoE-stage flag for the routed-MoE sub-breakdown.
+- Measurement 3 (Instruments L2 hit rate): the pair-vs-unique + the separator (below) already indicate cache-miss; Instruments would definitively confirm + size the coalescing headroom.
+- Measurement 4 (readahead/overlap flag sweep): a cheap parallel avenue.
 - Measurement 5 (exactness margin probe): for the exactness secondary.
+
+## SEPARATOR TEST (post codex-gate-A HOLD) — the routed-MoE dominates the K4→K5 marginal → resolves the confound → GO
+
+Codex gate A (`dspark_codex_reviews/2026-07-16_gpt55_xhigh_lead08_gateA_probe.md`) said HOLD: the linear-fit "expert portion" is confounded (physical bytes ∝ K), the cache-miss inference isn't decisive, the realistic prize is 5–10 ms (clears +20% only at the optimistic end). Recommended the separator: isolate the routed-MoE stage delta (K4 vs K5).
+
+Ran K4 + K5 with `DS4_METAL_MOE_STAGE_PROFILE=1`. Routed-MoE per-verify (×61, sync-inflated → proportions only):
+
+| sub-stage | K=4 | K=5 | Δ |
+|---|---|---|---|
+| gate_up (iq2_xxs gate+up matmul — the de-dup target) | 26.6 | 31.7 | **+5.2** |
+| down (q2_k projection) | 18.1 | 18.8 | +0.7 |
+| activation_weight (router) | 11.1 | 11.4 | +0.3 |
+| sum (expert-output reduction) | 1.1 | 11.0 | +9.8 |
+| **routed-MoE total** | **56.9** | **72.9** | **+16.0** |
+
+- The routed-MoE is ~58% of the verify at K=4 (gate_up+down = ~47%, the de-dup target). attn ~17%, dense/shared ffn ~25%.
+- **The K4→K5 marginal (+16.0 inflated ≈ the real +8.91 ms) is dominated by the routed-MoE** (gate_up + the per-token expert sum). The dense/shared/attn are sublinear (shared across tokens) → their marginal is small. **→ the expert load dominates the marginal → the de-dup (which targets gate_up+down) hits the dominant cost. This resolves codex's confound.**
+- De-dup prize at K=4: 28.5% of (gate_up+down) expert-load bandwidth. gate_up+down (real) ≈ 28 ms → prize ≈ **~6–8 ms real** (borderline +20%; clearly faster than the batch verifier = the primary bar).
+
+**Verdict: GO for the single-stage expert prototype** (the de-dup targets the dominant marginal cost; the primary bar "faster than batch" is robustly met at ~6–8 ms; +20% is borderline, to be settled by the prototype's cost-gate). The hard exit gate protects if the prototype can't beat the batch. Instruments (L2 hit rate) deferred — the in-tree data (pair-vs-unique + separator) already indicates cache-miss; revisit if the prototype underperforms.
