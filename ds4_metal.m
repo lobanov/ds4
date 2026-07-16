@@ -22573,6 +22573,149 @@ static uint32_t ds4_moe_pair_compute_union(
     return n_union;
 }
 
+/* Lead 08 M=2 (DS4_DSPARK_FUSED_ROUTED_M2): the fused routed-expert dispatch for 2 tokens.
+ * Computes the union of the two tokens' expert selections (CPU, from the already-read-back
+ * sel_a/b_ids + w_a/b), uploads it to a small persistent GPU scratch buffer, dispatches the
+ * M=2 gate+up+swiglu kernel over the union (shared dequant), then dispatches the down+sum6
+ * PER TOKEN (selection-ordered, bit-exact sum order). Prototype: the caller (the wiring)
+ * read-back the selections/weights + passes them as CPU pointers; a GPU union kernel is the
+ * production follow-up. Returns 1 on success. */
+static id<MTLBuffer> g_moe_pair_union_scratch_buf = nil;  /* 5 arrays x 12 int32 = 240 B */
+
+int ds4_gpu_routed_moe_pair_tensor(
+        id<MTLCommandBuffer>        cb,
+        ds4_gpu_tensor             *out_a, ds4_gpu_tensor *out_b,
+        ds4_gpu_tensor             *gate_a, ds4_gpu_tensor *gate_b,
+        ds4_gpu_tensor             *up_a,   ds4_gpu_tensor *up_b,
+        ds4_gpu_tensor             *mid_a,  ds4_gpu_tensor *mid_b,
+        const void                 *model_map,
+        uint64_t                    model_size,
+        uint64_t                    gate_offset,
+        uint64_t                    up_offset,
+        uint64_t                    down_offset,
+        uint32_t                    gate_type,
+        uint32_t                    down_type,
+        uint64_t                    gate_expert_bytes,
+        uint64_t                    gate_row_bytes,
+        uint64_t                    down_expert_bytes,
+        uint64_t                    down_row_bytes,
+        uint32_t                    expert_in_dim,
+        uint32_t                    expert_mid_dim,
+        uint32_t                    out_dim,
+        const int32_t              *sel_a_ids, const float *w_a,   /* CPU: token A (read back) */
+        const int32_t              *sel_b_ids, const float *w_b,   /* CPU: token B */
+        ds4_gpu_tensor             *selected_a, ds4_gpu_tensor *selected_b,  /* GPU: the 6-expert ids per token (for the down) */
+        uint32_t                    n_total_expert,
+        float                       clamp,
+        ds4_gpu_tensor             *x_a, ds4_gpu_tensor *x_b) {
+    if (!g_initialized && !ds4_gpu_init()) return 0;
+    if (!cb || !out_a || !out_b || !gate_a || !gate_b || !up_a || !up_b || !mid_a || !mid_b ||
+        !model_map || !sel_a_ids || !sel_b_ids || !w_a || !w_b || !selected_a || !selected_b ||
+        !x_a || !x_b || n_total_expert == 0 ||
+        gate_expert_bytes == 0 || down_expert_bytes == 0 ||
+        gate_row_bytes == 0 || down_row_bytes == 0 ||
+        gate_type != DS4_METAL_TENSOR_IQ2_XXS) {
+        return 0;
+    }
+    if ((expert_in_dim % 256u) != 0 || (expert_mid_dim % 256u) != 0) return 0;
+
+    /* 1. compute the union of the two tokens' top-6 selections (CPU) */
+    int32_t union_ids[12], usel_a[12], usel_b[12];
+    float   uw_a[12], uw_b[12];
+    const uint32_t n_union = ds4_moe_pair_compute_union(
+            sel_a_ids, w_a, sel_b_ids, w_b, union_ids, usel_a, usel_b, uw_a, uw_b);
+    if (n_union == 0 || n_union > 12) return 0;
+
+    @autoreleasepool {
+        /* 2. upload the union to a small persistent GPU scratch buffer (5 segments of 12 int32) */
+        if (!g_moe_pair_union_scratch_buf) {
+            g_moe_pair_union_scratch_buf = [g_device newBufferWithLength:(5u * 12u * sizeof(int32_t))
+                                                                  options:MTLResourceStorageModeShared];
+            if (!g_moe_pair_union_scratch_buf) return 0;
+        }
+        const NSUInteger seg = 12u * sizeof(int32_t);
+        uint8_t *p = (uint8_t *)g_moe_pair_union_scratch_buf.contents;
+        memcpy(p + 0u * seg, union_ids, n_union * sizeof(int32_t));
+        memcpy(p + 1u * seg, usel_a,    n_union * sizeof(int32_t));
+        memcpy(p + 2u * seg, usel_b,    n_union * sizeof(int32_t));
+        memcpy(p + 3u * seg, uw_a,      n_union * sizeof(float));
+        memcpy(p + 4u * seg, uw_b,      n_union * sizeof(float));
+
+        /* 3. wrap the gate/up/down expert-weight regions of the mmap'd model */
+        uint64_t gate_inner = 0, up_inner = 0, down_inner = 0;
+        const uint64_t gate_tensor_bytes = (uint64_t)n_total_expert * gate_expert_bytes;
+        const uint64_t down_tensor_bytes = (uint64_t)n_total_expert * down_expert_bytes;
+        id<MTLBuffer> gate_buf = ds4_gpu_wrap_model_exact_range(model_map, model_size, gate_offset, gate_tensor_bytes, &gate_inner);
+        id<MTLBuffer> up_buf   = ds4_gpu_wrap_model_exact_range(model_map, model_size, up_offset,   gate_tensor_bytes, &up_inner);
+        id<MTLBuffer> down_buf = ds4_gpu_wrap_model_exact_range(model_map, model_size, down_offset, down_tensor_bytes, &down_inner);
+        if (!gate_buf || !up_buf || !down_buf) return 0;
+
+        /* 4. the gate+up args (nei0=n_union, nei1=1 -> pairs=n_union) + the swiglu act args */
+        const uint32_t gate_nr0 = ds4_gpu_routed_mv_nr0(gate_type);
+        const uint32_t down_nr0 = ds4_gpu_routed_mv_nr0(down_type);
+        const NSUInteger gate_smem = ds4_gpu_routed_mv_smem(gate_type);
+        const NSUInteger down_smem = ds4_gpu_routed_mv_smem(down_type);
+        ds4_gpu_mul_mv_id_args gate_args = ds4_gpu_make_mul_mv_id_args(
+                expert_in_dim, expert_mid_dim, n_total_expert,
+                gate_row_bytes, gate_expert_bytes,
+                1u, n_union, 1u, gate_nr0);
+        ds4_gpu_dsv4_moe_swiglu_weight_args act_args = {
+            .width = expert_mid_dim,
+            .rows = n_union,
+            .gate_row_stride = (uint64_t)expert_mid_dim * sizeof(float),
+            .up_row_stride   = (uint64_t)expert_mid_dim * sizeof(float),
+            .mid_row_stride  = (uint64_t)expert_mid_dim * sizeof(float),
+            .weight_stride = sizeof(float),
+            .write_clamped = 0,
+            .clamp_value = clamp,
+        };
+
+        /* 5. dispatch the M=2 fused gate+up+swiglu over the union (shared dequant) */
+        int ok = ds4_gpu_encode_mul_mv_id_pair_swiglu_m2(
+                cb,
+                g_moe_mul_mv_id_iq2_xxs_pair_swiglu_m2_pipeline,
+                &gate_args, &act_args,
+                gate_buf, (NSUInteger)gate_inner,
+                up_buf,   (NSUInteger)up_inner,
+                ds4_gpu_tensor_buffer(x_a), ds4_gpu_tensor_offset(x_a),
+                ds4_gpu_tensor_buffer(x_b), ds4_gpu_tensor_offset(x_b),
+                ds4_gpu_tensor_buffer(gate_a), ds4_gpu_tensor_offset(gate_a),
+                ds4_gpu_tensor_buffer(gate_b), ds4_gpu_tensor_offset(gate_b),
+                ds4_gpu_tensor_buffer(up_a),   ds4_gpu_tensor_offset(up_a),
+                ds4_gpu_tensor_buffer(up_b),   ds4_gpu_tensor_offset(up_b),
+                ds4_gpu_tensor_buffer(mid_a),  ds4_gpu_tensor_offset(mid_a),
+                ds4_gpu_tensor_buffer(mid_b),  ds4_gpu_tensor_offset(mid_b),
+                g_moe_pair_union_scratch_buf, 0u * seg,       /* ids     */
+                g_moe_pair_union_scratch_buf, 1u * seg,       /* sel_a   */
+                g_moe_pair_union_scratch_buf, 2u * seg,       /* sel_b   */
+                g_moe_pair_union_scratch_buf, 3u * seg,       /* weights_a */
+                g_moe_pair_union_scratch_buf, 4u * seg,       /* weights_b */
+                gate_smem, 2, false);
+
+        /* 6. dispatch the down+sum6 PER TOKEN (selection-ordered -> bit-exact sum order).
+         * down: src0_cols=expert_mid_dim, src0_rows=out_dim, 6 experts, 1 token. */
+        ds4_gpu_mul_mv_id_args down_args = ds4_gpu_make_mul_mv_id_args(
+                expert_mid_dim, out_dim, n_total_expert,
+                down_row_bytes, down_expert_bytes,
+                6u, 6u, 1u, down_nr0);
+        if (ok) ok = ds4_gpu_encode_mul_mv_id_sum6(
+                cb, g_moe_mul_mv_id_q2_k_sum6_pipeline, &down_args,
+                down_buf, (NSUInteger)down_inner,
+                ds4_gpu_tensor_buffer(mid_a), ds4_gpu_tensor_offset(mid_a),
+                ds4_gpu_tensor_buffer(out_a), ds4_gpu_tensor_offset(out_a),
+                ds4_gpu_tensor_buffer(selected_a), ds4_gpu_tensor_offset(selected_a),
+                down_smem, 2);
+        if (ok) ok = ds4_gpu_encode_mul_mv_id_sum6(
+                cb, g_moe_mul_mv_id_q2_k_sum6_pipeline, &down_args,
+                down_buf, (NSUInteger)down_inner,
+                ds4_gpu_tensor_buffer(mid_b), ds4_gpu_tensor_offset(mid_b),
+                ds4_gpu_tensor_buffer(out_b), ds4_gpu_tensor_offset(out_b),
+                ds4_gpu_tensor_buffer(selected_b), ds4_gpu_tensor_offset(selected_b),
+                down_smem, 2);
+        return ok;
+    }
+}
+
 int ds4_gpu_routed_moe_one_tensor(
         ds4_gpu_tensor       *out,
         ds4_gpu_tensor       *gate,
