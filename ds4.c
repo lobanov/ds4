@@ -10715,6 +10715,9 @@ typedef struct {
     ds4_gpu_tensor *batch_router_probs;
     ds4_gpu_tensor *batch_router_selected;
     ds4_gpu_tensor *batch_router_weights;
+    ds4_gpu_tensor *batch_profile_router_selected;
+    ds4_gpu_tensor *batch_profile_router_weights;
+    bool batch_expert_profile_capture_active;
     ds4_gpu_tensor *prefill_seed_router_selected;
     uint32_t prefill_seed_tokens;
     uint64_t prefill_selected_profile_rows;
@@ -10804,6 +10807,8 @@ static void metal_graph_free(ds4_gpu_graph *g) {
     ds4_gpu_tensor_free(g->batch_routed_mid);
     ds4_gpu_tensor_free(g->batch_routed_up);
     ds4_gpu_tensor_free(g->batch_routed_gate);
+    ds4_gpu_tensor_free(g->batch_profile_router_weights);
+    ds4_gpu_tensor_free(g->batch_profile_router_selected);
     ds4_gpu_tensor_free(g->batch_router_weights);
     ds4_gpu_tensor_free(g->prefill_seed_router_selected);
     ds4_gpu_tensor_free(g->batch_router_selected);
@@ -11314,6 +11319,10 @@ static bool metal_graph_alloc_raw_cap(
         : DS4_N_INDEXER_HEAD_DIM);
     const uint64_t indexer_q_dim = (uint64_t)DS4_N_INDEXER_HEAD * DS4_N_INDEXER_HEAD_DIM;
     const uint64_t pc = prefill_cap;
+    const bool capture_batch_experts =
+        g_expert_profile.active ||
+        getenv("DS4_MTP_VERIFY_PROFILE") != NULL ||
+        getenv("DS4_MTP_VERIFY_EXPERT_PROFILE") != NULL;
     uint64_t kv_cache_bytes = 0;
     const uint64_t context_bytes =
         metal_graph_context_bytes_for_kv_policy(ctx_size, raw_cap, prefill_cap, &kv_cache_bytes);
@@ -11551,6 +11560,13 @@ static bool metal_graph_alloc_raw_cap(
     g->batch_router_probs = ds4_gpu_tensor_alloc(pc * DS4_N_EXPERT * sizeof(float));
     g->batch_router_selected = ds4_gpu_tensor_alloc(pc * DS4_N_EXPERT_USED * sizeof(int));
     g->batch_router_weights = ds4_gpu_tensor_alloc(pc * DS4_N_EXPERT_USED * sizeof(float));
+    if (capture_batch_experts) {
+        const uint64_t capture_rows = (uint64_t)DS4_N_LAYER * pc * DS4_N_EXPERT_USED;
+        g->batch_profile_router_selected =
+            ds4_gpu_tensor_alloc(capture_rows * sizeof(int32_t));
+        g->batch_profile_router_weights =
+            ds4_gpu_tensor_alloc(capture_rows * sizeof(float));
+    }
     g->prefill_seed_router_selected =
         ds4_gpu_tensor_alloc((uint64_t)DS4_N_LAYER *
                              DS4_STREAMING_PREFILL_CACHE_SEED_MAX_TOKENS *
@@ -11631,6 +11647,9 @@ static bool metal_graph_alloc_raw_cap(
                     g->batch_shared_mid && g->batch_shared_out &&
                     g->batch_router_logits && g->batch_router_probs &&
                     g->batch_router_selected && g->batch_router_weights &&
+                    (!capture_batch_experts ||
+                     (g->batch_profile_router_selected &&
+                      g->batch_profile_router_weights)) &&
                     g->prefill_seed_router_selected &&
                     g->batch_routed_gate && g->batch_routed_up &&
                     g->batch_routed_mid && g->batch_routed_down &&
@@ -12398,6 +12417,32 @@ static bool metal_graph_stream_prefill_selected_profile_layer(
     return true;
 }
 
+static bool metal_graph_capture_batch_selected_profile(
+        ds4_gpu_graph *g,
+        uint32_t       il,
+        uint32_t       n_tokens) {
+    if (!g || !g->batch_expert_profile_capture_active) return true;
+    if (!g->batch_profile_router_selected || !g->batch_profile_router_weights ||
+        !g->batch_router_selected || !g->batch_router_weights ||
+        il >= DS4_N_LAYER || n_tokens == 0 || n_tokens > g->prefill_cap) {
+        return false;
+    }
+
+    const uint64_t layer_ids =
+        (uint64_t)g->prefill_cap * DS4_N_EXPERT_USED;
+    const uint64_t n_ids = (uint64_t)n_tokens * DS4_N_EXPERT_USED;
+    return ds4_gpu_tensor_copy(g->batch_profile_router_selected,
+                               (uint64_t)il * layer_ids * sizeof(int32_t),
+                               g->batch_router_selected,
+                               0,
+                               n_ids * sizeof(int32_t)) != 0 &&
+           ds4_gpu_tensor_copy(g->batch_profile_router_weights,
+                               (uint64_t)il * layer_ids * sizeof(float),
+                               g->batch_router_weights,
+                               0,
+                               n_ids * sizeof(float)) != 0;
+}
+
 static bool metal_graph_batch_selected_profile_stats(
         ds4_gpu_graph           *g,
         const ds4_layer_weights *layer,
@@ -12407,8 +12452,9 @@ static bool metal_graph_batch_selected_profile_stats(
         uint32_t                *unique_out,
         uint64_t                *selected_bytes_out,
         uint64_t                *full_bytes_out) {
-    if (!g || !layer || !g->batch_router_selected ||
-        (g_expert_profile.active && !g->batch_router_weights) || n_tokens == 0 ||
+    if (!g || !layer || !g->batch_profile_router_selected ||
+        (g_expert_profile.active && !g->batch_profile_router_weights) || n_tokens == 0 ||
+        n_tokens > g->prefill_cap || il >= DS4_N_LAYER ||
         !unique_out || !selected_bytes_out || !full_bytes_out ||
         DS4_N_EXPERT == 0 || DS4_N_EXPERT > DS4_MAX_EXPERT ||
         DS4_N_EXPERT_USED == 0 || DS4_N_EXPERT_USED > DS4_MAX_EXPERT_USED) {
@@ -12420,13 +12466,15 @@ static bool metal_graph_batch_selected_profile_stats(
     int32_t *selected = xmalloc((size_t)n_ids * sizeof(selected[0]));
     float *route_weights = g_expert_profile.active ?
         xmalloc((size_t)n_ids * sizeof(route_weights[0])) : NULL;
-    bool read_ok = ds4_gpu_tensor_read(g->batch_router_selected,
-                                       0,
+    const uint64_t layer_ids =
+        (uint64_t)g->prefill_cap * DS4_N_EXPERT_USED;
+    bool read_ok = ds4_gpu_tensor_read(g->batch_profile_router_selected,
+                                       (uint64_t)il * layer_ids * sizeof(int32_t),
                                        selected,
                                        n_ids * sizeof(selected[0])) != 0;
     if (read_ok && route_weights) {
-        read_ok = ds4_gpu_tensor_read(g->batch_router_weights,
-                                      0,
+        read_ok = ds4_gpu_tensor_read(g->batch_profile_router_weights,
+                                      (uint64_t)il * layer_ids * sizeof(float),
                                       route_weights,
                                       n_ids * sizeof(route_weights[0])) != 0;
     }
@@ -19442,6 +19490,9 @@ static bool metal_graph_encode_layer_ffn_batch(
         metal_graph_debug_dump_tensor("ffn_moe_weights_scaled", g->batch_router_weights,
                                       (uint64_t)n_tokens * DS4_N_EXPERT_USED, il, pos0);
     }
+    if (ok) {
+        ok = metal_graph_capture_batch_selected_profile(g, il, n_tokens);
+    }
     DS4_METAL_PROFILE_FFN_STAGE("router");
 
     if (ok) {
@@ -21886,6 +21937,7 @@ static bool metal_graph_verify_suffix_tops(
         g->spec_prefix_capture_valid = g->spec_capture_prefix;
     }
 
+    g->batch_expert_profile_capture_active = profile_experts;
     ok = ds4_gpu_begin_commands() != 0;
     for (uint32_t il = 0; ok && il < DS4_N_LAYER; il++) {
         ok = metal_graph_encode_layer_batch(g,
@@ -21894,7 +21946,14 @@ static bool metal_graph_verify_suffix_tops(
                                             il,
                                             start,
                                             n_tokens);
-        if (ok && profile_experts && weights && il < DS4_N_LAYER) {
+    }
+    if (profile) layers_encoded = now_sec();
+    if (ok) ok = ds4_gpu_end_commands() != 0;
+    else (void)ds4_gpu_synchronize();
+    g->batch_expert_profile_capture_active = false;
+    if (profile) layers_done = now_sec();
+    if (ok && profile_experts && weights) {
+        for (uint32_t il = 0; il < DS4_N_LAYER; il++) {
             uint32_t unique = 0;
             uint64_t selected_bytes = 0;
             uint64_t full_bytes = 0;
@@ -21917,10 +21976,6 @@ static bool metal_graph_verify_suffix_tops(
             if (unique > unique_max) unique_max = unique;
         }
     }
-    if (profile) layers_encoded = now_sec();
-    if (ok) ok = ds4_gpu_end_commands() != 0;
-    else (void)ds4_gpu_synchronize();
-    if (profile) layers_done = now_sec();
     g->spec_capture_prefix1 = saved_capture;
     g->spec_capture_prefix = saved_capture_prefix;
     if (!ok) return false;

@@ -2,7 +2,7 @@
 
 Date: 2026-07-15; **revised 2026-07-16** after the codex avenues/experiments review
 (`issue468/artifacts/dspark_codex_reviews/2026-07-16_gpt55_xhigh_lead08_reassess_avenues.md`).
-Goal: `mrmkwnp6-6n9z9x`. Status: **resolved by artifacts 10-16.** The production overlap probe
+Goal: `mrmkwnp6-6n9z9x`. Status: **resolved by artifacts 10-17.** The production overlap probe
 authorized one grouped prototype; that prototype regressed 22.9%. The margin fallback was
 uneconomic. A later fixed-work production microbenchmark changed only expert-address locality and
 found <2% total/stage sensitivity, closing software-visible remapping/packing. The probe design below
@@ -11,6 +11,8 @@ no material gain from repacking or retiling the production address kernel: all v
 but effects stay within a noisy 1-3% or regress. Artifact 16 finds an exact residency prize only in
 the SSD selected-address runtime, which is incompatible with DSpark; the compatible mapped path has
 no measurable cold/replay gap.
+Artifact 17 corrects the original locality profiler using post-completion per-layer GPU snapshots;
+the corrected hit curve is lower but does not change the carrier verdict.
 
 **Why revised (codex, independently verified):** (a) the "190 GB/s → scattered access →
 recoverable to decode bw" attribution is **unsupported** — the logged "selected GiB" is

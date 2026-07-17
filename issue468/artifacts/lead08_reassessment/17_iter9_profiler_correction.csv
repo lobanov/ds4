@@ -1,0 +1,16 @@
+scope,implementation,layer_records,selections,distinct_layer_top16_vectors,distinct_layer_overlap_values,mean_adjacent_overlap,capacity,hit_rate,weighted_hit_rate
+code_topk_64,stale_in_place_read,3612,21672,11,3,0.439240,8,0.440707,0.456007
+code_topk_64,stale_in_place_read,3612,21672,11,3,0.439240,16,0.708841,0.717782
+code_topk_64,stale_in_place_read,3612,21672,11,3,0.439240,32,0.880076,0.886059
+code_topk_64,stale_in_place_read,3612,21672,11,3,0.439240,64,0.886997,0.892755
+code_topk_64,stale_in_place_read,3612,21672,11,3,0.439240,128,0.886997,0.892755
+code_topk_64,synchronized_layer_snapshots,3612,21672,43,38,0.418113,8,0.411037,0.473570
+code_topk_64,synchronized_layer_snapshots,3612,21672,43,38,0.418113,16,0.608666,0.655302
+code_topk_64,synchronized_layer_snapshots,3612,21672,43,38,0.418113,32,0.794850,0.824758
+code_topk_64,synchronized_layer_snapshots,3612,21672,43,38,0.418113,64,0.862126,0.883079
+code_topk_64,synchronized_layer_snapshots,3612,21672,43,38,0.418113,128,0.868955,0.889507
+three_family_192,synchronized_layer_snapshots,12212,73272,43,43,0.372736,8,0.385577,0.444328
+three_family_192,synchronized_layer_snapshots,12212,73272,43,43,0.372736,16,0.573084,0.618098
+three_family_192,synchronized_layer_snapshots,12212,73272,43,43,0.372736,32,0.723496,0.756299
+three_family_192,synchronized_layer_snapshots,12212,73272,43,43,0.372736,64,0.815086,0.839642
+three_family_192,synchronized_layer_snapshots,12212,73272,43,43,0.372736,128,0.879340,0.898302

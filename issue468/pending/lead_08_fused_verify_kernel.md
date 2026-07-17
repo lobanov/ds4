@@ -1,12 +1,15 @@
 # Lead 08 — Fused low-K batch-verify kernel (close the verify-vs-floor gap)
 
-> **Current verdict (2026-07-17): iteration 8 cache residency = current-path NO-GO; iterations 6/7
+> **Current verdict (2026-07-17): iteration 9 corrected the iteration-8 locality profiler;
+> cache residency remains a current-path NO-GO; iterations 6/7
 > production kernel geometry = NO-GO; iteration 5
 > address locality = NO-GO; iteration 4 margin guard = NO-GO; iteration 3 grouped kernel = NO-GO.**
 > Exact selection replay saves 87.8% on the SSD selected-address path, but `--ssd-streaming` is
 > incompatible with `--dspark`. On the compatible mapped-weight path, cold and replay are both
-> 0.566 ms/layer (-0.04%). Actual verifier locality is high but has no current carrier. Artifact:
-> `issue468/artifacts/lead08_reassessment/16_iter8_cache_residency.md`.
+> 0.566 ms/layer (-0.04%). Corrected three-family verifier profiling finds 57.3%/72.3% LRU hits
+> at capacities 16/32, but that locality still has no current carrier. Artifacts:
+> `issue468/artifacts/lead08_reassessment/16_iter8_cache_residency.md` and
+> `issue468/artifacts/lead08_reassessment/17_iter9_profiler_correction.md`.
 >
 > Fixed-work SIMDgroup-count and output-row-tile sweeps preserve the physical-row algorithm and all
 > variants are bit-exact. SIMDgroup effects stay within 1-3%; alternate row tiles are slower total
@@ -347,6 +350,31 @@ verify-bandwidth slope re-measure.)
 
 ## Worklog
 
+### 2026-07-17 - iteration-9 corrected actual-selection profiling; cache verdict unchanged
+
+Audited the iteration-8 batched-verifier profiler after its layer locality looked implausibly
+repetitive. It read the reused router tensors on the CPU while their producing Metal command buffer
+was still uncommitted. On a repeated 64-token `code_topk` run, the stale path produced only 11
+distinct top-16 expert/count vectors across 43 router layers and three distinct adjacent-overlap
+values, proving that those locality values were not layer-aligned.
+
+The diagnostic path now encodes per-layer GPU snapshots immediately after each router dispatch and
+reads them only after normal command-buffer completion. Capture tensors and copies are allocated
+only when an expert/verify profile is active. The corrected same-prompt run produces 43 distinct
+layer vectors and 38 overlap values. Timing-stripped complete cycle trajectories are identical
+before and after the fix (SHA-256
+`6fa3d319ad89ef8afddc7f89c65145fdbd0214c7326a92aaa438c2a5b34f3481`).
+
+The corrected three-family run records 12,212 layer records / 73,272 selections. Mean adjacent
+top-6 overlap is 0.373; per-layer LRU hit rates are 38.6%, 57.3%, 72.3%, 81.5%, and 87.9% at
+capacities 8/16/32/64/128. A profiling-disabled control has the same full trajectory hash and
+35.66 versus 35.40 t/s, bounding diagnostic overhead at about 0.7%.
+
+Verdict: **iteration-8 locality numbers are superseded, but its carrier NO-GO is unchanged.** The
+mapped path still measures 0.566/0.566 ms per layer cold/replay; only the DSpark-incompatible SSD
+selected-address path has a material residency miss. Retained artifact 17 + CSV and replaced the
+canonical artifact-16 LRU curve.
+
 ### 2026-07-17 - iteration-8 cache residency has an SSD-only prize -> current-path STOP
 
 Profiled the preparation term outside the iteration-2 GPU stage boundaries. At the fixed K=4,
@@ -359,10 +387,11 @@ wrap/load drops 5.407 -> 0.001 ms. This is a real upper bound, not a deployable 
 `ds4-spec-bench` explicitly rejects `--ssd-streaming` with `--dspark`. Running the same probe on the
 actual compatible mapped-weight path gives 0.566 -> 0.566 ms/layer (-0.04%), also bit-exact.
 
-Extended the retained expert locality profiler to ingest actual batched-verifier selections. A
-64-token full-stack run records 22,188 accesses / 3,698 layer records: per-layer LRU hit rates are
-60.5% at capacity 16, 76.0% at 32, 81.4% at 64, and 83.5% at 128+. The locality is real, but only an
-SSD-compatible speculative runtime could exploit the measured cold-load gap.
+Extended the retained expert locality profiler to ingest actual batched-verifier selections.
+Iteration 9 found that the initial implementation read reused router tensors before command-buffer
+completion, invalidating this entry's original locality curve. The corrected three-family result is
+57.3%/72.3%/81.5%/87.9% at capacities 16/32/64/128. The locality is real, but only an SSD-compatible
+speculative runtime could exploit the measured cold-load gap.
 
 Verdict: **NO-GO for current Lead 08; do not port selected-address caching into the mapped path.**
 The compatible carrier misses the material gate, while building DSpark+SSD compatibility belongs to

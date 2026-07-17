@@ -9,7 +9,9 @@
 > production variants. Artifact 15 finds exact row tiles 2/8 slower total with no steady-state gain.
 > Artifact 16 finds a large exact cache-replay upper bound only on the DSpark-incompatible SSD
 > selected-address path; the compatible mapped path changes by 0.04%. Both geometry knobs and the
-> current-path residency carrier are far below the stage gate. Rankings below are
+> current-path residency carrier are far below the stage gate. Artifact 17 corrects the original
+> actual-selection locality profile; the corrected reuse remains real but does not change the
+> carrier result. Rankings below are
 > historical context, not active recommendations.
 
 **Date:** 2026-07-16. **Provenance:** 2 online searches (Cohere Apr-2026 MoE+SD post; MoE-Spec

@@ -233,6 +233,13 @@ of the band; cycle-jump the realistic edge.
 > expert locality, but there is no current-path residency miss to remove. Treat DSpark+SSD as a
 > separate runtime lead, not a Lead 08 speedup. Artifact
 > `lead08_reassessment/16_iter8_cache_residency.md`.
+>
+> **2026-07-17 Lead 08 iteration 9: locality-profiler correction.** Iteration 8's initial
+> batched-selection profiler read reused router buffers before command-buffer completion. Per-layer
+> GPU snapshots preserve complete cycle trajectories and correct the three-family LRU hit curve to
+> 57.3%/72.3% at capacities 16/32. The mapped cold/replay result and speed model are unchanged, so
+> the carrier remains a current-path NO-GO. Artifact
+> `lead08_reassessment/17_iter9_profiler_correction.md`.
 
 - **Corpus-dependent** (cycle-jump K=4 speedup): jsonex **+2.3%**, codealpaca −1.9%, dolly
   −5.6%. The mix is on the easy side — the old 10-prompt code/synthesis exactness corpus was

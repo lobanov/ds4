@@ -55,7 +55,7 @@ meaning materially changes.
 | `DS4_CPU_DUMP_LOGITS` | diagnostic | Dumps CPU logits in the Metal prompt-graph comparison path. |
 | `DS4_CPU_DUMP_PREFILL_LOGITS` | diagnostic | Dumps CPU prefill logits from the CPU runtime path. |
 | `DS4_ORACLE_LOGITS` | diagnostic | Loads external oracle logits for prompt-graph comparison. |
-| `DS4_EXPERT_PROFILE` | diagnostic | Writes routed-expert selections to the given path for locality analysis. The profiler now records both sequential and actual batched-verifier selections. |
+| `DS4_EXPERT_PROFILE` | diagnostic | Writes routed-expert selections to the given path for locality analysis. Sequential selections are read directly; batched-verifier selections use per-layer GPU snapshots and are read only after command-buffer completion. |
 | `DS4_EXPERT_HOTLIST` | variation | Loads an expert hotlist used by runtime preload/streaming heuristics. |
 | `DS4_MOE_REPLAY_SELECTED_IDS` | diagnostic | Replays routed expert ids instead of using live router selection. |
 | `DS4_M2_FIDELITY_TEST` | diagnostic | Runs the self-contained Lead 08 routed-MoE fidelity/cost harness and exits. |

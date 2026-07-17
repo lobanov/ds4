@@ -27,11 +27,17 @@ cycle (~16 ms/token off the target).
 
 Reverse-chronological. Each entry: what was tested → verdict → canonical record.
 
+- **2026-07-17 - Lead 08 iteration 9 profiler correction: iteration-8 locality superseded;
+  verdict unchanged.** The iteration-8 extension read reused router buffers before the Metal command
+  buffer completed. A stale run yielded only 11 distinct top-16 vectors across 43 router layers;
+  per-layer GPU snapshots now yield 43/43 and preserve the complete cycle trajectory exactly. The
+  corrected three-family LRU hit curve is 57.3%/72.3%/81.5%/87.9% at capacities 16/32/64/128.
+  `artifacts/lead08_reassessment/17_iter9_profiler_correction.md`.
 - **2026-07-17 - Lead 08 iteration 8 cache residency: current-path NO-GO.**
   Cold SSD selected-address preparation costs 5.407 ms/layer and bit-exact replay cuts routed time
   11.094 -> 1.353 ms (-87.8%). That carrier is unavailable: the runtime rejects `--ssd-streaming`
   with `--dspark`. The compatible mapped-weight path is already replay parity at 0.566 -> 0.566 ms
-  (-0.04%). A real full-stack trace shows 60.5%/76.0% per-layer LRU hits at capacities 16/32, but
+  (-0.04%). Corrected full-stack profiling shows 57.3%/72.3% per-layer LRU hits at capacities 16/32,
   exploiting them requires a separate SSD-compatible runtime, not another Lead 08 kernel change.
   `artifacts/lead08_reassessment/16_iter8_cache_residency.md`.
 - **2026-07-17 - Lead 08 iteration 7 production row tile: NO-GO.**
@@ -161,9 +167,11 @@ Verify dominates ~80 % of the cycle; this is where the +20 % must come from.
   changed total routed cost by just +1.9% and +0.7% versus contiguous, with matched gate+up movement
   below 2%. This closes software-visible address remapping/packing as the speculative coalescing
   mechanism, without claiming hardware bandwidth-vs-compute attribution. A follow-up production
-  kernel-geometry sweep also fails: all variants are bit-exact, but matched effects remain within
-  about 3% and are inconsistent between total and isolated-stage views. Artifacts 10-14 under
-  `artifacts/lead08_reassessment/`.
+  kernel-geometry and row-tile sweeps also fail: all variants are bit-exact, but matched effects
+  remain within about 3% and are inconsistent between total and isolated-stage views. Exact replay
+  then exposes an 87.8% SSD selected-address saving, but the DSpark-compatible mapped path is already
+  at replay parity. Iteration 9 corrected the locality profiler without changing that carrier
+  verdict. Artifacts 10-17 under `artifacts/lead08_reassessment/`.
 
 ### Scheduler & acceptance
 
@@ -195,9 +203,11 @@ locality microbenchmark shows <2% sensitivity; alternate SIMDgroup counts move c
 gate. Exact cache replay exposes a large SSD selected-address upper bound, but that runtime cannot
 compose with DSpark and the compatible mapped path has no replay gap. Integration and the final K=4
 verifier gate are skipped. Any
-continuation must first establish a genuinely different mechanism with new controlled evidence. On
-this host `xctrace`/offline `metal` are absent and Metal exposes only `GPUTimestamp`; full Xcode GPU
-counters would be diagnostic attribution, not authorization to reopen any stopped branch.
+continuation must first establish a genuinely different mechanism with new controlled evidence.
+Xcode 26.6, offline `metal`, and Metal System Trace are now installed. The standard CLI trace has
+Shader Timeline disabled and no selected counter set, and it changed the controlled microbenchmark
+timing regime, so it is not decision evidence. The next justified diagnostic iteration is matched
+GPU-timestamp stage decomposition; attribution alone does not reopen any stopped branch.
 
 **Lead 10 — drafter re-distillation for IQ2XXS (soft labels)** is a proposed, lower-priority
 drafter-quality follow-up: the one untested route after Lead 07 (hidden-side, dead) and Stage 2

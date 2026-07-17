@@ -19,9 +19,9 @@ Three controlled measurements separate the upper bound from the deployable path:
    immediately replays it without clearing residency. It runs four all-43-layer rounds and directly
    compares cold versus replay gate, up, weighted mid, routed output, and argmax before timing.
 3. The same replay probe runs without SSD streaming, matching the mapped-weight batch path that is
-   compatible with the current DSpark full stack. The routed-expert profiler was also extended to
-   ingest actual batched-verifier selections; one 64-token full-stack prompt produced 22,188 expert
-   accesses across 3,698 layer records for a per-layer LRU simulation.
+   compatible with the current DSpark full stack. The routed-expert profiler also captures actual
+   batched-verifier selections for a per-layer LRU simulation. Iteration 9 corrected its original
+   stale in-place read and expanded the retained result to three prompt families.
 
 The exact SSD experiment uses `--ssd-streaming --ssd-streaming-cold`. Attempting to compose those
 flags with `--dspark` fails explicitly: `--ssd-streaming is not compatible with --dspark yet`.
@@ -44,17 +44,17 @@ but the mapped path already has no measurable cold/replay gap.
 
 ## Actual verifier locality
 
-The full-stack prompt emitted 64 tokens in 33 cycles with mean verify_n 2.61. Every routed layer
-recorded 86 speculative rows. Mean adjacent top-6 overlap is 0.370 (about 2.22 experts) and the
-per-layer LRU hit curve is:
+The corrected three-family trace emits 192 tokens and records 12,212 layer records / 73,272 expert
+selections. Mean adjacent top-6 overlap is 0.373 (about 2.24 experts) and the per-layer LRU hit curve
+is:
 
 | capacity | hit rate |
 |---:|---:|
-| 8 | 37.2% |
-| 16 | 60.5% |
-| 32 | 76.0% |
-| 64 | 81.4% |
-| 128+ | 83.5% |
+| 8 | 38.6% |
+| 16 | 57.3% |
+| 32 | 72.3% |
+| 64 | 81.5% |
+| 128 | 87.9% |
 
 This locality would be useful if an SSD-compatible speculative runtime existed. It does not create
 a current-path saving: the mapped-path replay result is already parity, and the full-stack verifier
@@ -70,4 +70,5 @@ and replay differ by 0.04%.
 
 Retain `DS4_LEAD08_CACHE_REPLAY_PROBE` and the batched-verifier expert-profile extension for
 reproduction/diagnosis. Compact values are in `16_iter8_cache_replay.csv` and
-`16_iter8_actual_expert_lru.csv`; raw `/tmp` logs and profiles are not retained.
+`16_iter8_actual_expert_lru.csv`; the profiler correction and stale-read audit are artifact 17.
+Raw `/tmp` logs and profiles are not retained.
