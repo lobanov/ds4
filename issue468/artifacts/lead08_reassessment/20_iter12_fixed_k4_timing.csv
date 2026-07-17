@@ -1,0 +1,4 @@
+mode,rowwise_qkv_layers,layer_execute_r1_ms,layer_execute_r2_ms,layer_execute_r3_ms,layer_execute_r4_ms,selected_r1_gib,selected_r2_gib,selected_r3_gib,selected_r4_gib,layer_execute_mean_ms,layer_execute_median_ms,paired_delta_mean_ms,paired_delta_median_ms,total_r1_ms,total_r2_ms,total_r3_ms,total_r4_ms,paired_total_delta_mean_ms,paired_total_delta_median_ms
+baseline,0,55.995,56.025,55.823,55.854,4.65,4.65,4.69,4.69,55.92425,55.92450,0,0,64.441,61.762,61.798,61.537,0,0
+layer0,1,55.780,56.395,55.621,56.221,4.65,4.65,4.69,4.69,56.00425,56.00050,0.08000,0.08250,61.778,62.421,61.484,62.013,-0.46050,0.08100
+all_layers,43,56.163,56.738,56.524,56.526,4.59,4.59,4.69,4.69,56.48775,56.52500,0.56350,0.68650,62.490,62.988,62.443,62.511,0.22350,0.80950

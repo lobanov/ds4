@@ -256,6 +256,14 @@ of the band; cycle-jump the realistic edge.
 > and captures; repeat audit passed, making bounded exact-Q/KV projection the next falsifier. The synchronized
 > diagnostic's throughput is not economic evidence. Artifact
 > `lead08_reassessment/19_iter11_same_frontier_localization.md`.
+>
+> **2026-07-17 Lead 08 iteration 12: Q/KV boundary moved at low naive cost.** Verifier-scoped
+> row-wise M=1 Q/KV makes layer-0 row-0 Q/KV projection, normalization, and KV RoPE/storage
+> bit-identical; `Qcur` is now the first captured difference. Four order-balanced process-first K=4
+> samples observe a noisy naive all-layer delta of +0.56 ms mean / +0.69 ms median layer execution;
+> full-corpus samples change downstream routed work. This is an upper-bound estimate, not an isolated
+> cost or unavoidable addition to the ~43 ms optimistic floor. Artifact
+> `lead08_reassessment/20_iter12_rowwise_qkv.md`.
 
 - **Corpus-dependent** (cycle-jump K=4 speedup): jsonex **+2.3%**, codealpaca −1.9%, dolly
   −5.6%. The mix is on the easy side — the old 10-prompt code/synthesis exactness corpus was

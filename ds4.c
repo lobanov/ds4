@@ -10603,6 +10603,7 @@ typedef struct {
     uint32_t spec_prefix_n_index_comp[DS4_DSPARK_BLOCK][DS4_MAX_LAYER];
     bool spec_capture_prefix;
     bool spec_prefix_capture_valid;
+    uint32_t lead08_rowwise_qkv_layers;
     uint32_t raw_cap;
     /* Maximum compressed-row capacity across layers.  Shared work buffers use
      * this worst-case size because ratio-4 indexer layers can still reach it. */
@@ -17572,6 +17573,40 @@ static ds4_gpu_tensor *metal_graph_tensor_row_view(
                                  row_values * sizeof(float));
 }
 
+/* Research-only exact-hybrid falsifier: preserve the M=1 Q8 accumulation
+ * shape for each verifier row without changing any downstream batch stage. */
+static bool metal_graph_matmul_q8_0_rows_as_m1(
+        const char       *module,
+        uint32_t          il,
+        uint32_t          pos0,
+        ds4_gpu_tensor *out,
+        const ds4_model  *model,
+        const ds4_tensor *w,
+        uint64_t          in_dim,
+        uint64_t          out_dim,
+        ds4_gpu_tensor *x,
+        uint32_t          n_tokens) {
+    bool ok = true;
+    for (uint32_t row = 0; ok && row < n_tokens; row++) {
+        ds4_gpu_tensor *out_row = metal_graph_tensor_row_view(out, row, out_dim);
+        ds4_gpu_tensor *in_row = metal_graph_tensor_row_view(x, row, in_dim);
+        ok = out_row && in_row &&
+             metal_graph_matmul_q8_0_named_tensor(module,
+                                                   il,
+                                                   pos0 + row,
+                                                   out_row,
+                                                   model,
+                                                   w,
+                                                   in_dim,
+                                                   out_dim,
+                                                   in_row,
+                                                   1);
+        ds4_gpu_tensor_free(in_row);
+        ds4_gpu_tensor_free(out_row);
+    }
+    return ok;
+}
+
 /* Upload prompt token ids for kernels that need token-aware hash routing. */
 static bool metal_graph_upload_prompt_tokens(
         ds4_gpu_tensor *out_tokens,
@@ -17917,6 +17952,7 @@ static bool metal_graph_encode_layer_attention_batch(
     uint32_t *comp_counts = compressed ? xcalloc(n_tokens, sizeof(comp_counts[0])) : NULL;
     uint32_t *index_counts = ratio == 4 ? xcalloc(n_tokens, sizeof(index_counts[0])) : NULL;
     const bool qkv_rms_fused = !metal_graph_use_reference_qkv_norm();
+    const bool rowwise_qkv = n_tokens > 1 && il < g->lead08_rowwise_qkv_layers;
     ds4_gpu_tensor *hc_mix_view = ds4_gpu_tensor_view(
             g->batch_hc_mix, 0, (uint64_t)n_tokens * mix_hc * sizeof(float));
     ds4_gpu_tensor *hc_split_view = ds4_gpu_tensor_view(
@@ -18008,32 +18044,58 @@ static bool metal_graph_encode_layer_attention_batch(
     }
     DS4_METAL_PROFILE_ATTN_STAGE("norm");
     DS4_METAL_PROFILE_Q_STAGE("pre_q");
-    if (ok) ok = metal_graph_matmul_q8_0_named_tensor("attn_q_a",
-                                                      il,
-                                                      pos0,
-                                                      g->batch_qr,
-                                                      model,
-                                                      layer->attn_q_a,
-                                                      DS4_N_EMBD,
-                                                      q_rank,
-                                                      g->batch_attn_norm,
-                                                      n_tokens);
+    if (ok) {
+        ok = rowwise_qkv
+            ? metal_graph_matmul_q8_0_rows_as_m1("attn_q_a",
+                                                  il,
+                                                  pos0,
+                                                  g->batch_qr,
+                                                  model,
+                                                  layer->attn_q_a,
+                                                  DS4_N_EMBD,
+                                                  q_rank,
+                                                  g->batch_attn_norm,
+                                                  n_tokens)
+            : metal_graph_matmul_q8_0_named_tensor("attn_q_a",
+                                                    il,
+                                                    pos0,
+                                                    g->batch_qr,
+                                                    model,
+                                                    layer->attn_q_a,
+                                                    DS4_N_EMBD,
+                                                    q_rank,
+                                                    g->batch_attn_norm,
+                                                    n_tokens);
+    }
     if (ok) {
         metal_graph_debug_dump_tensor("q_lora", g->batch_qr,
                                       (uint64_t)n_tokens * q_rank, il, pos0);
     }
     DS4_METAL_PROFILE_Q_STAGE("q_a");
     if (qkv_rms_fused) {
-        if (ok) ok = metal_graph_matmul_q8_0_named_tensor("attn_kv",
-                                                          il,
-                                                          pos0,
-                                                          g->batch_kv_raw,
-                                                          model,
-                                                          layer->attn_kv,
-                                                          DS4_N_EMBD,
-                                                          DS4_N_HEAD_DIM,
-                                                          g->batch_attn_norm,
-                                                          n_tokens);
+        if (ok) {
+            ok = rowwise_qkv
+                ? metal_graph_matmul_q8_0_rows_as_m1("attn_kv",
+                                                      il,
+                                                      pos0,
+                                                      g->batch_kv_raw,
+                                                      model,
+                                                      layer->attn_kv,
+                                                      DS4_N_EMBD,
+                                                      DS4_N_HEAD_DIM,
+                                                      g->batch_attn_norm,
+                                                      n_tokens)
+                : metal_graph_matmul_q8_0_named_tensor("attn_kv",
+                                                        il,
+                                                        pos0,
+                                                        g->batch_kv_raw,
+                                                        model,
+                                                        layer->attn_kv,
+                                                        DS4_N_EMBD,
+                                                        DS4_N_HEAD_DIM,
+                                                        g->batch_attn_norm,
+                                                        n_tokens);
+        }
         if (ok) {
             metal_graph_debug_dump_tensor("KVraw", g->batch_kv_raw,
                                           (uint64_t)n_tokens * DS4_N_HEAD_DIM, il, pos0);
@@ -18153,16 +18215,29 @@ static bool metal_graph_encode_layer_attention_batch(
     }
     DS4_METAL_PROFILE_ATTN_STAGE("q_path");
     if (!qkv_rms_fused) {
-        if (ok) ok = metal_graph_matmul_q8_0_named_tensor("attn_kv",
-                                                          il,
-                                                          pos0,
-                                                          g->batch_kv_raw,
-                                                          model,
-                                                          layer->attn_kv,
-                                                          DS4_N_EMBD,
-                                                          DS4_N_HEAD_DIM,
-                                                          g->batch_attn_norm,
-                                                          n_tokens);
+        if (ok) {
+            ok = rowwise_qkv
+                ? metal_graph_matmul_q8_0_rows_as_m1("attn_kv",
+                                                      il,
+                                                      pos0,
+                                                      g->batch_kv_raw,
+                                                      model,
+                                                      layer->attn_kv,
+                                                      DS4_N_EMBD,
+                                                      DS4_N_HEAD_DIM,
+                                                      g->batch_attn_norm,
+                                                      n_tokens)
+                : metal_graph_matmul_q8_0_named_tensor("attn_kv",
+                                                        il,
+                                                        pos0,
+                                                        g->batch_kv_raw,
+                                                        model,
+                                                        layer->attn_kv,
+                                                        DS4_N_EMBD,
+                                                        DS4_N_HEAD_DIM,
+                                                        g->batch_attn_norm,
+                                                        n_tokens);
+        }
         if (ok) {
             metal_graph_debug_dump_tensor("KVraw", g->batch_kv_raw,
                                           (uint64_t)n_tokens * DS4_N_HEAD_DIM, il, pos0);
@@ -21888,6 +21963,22 @@ static bool metal_graph_capture_dspark_batch_main_hidden(ds4_gpu_graph *g,
     return true;
 }
 
+static uint32_t lead08_rowwise_qkv_layer_count(void) {
+    static uint32_t layers = UINT32_MAX;
+    if (layers != UINT32_MAX) return layers;
+
+    layers = 0;
+    const char *value = getenv("DS4_LEAD08_ROWWISE_QKV_LAYERS");
+    if (!value || !value[0] || !strcmp(value, "0") || !strcasecmp(value, "off")) return layers;
+
+    char *end = NULL;
+    const unsigned long parsed = strtoul(value, &end, 10);
+    if (end != value && *end == '\0') {
+        layers = parsed < DS4_N_LAYER ? (uint32_t)parsed : DS4_N_LAYER;
+    }
+    return layers;
+}
+
 static bool metal_graph_verify_suffix_tops(
         ds4_gpu_graph *g,
         const ds4_model       *model,
@@ -21934,6 +22025,17 @@ static bool metal_graph_verify_suffix_tops(
 
     const bool saved_capture = g->spec_capture_prefix1;
     const bool saved_capture_prefix = g->spec_capture_prefix;
+    const uint32_t saved_rowwise_qkv_layers = g->lead08_rowwise_qkv_layers;
+    g->lead08_rowwise_qkv_layers = n_tokens > 1 ? lead08_rowwise_qkv_layer_count() : 0;
+    if (g->lead08_rowwise_qkv_layers) {
+        static bool announced = false;
+        if (!announced) {
+            fprintf(stderr,
+                    "ds4: lead08 row-wise M1 Q/KV active for %u verifier layers\n",
+                    g->lead08_rowwise_qkv_layers);
+            announced = true;
+        }
+    }
     g->spec_capture_prefix1 = capture_prefix1 && n_tokens == 2;
     {
         static int s_prefix_checkpoint = -1;
@@ -21986,6 +22088,7 @@ static bool metal_graph_verify_suffix_tops(
     }
     g->spec_capture_prefix1 = saved_capture;
     g->spec_capture_prefix = saved_capture_prefix;
+    g->lead08_rowwise_qkv_layers = saved_rowwise_qkv_layers;
     if (!ok) return false;
 
     ok = ds4_gpu_begin_commands() != 0;

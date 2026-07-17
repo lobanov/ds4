@@ -366,6 +366,64 @@ verify-bandwidth slope re-measure.)
 
 ## Worklog
 
+### 2026-07-17 - iteration-12 V6 row-wise Q/KV projection -> CAUSAL GO / audit COMMIT
+
+**Hypothesis V6.** The first row-0 M=K/M=1 difference is caused by the Q8 projection dispatch
+changing from the M=1 matvec reduction to the 2-8-row extended kernel. Running Q-a and KV as
+independent M=1 row views should make `q_lora` and `KVraw` bit-identical and move the first
+divergence downstream without changing any other batch stage.
+
+**Reference/candidate.** Reference is iteration 11's restored same-frontier M=K probe. Candidate
+uses `DS4_LEAD08_ROWWISE_QKV_LAYERS=N`, saved/restored only inside the suffix verifier. `N=1` is the
+causal capture; `N=43` is the naive all-layer cost probe. Prompt prefill, batch M=1, normalization,
+Q-b, RoPE, cache/compressor, attention, FFN, and output head remain unchanged.
+
+**Correctness invariant.** At `code_sort_pairs` position 104, M=K row 0 and the complete M=1 tensor
+must retain bit-identical `attn_norm`; the first 1024 `q_lora` and 512 `KVraw` F32 values must become
+bit-identical. Only row 0 is a same-frontier/identical-input claim. Dumps stop at `KVnorm`; requesting
+`Qraw` would itself change the Q-b dispatch.
+
+**Economic metric and threshold.** Matched fixed-K=4 runs without distribution probe, tensor dumps,
+or per-stage synchronization compare `DS4_MTP_VERIFY_PROFILE` layer intervals for `N=0`, `N=1`, and
+`N=43`. That profiler adds common per-layer router capture/statistics work, so paired deltas are
+supporting evidence but absolute times do not compare directly with the 50.5 ms production gate.
+`N=43` is an implementation upper bound, not an unavoidable-cost lower bound. Continue if the
+correctness frontier moves and a credible optimized path to `verify_ms(4) <= 50.5 ms` remains.
+
+**Cheapest falsifier and outcomes.** One verifier-scoped helper loops over row-contiguous views and
+calls the existing named Q8 primitive with `n_tokens=1`. If either projection still differs after
+the activation log confirms the path ran, V6 fails. If both match and `KVnorm` differs, V6 passes
+causally and Q/KV normalization becomes the next boundary. If all captured stages match, extend the
+capture only to the next boundary. A slow `N=43` closes only this naive row-dispatch implementation;
+V5 stops only when costs proven unavoidable raise the retained feasibility lower bound above 50.5 ms.
+
+**Evidence/audit contract.** Retain the one-prompt config, compact stage comparison, matched timing
+summary, exact commands, and preflight challenge. The preflight returned **REDESIGN, then proceed**:
+it required suffix-only scope, a numeric layer cap, minimal dumps, and upper-bound wording. Repeat
+the independent red-team audit after results and commit only on its approval.
+
+**Result.** With `N=1`, layer-0 row-0 `attn_norm`, `q_lora`, `KVraw`, both Q/KV normalizations,
+KV RoPE/storage, and the common raw-cache prefix are bit-identical. `q_lora` improves from 799/1024
+different words to zero and `KVraw` from 405/512 to zero. The first captured difference moves to
+production `Qcur` (25,988/32,768 words, max 1.91e-6), the fused Q-b + per-head norm + RoPE stage.
+The final cycle-24 logit flip remains, so this is boundary movement rather than verifier exactness.
+
+Four order-balanced process-first K=4 samples put the noisy `N=1` layer delta at +0.080 ms mean /
++0.083 ms median (range -0.215 to +0.370) and naive `N=43` at +0.564 / +0.687 ms. The first
+baseline total had a cold encode outlier; paired total medians are +0.081 and +0.810 ms. Full-corpus
+`N=43` changes selected routed work, so these are observed whole-layer deltas and only an upper-bound
+estimate for the naive implementation, not an isolated or proven-unavoidable Q/KV cost. The retained
+~43 ms optimistic feasibility floor remains; the next boundary is row-wise production Q-b + norm +
+RoPE. The ~56 ms absolute interval is profile-instrumented and is not compared directly to the
+50.5 ms production gate. Artifact 20 + two compact CSVs.
+
+The mandatory audit first blocked the timing record's unsupported thermal-control claim, incomplete
+sequence reproduction, absolute profiler interpretation, and omitted selected-work confound. After
+correction it returned **COMMIT**, validating source scope, row-view/primitive behavior, capture,
+CSVs, flip, timing arithmetic, commands, and ledger. Residuals: no forced-error scope test; negative
+layer text clamps to 43; correctness is one row/prompt/layer; timing is noisy profile-instrumented
+supporting evidence.
+
 ### 2026-07-17 - iteration-11 same-frontier localization -> corrected audit COMMIT
 
 Used `DS4_DSPARK_VERIFY_DIST_PROBE=1` with committing M=K disabled and the iteration-10 batched-M1

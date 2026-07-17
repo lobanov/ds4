@@ -20,13 +20,20 @@ cycle (~16 ms/token off the target).
 | Goal | ≥20 % greedy throughput on ds4 IQ2XXS, output-preserved |
 | Current best | Full DSpark stack **+4.9 %** over plain (40.04 vs 38.16 t/s; score-neutral 61/92) — M3 |
 | The gap | +20 % not reached; verify ≈80 % of the cycle |
-| Open lever | **No demonstrated +20% lever.** Lead 08's grouped gate+up prototype is slower, margin fallback is uneconomic, layout/cache branches fail, and the existing batch graph is neither M-invariant nor fast enough as a shared M=1/M=K family. The original exact hybrid remains unbuilt and high-risk, not proven negative |
+| Open lever | **No demonstrated +20% lever.** Lead 08's grouped gate+up prototype is slower, margin fallback is uneconomic, layout/cache branches fail, and the existing batch graph is neither M-invariant nor fast enough as a shared M=1/M=K family. The exact-hybrid frontier has moved through Q/KV projection at low incremental cost, but remains unbuilt beyond Q-b |
 | Closed (negative) | Drafter/input quality (Lead 07), drafter quant (Q4_K), non-expert finetune (Stage 2), DFlash, quant-mismatch |
 
 ## Investigation arc
 
 Reverse-chronological. Each entry: what was tested → verdict → canonical record.
 
+- **2026-07-17 - Lead 08 iteration 12 row-wise Q/KV: causal GO, audit COMMIT.** A verifier-scoped
+  M=1 row projection makes layer-0 row-0 `q_lora`, `KVraw`, both normalizations, and the KV
+  RoPE/storage path bit-identical. The first difference moves to production `Qcur` (fused Q-b +
+  head norm + RoPE). Four order-balanced process-first K=4 samples observe noisy all-43-layer deltas
+  of +0.56 ms mean / +0.69 ms median layer execution, with changed downstream work in the
+  full-corpus pair. This is a naive implementation upper-bound estimate, not an isolated cost or
+  unavoidable lower bound. `artifacts/lead08_reassessment/20_iter12_rowwise_qkv.md`.
 - **2026-07-17 - Lead 08 iteration 11 same-frontier localization: corrected audit COMMIT.**
   A noncommitting M=K probe followed by batched-M1 replay finds
   2 argmax flips across 349 accepted-row comparisons, with 640 batched and zero raw singleton target
@@ -227,12 +234,13 @@ gate. Exact cache replay exposes a large SSD selected-address upper bound, but t
 compose with DSpark and the compatible mapped path has no replay gap. Integration and the final K=4
 verifier gate are skipped. Any
 continuation must first establish a genuinely different mechanism with new controlled evidence.
-The original Phase B exact hybrid remains unbuilt. Iteration 11 localizes the first M-dependent
-boundary to layer-0 Q/KV attention projection from otherwise bit-identical inputs. The next bounded
-step is row-wise M=1 Q/KV projection inside the batch graph, first at layer 0, followed by the same
-position-104 boundary capture and a matched cost probe. Continue stage-by-stage only if the first
-divergence moves and a credible path to `verify_ms(4) <= 50.5 ms` remains; abort as soon as exact
-rerouting exhausts that budget.
+The original Phase B exact hybrid remains unbuilt. Iteration 12 moves the same-frontier layer-0
+correctness boundary through Q/KV projection, Q/KV normalization, and the KV RoPE/storage path. The
+next bounded step is row-wise production-path Q-b + per-head normalization + RoPE, followed by the
+same position-104 capture and matched `N=1`/`N=43` cost probe. Continue only if the frontier moves
+and a credible path to `verify_ms(4) <= 50.5 ms` remains. Naive row-dispatch overhead is an
+implementation upper bound; stop the full hybrid only when costs proven unavoidable exhaust the
+retained feasibility floor.
 
 **Lead 10 — drafter re-distillation for IQ2XXS (soft labels)** is a proposed, lower-priority
 drafter-quality follow-up: the one untested route after Lead 07 (hidden-side, dead) and Stage 2

@@ -57,7 +57,8 @@ corpus, exactness contract, and whether timing is decision-grade or diagnostic-o
 | V3 | Margin-guarded exact fallback | Could repair rare flips | No universal observed bound | Composes | Margin coverage + replay cost | Safe observed threshold guards 17.1%, adds >=7 ms/cycle | `CLOSED` |
 | V4 | Shared batch M=1/M=K operation family | Exactness by shared family if M-invariant | Fails | Composes | Matched target rebaseline + corpus | 5/10 exact; M1 -13.0%; stack -1.3% vs shipped | `CLOSED` |
 | V5 | Exact hybrid: row-wise exact state transitions plus invariant batch sharing | Only remaining measured Lead 08 route to floor | Unproven | Intended to compose | Stage-by-stage first-divergence movement plus cumulative cost bound | Original design never built | `OPEN`, highest-value branch |
-| V6 | Row-wise batch-M1 Q/KV projection at layer 0 | Resolves first observed V5 correctness debt | Unproven beyond first boundary | Diagnostic patch | Exactify Q/KV; repeat position-104 capture; measure delta | Iteration 11 localization reproduced after enforced restore | `OPEN`, rank 1 |
+| V6 | Row-wise batch-M1 Q/KV projection at layer 0 | Resolves first observed V5 correctness debt | Exact through Q/KV norm and KV path for captured row | Diagnostic patch | Exactify Q/KV; repeat position-104 capture; measure delta | Frontier moves to Qcur; noisy naive all-layer delta +0.56 ms mean with downstream-work confound | `CLOSED` positive |
+| V7 | Row-wise production Q-b + head norm + RoPE at layer 0 | Resolves next observed V5 correctness debt | Unproven | Diagnostic patch | Row-wise fused Qcur stage; repeat capture and cost discipline | `Qcur` is first iteration-12 difference | `OPEN`, rank 1 |
 | K1 | Grouped routed gate/up | Proposed expert-load sharing | Bit-exact on identical inputs | Composes | Production 18/24 prototype | 22.9% slower | `CLOSED` |
 | K2 | Expert address remapping / packing | Proposed coalescing | Exact | Composes | Fixed-work placement sweep | Less than 2% sensitivity | `CLOSED` |
 | K3 | Address-kernel SIMDgroup / row-tile geometry | Low-single-digit possible | Exact | Composes | Production fixed-work sweep | At most about 1-3%, inconsistent | `CLOSED` |
@@ -74,9 +75,9 @@ under `issue468/artifacts/lead08_reassessment/`):
 - A1-A3: `spec_speedup_model.md`, `anchor_reuse_falsifier.md`, and
   `confidence_scheduled_verification.md`.
 - R1-R2 and V1-V2: `dspark_runtime_milestone_3_progress.md` and `spec_speedup_model.md`.
-- V3-V6: Lead 08 reassessment artifacts `12_iter4_margin_guard.md`,
+- V3-V7: Lead 08 reassessment artifacts `12_iter4_margin_guard.md`,
   `18_iter10_batch_m1_target.md`, `lead08_phaseB_floor_clearance_verdict.md`, and
-  `19_iter11_same_frontier_localization.md`.
+  `19_iter11_same_frontier_localization.md`, and `20_iter12_rowwise_qkv.md`.
 - K1-K3, M1-M2: Lead 08 reassessment artifacts `11_iter3_grouped_gateup_prototype.md`,
   `13_iter5_address_locality.md`, `14_iter6_addr_nsg_geometry.md`,
   `15_iter7_addr_row_tile.md`, and `16_iter8_cache_residency.md`.
@@ -94,9 +95,11 @@ M-dependent.
 | token / HC input | Row-0 input implied common; not separately retained | not fully isolated | retain only if Q/KV reroute exposes ambiguity |
 | layer-0 `hc_attn_pre` | bit-identical row 0 in post-fix iteration 11 dump | exact for captured row | none |
 | layer-0 `attn_norm` | bit-identical row 0 | exact for captured row | none |
-| layer-0 Q-a / KV projection | `q_lora` and `KVraw` first captured differences | first unresolved boundary | V6 row-wise M1 projection after iteration 11 audit |
-| Q/KV norm, Q-b, rope | divergent after Q/KV input divergence | unknown independently | test only if V6 moves frontier |
-| cache / compressor / indexer | not isolated by layer-0 case | unknown | test next first boundary only |
+| layer-0 Q-a / KV projection | bit-identical after V6 row-wise M1 projection | exact for captured row | none |
+| Q/KV normalization | bit-identical after V6 | exact for captured row | none |
+| Q-b + head norm + Q RoPE | `Qcur` is the first V6 difference | first unresolved composite boundary | V7 row-wise production fused stage |
+| KV RoPE / store / common raw cache | bit-identical after V6 | exact for captured row | none |
+| compressor / indexer | downstream of Qcur in the layer-0 case | unknown | test only after V7 moves frontier |
 | attention reduction / output | divergent downstream | unknown independently | test next first boundary only |
 | HC post | divergent downstream | unknown independently | test next first boundary only |
 | routed MoE gate/up | bit-exact in identical-input isolated prototype | exact in that harness; economics closed | retain production path; do not rebuild grouped K1 |
@@ -118,7 +121,7 @@ No new experiment starts without these fields in its worklog or artifact:
 
 For exact-hybrid stages, correctness and performance are coupled:
 
-`candidate lower bound = measured exactified work + optimistic remaining batch floor + runtime overhead`
+`candidate lower bound = proven-unavoidable exactified work + optimistic remaining batch floor + runtime overhead`
 
 The branch stops as soon as that lower bound cannot meet `verify_ms(4) <= 50.5 ms`. Moving the
 correctness frontier without measuring incremental cost is diagnostic progress, not authorization for
@@ -129,11 +132,11 @@ a full build.
 | Rank | Experiment | Why now | Pass | Fail / stop |
 |---:|---|---|---|---|
 | P0 | Enforce `spec_frontier_restore` success in the same-frontier probe and rerun iteration 11 | Audit found the core invariant was unchecked | **Resolved:** hard failure plus 267/267 successful restores; corpus and dumps reproduce | Repeat audit passed; proceed to V6 |
-| 1 | V6 layer-0 row-wise batch-M1 Q/KV projection with matched timing | First unresolved correctness boundary and cheapest hybrid falsifier | First divergence moves; incremental cost leaves credible <=50.5 ms path | Divergence remains, or cumulative lower bound exceeds gate |
-| 2 | Repeat first-divergence isolation at the newly exposed boundary | Delta-debug the pipeline, not guess stages | Frontier moves within budget | Stop V5 when exact work exhausts budget |
+| 1 | V7 layer-0 row-wise production Q-b + head norm + RoPE with matched timing | `Qcur` is the first unresolved boundary after V6 | First divergence moves; incremental cost leaves credible <=50.5 ms path | Divergence remains, or proven-unavoidable lower bound exceeds gate |
+| 2 | Repeat first-divergence isolation at the newly exposed boundary | Delta-debug the pipeline, not guess stages | Frontier moves within budget | Stop V5 only when proven-unavoidable work exhausts budget |
 | 3 | Full-corpus exactness plus end-to-end K=4 timing | Only after all boundaries pass | Exact stream and <=50.5 ms verify, then >=20% composed run | Close V5 |
 | 4 | D5 soft-label redistillation | Only if an exact economic verifier survives and acceptance remains limiting | Powered p1 lift composes into >=20% model | Close drafter axis |
 
 P0 is complete and the repeat red-team audit passed. No
 GPU-timestamp-only, grouped-MoE, layout, geometry, mapped-residency, or margin-policy experiment may
-preempt V6 without new evidence that changes the ledger's upper bounds.
+preempt V7 without new evidence that changes the ledger's upper bounds.

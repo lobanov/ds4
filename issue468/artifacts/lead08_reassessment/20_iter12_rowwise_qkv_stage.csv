@@ -1,0 +1,11 @@
+stage,scalar_count,differing_f32_words,max_abs,rms
+attn_norm,4096,0,0,0
+q_lora,1024,0,0,0
+KVraw,512,0,0,0
+q_lora_norm,1024,0,0,0
+KVnorm,512,0,0,0
+Qcur,32768,25988,1.90734863e-06,1.38353926e-07
+KVrope,512,0,0,0
+KVcur,512,0,0,0
+raw_cache,53760,0,0,0
+kqv_out,32768,14198,6.43730164e-06,2.72732676e-07
