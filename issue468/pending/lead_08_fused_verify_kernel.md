@@ -1,6 +1,7 @@
 # Lead 08 — Fused low-K batch-verify kernel (close the verify-vs-floor gap)
 
-> **Current verdict (2026-07-17): iteration 9 corrected the iteration-8 locality profiler;
+> **Current verdict (2026-07-17): iteration 10 falsified the existing batch graph as a shared
+> M=1/M=K exactness family; iteration 9 corrected the iteration-8 locality profiler;
 > cache residency remains a current-path NO-GO; iterations 6/7
 > production kernel geometry = NO-GO; iteration 5
 > address locality = NO-GO; iteration 4 margin guard = NO-GO; iteration 3 grouped kernel = NO-GO.**
@@ -10,6 +11,14 @@
 > at capacities 16/32, but that locality still has no current carrier. Artifacts:
 > `issue468/artifacts/lead08_reassessment/16_iter8_cache_residency.md` and
 > `issue468/artifacts/lead08_reassessment/17_iter9_profiler_correction.md`.
+>
+> `DS4_LEAD08_BATCH_M1_TARGET=1` re-baselines target decode onto the same layer-major graph used by
+> the M=K verifier. On the retained 10-prompt/640-token corpus, M=K speculative output matches that
+> target on only 5/10 prompts. The batch-M1 target is 32.989 t/s versus shipped decode 37.902
+> (-13.0%), while speculative is 37.407 t/s: only +13.4% over the slower target and -1.3% versus
+> shipped decode. The existing end-to-end batch graph/state transition is not M-invariant; this
+> experiment does not localize the cause to a kernel. Artifact:
+> `issue468/artifacts/lead08_reassessment/18_iter10_batch_m1_target.md`.
 >
 > Fixed-work SIMDgroup-count and output-row-tile sweeps preserve the physical-row algorithm and all
 > variants are bit-exact. SIMDgroup effects stay within 1-3%; alternate row tiles are slower total
@@ -54,7 +63,7 @@
 
 Date: 2026-07-07 (refreshed 2026-07-17). Status:
 **Phase B swap-only NO-GO -> grouped prototype NO-GO -> margin fallback NO-GO -> address-layout
-NO-GO -> production geometry NO-GO.**
+NO-GO -> production geometry NO-GO -> existing batch-family exactness NO-GO.**
 This doc remains the Lead 08 provenance record. Phase A result:
 `issue468/summaries/mtp_verifier_engineering_and_phaseA.md`; Phase B canonical
 summary `issue468/summaries/lead08_phaseB_floor_clearance_verdict.md`.
@@ -341,7 +350,7 @@ FINAL verdict = NO-GO via swaps → bounded build attempt with a hard exit gate
 `issue468/summaries/lead08_phaseB_floor_clearance_verdict.md`. STATUS.md +
 spec_speedup_model.md updated.
 
-**Historical gated follow-up (now complete negative):** attempt the **sublinear bit-exact
+**Historical gated follow-up (still unbuilt; prior completion wording was too broad):** attempt the **sublinear bit-exact
 batch-path build** (HC/compressor/attention on decode reductions + batched load sharing) as
 a BOUNDED effort with a **hard exit gate** — GO is unconfirmed until an end-to-end K=4
 bit-exact verifier profiles `verify_ms(4) ≤ 50.5 ms`. NOT "gate cleared / commit as
@@ -349,6 +358,40 @@ sufficient." (Confirmatory: a literal identical-input MoE kernel-equality harnes
 verify-bandwidth slope re-measure.)
 
 ## Worklog
+
+### 2026-07-17 - iteration-10 existing batch graph fails the shared M=1/M=K strategy -> STOP
+
+Before implementing standalone GPU timestamp attribution, ran an independent red-team audit. It
+found a material dossier overclaim: iteration 3 rejected only a grouped routed-MoE stage inside the
+nonexact batch verifier, not Phase B's intended end-to-end exact hybrid. The cheapest still-open
+exactness strategy was using one operation family for target M=1 and speculative M=K.
+
+Added research-only `DS4_LEAD08_BATCH_M1_TARGET=1`. Normal Metal target evaluation and both DSpark
+replay fallbacks use `metal_graph_verify_suffix_tops` with one token, so M=1 and M=K share the batch
+layer and output-head functions. DSpark sessions capture layers 40-42 through the existing batch
+buffers and push row 0 through the existing batch-hidden lifecycle. Default inference is unchanged
+and the diagnostic rejects MTP rather than silently leaving its state inconsistent.
+
+The mandatory post-implementation red-team audit rejected the first attempt because it used the
+singleton prefill output head and left raw-decode fallbacks. That attempt was not committed. The
+corrected benchmark JSON records 13 batched-M1 and zero raw-M1 evaluations across 282 speculative
+cycles.
+
+On the retained 10-prompt corpus (frontier 48, 64 emitted each), token-level comparison against the
+batch-M1 target passes only 5/10 prompts. First divergences occur at emitted positions 29, 39, 21,
+11, and 53 in `grounded_archive`, `grounded_observatory`, `synthesis_incident_json`,
+`synthesis_ops_json`, and `synthesis_timeline_json`. A shared layer-major call graph therefore does
+not make the end-to-end graph/state transition M-invariant; this run does not localize the cause to
+a particular kernel or frontier update.
+
+Economics also fail. Aggregate shipped decode is 37.902 t/s; batch-M1 target is 32.989 (-13.0%);
+batch-M1 plus M=K DSpark is 37.407. That is only +13.4% over its re-baselined target, below the >=20%
+gate, and remains 1.3% slower than shipped decode.
+
+Verdict: **NO-GO for reusing the existing batch graph as the exact shared family.** Retain the env
+path as a falsifier. This corrects the historical record rather than closing the original hybrid
+build: decode-order HC/compressor/attention plus sharing only at proven-invariant stages remains
+unbuilt. Retained artifact 18 + CSV.
 
 ### 2026-07-17 - iteration-9 corrected actual-selection profiling; cache verdict unchanged
 

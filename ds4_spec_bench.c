@@ -1417,7 +1417,7 @@ static void write_result_jsonl(
         const ds4_dspark_cycle_metrics *m = &res->dspark_cycles.v[i];
         if (i) fprintf(out, ",");
         fprintf(out,
-                "{\"scheduled_verify\":%s,\"batched_schedule\":%s,\"schedule_batch_limit\":%d,\"rows_computed\":%d,\"drafted\":%d,\"verify_n\":%d,\"verified\":%d,\"accepted\":%d,\"decode_ms\":%.6f,\"draft_ms\":%.6f,\"verify_ms\":%.6f,\"total_ms\":%.6f,\"pushes_init\":%d,\"pushes_verify\":%d,\"push_init_ms\":%.6f,\"push_verify_ms\":%.6f,\"verify_decode_ms\":%.6f,\"logits_read_ms\":%.6f,\"conf_logits\":[%.6f,%.6f,%.6f,%.6f,%.6f]",
+                "{\"scheduled_verify\":%s,\"batched_schedule\":%s,\"schedule_batch_limit\":%d,\"rows_computed\":%d,\"drafted\":%d,\"verify_n\":%d,\"verified\":%d,\"accepted\":%d,\"target_batch_m1_evals\":%d,\"target_raw_m1_evals\":%d,\"decode_ms\":%.6f,\"draft_ms\":%.6f,\"verify_ms\":%.6f,\"total_ms\":%.6f,\"pushes_init\":%d,\"pushes_verify\":%d,\"push_init_ms\":%.6f,\"push_verify_ms\":%.6f,\"verify_decode_ms\":%.6f,\"logits_read_ms\":%.6f,\"conf_logits\":[%.6f,%.6f,%.6f,%.6f,%.6f]",
                 m->scheduled_verify ? "true" : "false",
                 m->batched_schedule ? "true" : "false",
                 m->schedule_batch_limit,
@@ -1426,6 +1426,8 @@ static void write_result_jsonl(
                 m->verify_n,
                 m->verified,
                 m->accepted,
+                m->target_batch_m1_evals,
+                m->target_raw_m1_evals,
                 m->decode_ms,
                 m->draft_ms,
                 m->verify_ms,

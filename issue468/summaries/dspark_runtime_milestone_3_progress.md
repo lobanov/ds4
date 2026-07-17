@@ -184,11 +184,12 @@ but score-neutral +4 on 92Q; temp>0: TV ~0.0104, 0.64 % argmax-flip); ds4-eval e
 (`--dspark` now routes through the speculative path).
 
 **Subsequent outcome:** levers 2 and 3 completed and the full stack reached +4.9% over plain. The
-batched verifier remains a score-neutral, non-byte-exact interim; Lead 08 artifacts 12-17 close the
+batched verifier remains a score-neutral, non-byte-exact interim; Lead 08 artifacts 12-18 close the
 margin fallback, address-layout, production launch/tile geometry, and current-path cache-residency
 hypotheses negative. Artifact 17 corrects the locality evidence without changing the carrier
-verdict, so strict committed-output exactness and a gate-clearing verifier need a different
-mechanism.
+verdict. Artifact 18 additionally falsifies the existing batch graph as a shared M=1/M=K exactness
+family; it does not claim the originally proposed exact hybrid was built. Strict committed-output
+exactness and a gate-clearing verifier still need a different mechanism.
 
 ## Worklog
 

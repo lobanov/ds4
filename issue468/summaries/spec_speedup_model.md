@@ -240,6 +240,14 @@ of the band; cycle-jump the realistic edge.
 > 57.3%/72.3% at capacities 16/32. The mapped cold/replay result and speed model are unchanged, so
 > the carrier remains a current-path NO-GO. Artifact
 > `lead08_reassessment/17_iter9_profiler_correction.md`.
+>
+> **2026-07-17 Lead 08 iteration 10: existing batch shared-family NO-GO.** Re-baselining target M=1
+> onto the layer-major batch graph does not make its end-to-end M=K state transition exact against
+> batch M=1: only 5/10 retained
+> prompts match token-for-token. Batch M=1 is 32.989 versus shipped decode 37.902 t/s (-13.0%);
+> speculative reaches 37.407, only +13.4% over the slower target and -1.3% versus shipped decode.
+> This closes the existing shared graph, not the unbuilt exact hybrid. Artifact
+> `lead08_reassessment/18_iter10_batch_m1_target.md`.
 
 - **Corpus-dependent** (cycle-jump K=4 speedup): jsonex **+2.3%**, codealpaca −1.9%, dolly
   −5.6%. The mix is on the easy side — the old 10-prompt code/synthesis exactness corpus was

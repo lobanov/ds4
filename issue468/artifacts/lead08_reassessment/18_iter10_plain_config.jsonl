@@ -1,0 +1,10 @@
+{"id":"code_histogram","mode":"argmax","prompt_file":"issue468/prompts/exactness_small_corpus/code_histogram.txt","frontier_tokens":48,"gen_tokens":64,"exclude_eos":true}
+{"id":"code_sort_pairs","mode":"argmax","prompt_file":"issue468/prompts/exactness_small_corpus/code_sort_pairs.txt","frontier_tokens":48,"gen_tokens":64,"exclude_eos":true}
+{"id":"code_topk","mode":"argmax","prompt_file":"issue468/prompts/exactness_small_corpus/code_topk.txt","frontier_tokens":48,"gen_tokens":64,"exclude_eos":true}
+{"id":"grounded_archive","mode":"argmax","prompt_file":"issue468/prompts/exactness_small_corpus/grounded_archive.txt","frontier_tokens":48,"gen_tokens":64,"exclude_eos":true}
+{"id":"grounded_observatory","mode":"argmax","prompt_file":"issue468/prompts/exactness_small_corpus/grounded_observatory.txt","frontier_tokens":48,"gen_tokens":64,"exclude_eos":true}
+{"id":"grounded_repair","mode":"argmax","prompt_file":"issue468/prompts/exactness_small_corpus/grounded_repair.txt","frontier_tokens":48,"gen_tokens":64,"exclude_eos":true}
+{"id":"mixed_exactness_smoke","mode":"argmax","prompt_file":"issue468/prompts/exactness_small_corpus/mixed_exactness_smoke.txt","frontier_tokens":48,"gen_tokens":64,"exclude_eos":true}
+{"id":"synthesis_incident_json","mode":"argmax","prompt_file":"issue468/prompts/exactness_small_corpus/synthesis_incident_json.txt","frontier_tokens":48,"gen_tokens":64,"exclude_eos":true}
+{"id":"synthesis_ops_json","mode":"argmax","prompt_file":"issue468/prompts/exactness_small_corpus/synthesis_ops_json.txt","frontier_tokens":48,"gen_tokens":64,"exclude_eos":true}
+{"id":"synthesis_timeline_json","mode":"argmax","prompt_file":"issue468/prompts/exactness_small_corpus/synthesis_timeline_json.txt","frontier_tokens":48,"gen_tokens":64,"exclude_eos":true}

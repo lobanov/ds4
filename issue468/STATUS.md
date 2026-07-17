@@ -20,13 +20,19 @@ cycle (~16 ms/token off the target).
 | Goal | ≥20 % greedy throughput on ds4 IQ2XXS, output-preserved |
 | Current best | Full DSpark stack **+4.9 %** over plain (40.04 vs 38.16 t/s; score-neutral 61/92) — M3 |
 | The gap | +20 % not reached; verify ≈80 % of the cycle |
-| Open lever | **No demonstrated +20% lever.** Lead 08's grouped gate+up prototype is 22.9% slower, the observed-flip-safe margin guard falls below plain, layout/geometry probes move cost by only a few percent, and the large cache-replay prize exists only on an SSD path incompatible with DSpark; a future verifier attempt needs a different measured mechanism |
+| Open lever | **No demonstrated +20% lever.** Lead 08's grouped gate+up prototype is slower, margin fallback is uneconomic, layout/cache branches fail, and the existing batch graph is neither M-invariant nor fast enough as a shared M=1/M=K family. The original exact hybrid remains unbuilt and high-risk, not proven negative |
 | Closed (negative) | Drafter/input quality (Lead 07), drafter quant (Q4_K), non-expert finetune (Stage 2), DFlash, quant-mismatch |
 
 ## Investigation arc
 
 Reverse-chronological. Each entry: what was tested → verdict → canonical record.
 
+- **2026-07-17 - Lead 08 iteration 10 shared batch M=1/M=K family: exactness and economics
+  NO-GO.** Re-baselining target M=1 onto the existing layer-major batch graph yields only 5/10
+  token-identical speculative prompts. Batch M=1 regresses target throughput 37.902 -> 32.989 t/s;
+  M=K speculative reaches 37.407 t/s, only +13.4% over that slower target and -1.3% versus shipped
+  decode. This closes the existing batch graph as the shared family, not the still-unbuilt hybrid
+  exact-batch design. `artifacts/lead08_reassessment/18_iter10_batch_m1_target.md`.
 - **2026-07-17 - Lead 08 iteration 9 profiler correction: iteration-8 locality superseded;
   verdict unchanged.** The iteration-8 extension read reused router buffers before the Metal command
   buffer completed. A stale run yielded only 11 distinct top-16 vectors across 43 router layers;
@@ -171,7 +177,10 @@ Verify dominates ~80 % of the cycle; this is where the +20 % must come from.
   remain within about 3% and are inconsistent between total and isolated-stage views. Exact replay
   then exposes an 87.8% SSD selected-address saving, but the DSpark-compatible mapped path is already
   at replay parity. Iteration 9 corrected the locality profiler without changing that carrier
-  verdict. Artifacts 10-17 under `artifacts/lead08_reassessment/`.
+  verdict. An independent audit then corrected the broader record: the full exact hybrid was never
+  built. Iteration 10 tests the cheaper existing-batch shared-family strategy, but it diverges on
+  5/10 prompts, regresses target M=1 by 13.0%, and delivers only +13.4% over that slower baseline.
+  Artifacts 10-18 under `artifacts/lead08_reassessment/`.
 
 ### Scheduler & acceptance
 
@@ -195,7 +204,8 @@ The bench harness: `ds4-spec-bench` (`make ds4-spec-bench`) — use it, not the 
 
 ## Next step
 
-**Lead 08:** no further grouped IQ2XXS gate+up, margin-guard fallback, expert-address reordering, or
+**Lead 08:** no further grouped IQ2XXS gate+up, margin-guard fallback, expert-address reordering,
+existing-batch M=1 re-baselining, or
 production address-kernel launch/tile-geometry work. The bounded kernel passed exactness but failed
 performance; the fallback either misses the known flip or erases the current speedup; the controlled
 locality microbenchmark shows <2% sensitivity; alternate SIMDgroup counts move cost by at most about
@@ -204,10 +214,11 @@ gate. Exact cache replay exposes a large SSD selected-address upper bound, but t
 compose with DSpark and the compatible mapped path has no replay gap. Integration and the final K=4
 verifier gate are skipped. Any
 continuation must first establish a genuinely different mechanism with new controlled evidence.
-Xcode 26.6, offline `metal`, and Metal System Trace are now installed. The standard CLI trace has
-Shader Timeline disabled and no selected counter set, and it changed the controlled microbenchmark
-timing regime, so it is not decision evidence. The next justified diagnostic iteration is matched
-GPU-timestamp stage decomposition; attribution alone does not reopen any stopped branch.
+The original Phase B exact hybrid remains unbuilt: preserve decode-order HC/compressor/attention and
+batch only stages proven invariant. If pursued, its next iteration must be an exactness-first stage
+falsifier with a running upper bound against `verify_ms(4) <= 50.5 ms`; abort as soon as exact
+rerouting exhausts that budget. Xcode GPU timestamps may support that measurement, but attribution
+alone does not reopen any stopped branch.
 
 **Lead 10 — drafter re-distillation for IQ2XXS (soft labels)** is a proposed, lower-priority
 drafter-quality follow-up: the one untested route after Lead 07 (hidden-side, dead) and Stage 2

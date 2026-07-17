@@ -11,7 +11,9 @@
 > selected-address path; the compatible mapped path changes by 0.04%. Both geometry knobs and the
 > current-path residency carrier are far below the stage gate. Artifact 17 corrects the original
 > actual-selection locality profile; the corrected reuse remains real but does not change the
-> carrier result. Rankings below are
+> carrier result. Artifact 18 finds that re-baselining target M=1 onto the existing batch graph is
+> neither exact across M nor economic. This closes that shared-family shortcut, not the unbuilt
+> decode-order exact hybrid. Rankings below are
 > historical context, not active recommendations.
 
 **Date:** 2026-07-16. **Provenance:** 2 online searches (Cohere Apr-2026 MoE+SD post; MoE-Spec

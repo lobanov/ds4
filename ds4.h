@@ -308,6 +308,8 @@ typedef struct {
     int accepted;
     int pushes_init;
     int pushes_verify;
+    int target_batch_m1_evals;
+    int target_raw_m1_evals;
     double decode_ms;
     double draft_ms;
     double verify_ms;

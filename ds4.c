@@ -11271,6 +11271,10 @@ static bool metal_graph_alloc_raw_cap(
     memset(g, 0, sizeof(*g));
     g->mtp_enabled = enable_mtp;
     g->dspark_enabled = enable_dspark;
+    const char *lead08_batch_m1_value = getenv("DS4_LEAD08_BATCH_M1_TARGET");
+    const bool lead08_batch_m1 = lead08_batch_m1_value && lead08_batch_m1_value[0] &&
+                                 strcmp(lead08_batch_m1_value, "0") &&
+                                 strcasecmp(lead08_batch_m1_value, "off");
     if (raw_cap == 0) raw_cap = 1;
     if (ctx_size == 0) ctx_size = raw_cap;
     if (prefill_cap == 0) prefill_cap = 1;
@@ -11522,6 +11526,9 @@ static bool metal_graph_alloc_raw_cap(
             state_init_ok = false;
         }
     }
+    if (lead08_batch_m1 && !g->spec_logits) {
+        g->spec_logits = ds4_gpu_tensor_alloc((uint64_t)16 * DS4_N_VOCAB * sizeof(float));
+    }
 
     g->prefill_tokens = ds4_gpu_tensor_alloc(pc * sizeof(int32_t));
     g->batch_cur_hc = ds4_gpu_tensor_alloc(pc * hc_dim * sizeof(float));
@@ -11632,6 +11639,7 @@ static bool metal_graph_alloc_raw_cap(
                      (g->dspark_capture_hc[0] && g->dspark_capture_hc[1] &&
                       g->dspark_capture_hc[2] && g->dspark_capture_host &&
                       g->dspark_main_hidden && g->dspark_main_input)) &&
+                    (!lead08_batch_m1 || g->spec_logits) &&
                     g->prefill_tokens &&
                     g->batch_cur_hc && g->batch_next_hc && g->batch_flat_hc &&
                     g->batch_hc_mix && g->batch_hc_split &&
@@ -29310,8 +29318,48 @@ int ds4_session_set_logits(ds4_session *s, const float *logits, int n) {
 }
 
 static bool dspark_session_push_graph_hidden(ds4_session *s);
+static bool dspark_session_push_batch_hidden(ds4_session *s, uint32_t batch_pos);
 static void dspark_rope_inplace(float *x, uint32_t n_head, uint32_t head_dim, uint32_t pos, bool inverse);
 static bool dspark_timing_enabled(void);
+
+static bool lead08_batch_m1_target_enabled(void) {
+    static int enabled = -1;
+    if (enabled < 0) {
+        const char *value = getenv("DS4_LEAD08_BATCH_M1_TARGET");
+        enabled = value && value[0] && strcmp(value, "0") && strcasecmp(value, "off");
+    }
+    return enabled != 0;
+}
+
+/* Research-only same-family comparator. The prompt is extended only while the
+ * batched suffix evaluator uploads this token; callers commit it after success. */
+static bool lead08_eval_target_batch_m1(ds4_session *s,
+                                        int token,
+                                        int *top,
+                                        float *logits_copy) {
+    ds4_engine *e = s->engine;
+    const uint32_t pos = (uint32_t)s->checkpoint.len;
+    token_vec_push(&s->checkpoint, token);
+    s->graph.dspark_batch_capture_active = e->dspark_ready;
+    const bool ok = metal_graph_verify_suffix_tops(&s->graph,
+                                                    &e->model,
+                                                    &e->weights,
+                                                    &s->checkpoint,
+                                                    pos,
+                                                    1,
+                                                    false,
+                                                    NULL,
+                                                    s->logits);
+    s->graph.dspark_batch_capture_active = false;
+    s->checkpoint.len = (int)pos;
+    if (!ok) return false;
+    if (top) *top = sample_argmax(s->logits, DS4_N_VOCAB);
+    if (logits_copy) {
+        memcpy(logits_copy, s->logits, (size_t)DS4_N_VOCAB * sizeof(s->logits[0]));
+    }
+    s->dspark_last_cycle.target_batch_m1_evals++;
+    return true;
+}
 
 static int ds4_session_eval_internal(ds4_session *s, int token, bool probe_mtp,
                                      char *err, size_t errlen) {
@@ -29360,6 +29408,14 @@ static int ds4_session_eval_internal(ds4_session *s, int token, bool probe_mtp,
     const bool mtp_should_draft =
         probe_mtp && e->mtp_ready && s->mtp_logits &&
         (e->mtp_draft_tokens > 1 || mtp_probe_log);
+    /* Research-only falsifier: re-baseline target decode onto the batch graph
+     * before asking whether M=K rows are invariant against batch M=1. */
+    const bool lead08_batch_m1_requested = lead08_batch_m1_target_enabled();
+    if (lead08_batch_m1_requested && e->mtp_ready) {
+        snprintf(err, errlen, "DS4_LEAD08_BATCH_M1_TARGET does not support the MTP drafter");
+        return 1;
+    }
+    const bool lead08_batch_m1 = lead08_batch_m1_requested;
     if (probe_mtp && s->mtp_draft_valid) {
         if (mtp_probe_log) {
             s->mtp_probe_total++;
@@ -29373,17 +29429,34 @@ static int ds4_session_eval_internal(ds4_session *s, int token, bool probe_mtp,
         }
         s->mtp_draft_valid = false;
     }
-    if (!metal_graph_eval_token_raw_swa(&s->graph, &e->model, &e->weights,
-                                        (uint32_t)token,
-                                        (uint32_t)s->checkpoint.len,
-                                        s->logits))
-    {
+    bool eval_ok = false;
+    if (lead08_batch_m1) {
+        eval_ok = lead08_eval_target_batch_m1(s, token, NULL, NULL);
+    } else {
+        eval_ok = metal_graph_eval_token_raw_swa(&s->graph,
+                                                 &e->model,
+                                                 &e->weights,
+                                                 (uint32_t)token,
+                                                 (uint32_t)s->checkpoint.len,
+                                                 s->logits);
+        if (eval_ok) s->dspark_last_cycle.target_raw_m1_evals++;
+    }
+    if (!eval_ok) {
         snprintf(err, errlen, "%s decode failed", ds4_backend_name(e->backend));
         s->checkpoint_valid = false;
         return 1;
     }
     token_vec_push(&s->checkpoint, token);
-    if (e->dspark_ready) (void)dspark_session_push_graph_hidden(s);
+    if (e->dspark_ready && lead08_batch_m1) {
+        if (!dspark_session_push_batch_hidden(s, 0)) {
+            snprintf(err, errlen, "DSpark hidden-state push failed after %s target evaluation",
+                     "batch-M1");
+            s->checkpoint_valid = false;
+            return 1;
+        }
+    } else if (e->dspark_ready) {
+        (void)dspark_session_push_graph_hidden(s);
+    }
     if (mtp_should_draft) {
         int mtp_top = -1;
         if (metal_graph_eval_mtp_draft(&s->graph,
@@ -31275,14 +31348,30 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
                          * each against target_top so a batched false-accept cannot commit a wrong token. */
                         for (int i = 0; i < commit_n && n_accept < accepted_cap; i++) {
                             if (target_top != drafts[i]) break;
-                            if (!metal_graph_eval_token_raw_swa_top(&s->graph, &e->model, &e->weights,
-                                                                    drafts[i], (uint32_t)s->checkpoint.len,
-                                                                    &target_top, NULL)) { batched_hard_err = true; break; }
+                            const bool batch_m1 = lead08_batch_m1_target_enabled();
+                            if (batch_m1) {
+                                if (!lead08_eval_target_batch_m1(s, drafts[i], &target_top, NULL)) {
+                                    batched_hard_err = true;
+                                    break;
+                                }
+                            } else if (!metal_graph_eval_token_raw_swa_top(&s->graph, &e->model, &e->weights,
+                                                                           drafts[i], (uint32_t)s->checkpoint.len,
+                                                                           &target_top, NULL)) {
+                                batched_hard_err = true;
+                                break;
+                            } else {
+                                s->dspark_last_cycle.target_raw_m1_evals++;
+                            }
                             token_vec_push(&s->checkpoint, drafts[i]);
-                            if (e->dspark_ready && !dspark_session_push_graph_hidden(s)) { batched_hard_err = true; break; }
+                            if (e->dspark_ready &&
+                                !(batch_m1 ? dspark_session_push_batch_hidden(s, 0)
+                                          : dspark_session_push_graph_hidden(s))) {
+                                batched_hard_err = true;
+                                break;
+                            }
                             accepted[n_accept++] = drafts[i];
                             verified++;
-                            logits_on_host = false;
+                            logits_on_host = batch_m1;
                             if (drafts[i] == eos_token) break;
                         }
                         if (!batched_hard_err && verified > 0 && !logits_on_host) {
@@ -31340,26 +31429,33 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
             if (target_top != drafts[i]) break;
             const double verify_decode_t0 = dspark_timing ? now_sec() : 0.0;
             float *const seq_cap = (dist_probe && seq_logits) ? (seq_logits + (size_t)i * DS4_N_VOCAB) : NULL;
-            if (!metal_graph_eval_token_raw_swa_top(&s->graph,
-                                                    &e->model,
-                                                    &e->weights,
-                                                    drafts[i],
-                                                    (uint32_t)s->checkpoint.len,
-                                                    &target_top,
-                                                    seq_cap)) {
+            const bool batch_m1 = lead08_batch_m1_target_enabled();
+            const bool eval_ok = batch_m1
+                ? lead08_eval_target_batch_m1(s, drafts[i], &target_top, seq_cap)
+                : metal_graph_eval_token_raw_swa_top(&s->graph,
+                                                     &e->model,
+                                                     &e->weights,
+                                                     drafts[i],
+                                                     (uint32_t)s->checkpoint.len,
+                                                     &target_top,
+                                                     seq_cap);
+            if (!eval_ok) {
                 snprintf(err, errlen, "%s decode failed", ds4_backend_name(e->backend));
                 s->checkpoint_valid = false;
                 return -1;
             }
+            if (!batch_m1) s->dspark_last_cycle.target_raw_m1_evals++;
             if (dspark_timing) verify_decode_ms += (now_sec() - verify_decode_t0) * 1000.0;
             token_vec_push(&s->checkpoint, drafts[i]);
-            if (e->dspark_ready && !dspark_session_push_graph_hidden(s)) {
+            if (e->dspark_ready &&
+                !(batch_m1 ? dspark_session_push_batch_hidden(s, 0)
+                          : dspark_session_push_graph_hidden(s))) {
                 snprintf(err, errlen, "DSpark state update failed after verified token");
                 s->checkpoint_valid = false;
                 return -1;
             }
             accepted[n_accept++] = drafts[i];
-            logits_on_host = false;
+            logits_on_host = batch_m1;
             verified++;
             if (drafts[i] == eos_token) break;
         }
