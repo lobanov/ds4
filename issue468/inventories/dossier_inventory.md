@@ -49,6 +49,7 @@ STATUS.md on 2026-07-16 so STATUS reads as a single coherent narrative.)
 - Lead 08 row-wise Q/KV iteration: artifact `artifacts/lead08_reassessment/20_iter12_rowwise_qkv.md` plus compact stage/timing CSVs; reproduced with verifier-scoped `DS4_LEAD08_ROWWISE_QKV_LAYERS={1,43}`
 - Lead 08 row-wise Q-b iteration: artifact `artifacts/lead08_reassessment/21_iter13_rowwise_qb.md` plus stage/timing CSVs; reproduced with verifier-scoped `DS4_LEAD08_ROWWISE_QB_LAYERS={1,43}` on top of the Q/KV gate
 - Lead 08 attention output-B iteration: artifact `artifacts/lead08_reassessment/22_iter14_rowwise_attn_out_b.md` plus stage/timing CSVs; branch-neutral capture and verifier-scoped `DS4_LEAD08_ROWWISE_ATTN_OUT_B_LAYERS={1,43}`
+- Lead 08 HC-input localization: artifact `artifacts/lead08_reassessment/23_iter15_hc_input_localization.md` plus CSV; branch-neutral capture only, no timing claim
 - DSpark runtime milestones: M2 `summaries/dspark_runtime_milestone_2_progress.md`; M3 `summaries/dspark_runtime_milestone_3_progress.md`; initial benchmark `summaries/dspark_runtime_initial_benchmark.md`; M3 bench artifacts `artifacts/dspark_m3_bench/`
 
 ## Scheduler & acceptance axis (see STATUS)

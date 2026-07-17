@@ -1,7 +1,8 @@
 # Lead 08 — Fused low-K batch-verify kernel (close the verify-vs-floor gap)
 
 > **Current verdict (2026-07-17): iterations 12-14 move the captured layer-0 exactness frontier
-> through Q/KV, Q-b, attention, inverse RoPE, and output-B; V9 HC expansion is next. Iteration 10
+> through Q/KV, Q-b, attention, inverse RoPE, and output-B. Iteration 15 finds the post-attention
+> debt is inherited from the early HC mixer; V10 row-wise mixer projection is next. Iteration 10
 > falsified the existing batch graph as a shared
 > M=1/M=K exactness family; iteration 9 corrected the iteration-8 locality profiler;
 > cache residency remains a current-path NO-GO; iterations 6/7
@@ -366,6 +367,34 @@ sufficient." (Confirmatory: a literal identical-input MoE kernel-equality harnes
 verify-bandwidth slope re-measure.)
 
 ## Worklog
+
+### 2026-07-17 - iteration-15 V9 HC expansion inputs -> REDESIGN / audit COMMIT
+
+**Preflight redesign.** The challenger rejected immediate row-wise HC expansion. M=1 and M=K use
+the same `kernel_dsv4_hc_expand4`; token rows are independently indexed and the four-term
+accumulation order is unchanged. Exact `hc_attn_pre` did not prove the full 24-value HC split row
+was exact, although expansion later consumes its post gate `[4:8]` and combination matrix `[8:24]`.
+
+**Cheapest falsifier.** With V6-V8 enabled at layer 0, capture branch-neutral `ProdHCBlock`
+(post-steering output-B), `ProdHCResidual` (`batch_cur_hc`), `ProdHCFlat` (RMS-normalized mixer
+input), `ProdHCMix` (all 24 mixer values), and
+`ProdHCSplit` (all 24 split values) immediately before expansion. This is correctness-only and
+changes no compute. If block, residual, and split `[4:24]` are exact but output differs, only then
+test row-wise expansion and audit layout/races. If mix differs, return the frontier to the F16 HC
+mixer projection. If mix is exact but consumed split differs, isolate split/sinkhorn. If residual
+differs at layer 0, invalidate the prior input assumption. Retain dumps, exact command, preflight,
+and mandatory audit before commit.
+
+**Result.** The rebuilt V2 capture finds `ProdHCBlock`, `ProdHCResidual`, and normalized
+`ProdHCFlat` bit-identical. `ProdHCMix` is the first exact-input/different-output boundary (14/24,
+max 6.10e-5); consumed `ProdHCSplit[4:24]` differs 15/20 and `hc_attn_post` differs 6,269/16,384.
+The JSON is status-ok with 64 emitted tokens, 27 cycles, 64 batch-M1 and zero raw-M1 evaluations;
+the known single flip remains across 37 compared rows. HC expansion is not independently implicated
+while its split input differs. V10 is row-wise F16 HC mixer projection, followed by mix/split/post
+recapture. The first audit validated all binary/CSV values and this ordering but returned
+**NO-COMMIT** until the worklog and stale-safe reproduction command were corrected.
+The collision-safe reproduction fix passed repeat audit: **COMMIT**. Canonical artifact:
+`artifacts/lead08_reassessment/23_iter15_hc_input_localization.md`.
 
 ### 2026-07-17 - iteration-14 V8 attention output-B -> CAUSAL GO / audit COMMIT
 

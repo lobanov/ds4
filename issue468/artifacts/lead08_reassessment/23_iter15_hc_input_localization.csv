@@ -1,0 +1,11 @@
+boundary,values_compared,different_values,max_abs,batch_bytes,m1_bytes
+ProdHCBlock,4096,0,0,32768,16384
+ProdHCResidual,16384,0,0,131072,65536
+ProdHCFlat,16384,0,0,131072,65536
+ProdHCMix,24,14,6.10351562e-05,192,96
+ProdHCSplit,24,15,5.96046448e-08,192,96
+ProdHCSplit_0_4,4,0,0,16,16
+ProdHCSplit_4_8,4,2,1.44328993e-15,16,16
+ProdHCSplit_8_24,16,13,5.96046448e-08,64,64
+ProdHCSplit_4_24,20,15,5.96046448e-08,80,80
+hc_attn_post,16384,6269,7.4505806e-09,131072,65536

@@ -19427,6 +19427,19 @@ static bool metal_graph_encode_layer_attention_batch(
     if (ok && !attn_out_f16 && metal_graph_directional_steering_attn_enabled(g)) {
         ok = metal_graph_apply_directional_steering_attn(g, g->batch_attn_out, il, n_tokens);
     }
+    if (ok && !attn_out_f16) {
+        /* Capture the actual HC expansion inputs without matching any path-debug names. */
+        metal_graph_debug_dump_tensor("ProdHCBlock", g->batch_attn_out,
+                                      (uint64_t)n_tokens * DS4_N_EMBD, il, pos0);
+        metal_graph_debug_dump_tensor("ProdHCResidual", g->batch_cur_hc,
+                                      (uint64_t)n_tokens * hc_dim, il, pos0);
+        metal_graph_debug_dump_tensor("ProdHCFlat", g->batch_flat_hc,
+                                      (uint64_t)n_tokens * hc_dim, il, pos0);
+        metal_graph_debug_dump_tensor("ProdHCMix", hc_mix_view,
+                                      (uint64_t)n_tokens * mix_hc, il, pos0);
+        metal_graph_debug_dump_tensor("ProdHCSplit", hc_split_view,
+                                      (uint64_t)n_tokens * mix_hc, il, pos0);
+    }
     if (ok && attn_out_f16) {
         ok = ds4_gpu_hc_expand_split_half_tensor(after_attn_hc_view,
                                                  g->batch_q_half,
