@@ -10604,6 +10604,7 @@ typedef struct {
     bool spec_capture_prefix;
     bool spec_prefix_capture_valid;
     uint32_t lead08_rowwise_qkv_layers;
+    uint32_t lead08_rowwise_qb_layers;
     uint32_t raw_cap;
     /* Maximum compressed-row capacity across layers.  Shared work buffers use
      * this worst-case size because ratio-4 indexer layers can still reach it. */
@@ -17953,6 +17954,7 @@ static bool metal_graph_encode_layer_attention_batch(
     uint32_t *index_counts = ratio == 4 ? xcalloc(n_tokens, sizeof(index_counts[0])) : NULL;
     const bool qkv_rms_fused = !metal_graph_use_reference_qkv_norm();
     const bool rowwise_qkv = n_tokens > 1 && il < g->lead08_rowwise_qkv_layers;
+    const bool rowwise_qb = n_tokens > 1 && il < g->lead08_rowwise_qb_layers;
     ds4_gpu_tensor *hc_mix_view = ds4_gpu_tensor_view(
             g->batch_hc_mix, 0, (uint64_t)n_tokens * mix_hc * sizeof(float));
     ds4_gpu_tensor *hc_split_view = ds4_gpu_tensor_view(
@@ -18135,7 +18137,7 @@ static bool metal_graph_encode_layer_attention_batch(
         metal_graph_debug_wants("Qraw", il, pos0) ||
         metal_graph_debug_wants("Qnorm", il, pos0);
     bool q_b_f16_out = false;
-    if (ok && !q_path_debug) {
+    if (ok && !q_path_debug && !rowwise_qb) {
         q_b_f16_out = ds4_gpu_attn_q_b_f16_head_rms_rope_tail_tensor(g->batch_q,
                                                                      g->batch_q_half,
                                                                      model->map,
@@ -18168,18 +18170,35 @@ static bool metal_graph_encode_layer_attention_batch(
         }
         DS4_METAL_PROFILE_Q_STAGE("rope");
     } else {
-        if (ok) ok = metal_graph_matmul_q8_0_named_tensor("attn_q_b",
-                                                          il,
-                                                          pos0,
-                                                          g->batch_q,
-                                                          model,
-                                                          layer->attn_q_b,
-                                                          q_rank,
-                                                          q_dim,
-                                                          g->batch_qr_norm,
-                                                          n_tokens);
+        if (ok) {
+            ok = rowwise_qb
+                ? metal_graph_matmul_q8_0_rows_as_m1("attn_q_b",
+                                                      il,
+                                                      pos0,
+                                                      g->batch_q,
+                                                      model,
+                                                      layer->attn_q_b,
+                                                      q_rank,
+                                                      q_dim,
+                                                      g->batch_qr_norm,
+                                                      n_tokens)
+                : metal_graph_matmul_q8_0_named_tensor("attn_q_b",
+                                                        il,
+                                                        pos0,
+                                                        g->batch_q,
+                                                        model,
+                                                        layer->attn_q_b,
+                                                        q_rank,
+                                                        q_dim,
+                                                        g->batch_qr_norm,
+                                                        n_tokens);
+        }
         if (ok) {
             metal_graph_debug_dump_tensor("Qraw", g->batch_q,
+                                          (uint64_t)n_tokens * q_dim, il, pos0);
+            /* These aliases expose the production fallback without making
+             * q_path_debug disable a backend's fused implementation. */
+            metal_graph_debug_dump_tensor("ProdQB", g->batch_q,
                                           (uint64_t)n_tokens * q_dim, il, pos0);
         }
         DS4_METAL_PROFILE_Q_STAGE("q_b");
@@ -18190,6 +18209,8 @@ static bool metal_graph_encode_layer_attention_batch(
                                                     DS4_RMS_EPS) != 0;
         if (ok) {
             metal_graph_debug_dump_tensor("Qnorm", g->batch_q,
+                                          (uint64_t)n_tokens * q_dim, il, pos0);
+            metal_graph_debug_dump_tensor("ProdQHeadNorm", g->batch_q,
                                           (uint64_t)n_tokens * q_dim, il, pos0);
         }
         DS4_METAL_PROFILE_Q_STAGE("head_norm");
@@ -21963,19 +21984,33 @@ static bool metal_graph_capture_dspark_batch_main_hidden(ds4_gpu_graph *g,
     return true;
 }
 
-static uint32_t lead08_rowwise_qkv_layer_count(void) {
-    static uint32_t layers = UINT32_MAX;
-    if (layers != UINT32_MAX) return layers;
-
-    layers = 0;
-    const char *value = getenv("DS4_LEAD08_ROWWISE_QKV_LAYERS");
-    if (!value || !value[0] || !strcmp(value, "0") || !strcasecmp(value, "off")) return layers;
-
+static uint32_t lead08_parse_layer_count(const char *name) {
+    const char *value = getenv(name);
+    if (!value || !value[0] || !strcmp(value, "0") || !strcasecmp(value, "off")) {
+        return 0;
+    }
+    for (const char *p = value; *p; p++) {
+        if (!isdigit((unsigned char)*p)) return 0;
+    }
     char *end = NULL;
     const unsigned long parsed = strtoul(value, &end, 10);
     if (end != value && *end == '\0') {
-        layers = parsed < DS4_N_LAYER ? (uint32_t)parsed : DS4_N_LAYER;
+        return parsed < DS4_N_LAYER ? (uint32_t)parsed : DS4_N_LAYER;
     }
+    return 0;
+}
+
+static uint32_t lead08_rowwise_qkv_layer_count(void) {
+    static uint32_t layers = UINT32_MAX;
+    if (layers != UINT32_MAX) return layers;
+    layers = lead08_parse_layer_count("DS4_LEAD08_ROWWISE_QKV_LAYERS");
+    return layers;
+}
+
+static uint32_t lead08_rowwise_qb_layer_count(void) {
+    static uint32_t layers = UINT32_MAX;
+    if (layers != UINT32_MAX) return layers;
+    layers = lead08_parse_layer_count("DS4_LEAD08_ROWWISE_QB_LAYERS");
     return layers;
 }
 
@@ -22026,13 +22061,24 @@ static bool metal_graph_verify_suffix_tops(
     const bool saved_capture = g->spec_capture_prefix1;
     const bool saved_capture_prefix = g->spec_capture_prefix;
     const uint32_t saved_rowwise_qkv_layers = g->lead08_rowwise_qkv_layers;
+    const uint32_t saved_rowwise_qb_layers = g->lead08_rowwise_qb_layers;
     g->lead08_rowwise_qkv_layers = n_tokens > 1 ? lead08_rowwise_qkv_layer_count() : 0;
+    g->lead08_rowwise_qb_layers = n_tokens > 1 ? lead08_rowwise_qb_layer_count() : 0;
     if (g->lead08_rowwise_qkv_layers) {
         static bool announced = false;
         if (!announced) {
             fprintf(stderr,
                     "ds4: lead08 row-wise M1 Q/KV active for %u verifier layers\n",
                     g->lead08_rowwise_qkv_layers);
+            announced = true;
+        }
+    }
+    if (g->lead08_rowwise_qb_layers) {
+        static bool announced = false;
+        if (!announced) {
+            fprintf(stderr,
+                    "ds4: lead08 row-wise M1 Q-b active for %u verifier layers\n",
+                    g->lead08_rowwise_qb_layers);
             announced = true;
         }
     }
@@ -22089,6 +22135,7 @@ static bool metal_graph_verify_suffix_tops(
     g->spec_capture_prefix1 = saved_capture;
     g->spec_capture_prefix = saved_capture_prefix;
     g->lead08_rowwise_qkv_layers = saved_rowwise_qkv_layers;
+    g->lead08_rowwise_qb_layers = saved_rowwise_qb_layers;
     if (!ok) return false;
 
     ok = ds4_gpu_begin_commands() != 0;

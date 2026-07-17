@@ -1,7 +1,8 @@
 # Lead 08 — Fused low-K batch-verify kernel (close the verify-vs-floor gap)
 
-> **Current verdict (2026-07-17): iteration 11 localizes the first same-frontier row-0 divergence
-> to layer-0 Q/KV attention projection; iteration 10 falsified the existing batch graph as a shared
+> **Current verdict (2026-07-17): iterations 12-13 move the captured layer-0 exactness frontier
+> through Q/KV, Q-b, attention, and inverse RoPE; V8 attention output is next. Iteration 10
+> falsified the existing batch graph as a shared
 > M=1/M=K exactness family; iteration 9 corrected the iteration-8 locality profiler;
 > cache residency remains a current-path NO-GO; iterations 6/7
 > production kernel geometry = NO-GO; iteration 5
@@ -365,6 +366,44 @@ sufficient." (Confirmatory: a literal identical-input MoE kernel-equality harnes
 verify-bandwidth slope re-measure.)
 
 ## Worklog
+
+### 2026-07-17 - iteration-13 V7 row-wise production Metal Q-b -> CAUSAL GO / audit COMMIT
+
+**Hypothesis and mechanism.** V7 tests only whether the layer-0 `Qcur` difference exposed by V6
+originates in the Q-b Q8 projection changing from the M=1 to the multi-row reduction. The
+pre-experiment challenger returned **REDESIGN**: Metal's
+`ds4_gpu_attn_q_b_f16_head_rms_rope_tail_tensor` is a stub that always returns zero, so the actual
+production path is separate Q-b, head RMS norm, then RoPE. Treating that as one fused boundary would
+conflate three mechanisms.
+
+**Reference/candidate.** Both use the restored batch-M1 comparator and V6 row-wise Q/KV for layer 0.
+The candidate additionally uses the existing Q8 primitive once per verifier row for Q-b at layers
+`< DS4_LEAD08_ROWWISE_QB_LAYERS`; the reference sets that cap to zero. The cap is saved/restored only
+inside `metal_graph_verify_suffix_tops`, engages only for multi-token suffix verification, and does
+not alter prompt prefill or the M=1 comparator. Head norm, RoPE, KV/cache, attention, FFN, and output
+head remain unchanged.
+
+**Exactness and economics.** At position 104, layer-0 M=K row 0 and complete M=1 must have identical
+`q_lora_norm` input. `ProdQB` must become bit-identical for V7 to pass causally. Branch-neutral
+`ProdQHeadNorm` and `Qcur` captures identify norm or RoPE as the next boundary without requesting the
+existing debug names that affect fused-hook dispatch. `N=1` is the causal test; `N=43` is only a
+naive all-layer implementation-cost upper bound. No row-loop overhead is added to the 43 ms
+optimistic floor unless it is proved unavoidable; the hard verifier gate remains 50.5 ms at K=4.
+
+**Outcome tree and retained evidence.** If `ProdQB` remains different with exact input and confirmed
+dispatch, V7 fails or the implementation is wrong. If it becomes exact but `ProdQHeadNorm` differs, norm
+is next; if norm is exact but `Qcur` differs, RoPE is next; if all are exact, advance to the first
+downstream boundary. An unexpectedly successful fused hook makes the run ambiguous for this design.
+Retain the exact command/environment, stage-diff CSV, any matched timing CSV, source scope evidence,
+the challenger result, and a mandatory post-iteration red-team verdict before commit.
+
+**Result.** With V6 exact inputs, row-wise Q-b makes `ProdQB`, unchanged head norm/Q RoPE,
+attention, and inverse RoPE bit-identical through `kqv_back` for the captured row. The final
+cycle-24 flip remains, but max logit error falls from 0.927542 to 0.133129. The exact post-alias
+timing rerun observes +0.140 ms for layer 0 and a confounded +7.465 ms all-layer whole-graph delta;
+the latter is a naive repeated-dispatch upper-bound estimate, not an unavoidable kernel cost. The
+initial audit's command/parser/wording/ledger blockers were corrected and the repeat audit returned
+**COMMIT**. Canonical artifact: `artifacts/lead08_reassessment/21_iter13_rowwise_qb.md`.
 
 ### 2026-07-17 - iteration-12 V6 row-wise Q/KV projection -> CAUSAL GO / audit COMMIT
 
