@@ -248,6 +248,14 @@ of the band; cycle-jump the realistic edge.
 > speculative reaches 37.407, only +13.4% over the slower target and -1.3% versus shipped decode.
 > This closes the existing shared graph, not the unbuilt exact hybrid. Artifact
 > `lead08_reassessment/18_iter10_batch_m1_target.md`.
+>
+> **2026-07-17 Lead 08 iteration 11: same-frontier localization.** A noncommitting M=K probe plus
+> batched-M1 replay finds 2 argmax flips in 349 accepted-row comparisons. At a reproduced flip,
+> layer-0 `hc_attn_pre` and `attn_norm` are bit-identical and `q_lora` is the first captured
+> difference. The post-audit implementation hard-fails on restore failure and reproduced the corpus
+> and captures; repeat audit passed, making bounded exact-Q/KV projection the next falsifier. The synchronized
+> diagnostic's throughput is not economic evidence. Artifact
+> `lead08_reassessment/19_iter11_same_frontier_localization.md`.
 
 - **Corpus-dependent** (cycle-jump K=4 speedup): jsonex **+2.3%**, codealpaca −1.9%, dolly
   −5.6%. The mix is on the easy side — the old 10-prompt code/synthesis exactness corpus was

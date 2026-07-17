@@ -27,6 +27,15 @@ cycle (~16 ms/token off the target).
 
 Reverse-chronological. Each entry: what was tested → verdict → canonical record.
 
+- **2026-07-17 - Lead 08 iteration 11 same-frontier localization: corrected audit COMMIT.**
+  A noncommitting M=K probe followed by batched-M1 replay finds
+  2 argmax flips across 349 accepted-row comparisons, with 640 batched and zero raw singleton target
+  evaluations. At a reproduced flip, row-0 `hc_attn_pre` and `attn_norm` are bit-identical; `q_lora`
+  is the first captured difference (799/1024 F32 words, max 3.35e-8), which amplifies to post-FFN
+  max 0.94 by layer 42. The first audit found restore failure was ignored. Restore failure now
+  hard-fails the diagnostic; all 267 post-fix probe executions restored successfully, and the corpus
+  and dumps reproduce. The repeat audit passed; the bounded Q/KV falsifier is next.
+  `artifacts/lead08_reassessment/19_iter11_same_frontier_localization.md`.
 - **2026-07-17 - Lead 08 iteration 10 shared batch M=1/M=K family: exactness and economics
   NO-GO.** Re-baselining target M=1 onto the existing layer-major batch graph yields only 5/10
   token-identical speculative prompts. Batch M=1 regresses target throughput 37.902 -> 32.989 t/s;
@@ -180,7 +189,8 @@ Verify dominates ~80 % of the cycle; this is where the +20 % must come from.
   verdict. An independent audit then corrected the broader record: the full exact hybrid was never
   built. Iteration 10 tests the cheaper existing-batch shared-family strategy, but it diverges on
   5/10 prompts, regresses target M=1 by 13.0%, and delivers only +13.4% over that slower baseline.
-  Artifacts 10-18 under `artifacts/lead08_reassessment/`.
+  Iteration 11 then localizes the first same-frontier row-0 divergence to layer-0 attention
+  projection, before routed MoE. Artifacts 10-19 under `artifacts/lead08_reassessment/`.
 
 ### Scheduler & acceptance
 
@@ -204,6 +214,9 @@ The bench harness: `ds4-spec-bench` (`make ds4-spec-bench`) — use it, not the 
 
 ## Next step
 
+Experiment selection and stop rules are maintained in
+`summaries/solution_space_ledger.md`; new work must enter that ledger before implementation.
+
 **Lead 08:** no further grouped IQ2XXS gate+up, margin-guard fallback, expert-address reordering,
 existing-batch M=1 re-baselining, or
 production address-kernel launch/tile-geometry work. The bounded kernel passed exactness but failed
@@ -214,11 +227,12 @@ gate. Exact cache replay exposes a large SSD selected-address upper bound, but t
 compose with DSpark and the compatible mapped path has no replay gap. Integration and the final K=4
 verifier gate are skipped. Any
 continuation must first establish a genuinely different mechanism with new controlled evidence.
-The original Phase B exact hybrid remains unbuilt: preserve decode-order HC/compressor/attention and
-batch only stages proven invariant. If pursued, its next iteration must be an exactness-first stage
-falsifier with a running upper bound against `verify_ms(4) <= 50.5 ms`; abort as soon as exact
-rerouting exhausts that budget. Xcode GPU timestamps may support that measurement, but attribution
-alone does not reopen any stopped branch.
+The original Phase B exact hybrid remains unbuilt. Iteration 11 localizes the first M-dependent
+boundary to layer-0 Q/KV attention projection from otherwise bit-identical inputs. The next bounded
+step is row-wise M=1 Q/KV projection inside the batch graph, first at layer 0, followed by the same
+position-104 boundary capture and a matched cost probe. Continue stage-by-stage only if the first
+divergence moves and a credible path to `verify_ms(4) <= 50.5 ms` remains; abort as soon as exact
+rerouting exhausts that budget.
 
 **Lead 10 — drafter re-distillation for IQ2XXS (soft labels)** is a proposed, lower-priority
 drafter-quality follow-up: the one untested route after Lead 07 (hidden-side, dead) and Stage 2

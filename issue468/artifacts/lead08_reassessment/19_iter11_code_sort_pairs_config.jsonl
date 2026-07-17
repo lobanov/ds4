@@ -1,0 +1,1 @@
+{"id":"code_sort_pairs","mode":"speculative_argmax","prompt_file":"issue468/prompts/exactness_small_corpus/code_sort_pairs.txt","frontier_tokens":48,"gen_tokens":64,"exclude_eos":true}

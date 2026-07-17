@@ -31257,8 +31257,17 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
                                                          false, batched_tops, batched_logits);
                 dist_batched_ms = (now_sec() - batched_t0) * 1000.0;
                 s->checkpoint.len = (int)dist_start;
-                if (have_df) (void)spec_frontier_restore(&dist_frontier, s);
+                const bool restored = spec_frontier_restore(&dist_frontier, s);
                 spec_frontier_free(&dist_frontier);
+                if (!restored) {
+                    free(batched_logits);
+                    free(seq_logits);
+                    free(batched_tops);
+                    s->checkpoint_valid = false;
+                    snprintf(err, errlen, "%s distribution probe frontier restore failed",
+                             ds4_backend_name(e->backend));
+                    return -1;
+                }
             }
             dist_batched_ok = dist_ok;
             if (!dist_ok) { free(batched_logits); batched_logits = NULL; free(seq_logits); seq_logits = NULL; free(batched_tops); batched_tops = NULL; }

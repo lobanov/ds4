@@ -1,6 +1,7 @@
 # Lead 08 — Fused low-K batch-verify kernel (close the verify-vs-floor gap)
 
-> **Current verdict (2026-07-17): iteration 10 falsified the existing batch graph as a shared
+> **Current verdict (2026-07-17): iteration 11 localizes the first same-frontier row-0 divergence
+> to layer-0 Q/KV attention projection; iteration 10 falsified the existing batch graph as a shared
 > M=1/M=K exactness family; iteration 9 corrected the iteration-8 locality profiler;
 > cache residency remains a current-path NO-GO; iterations 6/7
 > production kernel geometry = NO-GO; iteration 5
@@ -19,6 +20,12 @@
 > shipped decode. The existing end-to-end batch graph/state transition is not M-invariant; this
 > experiment does not localize the cause to a kernel. Artifact:
 > `issue468/artifacts/lead08_reassessment/18_iter10_batch_m1_target.md`.
+>
+> With committing M=K disabled, a noncommitting M=K probe followed by batched-M1 replay finds 2
+> argmax flips across 349 accepted-row comparisons (`640` batched / `0` raw singleton target
+> evaluations). At a reproduced flip, layer-0 row-0 `hc_attn_pre` and `attn_norm` are bit-identical;
+> `q_lora` is the first captured difference. Artifact:
+> `issue468/artifacts/lead08_reassessment/19_iter11_same_frontier_localization.md`.
 >
 > Fixed-work SIMDgroup-count and output-row-tile sweeps preserve the physical-row algorithm and all
 > variants are bit-exact. SIMDgroup effects stay within 1-3%; alternate row tiles are slower total
@@ -358,6 +365,32 @@ sufficient." (Confirmatory: a literal identical-input MoE kernel-equality harnes
 verify-bandwidth slope re-measure.)
 
 ## Worklog
+
+### 2026-07-17 - iteration-11 same-frontier localization -> corrected audit COMMIT
+
+Used `DS4_DSPARK_VERIFY_DIST_PROBE=1` with committing M=K disabled and the iteration-10 batched-M1
+target enabled. The diagnostic computes M=K logits from a snapshot, then intends to restore before
+committing accepted tokens through M=1. Across the first run, 176 cycles produced 349 accepted-row
+comparisons with two argmax flips; all 640 singleton target evaluations are batched M=1 and none are
+raw decode. Only row 0 is an identical-frontier/identical-input comparison.
+
+Reproduced the `code_sort_pairs` flip (cycle 24, suffix start position 104) with existing tagged
+tensor dumps. Layer-0 row-0 `hc_attn_pre` and `attn_norm` are bit-identical. The first captured
+difference is `q_lora` (799/1024 F32 words, max 3.35e-8); the independent KV projection differs too
+(405/512, max 2.98e-8). The error reaches max 1.72e-5 at attention output and propagates from
+post-FFN max 6.85e-7 at layer 0 to 0.94 at layer 42. The dump run preserved the same flip cycle,
+drafts, and max logit difference as the no-dump run.
+
+The first mandatory red-team audit returned **NO-COMMIT** because `spec_frontier_restore` failure was
+ignored, so the same-frontier invariant was not enforced across the corpus. It also corrected 267
+probe-present cycles to 176 cycles with comparisons and required exact dump/scope reproduction.
+The raw arithmetic, dump layout, stage/growth values, and bounded Q/KV rationale otherwise passed.
+The diagnostic now hard-fails on restore failure. All 10 corrected corpus runs completed, so all 267
+probe executions restored successfully; the 349-row/two-flip result and both localization captures
+reproduced exactly. The repeat audit independently validated the code, arithmetic, captures, layouts,
+commands, and ledger, and returned **COMMIT**. Its only nonblocking residual is that a hard restore
+failure can leave the global debug filename tag as `b_`; computation cannot continue in that
+session. Retained artifact 19 + three compact CSVs.
 
 ### 2026-07-17 - iteration-10 existing batch graph fails the shared M=1/M=K strategy -> STOP
 
