@@ -1,7 +1,7 @@
 # Lead 08 — Fused low-K batch-verify kernel (close the verify-vs-floor gap)
 
-> **Current verdict (2026-07-17): iterations 12-13 move the captured layer-0 exactness frontier
-> through Q/KV, Q-b, attention, and inverse RoPE; V8 attention output is next. Iteration 10
+> **Current verdict (2026-07-17): iterations 12-14 move the captured layer-0 exactness frontier
+> through Q/KV, Q-b, attention, inverse RoPE, and output-B; V9 HC expansion is next. Iteration 10
 > falsified the existing batch graph as a shared
 > M=1/M=K exactness family; iteration 9 corrected the iteration-8 locality profiler;
 > cache residency remains a current-path NO-GO; iterations 6/7
@@ -366,6 +366,38 @@ sufficient." (Confirmatory: a literal identical-input MoE kernel-equality harnes
 verify-bandwidth slope re-measure.)
 
 ## Worklog
+
+### 2026-07-17 - iteration-14 V8 attention output-B -> CAUSAL GO / audit COMMIT
+
+**Hypothesis and preflight.** With V6/V7 exact inputs, layer-0 output-A low projection should already
+be M-invariant because Metal uses the same token/group-independent direct Q8 kernel below 32 rows.
+The following output-B generic Q8 matmul changes between M=1 and multi-row kernels and is the likely
+first difference. The challenger returned **PROCEED**: first capture branch-neutral `ProdOALow` and
+`ProdOAOut`; only if low is exact and output differs, overwrite output-B rowwise.
+
+**Reference/candidate and invariant.** Both arms set Q/KV and Q-b caps to one. The candidate sets
+`DS4_LEAD08_ROWWISE_ATTN_OUT_B_LAYERS=1`; after the unchanged combined batch output call, it uses
+the existing named M1 Q8 primitive once per row to overwrite only `batch_attn_out`. The cap is
+saved/restored only inside multi-token suffix verification. Prompt prefill, the M1 comparator,
+output-A, HC expansion, FFN, and the output head are unchanged. At position 104, `ProdOALow` must be
+exact in both arms; `ProdOAOut` must become exact only in the candidate. `hc_attn_post` identifies
+the next boundary.
+
+**Economics and outcomes.** `N=1` is causal. `N=43` is diagnostic-only because it executes batch
+output-B and then repeats output-B rowwise; its delta is redundant-work upper-bound evidence with
+downstream-routing confounds, not a feasibility lower bound. If low differs, redesign around the
+single-row low API before touching output-B. If low is exact and output-B becomes exact, V8 passes.
+If output-B remains different, fail or debug the overlay. A successful F16 hook or directional
+steering makes this Metal experiment ambiguous. Retain branch-activation stderr, stage CSV, exact
+commands, any timing as supporting-only, preflight result, and mandatory post-iteration audit.
+
+**Result.** `ProdOALow` is already exact; the row-wise overlay makes `ProdOAOut` exact (3,319/4,096
+differences to zero) and exposes `hc_attn_post` as the first captured unresolved boundary. The same
+cycle-24 flip remains; max error changes 0.133129 -> 1.00982 as the downstream M=K batch-error
+pattern changes, while the canonical M1 replay/generated trajectory is unchanged. The redundant
+all-layer overlay observes a confounded +6.990 ms and cannot update the feasibility lower bound.
+The post-iteration audit returned **COMMIT**. Canonical artifact:
+`artifacts/lead08_reassessment/22_iter14_rowwise_attn_out_b.md`.
 
 ### 2026-07-17 - iteration-13 V7 row-wise production Metal Q-b -> CAUSAL GO / audit COMMIT
 

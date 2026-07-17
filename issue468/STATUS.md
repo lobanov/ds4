@@ -20,13 +20,18 @@ cycle (~16 ms/token off the target).
 | Goal | ≥20 % greedy throughput on ds4 IQ2XXS, output-preserved |
 | Current best | Full DSpark stack **+4.9 %** over plain (40.04 vs 38.16 t/s; score-neutral 61/92) — M3 |
 | The gap | +20 % not reached; verify ≈80 % of the cycle |
-| Open lever | **No demonstrated +20% lever.** Lead 08's grouped gate+up prototype is slower, margin fallback is uneconomic, layout/cache branches fail, and the existing batch graph is neither M-invariant nor fast enough as a shared M=1/M=K family. The exact-hybrid frontier is bit-identical through layer-0 inverse RoPE for one captured row, but remains unbuilt at attention output and beyond |
+| Open lever | **No demonstrated +20% lever.** Lead 08's grouped gate+up prototype is slower, margin fallback is uneconomic, layout/cache branches fail, and the existing batch graph is neither M-invariant nor fast enough as a shared M=1/M=K family. The exact-hybrid frontier is bit-identical through layer-0 attention output-B for one captured row, but remains unbuilt at HC expansion and beyond |
 | Closed (negative) | Drafter/input quality (Lead 07), drafter quant (Q4_K), non-expert finetune (Stage 2), DFlash, quant-mismatch |
 
 ## Investigation arc
 
 Reverse-chronological. Each entry: what was tested → verdict → canonical record.
 
+- **2026-07-17 - Lead 08 iteration 14 row-wise attention output-B: causal GO; audit COMMIT.**
+  Branch-neutral capture proves output-A low is exact. Output-B moves from 3,319/4,096 differing
+  values to bit-identical; `hc_attn_post` is next. The final flip remains. The redundant all-layer
+  overlay adds a confounded +6.99 ms and is supporting-only, not a feasibility lower bound.
+  `artifacts/lead08_reassessment/22_iter14_rowwise_attn_out_b.md`.
 - **2026-07-17 - Lead 08 iteration 13 row-wise Q-b: causal GO; audit COMMIT.** Metal's supposed
   fused Q-b hook is a stub, so V7 exactifies only the actual Q8 Q-b projection. With V6 enabled,
   layer-0 row 0 becomes bit-identical through head norm, Q RoPE, attention, and inverse RoPE. The
@@ -242,11 +247,10 @@ gate. Exact cache replay exposes a large SSD selected-address upper bound, but t
 compose with DSpark and the compatible mapped path has no replay gap. Integration and the final K=4
 verifier gate are skipped. Any
 continuation must first establish a genuinely different mechanism with new controlled evidence.
-The original Phase B exact hybrid remains unbuilt. Iterations 12-13 move the same-frontier layer-0
-correctness boundary through Q/KV projection, Q-b, normalization, RoPE, attention, and inverse
-RoPE for one captured row. The next bounded step is branch-neutral capture of the production
-attention-output low/final projections, then row-wise exactification of only the first differing
-projection. Continue only if the frontier moves and a credible path to `verify_ms(4) <= 50.5 ms`
+The original Phase B exact hybrid remains unbuilt. Iterations 12-14 move the same-frontier layer-0
+correctness boundary through Q/KV projection, Q-b, normalization, RoPE, attention, inverse RoPE,
+and attention output-B for one captured row. The next bounded step is HC expansion after attention.
+Continue only if the frontier moves and a credible path to `verify_ms(4) <= 50.5 ms`
 remains. The observed +7.47 ms all-layer whole-graph delta nearly consumes the modeled headroom but is a
 repeated-dispatch implementation upper bound; stop only when costs proven unavoidable exhaust the
 retained feasibility floor.

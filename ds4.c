@@ -10605,6 +10605,7 @@ typedef struct {
     bool spec_prefix_capture_valid;
     uint32_t lead08_rowwise_qkv_layers;
     uint32_t lead08_rowwise_qb_layers;
+    uint32_t lead08_rowwise_attn_out_b_layers;
     uint32_t raw_cap;
     /* Maximum compressed-row capacity across layers.  Shared work buffers use
      * this worst-case size because ratio-4 indexer layers can still reach it. */
@@ -17955,6 +17956,8 @@ static bool metal_graph_encode_layer_attention_batch(
     const bool qkv_rms_fused = !metal_graph_use_reference_qkv_norm();
     const bool rowwise_qkv = n_tokens > 1 && il < g->lead08_rowwise_qkv_layers;
     const bool rowwise_qb = n_tokens > 1 && il < g->lead08_rowwise_qb_layers;
+    const bool rowwise_attn_out_b =
+        n_tokens > 1 && il < g->lead08_rowwise_attn_out_b_layers;
     ds4_gpu_tensor *hc_mix_view = ds4_gpu_tensor_view(
             g->batch_hc_mix, 0, (uint64_t)n_tokens * mix_hc * sizeof(float));
     ds4_gpu_tensor *hc_split_view = ds4_gpu_tensor_view(
@@ -19391,14 +19394,32 @@ static bool metal_graph_encode_layer_attention_batch(
                                                           g->batch_heads,
                                                           n_tokens) != 0;
         }
+        if (ok && rowwise_attn_out_b) {
+            ok = metal_graph_matmul_q8_0_rows_as_m1("attn_output_b",
+                                                     il,
+                                                     pos0,
+                                                     g->batch_attn_out,
+                                                     model,
+                                                     layer->attn_output_b,
+                                                     (uint64_t)n_groups * rank,
+                                                     DS4_N_EMBD,
+                                                     g->batch_attn_low,
+                                                     n_tokens);
+        }
         if (ok) {
             metal_graph_debug_dump_tensor("attn_low", g->batch_attn_low,
+                                          (uint64_t)n_tokens * n_groups * rank,
+                                          il,
+                                          pos0);
+            metal_graph_debug_dump_tensor("ProdOALow", g->batch_attn_low,
                                           (uint64_t)n_tokens * n_groups * rank,
                                           il,
                                           pos0);
         }
         if (ok) {
             metal_graph_debug_dump_tensor("attn_out", g->batch_attn_out,
+                                          (uint64_t)n_tokens * DS4_N_EMBD, il, pos0);
+            metal_graph_debug_dump_tensor("ProdOAOut", g->batch_attn_out,
                                           (uint64_t)n_tokens * DS4_N_EMBD, il, pos0);
         }
     }
@@ -22014,6 +22035,13 @@ static uint32_t lead08_rowwise_qb_layer_count(void) {
     return layers;
 }
 
+static uint32_t lead08_rowwise_attn_out_b_layer_count(void) {
+    static uint32_t layers = UINT32_MAX;
+    if (layers != UINT32_MAX) return layers;
+    layers = lead08_parse_layer_count("DS4_LEAD08_ROWWISE_ATTN_OUT_B_LAYERS");
+    return layers;
+}
+
 static bool metal_graph_verify_suffix_tops(
         ds4_gpu_graph *g,
         const ds4_model       *model,
@@ -22062,8 +22090,11 @@ static bool metal_graph_verify_suffix_tops(
     const bool saved_capture_prefix = g->spec_capture_prefix;
     const uint32_t saved_rowwise_qkv_layers = g->lead08_rowwise_qkv_layers;
     const uint32_t saved_rowwise_qb_layers = g->lead08_rowwise_qb_layers;
+    const uint32_t saved_rowwise_attn_out_b_layers = g->lead08_rowwise_attn_out_b_layers;
     g->lead08_rowwise_qkv_layers = n_tokens > 1 ? lead08_rowwise_qkv_layer_count() : 0;
     g->lead08_rowwise_qb_layers = n_tokens > 1 ? lead08_rowwise_qb_layer_count() : 0;
+    g->lead08_rowwise_attn_out_b_layers =
+        n_tokens > 1 ? lead08_rowwise_attn_out_b_layer_count() : 0;
     if (g->lead08_rowwise_qkv_layers) {
         static bool announced = false;
         if (!announced) {
@@ -22079,6 +22110,15 @@ static bool metal_graph_verify_suffix_tops(
             fprintf(stderr,
                     "ds4: lead08 row-wise M1 Q-b active for %u verifier layers\n",
                     g->lead08_rowwise_qb_layers);
+            announced = true;
+        }
+    }
+    if (g->lead08_rowwise_attn_out_b_layers) {
+        static bool announced = false;
+        if (!announced) {
+            fprintf(stderr,
+                    "ds4: lead08 row-wise M1 attention output-B active for %u verifier layers\n",
+                    g->lead08_rowwise_attn_out_b_layers);
             announced = true;
         }
     }
@@ -22136,6 +22176,7 @@ static bool metal_graph_verify_suffix_tops(
     g->spec_capture_prefix = saved_capture_prefix;
     g->lead08_rowwise_qkv_layers = saved_rowwise_qkv_layers;
     g->lead08_rowwise_qb_layers = saved_rowwise_qb_layers;
+    g->lead08_rowwise_attn_out_b_layers = saved_rowwise_attn_out_b_layers;
     if (!ok) return false;
 
     ok = ds4_gpu_begin_commands() != 0;
