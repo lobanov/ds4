@@ -1,0 +1,12 @@
+boundary,values_compared,different_values,max_abs,batch_bytes,m1_bytes
+hc_attn_post,16384,0,0,131072,65536
+ProdFFNHCResidual,16384,0,0,131072,65536
+ProdFFNHCFlat,16384,0,0,131072,65536
+ProdFFNHCMix,24,14,1.52587891e-05,192,96
+ProdFFNHCSplit,24,16,1.34110451e-07,192,96
+ProdFFNHCSplit_0_4_pre,4,2,7.4505806e-09,16,16
+ProdFFNHCSplit_4_8_post,4,0,0,16,16
+ProdFFNHCSplit_8_24_comb,16,14,1.34110451e-07,64,64
+hc_ffn_pre,4096,752,7.4505806e-09,32768,16384
+ffn_norm,4096,701,5.96046448e-08,32768,16384
+hc_ffn_post,16384,8628,1.1920929e-07,131072,65536

@@ -3,7 +3,7 @@
 > **Current verdict (2026-07-18): iterations 12-14 move the captured layer-0 exactness frontier
 > through Q/KV, Q-b, attention, inverse RoPE, and output-B. Iteration 15 finds the post-attention
 > debt is inherited from the early HC mixer. Iteration 16 exactifies that state through attention
-> HC post; V11 FFN HC input localization is next. Iteration 10
+> HC post; iteration 17 localizes the next debt to the FFN HC mixer, and V12 is next. Iteration 10
 > falsified the existing batch graph as a shared
 > M=1/M=K exactness family; iteration 9 corrected the iteration-8 locality profiler;
 > cache residency remains a current-path NO-GO; iterations 6/7
@@ -368,6 +368,43 @@ sufficient." (Confirmatory: a literal identical-input MoE kernel-equality harnes
 verify-bandwidth slope re-measure.)
 
 ## Worklog
+
+### 2026-07-18 - iteration-17 V11 contract: FFN HC input localization
+
+**Hypothesis and preflight.** V10 makes `hc_attn_post` exact but leaves `hc_ffn_pre` as the first
+captured difference. The challenger returned **PROCEED** for capture-only localization and rejected
+an immediate row-wise FFN mixer. The complete causal cone is the post-attention HC residual
+(`16384`) -> plain row RMS (`16384`) -> F16 `hc_ffn_fn` mix (`24`) -> split state (`24`) ->
+`hc_ffn_pre` (`4096`).
+
+**Reference/candidate.** This iteration changes no compute. The existing restored-frontier comparator
+retains V6-V10 at layer 0 and compares the M=K row at position 104 with its batch-M1 replay. New
+case-sensitive aliases `ProdFFNHCResidual`, `ProdFFNHCFlat`, `ProdFFNHCMix`, and `ProdFFNHCSplit`
+do not contain the lowercase legacy names that alter FFN branch selection. Flat and mix are
+immediately post-producer; split follows its fused producer. Residual is retained at the FFN-entry
+consumer boundary after read-only RMS and corroborated by producer-adjacent `hc_attn_post`.
+Directional FFN steering remains disabled.
+
+**Outcome tree.** A residual difference invalidates the V10/replay contract. Exact residual with a
+flat difference implicates plain RMS; exact flat with a mix difference makes a row-wise FFN F16
+mixer the next bounded falsifier; exact mix with a split difference redirects to split/sinkhorn;
+exact split with differing `hc_ffn_pre` redirects to weighted sum. A synthetic combined FFN block is
+not captured: the optimized path consumes routed F32 plus shared F16/F32 directly, and forcing
+`ffn_out` would materialize a sum and change the branch.
+
+**Evidence and economics.** Retain the exact command, activation/path counts, and compact stage CSV.
+This is correctness-only instrumentation with no timing claim or change to the 50.5 ms gate. Run the
+mandatory post-iteration audit before commit.
+
+**Result.** `hc_attn_post`, `ProdFFNHCResidual`, and `ProdFFNHCFlat` are bit-identical.
+`ProdFFNHCMix` is the first difference at 14/24 values, max 1.52587891e-5. Split state then differs
+in 16/24 values and `hc_ffn_pre` in 752/4096, both inherited from the mixer. The run has 64
+batch-M1 and zero raw-M1 evaluations; no legacy FFN path-debug name was requested. Close V11 as a
+localization result and rank V12 row-wise FFN HC mixing next. No timing claim. Post-iteration audit
+initially returned **NO-COMMIT** only because the residual alias was incorrectly described as
+producer-adjacent. After correcting it to the FFN-entry consumer boundary, repeat audit returned
+**COMMIT**. Canonical artifact:
+`artifacts/lead08_reassessment/25_iter17_ffn_hc_input_localization.md`.
 
 ### 2026-07-18 - iteration-16 V10 contract: row-wise HC attention mixer
 

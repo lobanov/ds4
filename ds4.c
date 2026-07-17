@@ -19562,6 +19562,14 @@ static bool metal_graph_encode_layer_ffn_batch(
                                                       (uint32_t)hc_dim,
                                                       n_tokens,
                                                       DS4_RMS_EPS) != 0;
+    if (ok) {
+        /* Retain the FFN-entry residual and normalized mixer input without
+         * matching legacy path-debug names or changing the optimized branch. */
+        metal_graph_debug_dump_tensor("ProdFFNHCResidual", g->batch_after_attn_hc,
+                                      (uint64_t)n_tokens * hc_dim, il, pos0);
+        metal_graph_debug_dump_tensor("ProdFFNHCFlat", g->batch_flat_hc,
+                                      (uint64_t)n_tokens * hc_dim, il, pos0);
+    }
     if (ok) ok = ds4_gpu_matmul_f16_tensor(hc_mix_view,
                                              model->map,
                                              model->size,
@@ -19570,6 +19578,10 @@ static bool metal_graph_encode_layer_ffn_batch(
                                              mix_hc,
                                              g->batch_flat_hc,
                                              n_tokens) != 0;
+    if (ok) {
+        metal_graph_debug_dump_tensor("ProdFFNHCMix", hc_mix_view,
+                                      (uint64_t)n_tokens * mix_hc, il, pos0);
+    }
     if (metal_graph_use_reference_hc_decode()) {
         if (ok) ok = ds4_gpu_hc_split_sinkhorn_tensor(hc_split_view,
                                                         hc_mix_view,
@@ -19616,6 +19628,8 @@ static bool metal_graph_encode_layer_ffn_batch(
                                                             DS4_HC_EPS) != 0;
     }
     if (ok) {
+        metal_graph_debug_dump_tensor("ProdFFNHCSplit", hc_split_view,
+                                      (uint64_t)n_tokens * mix_hc, il, pos0);
         metal_graph_debug_dump_tensor("hc_ffn_pre", g->batch_ffn_cur,
                                       (uint64_t)n_tokens * DS4_N_EMBD, il, pos0);
     }
