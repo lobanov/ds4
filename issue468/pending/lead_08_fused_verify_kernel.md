@@ -3,7 +3,8 @@
 > **Current verdict (2026-07-18): iterations 12-14 move the captured layer-0 exactness frontier
 > through Q/KV, Q-b, attention, inverse RoPE, and output-B. Iteration 15 finds the post-attention
 > debt is inherited from the early HC mixer. Iteration 16 exactifies that state through attention
-> HC post; iteration 17 localizes the next debt to the FFN HC mixer, and V12 is next. Iteration 10
+> HC post; iteration 17 localizes the next debt to the FFN HC mixer, and iteration 18 exactifies
+> through FFN normalization. A generic same-accumulation batched-F16 inventory is next. Iteration 10
 > falsified the existing batch graph as a shared
 > M=1/M=K exactness family; iteration 9 corrected the iteration-8 locality profiler;
 > cache residency remains a current-path NO-GO; iterations 6/7
@@ -368,6 +369,44 @@ sufficient." (Confirmatory: a literal identical-input MoE kernel-equality harnes
 verify-bandwidth slope re-measure.)
 
 ## Worklog
+
+### 2026-07-18 - iteration-18 V12 contract: row-wise HC FFN mixer
+
+**Hypothesis and preflight.** V11 establishes exact FFN HC residual/flat input and 14/24 differing
+F16 `hc_ffn_fn` outputs. The challenger returned **PROCEED** for the cheapest causal falsifier: reuse
+the existing F16 rows-as-M1 helper only at this `16384 -> 24` projection. No split, normalization,
+router, expert, attention, drafter, or output-head path changes.
+
+**Reference/candidate.** Both arms retain V6-V10 at layer 0. The candidate additionally sets
+`DS4_LEAD08_ROWWISE_HC_FFN_MIX_LAYERS=1`; the numeric cap is parsed, saved, set, announced, and
+restored only inside multi-token suffix verification. Correctness compares the M=K row at position
+104 with its restored batch-M1 replay. Existing branch-neutral router dumps extend the capture only
+through logits/probabilities/top-k/weights; lowercase `ffn_out` and `ffn_shexp` remain unrequested.
+
+**Outcome tree.** Upstream residual/flat must remain exact. Mixer, all split state, `hc_ffn_pre`, and
+`ffn_norm` exact is a V12 causal pass. A remaining mix difference fails activation/helper/layout;
+exact mix with differing split redirects to split/sinkhorn; exact split with differing pre redirects
+to weighted sum; exact pre with differing norm redirects to RMS weight norm. Exact norm with differing
+router logits exposes the F16 router projection; exact logits with later router-state differences
+redirects to router select. A final-logit flip is not a V12 failure if the local frontier moves.
+
+**Economics and evidence.** Correctness dumps are untimed. If retained, timing is restricted to
+balanced process-first layer-0 `part=ffn stage=hc_pre` measurements with dumps/probing off. That local
+envelope excludes expert routing and can describe only this naive row-loop realization, not production
+verifier cost or the 50.5 ms bound. Omit all-layer timing because downstream state/routes diverge.
+After V12, if the router projection is next, rank a generic same-accumulation batched-F16 design/cost
+inventory above another reflexive row helper. Retain commands, activation/path counts, stage evidence,
+challenger result, and mandatory post-iteration audit before commit.
+
+**Result.** The candidate makes `ProdFFNHCMix`, all split state, `hc_ffn_pre`, and `ffn_norm`
+bit-identical for the captured row. The first remaining difference is the F16 router projection:
+186/256 logits differ, while top-6 expert IDs remain exact. Four balanced synchronized layer-0
+`ffn/hc_pre` pairs all favor the row loop by 0.0293 ms mean, but this is diagnostic-only and not an
+all-layer or production cost. Close V12 positive. Per preflight, rank a generic same-accumulation
+batched-F16 design/cost inventory above another row-wise projection. The mandatory audit independently
+reproduced all F32/I32 boundaries and timing arithmetic, validated scope/attribution, and returned
+**COMMIT**.
+Canonical artifact: `artifacts/lead08_reassessment/26_iter18_rowwise_hc_ffn_mix.md`.
 
 ### 2026-07-18 - iteration-17 V11 contract: FFN HC input localization
 

@@ -10607,6 +10607,7 @@ typedef struct {
     uint32_t lead08_rowwise_qb_layers;
     uint32_t lead08_rowwise_attn_out_b_layers;
     uint32_t lead08_rowwise_hc_attn_mix_layers;
+    uint32_t lead08_rowwise_hc_ffn_mix_layers;
     uint32_t raw_cap;
     /* Maximum compressed-row capacity across layers.  Shared work buffers use
      * this worst-case size because ratio-4 indexer layers can still reach it. */
@@ -19557,6 +19558,8 @@ static bool metal_graph_encode_layer_ffn_batch(
     const bool fuse_hc_norm = DS4_N_HC == 4 &&
                               !metal_graph_use_reference_hc_decode() &&
                               metal_graph_enable_batch_hc_norm_fusion();
+    const bool rowwise_hc_ffn_mix =
+        n_tokens > 1 && il < g->lead08_rowwise_hc_ffn_mix_layers;
     if (ok) ok = ds4_gpu_rms_norm_plain_rows_tensor(g->batch_flat_hc,
                                                       g->batch_after_attn_hc,
                                                       (uint32_t)hc_dim,
@@ -19570,14 +19573,24 @@ static bool metal_graph_encode_layer_ffn_batch(
         metal_graph_debug_dump_tensor("ProdFFNHCFlat", g->batch_flat_hc,
                                       (uint64_t)n_tokens * hc_dim, il, pos0);
     }
-    if (ok) ok = ds4_gpu_matmul_f16_tensor(hc_mix_view,
-                                             model->map,
-                                             model->size,
-                                             layer->hc_ffn_fn->abs_offset,
-                                             hc_dim,
-                                             mix_hc,
-                                             g->batch_flat_hc,
-                                             n_tokens) != 0;
+    if (ok) {
+        ok = rowwise_hc_ffn_mix
+            ? metal_graph_matmul_f16_rows_as_m1(hc_mix_view,
+                                                 model,
+                                                 layer->hc_ffn_fn,
+                                                 hc_dim,
+                                                 mix_hc,
+                                                 g->batch_flat_hc,
+                                                 n_tokens)
+            : ds4_gpu_matmul_f16_tensor(hc_mix_view,
+                                         model->map,
+                                         model->size,
+                                         layer->hc_ffn_fn->abs_offset,
+                                         hc_dim,
+                                         mix_hc,
+                                         g->batch_flat_hc,
+                                         n_tokens) != 0;
+    }
     if (ok) {
         metal_graph_debug_dump_tensor("ProdFFNHCMix", hc_mix_view,
                                       (uint64_t)n_tokens * mix_hc, il, pos0);
@@ -22120,6 +22133,13 @@ static uint32_t lead08_rowwise_hc_attn_mix_layer_count(void) {
     return layers;
 }
 
+static uint32_t lead08_rowwise_hc_ffn_mix_layer_count(void) {
+    static uint32_t layers = UINT32_MAX;
+    if (layers != UINT32_MAX) return layers;
+    layers = lead08_parse_layer_count("DS4_LEAD08_ROWWISE_HC_FFN_MIX_LAYERS");
+    return layers;
+}
+
 static bool metal_graph_verify_suffix_tops(
         ds4_gpu_graph *g,
         const ds4_model       *model,
@@ -22170,12 +22190,15 @@ static bool metal_graph_verify_suffix_tops(
     const uint32_t saved_rowwise_qb_layers = g->lead08_rowwise_qb_layers;
     const uint32_t saved_rowwise_attn_out_b_layers = g->lead08_rowwise_attn_out_b_layers;
     const uint32_t saved_rowwise_hc_attn_mix_layers = g->lead08_rowwise_hc_attn_mix_layers;
+    const uint32_t saved_rowwise_hc_ffn_mix_layers = g->lead08_rowwise_hc_ffn_mix_layers;
     g->lead08_rowwise_qkv_layers = n_tokens > 1 ? lead08_rowwise_qkv_layer_count() : 0;
     g->lead08_rowwise_qb_layers = n_tokens > 1 ? lead08_rowwise_qb_layer_count() : 0;
     g->lead08_rowwise_attn_out_b_layers =
         n_tokens > 1 ? lead08_rowwise_attn_out_b_layer_count() : 0;
     g->lead08_rowwise_hc_attn_mix_layers =
         n_tokens > 1 ? lead08_rowwise_hc_attn_mix_layer_count() : 0;
+    g->lead08_rowwise_hc_ffn_mix_layers =
+        n_tokens > 1 ? lead08_rowwise_hc_ffn_mix_layer_count() : 0;
     if (g->lead08_rowwise_qkv_layers) {
         static bool announced = false;
         if (!announced) {
@@ -22209,6 +22232,15 @@ static bool metal_graph_verify_suffix_tops(
             fprintf(stderr,
                     "ds4: lead08 row-wise M1 HC attention mixer active for %u verifier layers\n",
                     g->lead08_rowwise_hc_attn_mix_layers);
+            announced = true;
+        }
+    }
+    if (g->lead08_rowwise_hc_ffn_mix_layers) {
+        static bool announced = false;
+        if (!announced) {
+            fprintf(stderr,
+                    "ds4: lead08 row-wise M1 HC FFN mixer active for %u verifier layers\n",
+                    g->lead08_rowwise_hc_ffn_mix_layers);
             announced = true;
         }
     }
@@ -22268,6 +22300,7 @@ static bool metal_graph_verify_suffix_tops(
     g->lead08_rowwise_qb_layers = saved_rowwise_qb_layers;
     g->lead08_rowwise_attn_out_b_layers = saved_rowwise_attn_out_b_layers;
     g->lead08_rowwise_hc_attn_mix_layers = saved_rowwise_hc_attn_mix_layers;
+    g->lead08_rowwise_hc_ffn_mix_layers = saved_rowwise_hc_ffn_mix_layers;
     if (!ok) return false;
 
     ok = ds4_gpu_begin_commands() != 0;

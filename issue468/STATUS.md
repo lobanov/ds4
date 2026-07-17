@@ -20,13 +20,19 @@ cycle (~16 ms/token off the target).
 | Goal | ≥20 % greedy throughput on ds4 IQ2XXS, output-preserved |
 | Current best | Full DSpark stack **+4.9 %** over plain (40.04 vs 38.16 t/s; score-neutral 61/92) — M3 |
 | The gap | +20 % not reached; verify ≈80 % of the cycle |
-| Open lever | **No demonstrated +20% lever.** Lead 08's grouped gate+up prototype is slower, margin fallback is uneconomic, layout/cache branches fail, and the existing batch graph is neither M-invariant nor fast enough as a shared M=1/M=K family. The exact-hybrid visible path is bit-identical through the layer-0 FFN HC mixer input for one captured row; the FFN mixer is the first differing operation |
+| Open lever | **No demonstrated +20% lever.** Lead 08's grouped gate+up prototype is slower, margin fallback is uneconomic, layout/cache branches fail, and the existing batch graph is neither M-invariant nor fast enough as a shared M=1/M=K family. The exact-hybrid visible path is bit-identical through layer-0 FFN normalization for one captured row; the F16 router projection is the first differing operation |
 | Closed (negative) | Drafter/input quality (Lead 07), drafter quant (Q4_K), non-expert finetune (Stage 2), DFlash, quant-mismatch |
 
 ## Investigation arc
 
 Reverse-chronological. Each entry: what was tested → verdict → canonical record.
 
+- **2026-07-18 - Lead 08 iteration 18 row-wise HC FFN mixer: causal GO; audit COMMIT.**
+  Mixer, split, HC pre, and FFN norm become exact for layer-0 row 0; router logits are the next
+  boundary, while top-6 expert IDs remain exact. Isolated synchronized `ffn/hc_pre` timing shows no
+  local penalty (-0.029 ms mean) but is diagnostic-only. The audit reproduced all correctness/timing
+  values and endorsed V13: inventory a generic exact batched-F16 mechanism before any further row
+  helper. `artifacts/lead08_reassessment/26_iter18_rowwise_hc_ffn_mix.md`.
 - **2026-07-18 - Lead 08 iteration 17 FFN HC input localization: REDESIGN; corrected audit COMMIT.**
   Attention HC post, FFN-entry residual, and flat RMS input are exact for layer-0 row 0. The F16
   FFN mixer is the first difference at 14/24 values; split and `hc_ffn_pre` inherit that debt. V12
@@ -267,7 +273,8 @@ The original Phase B exact hybrid remains unbuilt. Iterations 12-14 move the sam
 correctness boundary through Q/KV projection, Q-b, normalization, RoPE, attention, inverse RoPE,
 and attention output-B for one captured row. Row-wise attention HC mixing then makes the latent split
 state and attention HC post exact. FFN input localization then finds exact residual/RMS input and a
-differing F16 mixer output; a bounded row-wise FFN mixer falsifier is next.
+differing F16 mixer output. Row-wise FFN mixing then moves exactness through FFN normalization and
+exposes the F16 router projection; a generic same-accumulation batched-F16 inventory is next.
 Continue only if the frontier moves and a credible path to `verify_ms(4) <= 50.5 ms`
 remains. The observed +7.47 ms all-layer whole-graph delta nearly consumes the modeled headroom but is a
 repeated-dispatch implementation upper bound; stop only when costs proven unavoidable exhaust the

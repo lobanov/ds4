@@ -63,7 +63,8 @@ corpus, exactness contract, and whether timing is decision-grade or diagnostic-o
 | V9 | HC expansion input localization at layer 0 | Resolve whether expansion or latent input differs | Expansion not independently implicated | Diagnostic capture | Capture all expansion inputs | Block/residual exact; HC mix and consumed split state differ | `CLOSED` redesign |
 | V10 | Row-wise HC attention mixer at layer 0 | First latent state debt exposed by V9 | Exact through attention HC post for captured row | Diagnostic patch | Row-wise F16 mixer, recapture mix/split/HC post | Frontier moves to FFN HC path; timing shows no obvious penalty but is route-confounded | `CLOSED` positive |
 | V11 | FFN HC input localization at layer 0 | First captured difference after V10 | Mixer is first differing operation | Diagnostic capture | Capture FFN residual/flat/mix/split/pre | Residual and flat exact; mix differs 14/24 before split/pre | `CLOSED` redesign |
-| V12 | Row-wise FFN HC mixer at layer 0 | Exact-input/different-output boundary exposed by V11 | Unproven | Diagnostic patch | Apply existing F16 rows-as-M1 helper only to `hc_ffn_fn` | Not run | `OPEN`, rank 1 |
+| V12 | Row-wise FFN HC mixer at layer 0 | Exact-input/different-output boundary exposed by V11 | Exact through FFN norm for captured row | Diagnostic patch | Apply existing F16 rows-as-M1 helper only to `hc_ffn_fn` | Frontier moves to router logits; local profiled envelope -0.029 ms | `CLOSED` positive |
+| V13 | Generic same-accumulation batched-F16 design/cost inventory | Three exposed low-K F16 mismatches make per-row patching strategically weak | Design only | Must preserve batch sharing | Inventory attention/FFN/router shapes, kernel route, shared mechanism, isolated cost carrier | Not run | `OPEN`, rank 1 |
 | K1 | Grouped routed gate/up | Proposed expert-load sharing | Bit-exact on identical inputs | Composes | Production 18/24 prototype | 22.9% slower | `CLOSED` |
 | K2 | Expert address remapping / packing | Proposed coalescing | Exact | Composes | Fixed-work placement sweep | Less than 2% sensitivity | `CLOSED` |
 | K3 | Address-kernel SIMDgroup / row-tile geometry | Low-single-digit possible | Exact | Composes | Production fixed-work sweep | At most about 1-3%, inconsistent | `CLOSED` |
@@ -80,12 +81,12 @@ under `issue468/artifacts/lead08_reassessment/`):
 - A1-A3: `spec_speedup_model.md`, `anchor_reuse_falsifier.md`, and
   `confidence_scheduled_verification.md`.
 - R1-R2 and V1-V2: `dspark_runtime_milestone_3_progress.md` and `spec_speedup_model.md`.
-- V3-V11: Lead 08 reassessment artifacts `12_iter4_margin_guard.md`,
+- V3-V12: Lead 08 reassessment artifacts `12_iter4_margin_guard.md`,
   `18_iter10_batch_m1_target.md`, `lead08_phaseB_floor_clearance_verdict.md`, and
   `19_iter11_same_frontier_localization.md`, `20_iter12_rowwise_qkv.md`, and
   `21_iter13_rowwise_qb.md`, `22_iter14_rowwise_attn_out_b.md`, and
   `23_iter15_hc_input_localization.md`, `24_iter16_rowwise_hc_attn_mix.md`, and
-  `25_iter17_ffn_hc_input_localization.md`.
+  `25_iter17_ffn_hc_input_localization.md`, and `26_iter18_rowwise_hc_ffn_mix.md`.
 - K1-K3, M1-M2: Lead 08 reassessment artifacts `11_iter3_grouped_gateup_prototype.md`,
   `13_iter5_address_locality.md`, `14_iter6_addr_nsg_geometry.md`,
   `15_iter7_addr_row_tile.md`, and `16_iter8_cache_residency.md`.
@@ -114,7 +115,8 @@ M-dependent.
 | HC expansion after attention | exact inputs and output after V10 | exact for captured row | none |
 | FFN HC residual + flat RMS | bit-identical after V10 in V11 capture | exact for captured row | none |
 | FFN HC mixer | exact flat input, 14/24 differing mix values in V11 | first captured unresolved operation | V12 row-wise F16 mixer falsifier |
-| FFN HC split + weighted sum | differ downstream of mixer | inherited; not independently implicated | recapture after V12 |
+| FFN HC split + weighted sum + norm | bit-identical after V12 row-wise mixer | exact for captured row | none |
+| FFN router projection | exact norm input, 186/256 differing logits after V12 | first captured unresolved operation | V13 generic batched-F16 inventory before another patch |
 | routed MoE gate/up | bit-exact in identical-input isolated prototype | exact in that harness; economics closed | retain production path; do not rebuild grouped K1 |
 | routed down / sum and shared FFN | not isolated end-to-end | unknown | test only after attention frontier moves |
 | output head | same batched function in V4 but inherited state differs | unknown independently | last boundary after layer path |
@@ -145,11 +147,11 @@ a full build.
 | Rank | Experiment | Why now | Pass | Fail / stop |
 |---:|---|---|---|---|
 | P0 | Enforce `spec_frontier_restore` success in the same-frontier probe and rerun iteration 11 | Audit found the core invariant was unchecked | **Resolved:** hard failure plus 267/267 successful restores; corpus and dumps reproduce | Repeat audit passed; proceed to V6 |
-| 1 | V12 row-wise FFN HC mixer | V11 isolated exact flat input and differing mix output | Exactify mix, split, and `hc_ffn_pre` | Redirect to split/weighted sum if frontier does not move |
+| 1 | V13 generic same-accumulation batched-F16 inventory | V12 exposes a third low-K F16 mismatch; row loops risk discarding batch sharing | Choose one mechanism and isolated cost carrier across all three shapes | Stop V5 if no design can preserve exact accumulation within the 50.5 ms gate |
 | 2 | Repeat first-divergence isolation at the newly exposed boundary | Delta-debug the pipeline, not guess stages | Frontier moves within budget | Stop V5 only when proven-unavoidable work exhausts budget |
 | 3 | Full-corpus exactness plus end-to-end K=4 timing | Only after all boundaries pass | Exact stream and <=50.5 ms verify, then >=20% composed run | Close V5 |
 | 4 | D5 soft-label redistillation | Only if an exact economic verifier survives and acceptance remains limiting | Powered p1 lift composes into >=20% model | Close drafter axis |
 
-P0 and V6-V11 are complete and audited. No
+P0 and V6-V12 are complete and audited. No
 GPU-timestamp-only, grouped-MoE, layout, geometry, mapped-residency, or margin-policy experiment may
-preempt V12 without new evidence that changes the ledger's upper bounds.
+preempt V13 without new evidence that changes the ledger's upper bounds.

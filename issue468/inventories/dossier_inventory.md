@@ -52,6 +52,7 @@ STATUS.md on 2026-07-16 so STATUS reads as a single coherent narrative.)
 - Lead 08 HC-input localization: artifact `artifacts/lead08_reassessment/23_iter15_hc_input_localization.md` plus CSV; branch-neutral capture only, no timing claim
 - Lead 08 row-wise HC attention mixer: artifact `artifacts/lead08_reassessment/24_iter16_rowwise_hc_attn_mix.md` plus stage/timing CSVs; verifier-scoped `DS4_LEAD08_ROWWISE_HC_ATTN_MIX_LAYERS={1,43}`
 - Lead 08 FFN HC-input localization: artifact `artifacts/lead08_reassessment/25_iter17_ffn_hc_input_localization.md` plus stage CSV; branch-neutral residual/flat/mix/split capture only, no timing claim
+- Lead 08 row-wise HC FFN mixer: artifact `artifacts/lead08_reassessment/26_iter18_rowwise_hc_ffn_mix.md` plus stage/timing CSVs; verifier-scoped `DS4_LEAD08_ROWWISE_HC_FFN_MIX_LAYERS={0,1}` and branch-neutral router capture
 - DSpark runtime milestones: M2 `summaries/dspark_runtime_milestone_2_progress.md`; M3 `summaries/dspark_runtime_milestone_3_progress.md`; initial benchmark `summaries/dspark_runtime_initial_benchmark.md`; M3 bench artifacts `artifacts/dspark_m3_bench/`
 
 ## Scheduler & acceptance axis (see STATUS)
