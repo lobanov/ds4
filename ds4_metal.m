@@ -103,6 +103,8 @@ static id<MTLComputePipelineState> g_moe_mul_mv_slots6_q2_k_sum6_pipeline;
 static id<MTLComputePipelineState> g_moe_mul_mv_slots6_q4_k_pair_swiglu_pipeline;
 static id<MTLComputePipelineState> g_moe_mul_mv_slots6_q4_k_sum6_pipeline;
 static id<MTLComputePipelineState> g_moe_mul_mv_addr_iq2_xxs_pair_swiglu_pipeline;
+static id<MTLComputePipelineState> g_moe_mul_mv_addr_iq2_xxs_pair_swiglu_singleton_pipeline;
+static id<MTLComputePipelineState> g_moe_mul_mv_addr_iq2_xxs_pair_swiglu_grouped_pipeline;
 static id<MTLComputePipelineState> g_moe_mul_mv_addr_q2_k_sum6_pipeline;
 static id<MTLComputePipelineState> g_moe_mul_mv_addr_iq2_xxs_pair_swiglu_masked_pipeline;
 static id<MTLComputePipelineState> g_moe_mul_mv_addr_q2_k_sum6_masked_pipeline;
@@ -168,6 +170,7 @@ static id<MTLBuffer> g_raw_store_round_buffer;
 static id<MTLBuffer> g_moe_gate_scratch_buffer;
 static id<MTLBuffer> g_moe_down_scratch_buffer;
 static id<MTLBuffer> g_moe_id_map_buffer;
+static id<MTLBuffer> g_moe_lead08_group_map_buffer;
 static id<MTLBuffer> g_moe_q4_gate_slots_buffer;
 static id<MTLBuffer> g_moe_q4_up_slots_buffer;
 static id<MTLBuffer> g_moe_q4_down_slots_buffer;
@@ -314,6 +317,7 @@ static NSUInteger g_raw_store_round_bytes;
 static NSUInteger g_moe_gate_scratch_bytes;
 static NSUInteger g_moe_down_scratch_bytes;
 static NSUInteger g_moe_id_map_bytes;
+static NSUInteger g_moe_lead08_group_map_bytes;
 static NSUInteger g_moe_q4_gate_slots_bytes;
 static NSUInteger g_moe_q4_up_slots_bytes;
 static NSUInteger g_moe_q4_down_slots_bytes;
@@ -3985,6 +3989,12 @@ typedef struct {
 } ds4_gpu_stream_expert_split_args;
 
 typedef struct {
+    int32_t expert;
+    uint32_t count;
+    uint32_t pairs[4];
+} ds4_gpu_lead08_expert_group;
+
+typedef struct {
     int32_t  ne02;
     int32_t  ne10;
     int32_t  ne11;
@@ -4569,6 +4579,18 @@ int ds4_gpu_init(void) {
             return 0;
         }
         ds4_gpu_print_device_summary();
+        if (getenv("DS4_METAL_COUNTER_INVENTORY") != NULL) {
+            if (@available(macOS 11.0, *)) {
+                for (id<MTLCounterSet> set in [g_device counterSets]) {
+                    fprintf(stderr, "ds4: Metal counter set %s\n",
+                            [[set name] UTF8String]);
+                    for (id<MTLCounter> counter in [set counters]) {
+                        fprintf(stderr, "ds4:   counter %s\n",
+                                [[counter name] UTF8String]);
+                    }
+                }
+            }
+        }
         ds4_gpu_detect_metal4_features();
 
         g_queue = [g_device newCommandQueue];
@@ -5271,6 +5293,52 @@ int ds4_gpu_init(void) {
             g_queue = nil;
             g_device = nil;
             return 0;
+        }
+
+        /* Lead 08 research-only pipelines. They are compiled only when the
+         * bounded grouped gate+up probe is explicitly requested. */
+        if (getenv("DS4_LEAD08_GROUPED_GATEUP_PROBE") != NULL) {
+            error = nil;
+            fn = [library newFunctionWithName:@"kernel_mul_mv_addr_iq2_xxs_pair_swiglu_singleton_f32"
+                               constantValues:moe_mv_id_constants
+                                        error:&error];
+            if (!fn) {
+                fprintf(stderr, "ds4: Metal Lead 08 singleton gate/up function not found: %s\n",
+                        [[error localizedDescription] UTF8String]);
+                g_queue = nil;
+                g_device = nil;
+                return 0;
+            }
+            g_moe_mul_mv_addr_iq2_xxs_pair_swiglu_singleton_pipeline =
+                [g_device newComputePipelineStateWithFunction:fn error:&error];
+            if (!g_moe_mul_mv_addr_iq2_xxs_pair_swiglu_singleton_pipeline) {
+                fprintf(stderr, "ds4: Metal Lead 08 singleton gate/up pipeline failed: %s\n",
+                        [[error localizedDescription] UTF8String]);
+                g_queue = nil;
+                g_device = nil;
+                return 0;
+            }
+
+            error = nil;
+            fn = [library newFunctionWithName:@"kernel_mul_mv_addr_iq2_xxs_pair_swiglu_grouped_f32"
+                               constantValues:moe_mv_id_constants
+                                        error:&error];
+            if (!fn) {
+                fprintf(stderr, "ds4: Metal Lead 08 grouped gate/up function not found: %s\n",
+                        [[error localizedDescription] UTF8String]);
+                g_queue = nil;
+                g_device = nil;
+                return 0;
+            }
+            g_moe_mul_mv_addr_iq2_xxs_pair_swiglu_grouped_pipeline =
+                [g_device newComputePipelineStateWithFunction:fn error:&error];
+            if (!g_moe_mul_mv_addr_iq2_xxs_pair_swiglu_grouped_pipeline) {
+                fprintf(stderr, "ds4: Metal Lead 08 grouped gate/up pipeline failed: %s\n",
+                        [[error localizedDescription] UTF8String]);
+                g_queue = nil;
+                g_device = nil;
+                return 0;
+            }
         }
 
         error = nil;
@@ -6777,6 +6845,8 @@ void ds4_gpu_cleanup(void) {
         g_moe_mul_mv_slots6_q4_k_pair_swiglu_pipeline = nil;
         g_moe_mul_mv_slots6_q4_k_sum6_pipeline = nil;
         g_moe_mul_mv_addr_iq2_xxs_pair_swiglu_pipeline = nil;
+        g_moe_mul_mv_addr_iq2_xxs_pair_swiglu_singleton_pipeline = nil;
+        g_moe_mul_mv_addr_iq2_xxs_pair_swiglu_grouped_pipeline = nil;
         g_moe_mul_mv_addr_q2_k_sum6_pipeline = nil;
         g_moe_mul_mv_addr_iq2_xxs_pair_swiglu_masked_pipeline = nil;
         g_moe_mul_mv_addr_q2_k_sum6_masked_pipeline = nil;
@@ -6837,6 +6907,7 @@ void ds4_gpu_cleanup(void) {
         g_moe_gate_scratch_buffer = nil;
         g_moe_down_scratch_buffer = nil;
         g_moe_id_map_buffer = nil;
+        g_moe_lead08_group_map_buffer = nil;
         g_moe_q4_gate_slots_buffer = nil;
         g_moe_q4_up_slots_buffer = nil;
         g_moe_q4_down_slots_buffer = nil;
@@ -6872,6 +6943,7 @@ void ds4_gpu_cleanup(void) {
         g_moe_gate_scratch_bytes = 0;
         g_moe_down_scratch_bytes = 0;
         g_moe_id_map_bytes = 0;
+        g_moe_lead08_group_map_bytes = 0;
         g_moe_q4_gate_slots_bytes = 0;
         g_moe_q4_up_slots_bytes = 0;
         g_moe_q4_down_slots_bytes = 0;
@@ -11171,7 +11243,8 @@ static int ds4_gpu_stream_expert_cache_prepare_selected_batch(
         id<MTLBuffer> *down_addrs,
         ds4_gpu_stream_expert_cache_entry **resources,
         uint32_t      *n_resources,
-        uint32_t      *unique_out) {
+        uint32_t      *unique_out,
+        id<MTLBuffer> __strong *lead08_group_map) {
     if (!g_ssd_streaming_mode ||
         !model_map ||
         !selected ||
@@ -11213,6 +11286,7 @@ static int ds4_gpu_stream_expert_cache_prepare_selected_batch(
     uint32_t unique_count = 0;
     *n_resources = 0;
     *unique_out = 0;
+    if (lead08_group_map) *lead08_group_map = nil;
     if (ok) {
         if (!ds4_gpu_stream_expert_cache_ensure_addr_buffers(layer)) {
             ok = 0;
@@ -11323,6 +11397,41 @@ static int ds4_gpu_stream_expert_cache_prepare_selected_batch(
             resources[*n_resources] = entry;
             (*n_resources)++;
         }
+    }
+    if (ok && lead08_group_map) {
+        const NSUInteger map_bytes =
+            (NSUInteger)unique_count * sizeof(ds4_gpu_lead08_expert_group);
+        if (!ds4_gpu_ensure_scratch_buffer(&g_moe_lead08_group_map_buffer,
+                                           &g_moe_lead08_group_map_bytes,
+                                           map_bytes,
+                                           "ds4_lead08_group_map_mask")) {
+            ok = 0;
+        } else {
+            ds4_gpu_lead08_expert_group *groups =
+                (ds4_gpu_lead08_expert_group *)[g_moe_lead08_group_map_buffer contents];
+            if (!groups) {
+                ok = 0;
+            } else {
+                for (uint32_t u = 0; u < unique_count; u++) {
+                    groups[u].expert = unique_ids[u];
+                    groups[u].count = 0;
+                    memset(groups[u].pairs, 0, sizeof(groups[u].pairs));
+                    for (uint64_t p = 0; p < n_ids; p++) {
+                        if (ids[p] != unique_ids[u]) continue;
+                        if (groups[u].count >= 4u) {
+                            fprintf(stderr,
+                                    "ds4: Metal Lead 08 group expert=%d has more than four rows\n",
+                                    unique_ids[u]);
+                            ok = 0;
+                            break;
+                        }
+                        groups[u].pairs[groups[u].count++] = (uint32_t)p;
+                    }
+                    if (!ok || groups[u].count == 0) break;
+                }
+            }
+        }
+        if (ok) *lead08_group_map = g_moe_lead08_group_map_buffer;
     }
     free(ids);
 
@@ -21021,7 +21130,8 @@ static int ds4_gpu_encode_mul_mv_addr_iq2_pair_swiglu(
         !gate_addrs || !up_addrs ||
         !src1 || !dst_a || !dst_b || !dst_mid || !ids || !weights ||
         args->ne00 <= 0 || args->ne01 <= 0 || args->nei0 != 6 || args->nei1 <= 0 ||
-        args->ne02 <= 0 || args->ne02 > 384) {
+        args->ne02 <= 0 || args->ne02 > 384 || nsg == 0 ||
+        32u * nsg > [pipeline maxTotalThreadsPerThreadgroup]) {
         return 0;
     }
     for (uint32_t i = 0; i < n_entries; i++) {
@@ -21058,6 +21168,83 @@ static int ds4_gpu_encode_mul_mv_addr_iq2_pair_swiglu(
         [enc setThreadgroupMemoryLength:threadgroup_bytes atIndex:0];
     }
     [enc dispatchThreadgroups:MTLSizeMake(row_groups, 1, pairs)
+         threadsPerThreadgroup:MTLSizeMake(32, nsg, 1)];
+    ds4_gpu_end_compute_encoder(cb, enc);
+    return 1;
+}
+
+/* Lead 08 research-only hybrid dispatch: retain the production physical-row
+ * reduction for singleton experts, then run the expert-major spill kernel only
+ * for duplicate groups from the cache preparation's compact unique map. */
+static int ds4_gpu_encode_mul_mv_addr_iq2_pair_swiglu_grouped_probe(
+        id<MTLCommandBuffer>        cb,
+        id<MTLComputePipelineState> singleton_pipeline,
+        id<MTLComputePipelineState> grouped_pipeline,
+        const ds4_gpu_mul_mv_id_args *args,
+        const ds4_gpu_dsv4_moe_swiglu_weight_args *act,
+        ds4_gpu_stream_expert_cache_entry * const *entries,
+        uint32_t                    n_entries,
+        id<MTLBuffer>               gate_addrs,
+        id<MTLBuffer>               up_addrs,
+        id<MTLBuffer>               src1,
+        NSUInteger                  src1_off,
+        id<MTLBuffer>               dst_a,
+        NSUInteger                  dst_a_off,
+        id<MTLBuffer>               dst_b,
+        NSUInteger                  dst_b_off,
+        id<MTLBuffer>               dst_mid,
+        NSUInteger                  dst_mid_off,
+        id<MTLBuffer>               group_map,
+        NSUInteger                  unique_count,
+        id<MTLBuffer>               weights,
+        NSUInteger                  weights_off,
+        NSUInteger                  lookup_threadgroup_bytes,
+        NSUInteger                  grouped_threadgroup_bytes,
+        NSUInteger                  nsg) {
+    if (!cb || !singleton_pipeline || !grouped_pipeline || !args || !act ||
+        !entries || n_entries == 0 || !gate_addrs || !up_addrs || !src1 ||
+        !dst_a || !dst_b || !dst_mid || !group_map || !weights ||
+        args->ne00 <= 0 || args->ne01 <= 0 || args->nei0 != 6 || args->nei1 != 4 ||
+        args->ne02 <= 0 || args->ne02 > 384 || unique_count == 0 ||
+        unique_count > (NSUInteger)args->nei0 * (NSUInteger)args->nei1 || nsg != 2 ||
+        grouped_threadgroup_bytes > [g_device maxThreadgroupMemoryLength]) {
+        return 0;
+    }
+    for (uint32_t i = 0; i < n_entries; i++) {
+        if (!entries[i] || !entries[i]->gate_buffer || !entries[i]->up_buffer) return 0;
+    }
+    if (!ds4_gpu_stream_expert_cache_mark_entries_inflight(entries, n_entries, 0)) {
+        return 0;
+    }
+
+    const NSUInteger rows_per_group = (NSUInteger)args->nr0 * nsg;
+    const NSUInteger row_groups =
+        ((NSUInteger)args->ne01 + rows_per_group - 1u) / rows_per_group;
+
+    id<MTLComputeCommandEncoder> enc = ds4_gpu_compute_encoder(cb);
+    [enc setBytes:args length:sizeof(*args) atIndex:0];
+    [enc setBytes:act length:sizeof(*act) atIndex:1];
+    [enc setBuffer:gate_addrs offset:0 atIndex:2];
+    [enc setBuffer:up_addrs offset:0 atIndex:3];
+    [enc setBuffer:src1 offset:src1_off atIndex:4];
+    [enc setBuffer:dst_a offset:dst_a_off atIndex:5];
+    [enc setBuffer:dst_b offset:dst_b_off atIndex:6];
+    [enc setBuffer:dst_mid offset:dst_mid_off atIndex:7];
+    [enc setBuffer:group_map offset:0 atIndex:8];
+    [enc setBuffer:weights offset:weights_off atIndex:9];
+    for (uint32_t i = 0; i < n_entries; i++) {
+        [enc useResource:entries[i]->gate_buffer usage:MTLResourceUsageRead];
+        [enc useResource:entries[i]->up_buffer usage:MTLResourceUsageRead];
+    }
+
+    [enc setComputePipelineState:singleton_pipeline];
+    [enc setThreadgroupMemoryLength:lookup_threadgroup_bytes atIndex:0];
+    [enc dispatchThreadgroups:MTLSizeMake(row_groups, 1, unique_count)
+         threadsPerThreadgroup:MTLSizeMake(32, nsg, 1)];
+
+    [enc setComputePipelineState:grouped_pipeline];
+    [enc setThreadgroupMemoryLength:grouped_threadgroup_bytes atIndex:0];
+    [enc dispatchThreadgroups:MTLSizeMake(row_groups, 1, unique_count)
          threadsPerThreadgroup:MTLSizeMake(32, nsg, 1)];
     ds4_gpu_end_compute_encoder(cb, enc);
     return 1;
@@ -25175,6 +25362,7 @@ int ds4_gpu_routed_moe_batch_tensor(
         id<MTLBuffer> stream_gate_addr_buf = nil;
         id<MTLBuffer> stream_up_addr_buf = nil;
         id<MTLBuffer> stream_down_addr_buf = nil;
+        id<MTLBuffer> stream_lead08_group_map_buf = nil;
         ds4_gpu_stream_expert_cache_entry
             *stream_resources[DS4_METAL_STREAM_EXPERT_CACHE_MAX_EXPERT] = { NULL };
         uint32_t stream_resource_count = 0;
@@ -25209,11 +25397,69 @@ int ds4_gpu_routed_moe_batch_tensor(
             getenv("DS4_METAL_DISABLE_ROUTED_PAIR_SWIGLU_FUSION") == NULL &&
             g_moe_mul_mv_addr_iq2_xxs_pair_swiglu_pipeline != nil &&
             g_moe_mul_mv_addr_q2_k_sum6_pipeline != nil;
+        const NSUInteger lead08_grouped_gateup_smem =
+            256u * sizeof(uint64_t) + 128u * sizeof(uint8_t) +
+            4u * 32u * 32u * sizeof(float) +
+            2u * 4u * 2u * 4u * 32u * sizeof(float);
+        const bool use_lead08_grouped_gateup_probe =
+            use_iq2_batch_selected_addr &&
+            n_tokens == 4u &&
+            getenv("DS4_LEAD08_GROUPED_GATEUP_PROBE") != NULL &&
+            g_moe_mul_mv_addr_iq2_xxs_pair_swiglu_singleton_pipeline != nil &&
+            g_moe_mul_mv_addr_iq2_xxs_pair_swiglu_grouped_pipeline != nil &&
+            lead08_grouped_gateup_smem <= [g_device maxThreadgroupMemoryLength];
+        NSUInteger lead08_addr_nsg = 2u;
+        NSUInteger lead08_addr_nr0 = 4u;
+        id<MTLComputePipelineState> lead08_addr_pipeline =
+            g_moe_mul_mv_addr_iq2_xxs_pair_swiglu_pipeline;
+        const char *lead08_addr_nsg_env = getenv("DS4_LEAD08_ADDR_NSG");
+        if (use_iq2_batch_selected_addr && !use_lead08_grouped_gateup_probe &&
+            lead08_addr_nsg_env && lead08_addr_nsg_env[0]) {
+            char *end = NULL;
+            const unsigned long parsed = strtoul(lead08_addr_nsg_env, &end, 10);
+            if (!end || end == lead08_addr_nsg_env || *end != '\0' ||
+                (parsed != 1ul && parsed != 2ul && parsed != 4ul && parsed != 8ul)) {
+                fprintf(stderr,
+                        "ds4: invalid DS4_LEAD08_ADDR_NSG=%s (expected 1,2,4,8)\n",
+                        lead08_addr_nsg_env);
+                return 0;
+            }
+            lead08_addr_nsg = (NSUInteger)parsed;
+        }
+        const char *lead08_addr_nr0_env = getenv("DS4_LEAD08_ADDR_NR0");
+        if (use_iq2_batch_selected_addr && !use_lead08_grouped_gateup_probe &&
+            lead08_addr_nr0_env && lead08_addr_nr0_env[0]) {
+            char *end = NULL;
+            const unsigned long parsed = strtoul(lead08_addr_nr0_env, &end, 10);
+            if (!end || end == lead08_addr_nr0_env || *end != '\0' ||
+                (parsed != 2ul && parsed != 4ul && parsed != 8ul)) {
+                fprintf(stderr,
+                        "ds4: invalid DS4_LEAD08_ADDR_NR0=%s (expected 2,4,8)\n",
+                        lead08_addr_nr0_env);
+                return 0;
+            }
+            lead08_addr_nr0 = (NSUInteger)parsed;
+        }
+        if (use_iq2_batch_selected_addr && !use_lead08_grouped_gateup_probe &&
+            (lead08_addr_nsg != 2u || lead08_addr_nr0 != 4u)) {
+            const char *function_name =
+                lead08_addr_nr0 == 2u ?
+                    "kernel_mul_mv_addr_iq2_xxs_pair_swiglu_r2_f32" :
+                lead08_addr_nr0 == 8u ?
+                    "kernel_mul_mv_addr_iq2_xxs_pair_swiglu_r8_f32" :
+                    "kernel_mul_mv_addr_iq2_xxs_pair_swiglu_f32";
+            lead08_addr_pipeline = ds4_gpu_get_mul_mv_pipeline(
+                function_name, (int16_t)lead08_addr_nsg);
+            if (!lead08_addr_pipeline) return 0;
+        }
 
         ds4_gpu_mul_mv_id_args gate_args =
             ds4_gpu_make_mul_mv_id_args(expert_in_dim, expert_mid_dim, n_total_expert,
                                           gate_row_bytes, gate_expert_bytes,
                                           1, n_expert, n_tokens, gate_nr0);
+        if (use_iq2_batch_selected_addr) {
+            gate_args.nr0 = (int32_t)lead08_addr_nr0;
+        }
         ds4_gpu_mul_mv_id_args down_args =
             ds4_gpu_make_mul_mv_id_args(expert_mid_dim, out_dim, n_total_expert,
                                           down_row_bytes, down_expert_bytes,
@@ -25353,7 +25599,9 @@ int ds4_gpu_routed_moe_batch_tensor(
                         &stream_down_addr_buf,
                         stream_resources,
                         &stream_resource_count,
-                        &stream_unique)) {
+                        &stream_unique,
+                        use_lead08_grouped_gateup_probe ?
+                            &stream_lead08_group_map_buf : NULL)) {
                 g_stream_prefill_batch_selected_addr_building--;
                 return 0;
             }
@@ -25506,6 +25754,7 @@ int ds4_gpu_routed_moe_batch_tensor(
         const char *moe_stage_filter = getenv("DS4_METAL_MOE_STAGE_PROFILE_FILTER");
         const char *moe_path =
             use_q4_batch_expert_table ? "q4_table_pair_swiglu" :
+            use_lead08_grouped_gateup_probe ? "iq2_batch_stream_addr_grouped_probe" :
             use_iq2_batch_selected_addr ? "iq2_batch_stream_addr" :
             use_mm_id_pair_swiglu ? "mm_id_pair_swiglu" :
             use_mm_id ? "mm_id" :
@@ -25578,30 +25827,58 @@ int ds4_gpu_routed_moe_batch_tensor(
                 .write_clamped = 0,
                 .clamp_value = clamp,
             };
-            ok = ds4_gpu_encode_mul_mv_addr_iq2_pair_swiglu(
-                    cb,
-                    g_moe_mul_mv_addr_iq2_xxs_pair_swiglu_pipeline,
-                    &gate_args,
-                    &act_args,
-                    stream_resources,
-                    stream_resource_count,
-                    stream_gate_addr_buf,
-                    stream_up_addr_buf,
-                    xbuf,
-                    ds4_gpu_tensor_offset(x),
-                    gatebuf,
-                    ds4_gpu_tensor_offset(gate),
-                    upbuf,
-                    ds4_gpu_tensor_offset(up),
-                    midbuf,
-                    ds4_gpu_tensor_offset(mid),
-                    selectedbuf,
-                    ds4_gpu_tensor_offset(selected),
-                    weightsbuf,
-                    ds4_gpu_tensor_offset(weights),
-                    gate_smem,
-                    2,
-                    false);
+            if (use_lead08_grouped_gateup_probe) {
+                ok = ds4_gpu_encode_mul_mv_addr_iq2_pair_swiglu_grouped_probe(
+                        cb,
+                        g_moe_mul_mv_addr_iq2_xxs_pair_swiglu_singleton_pipeline,
+                        g_moe_mul_mv_addr_iq2_xxs_pair_swiglu_grouped_pipeline,
+                        &gate_args,
+                        &act_args,
+                        stream_resources,
+                        stream_resource_count,
+                        stream_gate_addr_buf,
+                        stream_up_addr_buf,
+                        xbuf,
+                        ds4_gpu_tensor_offset(x),
+                        gatebuf,
+                        ds4_gpu_tensor_offset(gate),
+                        upbuf,
+                        ds4_gpu_tensor_offset(up),
+                        midbuf,
+                        ds4_gpu_tensor_offset(mid),
+                        stream_lead08_group_map_buf,
+                        stream_unique,
+                        weightsbuf,
+                        ds4_gpu_tensor_offset(weights),
+                        gate_smem,
+                        lead08_grouped_gateup_smem,
+                        2);
+            } else {
+                ok = ds4_gpu_encode_mul_mv_addr_iq2_pair_swiglu(
+                        cb,
+                        lead08_addr_pipeline,
+                        &gate_args,
+                        &act_args,
+                        stream_resources,
+                        stream_resource_count,
+                        stream_gate_addr_buf,
+                        stream_up_addr_buf,
+                        xbuf,
+                        ds4_gpu_tensor_offset(x),
+                        gatebuf,
+                        ds4_gpu_tensor_offset(gate),
+                        upbuf,
+                        ds4_gpu_tensor_offset(up),
+                        midbuf,
+                        ds4_gpu_tensor_offset(mid),
+                        selectedbuf,
+                        ds4_gpu_tensor_offset(selected),
+                        weightsbuf,
+                        ds4_gpu_tensor_offset(weights),
+                        gate_smem,
+                        lead08_addr_nsg,
+                        false);
+            }
             if (!ok) {
                 fprintf(stderr,
                         "ds4: Metal streaming prefill batch selected addr layer=%u "

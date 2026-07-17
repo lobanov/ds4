@@ -64,8 +64,9 @@ The STS scheduler stays as-is (already implemented; provisional — temperatures
 *assumed* timings). The batched verify is accepted as a **score-neutral interim at temp=0**
 (the 92Q net +4) + a small-divergence interim at temp>0 (TV ~0.0104); the exact sequential
 verify is retained as the byte-exact / distribution-exact fallback (it cannot clear +20 %).
-Strict committed-output byte-exactness needs the Lead 08 margin-guarded fallback (re-verify
-near-tie positions) — deferred.
+Strict committed-output byte-exactness still lacks an economic mechanism. Lead 08 artifact 12
+subsequently measured the margin fallback: the first threshold catching the observed flip adds at
+least 7.0 ms/cycle and projects below plain.
 
 ## Scope: the levers pulled (M3)
 
@@ -153,8 +154,8 @@ Iteration protocol per lever: implement (env-gated) → smoke gates (lever parit
    benchmark (plain 60 vs batched 64, net +4, 89.1 % same verdict). temp>0: sampled-distribution
    divergence TV ~0.0104, 0.64 % argmax-flip, max_abs up to 4.56 (dist-probe). The **exact
    sequential verify** is byte-exact (temp=0) / distribution-exact (temp>0, TV=0). Codex verdict:
-   NO functional equivalence when engaged. (Strict committed-output byte-exactness needs the
-   Lead 08 margin-guarded fallback — deferred.)
+   NO functional equivalence when engaged. (Lead 08 artifact 12 later found the margin fallback
+   uneconomic; strict committed-output byte-exactness remains unresolved.)
 10. `decode_ms`/`draft_ms`/`verify_ms`/`verify_decode_ms` + DSpark push + logits readback are all recorded in `s->dspark_last_cycle` (the existing cycle-timing) and emitted by ds4-spec-bench.
 11. **Verifier reality (code-confirmed 2026-07-13):** the DSpark **committing** verify is the **sequential exact** loop (`metal_graph_eval_token_raw_swa_top` per token, ds4.c:28714, short-circuits at the first mismatch) — greedy-exact + LINEAR. The **batched** verifier (`metal_graph_verify_suffix_tops`) is SUBLINEAR but not verify-level bit-exact (0.64 % argmax flip); **in the DSpark branch it is called ONLY in the dist-probe (ds4.c:28671, non-committing)** — wiring it for committing is the milestone-3 enabler. `metal_graph_verify_decode2_exact` is exact but K=2-only + linear (MTP path). The `spec_speedup_model`'s `verify_ms(K)` (K2:43.6, K4:65.8) is from the BATCHED `mtp_verifier_bench` — i.e. the model's projections already assumed the sublinear verify this milestone must now actually wire for committing.
 12. **Anchor-reuse economics, corrected (2026-07-13):** on the EXACT sequential verify, anchor reuse is **~NEUTRAL** — the anchor's ~28 ms bare decode relocates into the verify at ~28 ms/token (verify 62 → ~90 ms), saving only the readback/dispatch overhead (~1–3 ms). It is worthwhile **only on the sublinear (batched) verify**, where folding the anchor is ~free (verify_batched(3.2)≈57 ms vs decode(28.9)+verify_batched(2.2)≈46 ms). **+20 % requires the batched verify** — with the exact verify, even a free drafter + relocated anchor stays below baseline (`3.2/0.090 = 35.5 t/s < 38.5`).
@@ -164,7 +165,13 @@ Iteration protocol per lever: implement (env-gated) → smoke gates (lever parit
 - **Committing batched verify** (promoted from "deferred" to **lever 1 / the enabler**) — the existing sublinear primitive, wired for committing (**DONE**). Measured: sublinear (20.2 t/s, verify 52→43 ms); NOT committed-output-exact when engaged but **score-neutral on 92Q** (net +4) at temp=0; temp>0 TV ~0.0104, 0.64 % argmax-flip. The verify is NOT "last priority" — it is the dominant cycle cost and the +20 % gate.
 - **Persistent device DSpark KV/window state** (M1 next-steps #4) — the GPU drafter port should keep the drafter's KV/window resident on-device (on unified memory the win is compute throughput + eliminating per-cycle GPU↔CPU hidden-readback/draft-push *serialization*, not copy-avoidance). Folded into the GPU-drafter lever.
 - **Batched-drafting cap operating point** (M1 cycle 4) — cap3/cap4 as a free scheduling config choice for these measurements (does not change acceptance).
-- **Lead 08 fused bit-exact sublinear kernel + margin-guarded fallback** — deferred: the path to verify-level bit-exactness AND committed-output byte-exactness. The batched primitive is NOT exact (diverges 56.6 % temp=0 / TV ~0.0104 temp>0); the margin-guarded fallback (re-verify near-tie positions with the exact path) would restore strict byte-exactness. Not needed for the score-neutral interim.
+- **Lead 08 verifier follow-ups** - closed negative in the subsequent iterations: the grouped kernel
+  is slower, the first observed-safe margin threshold triggers enough exact replay to erase the M3
+  speed advantage, fixed-work expert-address placement changes routed cost by <2%, and exact
+  production address-kernel threadgroup variants move cost by only 1-3%. Exact cache replay exposes
+  a large SSD selected-address upper bound, but the current DSpark-compatible mapped path has no
+  measurable cold/resident gap. The batched primitive remains score-neutral but not
+  committed-output-exact.
 - **STS re-training on measured timings** — deferred follow-up; only sensible after the levers produce real timings.
 - **Target hidden-state precision (Lead 04)** — upstream acceptance work (not runtime); F16-deployment-blocked. Deferred.
 
@@ -176,10 +183,11 @@ batched 20.2 t/s; verify 52→43 ms, sublinear); exactness characterized (temp=0
 but score-neutral +4 on 92Q; temp>0: TV ~0.0104, 0.64 % argmax-flip); ds4-eval engagement fix
 (`--dspark` now routes through the speculative path).
 
-**Next:** levers 2 (anchor reuse, fold into the batched verify) + 3 (GPU drafter), each its
-own codex-gate-A → bench → codex-gate-B cycle; then `propagate`. Open: accept the batched
-verify as a score-neutral interim (temp=0 +4 / temp>0 TV~0.01) OR add the Lead 08 margin-guarded
-fallback for strict committed-output byte-exactness.
+**Subsequent outcome:** levers 2 and 3 completed and the full stack reached +4.9% over plain. The
+batched verifier remains a score-neutral, non-byte-exact interim; Lead 08 artifacts 12-16 close the
+margin fallback, address-layout, production launch/tile geometry, and current-path cache-residency
+hypotheses negative, so strict committed-output exactness and a gate-clearing verifier need a
+different mechanism.
 
 ## Worklog
 
@@ -436,7 +444,9 @@ The CIs don't overlap (plain max 38.23 < full-stack min 39.14) → statistically
 
 **Implication for the GPU port (lever 3):** on Apple Silicon the CPU + GPU share the unified memory pool. A GPU forward port draws from the SAME bandwidth → at best ~1.5× on the forward (draft ~25-30 ms), NOT the ~10 ms target. The GPU drafter is **marginal + big-effort** (a Metal implementation of the drafter's full transformer, or reusing the target's Metal graph for the drafter's weights) for a ~0.79×-of-plain result.
 
-**Combined projection (levers 2+3):** reuse (0.73× plain) + GPU forward (marginal) ≈ 0.79× plain. The verify (~117 ms) dominates. **+20% over plain is NOT reachable with levers 2+3 on this hardware** — it needs Lead 08 (the fused verify kernel / verify-cost reduction), which is deferred.
+**Combined projection (levers 2+3):** reuse (0.73× plain) + GPU forward (marginal) ≈ 0.79× plain.
+The later measured full stack reached +4.9%, but not +20%; subsequent Lead 08 grouped-kernel and
+margin-fallback attempts both closed negative.
 
 **Decision surfaced (paused):** (a) skip lever 3 (not viable as specified — memory-bound on Apple Silicon) + run the final 92Q (plain vs batched+reuse) + propagate, reporting ~0.73× plain + the verify-dominates finding; (b) attempt the GPU forward port anyway (marginal, big effort, "report the actual"); (c) pivot to Lead 08 (the real +20% path). The batched output-head (CPU, +1.3%) is kept as a minor env-gated optimization regardless.
 
@@ -502,8 +512,8 @@ vs exact logits. Logits are temp-independent, so this IS the temp>0 sampled-dist
 **Viability verdict:** relaxing greedy exactness (using the divergent batched verify) is NET-VIABLE for the
 benchmark scores — the 56% token divergence does not hurt answer scores (net +4 on 92Q, 89.1% same verdict).
 Strategy pending future verifier work: batched verify for greedy (score-neutral) + the exact sequential verify
-for temp>0 (distribution-exact, prior work). Strict committed-output byte-exactness still needs the Lead 08
-margin-guarded fallback (re-verify near-tie positions).
+for temp>0 (distribution-exact, prior work). Lead 08 artifact 12 later showed that margin-guarded
+exact replay is too frequent to preserve the speed advantage; strict byte-exactness remains open.
 
 ### 2026-07-13 — bench-batched RESULTS: throughput + attribution + DIVERGENCE (corpus-dependent: 0% benchmark / 40% code)  ["0% benchmark" SUPERSEDED — see 2026-07-14: ds4-eval was plain-vs-plain]
 
@@ -532,9 +542,9 @@ seq 52.4 ms → **batched 43.4 ms** (sublinear, ~9 ms saved at verify_n≈2). pu
   Reasoning/benchmark workloads have clearer argmax → flips rarely fire → byte-identical.
 - **Implication:** the "practically exact" framing HOLDS for the benchmark workload (the practical
   use case, matches the original ds4-eval 10/10) but FAILS for code generation (40 %). The
-  contract's hard-abort clause (>5 %) is triggered FOR CODE workloads. DECISION POINT: scope the
-  milestone to benchmark-exact + note code needs the Lead 08 margin-guarded fallback, OR treat the
-  code divergence as a falsification.
+  contract's hard-abort clause (>5 %) is triggered FOR CODE workloads. The later Lead 08 artifact
+  12 tested and rejected the margin fallback on cost, so code-workload byte exactness remains a
+  falsification of this batched verifier.
 
 ### 2026-07-13 — fix-gpu-push INVESTIGATION: GPU push is a PRE-EXISTING general bug (fails in both paths); push is CHEAP (1.85 ms) — codex C3 over-stated, NOT perf-critical
 
@@ -573,9 +583,9 @@ C5 (exactness) LIKELY-WRONG as a general claim.
   verified position), it commits a different token than plain decode → divergence. The 10/10 ds4-eval
   smoke used different (embedded) prompts + got lucky (no flip-on-decision). **This matches the
   user's "practically exact for now" — but the verification contract's "byte-identical" is too
-  strong.** Strict byte-identity would need the Lead 08 margin-guarded fallback (re-verify near-ties
-  with the exact path), which is deferred. DECISION POINT for the user: accept practical exactness
-  (quantify the divergence rate on the retained corpus) vs add the margin-guarded fallback.
+  strong.** Strict byte-identity needs a different verifier mechanism: Lead 08 artifact 12 later
+  found the margin-guarded fallback uneconomic. Threshold 0.25 misses the observed flip, while the
+  first threshold that catches it adds at least 7.0 ms/cycle and projects below plain.
 - **Bug 2 (HIGH, FIXED): general-partial replay did not re-verify.** Added `if (target_top !=
   drafts[i]) break;` at the replay-loop start so a batched false-accept cannot commit a wrong token
   (the replay is exact).

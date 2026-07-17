@@ -1,0 +1,4 @@
+nr0,fidelity_status,gate_differing_bits,up_differing_bits,mid_differing_bits,out_differing_bits,argmax_flips,total_ms_per_layer,total_delta_vs_nr04_pct,gate_up_ms_per_layer,gate_up_delta_vs_nr04_pct,gate_up_excl_layer0_ms_per_layer,gate_up_excl_layer0_delta_vs_nr04_pct,total_rounds,total_layers,gate_up_rounds,gate_up_layers,gate_up_excl_layer0_samples
+2,PASS,0,0,0,0,0,11.064125,1.005341,4.998017,-1.279062,3.292232,1.332496,8,344,4,172,168
+4,REFERENCE,0,0,0,0,0,10.954000,0.000000,5.062773,0.000000,3.248940,0.000000,8,344,4,172,168
+8,PASS,0,0,0,0,0,10.981875,0.254473,4.937634,-2.471748,3.250649,0.052602,8,344,4,172,168

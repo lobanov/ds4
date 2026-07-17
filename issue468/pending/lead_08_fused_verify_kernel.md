@@ -1,34 +1,58 @@
 # Lead 08 — Fused low-K batch-verify kernel (close the verify-vs-floor gap)
 
-> **VERDICT (2026-07-16): NO-GO (cost), codex-gate-B-confirmed.** The single-stage M=2
-> routed-expert fused-kernel prototype was built (5/6 dispatch pieces + a self-contained
-> fidelity/cost unit-test harness, all under `--dspark`) and measured:
-> - **Fidelity (secondary, relaxed bar MET):** M=2 vs M=1 routed_out max_abs ≈ 4.8e-08,
->   gate+up mid ≈ 7.5e-08, **argmax_flip=0** across 5 layers — sub-ULP Metal fast-math
->   reordering noise localized to the fused gate+up (NOT bit-exact; the distinct M=2 kernel
->   changes compiler scheduling/register pressure). Meets the user-granted relaxed bar
->   (distribution-close + argmax-stable). (artifact 05)
-> - **Cost (primary, FAIL):** cold all-layers sweep (43 layers × 3 passes, fresh experts →
->   DRAM) gives **M=2 = 13.3 ms/layer vs M=1×2 = 3.0 ms/layer → M=2 is 4.4× SLOWER.** The
->   de-dup (3 of 12 expert loads) is overwhelmed by the fused kernel's per-expert overhead
->   (register pressure: 2× per-thread state → low occupancy). (artifact 06)
-> - **Codex gate B (gpt-5.5 xhigh):** NO-GO stands. Found a real M=2 perf bug (computes both
->   tokens' MAC for every union slot — 18 streams vs 12), but even fixing it the bound is
->   ~8.9 ms → still 2.9× slower. A real fix is a new kernel design, not a bounded bug-hunt.
->   Report retained: `issue468/artifacts/dspark_codex_reviews/2026-07-16_gpt55_xhigh_lead08_gateB_prototype.md`.
+> **Current verdict (2026-07-17): iteration 8 cache residency = current-path NO-GO; iterations 6/7
+> production kernel geometry = NO-GO; iteration 5
+> address locality = NO-GO; iteration 4 margin guard = NO-GO; iteration 3 grouped kernel = NO-GO.**
+> Exact selection replay saves 87.8% on the SSD selected-address path, but `--ssd-streaming` is
+> incompatible with `--dspark`. On the compatible mapped-weight path, cold and replay are both
+> 0.566 ms/layer (-0.04%). Actual verifier locality is high but has no current carrier. Artifact:
+> `issue468/artifacts/lead08_reassessment/16_iter8_cache_residency.md`.
 >
-> **Conclusion:** the fused-2-token-kernel approach is occupancy-bound on this hardware; the
-> de-dup saving (real, per the probe) cannot cover the fused kernel's overhead. The verify
-> cost remains the swing term for ≥20%, but Lead 08's specific mechanism (a single-stage
-> fused routed-expert kernel) is **falsified**. Do NOT productionize. The M=2 dispatch code
-> stays env-gated/default-off (dormant); a different mechanism (e.g. a GPU union kernel that
-> de-dups loads WITHOUT fusing the per-token compute, or a down-fusion that shares more) would
-> be a fresh lead, not a revival of this one.
+> Fixed-work SIMDgroup-count and output-row-tile sweeps preserve the physical-row algorithm and all
+> variants are bit-exact. SIMDgroup effects stay within 1-3%; alternate row tiles are slower total
+> and at steady state. Neither approaches the >=15% gate, so production remains NSG 2 / row tile 4.
+> Artifacts: `issue468/artifacts/lead08_reassessment/14_iter6_addr_nsg_geometry.md` and
+> `issue468/artifacts/lead08_reassessment/15_iter7_addr_row_tile.md`.
+>
+> The iteration-5 K=4 production probe holds 24 physical
+> rows / 18 unique experts constant and varies only expert placement. Same-set permutation and
+> slab-wide striding change total routed cost by just +1.9% and +0.7% versus contiguous; matched
+> gate+up movement is below 2%. Expert remapping/packing cannot supply the required >=15% stage gain.
+> Artifact: `issue468/artifacts/lead08_reassessment/13_iter5_address_locality.md`.
+>
+> The remaining cheap exactness fallback has also been measured. Threshold 0.25 misses
+> the known batch-vs-exact argmax flip (margin 0.3755). Threshold 0.5 catches the one observed flip
+> but guards 27/158 probed cycles and adds an optimistic 7.0 ms over all cycles, projecting the live
+> stack from 40.04 to 36.37 t/s, below plain 38.16. One flip supplies no universal error bound, so
+> the guard is neither proof-grade exact nor economically viable. Artifact:
+> `issue468/artifacts/lead08_reassessment/12_iter4_margin_guard.md`.
+>
+> **Iteration 3 grouped gate+up prototype = NO-GO; branch stopped.**
+> The one bounded expert-major/threadgroup-spill prototype is bit-exact against production across
+> gate, up, weighted mid, and routed output (zero differing F32 bits; zero argmax flips), but fails
+> the predeclared cost gate with the wrong sign. At the realistic 18-unique / 24-pair shape,
+> production gate+up is **4.869 ms/layer** and the prototype is **5.986 ms/layer: 22.9% slower**,
+> not >=15% faster. Excluding layer 0 strengthens the regression to **35.8%**. The 6/12-unique
+> cases regress 68.1% / 55.6%; the 24-unique disjoint control is parity. Artifact:
+> `issue468/artifacts/lead08_reassessment/11_iter3_grouped_gateup_prototype.md`.
+>
+> **Iteration 1 remains NO-GO, but its reported 4.4x magnitude is withdrawn.** M1x2 was warmed by
+> its persistent selected-expert cache across three passes, while M=2 used a different uncached
+> path. The structural diagnosis remains sufficient: M=2 computes 18 vs 12 token-expert streams
+> in the test shape and holds both tokens' `yl` arrays/accumulators live, so simultaneous fusion is
+> the wrong design. Do not reuse the derived 2.9x bound as a cold-vs-cold estimate. Artifacts 06/09.
+>
+> **Decision:** do not integrate or iterate on grouped IQ2XXS gate+up. A compact unique-expert map
+> removes the disjoint control overhead, while heavier overlap gets sharply worse; activation and
+> partial-sum spill plus barriers outweigh duplicate dequant/load savings. The final exact K=4
+> `verify_ms(4) <= 50.5 ms` gate was not run because its prerequisite stage gate failed. Retain the
+> env-gated code only as research instrumentation. Any future Lead 08 attempt requires a different
+> mechanism, not another grouped gate+up variant.
 
-Date: 2026-07-07 (refreshed 2026-07-12; re-assessed 2026-07-15 post-M3). Status:
-**Phase B verdict = NO-GO via swaps → bounded build attempt; NOW re-assessed
-post-M3 via the sub-lead-1 probe (the decisive GO/NO-GO gate before any kernel
-build).** This doc stays in `pending/` as the active lead. Phase A result:
+Date: 2026-07-07 (refreshed 2026-07-17). Status:
+**Phase B swap-only NO-GO -> grouped prototype NO-GO -> margin fallback NO-GO -> address-layout
+NO-GO -> production geometry NO-GO.**
+This doc remains the Lead 08 provenance record. Phase A result:
 `issue468/summaries/mtp_verifier_engineering_and_phaseA.md`; Phase B canonical
 summary `issue468/summaries/lead08_phaseB_floor_clearance_verdict.md`.
 **Two-phase: a cheap profiling gate first (DONE, passed), kernel work only if
@@ -122,16 +146,22 @@ current acceptance" table above (draft=10/decode=26) is **superseded**. Full
 detail in `issue468/artifacts/lead08_reassessment/01_reorient_bar_redrivation.md`
 + `02_sublead1_fusion_prospect_and_probe.md`.
 
-> **2026-07-16 codex revision.** An adversarial avenues/experiments review
-> (`dspark_codex_reviews/2026-07-16_gpt55_xhigh_lead08_reassess_avenues.md`,
-> independently verified) **downgraded the lead from GO to CONDITIONAL HOLD**: the
-> prize math + the per-pair de-dup duplication are real, but the "~190 GB/s →
-> scattered access → recoverable to decode bw" attribution is **unsupported**
-> (the logged GiB is unique-union bytes, not physical per-pair; the slope is
-> inconsistent; cache-hit-vs-miss unresolved), and the de-dup ceiling is only
-> ~21–30%. The reliable prize is ~6–8 ms (de-dup → borderline +20%); the ~16 ms
-> needs verification. The first experiment is now the **free stage-profile sweep**
-> (not a synthetic-load microbench). Details below + in artifact 02 (revised).
+> **2026-07-17 controlled-probe resolution.** Artifact 10 established that resident preparation
+> already tracks unique experts while the physical-row gate+up kernel barely benefits from sparse
+> doubletons. Artifact 11 then built the one allowed threadgroup-spill prototype. It is bit-exact,
+> but regresses gate+up 22.9% at 18 unique / 24 pairs (35.8% excluding layer 0). The grouped branch
+> therefore stops; the prior 6-8 ms estimate is falsified for this design. Artifact 13 separately
+> held the same production work fixed while varying address locality. Total and gate+up sensitivity
+> stayed below 2%, closing software-visible remapping/packing as the speculative coalescing mechanism.
+> Artifact 14 then swept the production address kernel's SIMDgroup count. All alternates are
+> bit-exact, but their inconsistent 1-3% effects are far below the >=15% stage gate; production
+> therefore retains NSG 2. Artifact 15 swept the orthogonal rows-per-SIMDgroup tile at fixed NSG 2.
+> Tiles 2/8 are bit-exact but +1.0%/+0.3% slower over eight total-path rounds; tile 8's apparent
+> -2.5% profiled result
+> disappears when layer 0 is excluded (+0.05%). Production retains tile 4 and geometry tuning stops.
+> Artifact 16 then isolated cache residency. Cold SSD selected-address preparation costs 5.407
+> ms/layer and exact replay removes 87.8% of total routed time, but that path cannot run with DSpark.
+> The compatible mapped path changes only -0.04% on replay, so residency is not a Lead 08 lever.
 
 ### The live baseline (the bar to beat)
 
@@ -166,66 +196,56 @@ negligible vs ~GB weights — codex confirmed the attention→FFN activation fus
 sub-ms, ~5 MiB) → the register/cache reuse that matters is the **dequanted expert
 weights**. Two mechanisms:
 
-1. **Dequant-once-apply-to-all-tokens** (load-sharing / de-dup). Saves the
-   redundant per-(token,expert) dequant + fetch. **Reliable prize ~6–8 ms — but
-   only if the redundant loads are DRAM cache-misses; if L2-hit, only the dequant
-   compute is saved (smaller).** De-dup ceiling ~**21–30%** of the routed cost
-   (high expert overlap: union ≈19–21 of 24–30 pairs at K4–5 — codex). Confirmed
-   real: moe.metal:1257 dequants per-(token,expert); the dense matmul IS shared
-   via the multi-token `r1_2..5` kernels (dense.metal:912–915).
+1. **Dequant-once-apply-to-all-tokens** (load-sharing / de-dup). Production
+   preparation already loads each unique expert resource once, but the `addr` gate+up
+   kernel still dispatches physical pair rows. At 18 unique/24 pairs its profiled stage
+   is 97% of disjoint. The implementation test is now negative: the expert-major spill
+   prototype is 22.9% slower at that shape and 56-68% slower under heavier overlap.
+   Synchronization and spill traffic erase the theoretical
+   traffic saving. Do not iterate on this grouped-kernel mechanism.
 2. **Coalesced union access → decode bandwidth.** **SPECULATIVE — attribution
-   unsupported (see "crux" below).** IF the expert stream is memory-bound at
-   ~190 GB/s due to scattered access AND recoverable to decode bw ~410–450 GB/s
-   → ~16 ms. Unestablished.
+   unsupported (see "crux" below).** The fixed-work locality probe now falsifies the simple
+   software-layout version: contiguous versus same-set permuted or slab-wide strided placement moves
+   routed cost by <2%. A different hardware-level mechanism would need new evidence.
 
-**Revised prize: reliable ~6–8 ms (→ +13–18.6% over plain, borderline +20%);
-speculative up to ~16 ms (→ +36%) IF the bandwidth attribution holds. Clearing
-+20% is uncertain until the bandwidth question is settled.**
+**Revised prize: no demonstrated deployable saving.** The bounded load-sharing design failed.
+Speculative coalescing headroom beyond de-dup remains unestablished and is not a current build plan.
 
 ### The crux — why is the verify expert stream slow? (attribution UNSUPPORTED, codex-verified)
 
-The prior "190 GB/s because scattered access" came from the K3→K4 slope of the
-logged "selected GiB". Codex (verified): that GiB is **unique-union bytes
-(ds4.c:12401)**, not physical per-pair traffic; the kernel still reloads per-pair
-(ds4_metal.m:20945, `z = n_tokens × n_selected`); the slope is **inconsistent**
-(K3→K4 ≈186 vs K4→K5 ≈56 vs others ≈88–135 GB/s); the instrumentation does NOT
-separate ALU/dequant, address divergence, occupancy, L2 hit rate, or physical
-memory traffic. Sharper hypotheses + their decisive test:
+The prior "190 GB/s because scattered access" came from a confounded K sweep. Artifact 10
+holds K and physical rows fixed; artifact 11 tests the resulting implementation hypothesis.
+The grouped design loses despite exact arithmetic, so counters could diagnose the loss but cannot
+rescue the failed predeclared gate. They are evidence for a genuinely different future mechanism,
+not justification for iterating this prototype:
 
 | hypothesis | decisive test | prize |
 |---|---|---|
-| physical per-pair loads are DRAM cache-misses (bandwidth-bound, redundant) | L2 hit rate (Instruments); time tracks physical pairs | de-dup ~6–8 ms (mechanism 1) |
-| L2 hits → dequant-COMPUTE-bound (the "186 GB/s" is misleading) | ALU utilization; time doesn't track bytes | dequant load-sharing (smaller) |
-| scattered access fixable by coalescing → decode bw | counters: memory-bound + low L2 + poor coalescing | ~16 ms (mechanism 2, speculative) |
+| sparse doubletons miss useful reuse in the pair-row kernel | controlled 18-vs-24 unique gate+up | confirmed, but grouped realization loses |
+| grouped spill can convert that headroom into speed | bounded bit-exact prototype | falsified: +22.9% time at target shape |
+| expert row order/placement causes a recoverable locality loss | fixed-work contiguous vs permuted vs strided production probe | falsified: <2% movement |
+| production address-kernel threadgroup packing leaves occupancy headroom | fixed-work NSG 1/2/4/8 sweep with bitwise gate | falsified as material lever: all exact, only noisy 1-3% effects |
+| output rows per SIMDgroup leave reuse/register headroom | fixed-work row-tile 2/4/8 sweep | falsified: exact alternatives have no steady-state or repeatable total gain |
+| cross-cycle expert residency removes current verifier cost | identical-selection cold/replay on SSD and mapped paths | SSD upper bound -87.8%, but incompatible with DSpark; compatible path -0.04% |
+| remaining cost is DRAM vs dequant/address work | Instruments after prototype miss | diagnostic only |
+| a different hardware-level coalescing mechanism exists | counters: memory-bound + low L2 + poor coalescing, then a distinct controlled test | speculative; no current build |
 | fundamental (batch-attn scattered KV / inherent dequant) | attention+dense share bounds it | TBD |
 
-### Sub-lead 1 — the decisive gate (REVISED post-codex; 5 measurements, NO novel kernel)
+### Sub-lead 1 — decisive measurement gate: DONE
 
-The synthetic-load microbench is **dropped** (not runnable without a new kernel).
-The first experiment is now the **free stage-profile sweep** (the 4 flags already
-exist). Full spec + decision rule in artifact `02_sublead1` (revised); summary:
-
-1. **Fixed-K stage-profile sweep** (K=2..5; flags `DS4_MTP_VERIFY_PROFILE` +
-   `DS4_MTP_VERIFY_EXPERT_PROFILE` + `DS4_METAL_LAYER_STAGE_PROFILE` +
-   `DS4_METAL_MOE_ONE_STAGE_PROFILE`). Bounds the real prize (routed gate/up/down
-   ms, attention share, dense/share). **The one decisive experiment first** (free).
-2. **Pair-vs-unique correlation** — routed stage time vs physical pairs
-   (`n_ids = verify_n × 6`) vs unique experts: the de-dup-vs-coalescing fork.
-3. **Instruments/Metal GPU counters** on the batch `addr` kernel vs the decode
-   `id` kernel (memory throughput, **L2 hit rate**, occupancy, ALU) — the ONLY way
-   to settle bandwidth-vs-compute.
-4. **Readahead/overlap flag sweep** (decode readahead ds4.c:14596; batch FFN hooks
-   ds4.c:19466) — a cheap pre-kernel avenue (medium/high prize, low effort).
-5. **Exactness margin probe** — top1/top2 margins on disagreement rows → simulate
-   a margin-guarded fallback (may compose with the cost work).
-
-**Decision rule (revised):** run 1+2 first (free) → **GO** (build the M=2 grouped
-prototype, INCLUDING down/sum6) if routed gate/up/down is ~25–30 ms isolated AND
-(time tracks physical pairs [de-dup real] OR Instruments shows memory-bound +
-recoverable [coalescing real]); **CONDITIONAL HOLD** (codex) — settle the bandwidth
-attribution with 2+3 before committing to the build; **NO-GO / redirect** if
-compute-bound with a low de-dup ceiling → readahead/overlap, STS re-tune, or the
-margin-guard exactness path.
+The K sweep and readahead tests bounded the stage but left K/unique/physical work confounded.
+Artifact 09 exposed the invalid M1x2 cache ordering. Artifact 10 replaced it with a production K=4
+batch path at fixed physical rows and controlled unique counts. Artifact 11 completed the bounded
+follow-up: fidelity passes bit-exactly, but performance misses the >=15% gate with a 22.9% regression.
+The grouped gate+up branch is complete and stopped. Down/sum6 remains deferred because it is a much
+smaller term and cannot compensate for the failed prerequisite. Artifact 13 then completed the
+separate controlled locality microbenchmark; it also failed the cost gate and stops address packing.
+Artifacts 14/15 tested the remaining cheap production-kernel geometry knobs. SIMDgroup-count effects
+stay within about 3%; alternate row tiles are slower total and parity/slower at steady state. The
+defaults remain NSG 2 / row tile 4 and threadgroup repacking/tiling is stopped.
+Artifact 16 then bounded cross-cycle residency: a large exact SSD-cache replay prize exists, but the
+current DSpark runtime rejects SSD streaming and its compatible mapped path is already replay parity.
+That mechanism moves to Lead 05/runtime scope rather than authorizing another Lead 08 build.
 
 ### The greedy-exactness secondary (unchanged from Phase B item 6)
 
@@ -270,11 +290,10 @@ fused (the full build). Keeps the Phase-B abort condition (>5% re-verification).
    **2026-07-12 exactness measurement**
    (`issue468/artifacts/rejection_acceptance/verify_dist_probe_exactness.jsonl`)
    quantified the batch-vs-decode divergence: median TV 0.0035, **argmax flip
-   rate 0.64%** (1/156 positions) — so the non-exactness is *small and
-   concentrated on near-ties*, which both **validates the margin-guarded
-   fallback as cheap** (it would trigger on only ~0.64% of positions) and lets
-   the top1−top2 margin threshold (Q4-ceiling estimate ≲ ~0.5 logits) be **set
-   empirically** from the measured flip distribution rather than assumed. Note:
+   rate 0.64%** (1/156 positions). Artifact 12 later disproved the inference that
+   fallback frequency equals flip frequency: threshold 0.5 catches the observed
+   flip but guards 17.1% of cycles and adds at least 7.0 ms/cycle. The margin
+   fallback is now closed negative; it is not an exactness solution. Note:
    the single-family option changes baseline decode numerics; the exactness
    gate (spec == target-only, same build) still holds, but re-baseline the t/s
    denominator.
@@ -301,11 +320,17 @@ fused (the full build). Keeps the Phase-B abort condition (>5% re-verification).
 
 ## Next steps
 
-**2026-07-15 re-assessment (current):** the sub-lead-1 probe (§"Re-assessment
-(2026-07-15)" above) is the decisive gate BEFORE any kernel build. Run the 4
-cheap measurements → GO/NO-GO. The corrected target is ~10 ms off the verify
-(= +20% over plain), well within the expert-fusion prize range (~8–16 ms) IF
-the ~190 GB/s gap is recoverable.
+**2026-07-17 current:** the measurement gate, bounded grouped implementation, separate
+margin-fallback probe, fixed-work address-locality probe, and both production-kernel geometry sweeps are
+complete. The prototype is exact but slower; the fallback either misses the known flip or erases
+M3's speed advantage; address placement moves routed cost by <2%; NSG variants move it by only 1-3%.
+Alternate output-row tiles stay within about 1% total and show no steady-state gate+up gain.
+Exact expert replay is material only on the SSD selected-address runtime, which is incompatible with
+DSpark; the compatible mapped path changes by 0.04%.
+Do not run the end-to-end
+`verify_ms(4) <= 50.5 ms` integration gate, build another spill variant, or implement the margin
+policy, address remapping, or another launch/tiling geometry variant. Any future verifier attempt must
+establish a different mechanism with new evidence first.
 
 **Milestone COMPLETE (2026-07-13): Phase B characterization + decisive measurements →
 FINAL verdict = NO-GO via swaps → bounded build attempt with a hard exit gate
@@ -313,7 +338,7 @@ FINAL verdict = NO-GO via swaps → bounded build attempt with a hard exit gate
 `issue468/summaries/lead08_phaseB_floor_clearance_verdict.md`. STATUS.md +
 spec_speedup_model.md updated.
 
-**The gated follow-up (a separate lead/goal):** attempt the **sublinear bit-exact
+**Historical gated follow-up (now complete negative):** attempt the **sublinear bit-exact
 batch-path build** (HC/compressor/attention on decode reductions + batched load sharing) as
 a BOUNDED effort with a **hard exit gate** — GO is unconfirmed until an end-to-end K=4
 bit-exact verifier profiles `verify_ms(4) ≤ 50.5 ms`. NOT "gate cleared / commit as
@@ -321,6 +346,159 @@ sufficient." (Confirmatory: a literal identical-input MoE kernel-equality harnes
 verify-bandwidth slope re-measure.)
 
 ## Worklog
+
+### 2026-07-17 - iteration-8 cache residency has an SSD-only prize -> current-path STOP
+
+Profiled the preparation term outside the iteration-2 GPU stage boundaries. At the fixed K=4,
+18-unique/24-pair shape, selected-ID readback is 0.00027 ms/layer while cold selected-address
+cache wrap/load is 5.407 ms/layer. Added `DS4_LEAD08_CACHE_REPLAY_PROBE=1` to run an identical
+all-layer selection sequence cold and immediately resident, with a direct fidelity gate.
+
+The SSD selected-address path is bit-exact and drops 11.094 -> 1.353 ms/layer (-87.8%) on replay;
+wrap/load drops 5.407 -> 0.001 ms. This is a real upper bound, not a deployable result:
+`ds4-spec-bench` explicitly rejects `--ssd-streaming` with `--dspark`. Running the same probe on the
+actual compatible mapped-weight path gives 0.566 -> 0.566 ms/layer (-0.04%), also bit-exact.
+
+Extended the retained expert locality profiler to ingest actual batched-verifier selections. A
+64-token full-stack run records 22,188 accesses / 3,698 layer records: per-layer LRU hit rates are
+60.5% at capacity 16, 76.0% at 32, 81.4% at 64, and 83.5% at 128+. The locality is real, but only an
+SSD-compatible speculative runtime could exploit the measured cold-load gap.
+
+Verdict: **NO-GO for current Lead 08; do not port selected-address caching into the mapped path.**
+The compatible carrier misses the material gate, while building DSpark+SSD compatibility belongs to
+Lead 05/runtime scope with its own baseline. Retained artifact 16 + two CSVs, the replay probe, and
+batched expert-profile support for reproduction.
+
+### 2026-07-17 - iteration-7 production row-tile sweep is exact but slower -> STOP
+
+Added research-only tile-2/tile-8 specializations of the production
+`kernel_mul_mv_addr_iq2_xxs_pair_swiglu_f32` path and selected them with
+`DS4_LEAD08_ADDR_NR0`. `DS4_LEAD08_ADDR_NR0_PROBE=1` holds NSG 2, 24 physical rows, 18 unique
+experts, routing, addresses, and downstream work fixed. The default remains the production tile 4.
+
+The direct layer-0 gate finds tiles 2 and 8 bit-exact against tile 4 through gate, up, weighted mid,
+routed output, and argmax: every differing-bit count and argmax-flip count is zero.
+
+Across two four-round cold-cache balanced repetitions and all 43 routed layers, tiles 2/4/8 take
+11.064/10.954/10.982 ms/layer total (+1.0%/baseline/+0.3%). Matched gate+up is
+4.998/5.063/4.938 ms/layer (-1.3%/baseline/-2.5%), but excluding startup-heavy layer 0 changes the
+comparison to 3.292/3.249/3.251 (+1.3%/baseline/+0.05%). The apparent tile-8 profile win is startup,
+not steady-state improvement; its total-path sign also changes between repetitions (1.35% slower,
+then 0.81% faster), confirming that the sub-percent effect is noise-scale.
+
+Verdict: **NO-GO; retain row tile 4 and stop address-kernel geometry tuning.** Both exact alternates
+miss the >=15% gate and provide no repeatable unprofiled gain. Retained artifact 15 + CSV and the
+env-gated specializations/sweep only for reproduction; default execution is unchanged.
+
+### 2026-07-17 - iteration-6 production address-kernel geometry has no exact speedup -> STOP
+
+Added a diagnostic-only SIMDgroup-count override for the production
+`kernel_mul_mv_addr_iq2_xxs_pair_swiglu_f32` path and a balanced K=4 sweep under
+`DS4_LEAD08_ADDR_NSG_PROBE`. The experiment holds 24 physical rows, 18 unique experts, routing,
+addresses, reduction order within each SIMDgroup, and all downstream work fixed. The default remains
+NSG 2; its literal original IQ2 lookup-table preload is unchanged. Research specializations use a
+complete table preload for NSG 1/4/8.
+
+The direct layer-0 gate finds NSG 1, 4, and 8 bit-exact through gate, up, weighted mid, and routed
+output, with zero differing F32 bits and zero argmax flips.
+
+Across four cold-cache balanced rounds and all 43 routed layers, production NSG 2 is 11.300
+ms/layer total. NSG 1/4/8 are 11.076/10.943/11.099 (-2.0%/-3.2%/-1.8%). Matched gate+up is
+5.094/5.102/5.160/4.998 for NSG 1/2/4/8 (-0.2%/+1.1%/-2.0% versus 2); excluding layer 0 gives
++0.3%/-1.1%/-0.7%. The low-single-digit changes are inconsistent across views.
+
+Verdict: **NO-GO; retain NSG 2 and stop the SIMDgroup-count branch.** No alternate approaches the
+>=15% stage gate, and a noisy 1-3% microbenchmark effect does not justify changing production.
+Retained artifact 14 + CSV and the env-gated override/sweep only for reproduction; default execution
+is unchanged.
+
+### 2026-07-17 - iteration-5 fixed-work expert-address locality is <2% -> STOP
+
+Added `DS4_LEAD08_ADDRESS_LOCALITY_PROBE`, a diagnostic-only mode of the retained production K=4
+batch-MoE harness. It fixes 24 physical token-expert rows, 18 unique experts, and duplicate
+multiplicities, then compares contiguous placement, a permutation of the exact same 18-expert set,
+and a coprime-strided placement across the expert slab. Every case clears the resident cache; four
+rounds alternate case order and cover all 43 routed layers.
+
+Unprofiled routed cost is 9.766 ms/layer contiguous, 9.953 permuted (+1.9%), and 9.835 strided
+(+0.7%). A matched gate+up profile gives 4.381/4.450/4.422 ms/layer (+1.6%/+0.9%); excluding the
+four first-use layer-0 samples gives +1.8%/+1.4%. The agreement between total and isolated stage
+timing rules out a hidden large layout effect.
+
+Verdict: **NO-GO for software-visible expert remapping/packing.** The result is far below the
+predeclared >=15% stage gate and cannot supply the 8.7-10 ms verifier saving. It does not prove a
+hardware bandwidth-vs-compute attribution; full Xcode counters remain diagnostic if a distinct
+mechanism appears. Retained artifact 13 + CSV and the env-gated harness for reproduction.
+
+### 2026-07-17 - iteration-4 margin guard catches the flip only above the economic limit -> STOP
+
+Extended `DS4_DSPARK_VERIFY_DIST_PROBE` to record batch top-1/top-2 margins and simulate exact
+fallback at the predeclared 0.25/0.5/1.0/1.75 thresholds. The change is diagnostic-only: verifier
+selection and commit behavior are unchanged. Replayed the same ten exactness prompts as the retained
+M3 batch-vs-exact artifact with per-cycle timing: 163 cycles, 158 batch probes, 91 compared cycles,
+157 relevant rows, and the same one argmax flip.
+
+The flip's batch margin is 0.375505. A 0.25 guard misses it. A 0.5 guard catches the observed flip
+but triggers on 27/158 probed cycles (17.1%) and 27/157 rows. Measured exact replay plus state push
+adds 7.006 ms per overall cycle before accounting for a GPU top-2 primitive, synchronization,
+rollback, or policy overhead. Applied to the live M3 cycle, the optimistic projection is
+40.04 -> 36.37 t/s, **4.7% below plain**. Thresholds 1.0/1.75 add 13.7/17.3 ms per cycle.
+
+Verdict: **NO-GO; do not implement the margin fallback.** The only tested threshold that retains
+most of the speed fails the observed exactness case; the smallest threshold that catches it erases
+the speedup. Zero missed flips at 0.5 is observational, not a proof from one flip, because there is
+no analytic reduction-error bound. Retained artifact 12 + CSV and the extended probe only for
+reproduction. Lead 08 now has no demonstrated grouped-kernel or margin-fallback path.
+
+### 2026-07-17 — iteration-3 expert-major spill prototype is bit-exact but slower -> grouped branch STOP
+
+Implemented the single bounded follow-up from artifact 10 behind
+`DS4_LEAD08_GROUPED_GATEUP_PROBE`. Singleton experts retain the production physical-row reduction;
+cache preparation emits a compact unique-expert/row map, and duplicate groups run an expert-major
+kernel that reuses quantized gate/up tiles across matching tokens while spilling activation tiles
+and partial sums to about 26 KiB of threadgroup memory.
+Default execution is unchanged. Added a direct production/prototype comparison under
+`DS4_LEAD08_GROUPED_GATEUP_FIDELITY`.
+
+Fidelity passes strongly on layer 0 across all four controlled overlap shapes: gate, up, weighted
+mid, and routed output have max_abs=0 and zero differing F32 bits; routed-output argmax flips=0.
+The matched 43-layer x 4-round stage profile fails the cost gate. At 18 unique / 24 pairs,
+production is 4.869 ms/layer and the prototype 5.986 ms/layer, a **22.9% regression** instead of
+the required >=15% improvement. Excluding layer 0 strengthens the regression to 35.8%. The
+6/12-unique cases regress 68.1% / 55.6%, while the disjoint control is parity.
+
+Verdict: **NO-GO; stop the grouped gate+up branch.** The compact map removes the disjoint overhead,
+and heavier overlap shows directly that threadgroup spill/barrier costs overwhelm duplicate
+dequant/load reuse. Per the bounded plan, do not integrate or iterate. The final exact
+K=4 verifier gate is not run because the prerequisite stage gate failed. Retained artifact 11 +
+CSV and the env-gated implementation solely for reproducibility.
+
+Post-decision counter audit: the active developer tools provide neither `xctrace` nor the offline
+`metal` utility, and the M5 Max Metal API advertises only `timestamp/GPUTimestamp`. No DRAM, cache,
+occupancy, or instruction counters are available here. Artifact 13 subsequently supplied the
+controlled fixed-work timing alternative and found <2% address-layout sensitivity. Hardware
+bandwidth-vs-compute attribution remains unmeasured, but simple address remapping is now closed and
+does not reopen the stopped grouped branch.
+
+### 2026-07-17 — iteration-2 production batch overlap probe resolves the cold-sweep blocker -> conditional prototype GO
+
+Replaced artifact 09's invalid M1x2 overlap comparator with a production-shaped K=4 harness around
+`ds4_gpu_routed_moe_batch_tensor`. Held physical work at 24 token-expert rows, varied unique experts
+6/12/18/24, cleared the resident cache before each all-layer sample, alternated case order over four
+rounds, and separately profiled gate+up/down. Retained artifact 10 + CSV.
+
+Result: total routed cost tracks unique experts (5.451/7.277/10.334/13.489 ms/layer), proving the
+batch resource preparation is already union-aware. But at the realistic partial-overlap shape,
+gate+up(18 unique)=4.642 is 97% of disjoint=4.787 despite 25% fewer unique experts: the physical-row
+GPU kernel gets little benefit from sparse doubletons. Down is much smaller (0.695 vs gate+up 4.642
+profile ms). This corrects both extremes: neither "production cost is physical-pair-only" nor
+"existing caching already removes the grouped-kernel opportunity" is true.
+
+Verdict: **CONDITIONAL GO for one bounded expert-major gate+up prototype** using M=1 register state
+plus threadgroup-spilled per-token partial sums. Require >=15% gate+up improvement at 18 unique / 24
+pairs; otherwise stop. The old 4.4x M2/M1 magnitude is withdrawn (warm-cache comparator), while the
+iteration-1 simultaneous-fusion NO-GO remains structural (18-vs-12 work + doubled live state). The
+prior 6-8 ms prize is downgraded from reliable to unproven until the prototype measures it.
 
 ### 2026-07-16 — codex avenues/experiments review of the re-assessed doc → CONDITIONAL HOLD; sub-lead-1 probe REVISED
 
@@ -663,7 +841,7 @@ exact divergence source to design the minimal fusion needs either deeper kernel-
 reading or a stage-level measurement. **Paused to align on slicing** (diagnostic/design
 vs single-stage prototype vs full multi-session commit) — see pause note.
 
-### 2026-07-12 — lock-exactness: strategy A (bit-exact fused kernel by construction) chosen; margin-guard deferred
+### 2026-07-12 — lock-exactness: strategy A chosen; margin guard deferred (later NO-GO in artifact 12)
 
 Locked the exactness strategy for the N=2 milestone BEFORE any kernel build.
 
@@ -681,9 +859,9 @@ flip occurred at a cycle with divergence **1.75 logits**. A margin-guard safe en
 catch that flip would need threshold ≥ ~1.75 logits; since small top-2 margins are common
 (`conf_logits` shows ~0.29-logit top-2 gaps), it would re-verify a large fraction of
 positions → eating the gain. The artifact also lacks the per-position top-2 divergence
-needed to derive a tight threshold. Strategy B is revisitable only if the fused kernel
-proves unable to reach bit-exactness AND a later per-position top-2 measurement shows a
-tight margin-guard is viable.
+needed to derive a tight threshold. The later per-position top-2 measurement is artifact 12:
+threshold 0.25 misses the flip and 0.5 triggers on 17.1% of cycles, so strategy B is now closed
+negative.
 
 **Threshold reference (empirical):** the gate target is `max_abs_logit_diff = 0`. The
 current batched baseline (median 0.28 / max 4.56 divergence, 0.64% flip, median TV
@@ -731,9 +909,9 @@ Tidied this lead doc for Phase B: corrected the stale "resolved & archived"
 header to "Phase A resolved → Phase B active"; folded in the milestone-2 session
 evidence — the crossover finding (existing batched primitive is only break-even,
 so a fused kernel must hit ~45 ms, below the sequential ~57 ms, not just below
-the current 66 ms), the exactness measurement (median TV 0.0035, flip 0.64% →
-margin-guarded fallback is cheap and the margin threshold can be set
-empirically), and the `decode2_exact`-is-linear ruling (the fused kernel must be
+the current 66 ms), the exactness measurement (median TV 0.0035, flip 0.64%;
+the later artifact 12 disproved the then-assumed cheap margin fallback), and the
+`decode2_exact`-is-linear ruling (the fused kernel must be
 both sublinear AND exact). Tightened the net-effect criterion to make the
 dependency stack explicit (needs anchor reuse + GPU drafter, not a better
 drafter). Core thesis and prize estimate unchanged and independently

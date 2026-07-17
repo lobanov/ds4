@@ -1,5 +1,12 @@
 # Lead 08 — M=2 fused routed-expert COST (cold all-layers sweep)
 
+> **2026-07-17 measurement correction:** the reported 4.4x magnitude is **not decision-grade**.
+> M=2 ran before an M1x2 comparator whose selected-expert cache then stayed warm across three
+> passes; artifact 09 exposed the order artifact and artifact 10 replaced the comparator with a
+> cache-controlled production batch path. The qualitative iteration-1 NO-GO remains: the kernel
+> computes 18 instead of 12 token-expert streams and holds two tokens' live state, so it is the
+> wrong design. Do not reuse 4.4x or the derived 2.9x bound as a cold-vs-cold estimate.
+
 **Date:** 2026-07-16
 **Harness:** `metal_graph_test_m2_fidelity_unit` cost section (ds4.c), env `DS4_M2_FIDELITY_TEST`.
 **Method:** sweep ALL layers (DS4_N_LAYER=43) × 3 passes, dispatching per layer either M=2
@@ -19,9 +26,13 @@ COST_COLD passes=3 layers=43 selA=[0..5] selB=[3..8] (n_union=9 of 12)
   saving = -10.295 ms  (-338%)   -> M=2 is 4.4x SLOWER
 ```
 
-## Verdict (cost, the primary objective)
-**NO-GO.** The M=2 fused kernel is **4.4× slower** than per-token M=1×2 (both cold). The de-dup
-(saving 3 of 12 expert loads) is completely overwhelmed by the fused kernel's per-expert overhead.
+## Verdict (iteration-1 cost — the simultaneous-fusion mechanism)
+**Iteration-1 NO-GO.** The M=2 fused kernel was **reported as 4.4x slower**, but the comparator
+was not cold-equivalent (see correction above). The de-dup was overwhelmed in this design by
+18-vs-12 stream work plus the doubled live state. **This rules out the
+*simultaneous-compute-fusion* mechanism, not Lead 08's
+thesis** (de-dup is real) — Lead 08 continues with iteration 2 (sequential fusion / union-aware
+de-dup, which avoids the 2× register pressure); see `pending/lead_08_fused_verify_kernel.md`.
 
 ## Diagnosis (the ~6× per-expert slowdown)
 - Expected work: M=2 processes 9 union experts; the 3 shared experts do 2 tokens' MAC, the 6

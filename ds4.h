@@ -289,6 +289,12 @@ typedef struct {
     double mean_tv;
     double mean_kl_seq_batched;
     double batched_verify_ms;
+    double mean_batched_top2_margin;
+    double min_batched_top2_margin;
+    double max_flipped_batched_top2_margin;
+    int margin_guard_rows[4];
+    bool margin_guard_cycle[4];
+    int margin_guard_missed_flips[4];
 } ds4_dspark_verify_dist;
 typedef struct {
     bool valid;

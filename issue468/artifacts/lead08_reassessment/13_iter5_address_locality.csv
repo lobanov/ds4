@@ -1,0 +1,4 @@
+pattern,total_ms_per_layer,total_delta_vs_contiguous_pct,gate_up_ms_per_layer,gate_up_delta_vs_contiguous_pct,gate_up_excl_layer0_ms_per_layer,gate_up_excl_layer0_delta_vs_contiguous_pct,rounds,layers,gate_up_excl_layer0_samples
+contiguous,9.766250,0.000000,4.380698,0.000000,2.607577,0.000000,4,172,168
+permuted,9.952500,1.907078,4.449657,1.574163,2.653280,1.752676,4,172,168
+strided,9.834750,0.701395,4.421913,0.940835,2.645107,1.439258,4,172,168

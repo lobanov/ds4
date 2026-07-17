@@ -1,5 +1,9 @@
 # Lead 08 workstream — iteration-1 (no-kernel probe batch): top-r budgeting
 
+> **2026-07-17 final update:** top-r remains NO-GO. Artifact 10 conditionally advanced one bounded
+> threadgroup-spill gate+up prototype; artifact 11 subsequently measured it bit-exact but slower and
+> closed that branch. Artifact 12 closes the separate margin fallback.
+
 **Date:** 2026-07-16. **Candidate:** #2 from the lead-ID (MoE-Spec-style verify-time expert budgeting).
 **Mechanism:** env-gated `DS4_TOP_R` overrides `g_ds4_shape.n_expert_used` post-load → the router +
 batch verify use top-r instead of top-6 (no new kernel; reuses `ds4_gpu_routed_moe_batch_tensor`).
@@ -34,10 +38,10 @@ VERIFY_PREFIX_CHECKPOINT=1 TIMING=1`), 5-entry corpus, top-6 vs top-5 vs top-4.
   a composition to layer onto the main kernel if it lands.
 
 ## Conclusion / hand-off
-The no-kernel probes (#2, #4, #5) do not yield ≥20%. **The path is the main kernel — #1
-(union-aware grouped MoE, sequential-tile, single-token register state)** for iteration-2, with #3
-(down de-dup) + #4 (cost-aware STS) as composition if it lands. The top-r + prefetch retirements
-de-risk iteration-2 (no point chasing ordering/budgeting when the prize needs a load-sharing kernel).
+The no-kernel probes (#2, #4, #5) do not yield ≥20%. This artifact originally handed off to #1;
+artifact 11 now records that kernel's performance NO-GO. Candidate #3 (down de-dup) and #4
+(cost-aware STS) were only low-prize compositions if #1 landed, so they do not remain standalone
+Lead 08 paths.
 
 ## Codex review (gpt-5.5 xhigh, report retained at dspark_codex_reviews/2026-07-16_gpt55_xhigh_lead08_iter1_topr.md)
 - **NO-GO confirmed** — traced `DS4_TOP_R` → `g_ds4_shape.n_expert_used` → batch router select →

@@ -1,0 +1,5 @@
+threshold,guarded_rows,total_rows,guarded_cycles,probe_cycles,guarded_cycle_pct,missed_flips,optimistic_added_ms_per_all_cycle,projected_tokens_per_second,projected_vs_plain_pct
+0.25,11,157,11,158,7.0,1,2.304,38.75,1.6
+0.50,27,157,27,158,17.1,0,7.006,36.37,-4.7
+1.00,50,157,49,158,31.0,0,13.665,33.45,-12.3
+1.75,69,157,63,158,39.9,0,17.271,32.06,-16.0

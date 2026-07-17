@@ -1443,13 +1443,34 @@ static void write_result_jsonl(
                 m->conf_logits[4]);
         if (m->verify_dist.present) {
             fprintf(out,
-                    ",\"verify_dist\":{\"n_compared\":%d,\"argmax_flips\":%d,\"max_abs_logit_diff\":%.6g,\"mean_tv\":%.6g,\"mean_kl_seq_batched\":%.6g,\"batched_verify_ms\":%.6f}",
+                    ",\"verify_dist\":{\"n_compared\":%d,\"argmax_flips\":%d,\"max_abs_logit_diff\":%.6g,\"mean_tv\":%.6g,\"mean_kl_seq_batched\":%.6g,\"batched_verify_ms\":%.6f,"
+                    "\"mean_batched_top2_margin\":%.6g,\"min_batched_top2_margin\":%.6g,"
+                    "\"max_flipped_batched_top2_margin\":%.6g,"
+                    "\"margin_guard_thresholds\":[0.25,0.5,1,1.75],"
+                    "\"margin_guard_rows\":[%d,%d,%d,%d],"
+                    "\"margin_guard_cycle\":[%s,%s,%s,%s],"
+                    "\"margin_guard_missed_flips\":[%d,%d,%d,%d]}",
                     m->verify_dist.n_compared,
                     m->verify_dist.argmax_flips,
                     m->verify_dist.max_abs_logit_diff,
                     m->verify_dist.mean_tv,
                     m->verify_dist.mean_kl_seq_batched,
-                    m->verify_dist.batched_verify_ms);
+                    m->verify_dist.batched_verify_ms,
+                    m->verify_dist.mean_batched_top2_margin,
+                    m->verify_dist.min_batched_top2_margin,
+                    m->verify_dist.max_flipped_batched_top2_margin,
+                    m->verify_dist.margin_guard_rows[0],
+                    m->verify_dist.margin_guard_rows[1],
+                    m->verify_dist.margin_guard_rows[2],
+                    m->verify_dist.margin_guard_rows[3],
+                    m->verify_dist.margin_guard_cycle[0] ? "true" : "false",
+                    m->verify_dist.margin_guard_cycle[1] ? "true" : "false",
+                    m->verify_dist.margin_guard_cycle[2] ? "true" : "false",
+                    m->verify_dist.margin_guard_cycle[3] ? "true" : "false",
+                    m->verify_dist.margin_guard_missed_flips[0],
+                    m->verify_dist.margin_guard_missed_flips[1],
+                    m->verify_dist.margin_guard_missed_flips[2],
+                    m->verify_dist.margin_guard_missed_flips[3]);
         }
         fprintf(out,
                 ",\"anchor_id\":%d,\"draft_ids\":[%d,%d,%d,%d,%d]",

@@ -1,0 +1,5 @@
+unique_experts,physical_pairs,baseline_gateup_ms_per_layer,prototype_gateup_ms_per_layer,prototype_delta_ms,prototype_delta_pct,baseline_excl_layer0_ms,prototype_excl_layer0_ms,prototype_excl_layer0_delta_pct,rounds,layers_per_round
+6,24,3.139,5.276,2.138,68.1,1.405,3.548,152.5,4,43
+12,24,3.350,5.211,1.861,55.6,1.604,3.565,122.3,4,43
+18,24,4.869,5.986,1.117,22.9,3.200,4.346,35.8,4,43
+24,24,4.993,4.947,-0.045,-0.9,3.224,3.236,0.4,4,43

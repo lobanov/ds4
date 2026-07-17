@@ -55,9 +55,21 @@ meaning materially changes.
 | `DS4_CPU_DUMP_LOGITS` | diagnostic | Dumps CPU logits in the Metal prompt-graph comparison path. |
 | `DS4_CPU_DUMP_PREFILL_LOGITS` | diagnostic | Dumps CPU prefill logits from the CPU runtime path. |
 | `DS4_ORACLE_LOGITS` | diagnostic | Loads external oracle logits for prompt-graph comparison. |
-| `DS4_EXPERT_PROFILE` | diagnostic | Loads expert profile data for routing/streaming decisions. |
+| `DS4_EXPERT_PROFILE` | diagnostic | Writes routed-expert selections to the given path for locality analysis. The profiler now records both sequential and actual batched-verifier selections. |
 | `DS4_EXPERT_HOTLIST` | variation | Loads an expert hotlist used by runtime preload/streaming heuristics. |
 | `DS4_MOE_REPLAY_SELECTED_IDS` | diagnostic | Replays routed expert ids instead of using live router selection. |
+| `DS4_M2_FIDELITY_TEST` | diagnostic | Runs the self-contained Lead 08 routed-MoE fidelity/cost harness and exits. |
+| `DS4_LEAD08_BATCH_OVERLAP_PROBE` | diagnostic | Switches that harness to the cache-controlled K=4 production batch-MoE overlap sweep. |
+| `DS4_LEAD08_ADDRESS_LOCALITY_PROBE` | diagnostic | Switches the Lead 08 harness to the fixed-work K=4 production address-locality sweep: contiguous, same-set permuted, and slab-wide strided expert placement. Implies the batch-overlap harness setup; retained to reproduce the iteration-5 NO-GO. |
+| `DS4_LEAD08_ADDR_NSG_PROBE` | diagnostic | Switches the Lead 08 harness to the fixed-work K=4 production address-kernel SIMDgroup sweep with a bitwise fidelity gate. Retained to reproduce the iteration-6 NO-GO. |
+| `DS4_LEAD08_ADDR_NSG` | diagnostic | Research-only production address-kernel SIMDgroup override (`1`, `2`, `4`, or `8`; default `2`). All tested values are bit-exact; the best effects are only 1-3%, far below the Lead 08 gate. Use only through the retained probe. |
+| `DS4_LEAD08_ADDR_NR0_PROBE` | diagnostic | Switches the Lead 08 harness to the fixed-work K=4 production address-kernel row-tile sweep with a bitwise fidelity gate. Retained to reproduce the iteration-7 NO-GO. |
+| `DS4_LEAD08_ADDR_NR0` | diagnostic | Research-only production address-kernel output-row tile override (`2`, `4`, or `8`; default `4`). Tiles 2/8 are bit-exact but slower total and show no steady-state gain. Use only through the retained probe. |
+| `DS4_LEAD08_CACHE_REPLAY_PROBE` | diagnostic | Runs the Lead 08 fixed-selection cold-versus-resident replay test on both SSD selected-address and current mapped-weight paths. Retained to reproduce the iteration-8 carrier NO-GO. |
+| `DS4_LEAD08_GROUPED_GATEUP_PROBE` | diagnostic | Research-only Lead 08 iteration-3 path: replaces IQ2XXS batch gate+up with singleton plus expert-major threadgroup-spill dispatches. Default-off; retained to reproduce the performance NO-GO, not as an optimization. |
+| `DS4_LEAD08_GROUPED_GATEUP_FIDELITY` | diagnostic | With both Lead 08 probe variables set, directly compares production and grouped gate/up paths across 6/12/18/24 unique-expert shapes and reports bit differences through routed output. |
+| `DS4_METAL_COUNTER_INVENTORY` | diagnostic | Prints Metal counter sets exposed by the current device/toolchain. On the retained M5 Max host only `timestamp/GPUTimestamp` is available; no bandwidth/cache counters. |
+| `DS4_TOP_R` | variation | Research-only Lead 08 override of routed top-r after model load. |
 
 ## Metal graph dump, trace, and prompt-graph diagnostics
 
@@ -231,7 +243,7 @@ meaning materially changes.
 | `DS4_DSPARK_SCHEDULE_GPU_HEAD` | variation | Enables the experimental GPU-assisted scheduled output-head path. |
 | `DS4_DSPARK_SPEC_LOG` | diagnostic | Enables DSpark speculative-cycle logging. |
 | `DS4_DSPARK_TIMING` | diagnostic | Enables per-cycle DSpark timing capture. |
-| `DS4_DSPARK_VERIFY_DIST_PROBE` | diagnostic | Measurement 1 (option A): non-committing probe that runs the sublinear batched verifier (`verify_suffix_tops`) alongside the real sequential DSpark verify and records per-position argmax-flip / max-abs-logit / TV / KL(seq‖batched) into `dspark_last_cycle.verify_dist`, emitted per-cycle as `verify_dist` objects in the ds4-spec-bench JSONL. Requires the graph to allocate `spec_logits` + spec-frontier tensors for DSpark (now done). Non-mutating to the real decode. |
+| `DS4_DSPARK_VERIFY_DIST_PROBE` | diagnostic | Non-committing probe that runs the sublinear batched verifier (`verify_suffix_tops`) alongside the real sequential DSpark verify and records per-position argmax-flip / max-abs-logit / TV / KL(seq-batched), batch top-1/top-2 margins, and simulated margin-guard row/cycle/missed-flip counts at 0.25/0.5/1.0/1.75 into `dspark_last_cycle.verify_dist`, emitted per-cycle in ds4-spec-bench JSONL. Requires `spec_logits` + spec-frontier tensors. Non-mutating to real decode; artifact 12 records the margin-fallback NO-GO. |
 | `DS4_DSPARK_DUMP_HIDDEN` | diagnostic | Live greedy-spine hidden dump (milestone 2 live-vs-oracle trace). When set to a path, forces a host refresh of the DSpark `main_hidden` (layer-40/41/42 mean) at every committed token and appends a (pos, token, hidden[3*N_EMBD]) record. Because greedy speculative preserves the greedy spine, these per-committed-token hiddens ARE the clean capture the offline oracle drafter consumes. Set per-prompt by `ds4-spec-bench --dump-hidden-dir`. |
 
 ## Inventory notes for current research
@@ -301,7 +313,8 @@ meaning materially changes.
   loop) with per-cycle timing + bootstrap-CI aggregation, for spec_speedup_model.md-
   comparable fidelity.
 - **dist-probe** (`DS4_DSPARK_VERIFY_DIST_PROBE`, above): the batched-vs-exact
-  distribution-divergence measurement (TV / argmax-flip / max-abs / KL).
+  distribution-divergence and top-2 margin-guard measurement (TV / argmax-flip / max-abs / KL /
+  guarded rows and cycles / missed flips).
 - **PR #502 worktree** at `/Users/lobanov/Projects/ds4-pr502` (branch `pr-502`,
   fetched as `pull/502/head`): the Metal DSpark drafter port source for lever 3
   (`metal_graph_dspark_*` + `ds4_metal.m` kernels + `metal_graph_dspark_refresh_verified_rows`).

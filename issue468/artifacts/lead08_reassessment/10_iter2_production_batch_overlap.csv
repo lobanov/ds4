@@ -1,0 +1,5 @@
+unique_experts,physical_pairs,total_ms_per_layer,gate_up_profile_ms_per_layer,down_profile_ms_per_layer,rounds,layers_per_round
+6,24,5.451,3.046,0.673,4,43
+12,24,7.277,3.208,0.617,4,43
+18,24,10.334,4.642,0.695,4,43
+24,24,13.489,4.787,0.815,4,43

@@ -12401,11 +12401,14 @@ static bool metal_graph_stream_prefill_selected_profile_layer(
 static bool metal_graph_batch_selected_profile_stats(
         ds4_gpu_graph           *g,
         const ds4_layer_weights *layer,
+        uint32_t                 il,
+        uint32_t                 start,
         uint32_t                 n_tokens,
         uint32_t                *unique_out,
         uint64_t                *selected_bytes_out,
         uint64_t                *full_bytes_out) {
-    if (!g || !layer || !g->batch_router_selected || n_tokens == 0 ||
+    if (!g || !layer || !g->batch_router_selected ||
+        (g_expert_profile.active && !g->batch_router_weights) || n_tokens == 0 ||
         !unique_out || !selected_bytes_out || !full_bytes_out ||
         DS4_N_EXPERT == 0 || DS4_N_EXPERT > DS4_MAX_EXPERT ||
         DS4_N_EXPERT_USED == 0 || DS4_N_EXPERT_USED > DS4_MAX_EXPERT_USED) {
@@ -12415,11 +12418,20 @@ static bool metal_graph_batch_selected_profile_stats(
     const uint64_t n_ids = (uint64_t)n_tokens * DS4_N_EXPERT_USED;
     if (n_ids > SIZE_MAX / sizeof(int32_t)) return false;
     int32_t *selected = xmalloc((size_t)n_ids * sizeof(selected[0]));
-    const bool read_ok = ds4_gpu_tensor_read(g->batch_router_selected,
-                                             0,
-                                             selected,
-                                             n_ids * sizeof(selected[0])) != 0;
+    float *route_weights = g_expert_profile.active ?
+        xmalloc((size_t)n_ids * sizeof(route_weights[0])) : NULL;
+    bool read_ok = ds4_gpu_tensor_read(g->batch_router_selected,
+                                       0,
+                                       selected,
+                                       n_ids * sizeof(selected[0])) != 0;
+    if (read_ok && route_weights) {
+        read_ok = ds4_gpu_tensor_read(g->batch_router_weights,
+                                      0,
+                                      route_weights,
+                                      n_ids * sizeof(route_weights[0])) != 0;
+    }
     if (!read_ok) {
+        free(route_weights);
         free(selected);
         return false;
     }
@@ -12429,6 +12441,7 @@ static bool metal_graph_batch_selected_profile_stats(
     for (uint64_t i = 0; i < n_ids; i++) {
         const int32_t expert = selected[i];
         if (expert < 0 || (uint32_t)expert >= DS4_N_EXPERT) {
+            free(route_weights);
             free(selected);
             return false;
         }
@@ -12437,6 +12450,17 @@ static bool metal_graph_batch_selected_profile_stats(
             unique++;
         }
     }
+    if (route_weights) {
+        for (uint32_t row = 0; row < n_tokens; row++) {
+            ds4_expert_profile_record(
+                il,
+                start + row,
+                &selected[(uint64_t)row * DS4_N_EXPERT_USED],
+                &route_weights[(uint64_t)row * DS4_N_EXPERT_USED],
+                layer->ffn_gate_tid2eid != NULL);
+        }
+    }
+    free(route_weights);
     free(selected);
 
     const uint64_t gate_row_bytes = routed_expert_row_bytes(layer->ffn_gate_exps);
@@ -21820,7 +21844,9 @@ static bool metal_graph_verify_suffix_tops(
     const uint32_t top_rows = n_tokens > 1 ? n_tokens - 1 : 0;
     if (top_rows && !row_tops) return false;
     const bool profile = getenv("DS4_MTP_VERIFY_PROFILE") != NULL;
-    const bool profile_experts = profile || getenv("DS4_MTP_VERIFY_EXPERT_PROFILE") != NULL;
+    const bool profile_experts = profile ||
+        getenv("DS4_MTP_VERIFY_EXPERT_PROFILE") != NULL ||
+        g_expert_profile.active;
     const double t0 = profile ? now_sec() : 0.0;
     double upload_done = t0;
     double layers_encoded = t0;
@@ -21874,6 +21900,8 @@ static bool metal_graph_verify_suffix_tops(
             uint64_t full_bytes = 0;
             if (!metal_graph_batch_selected_profile_stats(g,
                                                           &weights->layer[il],
+                                                          il,
+                                                          start,
                                                           n_tokens,
                                                           &unique,
                                                           &selected_bytes,
@@ -22122,11 +22150,16 @@ int metal_graph_test_m2_fidelity_unit(const ds4_model *model, const ds4_weights 
         fprintf(stderr, "lead08_m2_fid: il=%u routed_out max_abs=%.3e l1_rel=%.3e argmax_flip=%d | gate+up(mid) max_abs=%.3e l1_rel=%.3e\n",
             il, max_out, sum_ref>0.0?sum_l1/sum_ref:0.0, (ar0!=am0||ar1!=am1)?1:0, max_mid, sum_mref>0.0?sum_ml1/sum_mref:0.0);
     }
-    /* ---- cost (COLD/production): sweep ALL layers so each layer's experts are fresh (DRAM),
-     * not re-hit from the prior iteration's cache. A tight single-layer loop (iters 2..N re-hit
-     * L2) measures compute-only and hides the de-dup DRAM saving, so it's useless here. Compare
-     * M=2 (fused, de-dup) vs M=1 x2 (per-token, no de-dup = batch-verifier-equivalent routed MoE). */
-    {
+    const bool address_locality_probe = getenv("DS4_LEAD08_ADDRESS_LOCALITY_PROBE") != NULL;
+    const bool addr_nsg_probe = getenv("DS4_LEAD08_ADDR_NSG_PROBE") != NULL;
+    const bool addr_nr0_probe = getenv("DS4_LEAD08_ADDR_NR0_PROBE") != NULL;
+    const bool cache_replay_probe = getenv("DS4_LEAD08_CACHE_REPLAY_PROBE") != NULL;
+    const bool batch_overlap_probe =
+        getenv("DS4_LEAD08_BATCH_OVERLAP_PROBE") != NULL || address_locality_probe ||
+        addr_nsg_probe || addr_nr0_probe || cache_replay_probe;
+    /* Legacy iteration-1 comparator. Its M=1 path uses the persistent selected-expert cache,
+     * so the reported M=2/M=1x2 ratio is not a cold-equivalent production comparison. */
+    if (!batch_overlap_probe) {
         const int PASSES = 3;
         int valid = 0;
         for (uint32_t il=0; il<n_layer; il++) {
@@ -22170,6 +22203,932 @@ int metal_graph_test_m2_fidelity_unit(const ds4_model *model, const ds4_weights 
         }
         double m1d_ms = valid>0 ? (now_sec()-td)/((double)PASSES*(double)valid)*1000.0 : 0.0;
         fprintf(stderr, "lead08_m2_fid: OVERLAP_PROBE M1x2 overlapped(n_unique=9)=%.3f ms/layer vs disjoint(n_unique=12)=%.3f ms/layer -> %s\n", m1_ms, m1d_ms, fabs(m1_ms-m1d_ms)<0.15?"EQUAL (cost~physical pairs; no cross-dispatch reuse -> grouped kernel has headroom)":"DIFFERS (cross-dispatch reuse)");
+    }
+    /* Production-shaped overlap probe. Keep physical work fixed at K*topk=24 rows while
+     * varying unique experts, and reset the software resident cache before each sweep. */
+    if (batch_overlap_probe && (n_exp != 6u || DS4_N_EXPERT < 24u)) {
+        fprintf(stderr,
+                "lead08_batch_overlap: unsupported shape topk=%u total_experts=%u "
+                "(requires topk=6 and at least 24 experts)\n",
+                n_exp, (uint32_t)DS4_N_EXPERT);
+    }
+    if (batch_overlap_probe && n_exp == 6u && DS4_N_EXPERT >= 24u) {
+        enum { BATCH_K = 4, BATCH_PATTERNS = 4, BATCH_ROUNDS = 4 };
+        const uint32_t pair_rows = BATCH_K * n_exp;
+        const uint64_t bx_bytes = (uint64_t)BATCH_K * embd_bytes;
+        const uint64_t bsel_bytes = (uint64_t)pair_rows * sizeof(int32_t);
+        const uint64_t bw_bytes = (uint64_t)pair_rows * sizeof(float);
+        const uint64_t bmid_bytes = (uint64_t)pair_rows * expert_mid_dim * sizeof(float);
+        const uint64_t bout_bytes = (uint64_t)BATCH_K * out_bytes;
+        const uint64_t bexperts_bytes = (uint64_t)pair_rows * out_dim * sizeof(float);
+        ds4_gpu_tensor *bx = ds4_gpu_tensor_alloc(bx_bytes);
+        ds4_gpu_tensor *bsel = ds4_gpu_tensor_alloc(bsel_bytes);
+        ds4_gpu_tensor *bw = ds4_gpu_tensor_alloc(bw_bytes);
+        ds4_gpu_tensor *bout = ds4_gpu_tensor_alloc(bout_bytes);
+        ds4_gpu_tensor *bgate = ds4_gpu_tensor_alloc(bmid_bytes);
+        ds4_gpu_tensor *bup = ds4_gpu_tensor_alloc(bmid_bytes);
+        ds4_gpu_tensor *bmid = ds4_gpu_tensor_alloc(bmid_bytes);
+        ds4_gpu_tensor *bexperts = ds4_gpu_tensor_alloc(bexperts_bytes);
+        float *bxh = malloc((size_t)bx_bytes);
+        int32_t *bselh = malloc((size_t)bsel_bytes);
+        float *bwh = malloc((size_t)bw_bytes);
+        if (!bx || !bsel || !bw || !bout || !bgate || !bup || !bmid || !bexperts ||
+            !bxh || !bselh || !bwh) {
+            fprintf(stderr, "lead08_batch_overlap: allocation failed\n");
+        } else {
+            for (uint64_t i = 0; i < (uint64_t)BATCH_K * expert_in_dim; i++) {
+                rng = rng * 1103515245u + 12345u;
+                bxh[i] = ((float)((rng >> 8) & 0xffff) / 65535.0f - 0.5f) * 0.5f;
+            }
+            for (uint32_t i = 0; i < pair_rows; i++) {
+                bwh[i] = 0.05f + 0.45f * (float)(i + 1u) / (float)(pair_rows + 1u);
+            }
+            ds4_gpu_tensor_write(bx, 0, bxh, bx_bytes);
+            ds4_gpu_tensor_write(bw, 0, bwh, bw_bytes);
+
+            const uint32_t unique_counts[BATCH_PATTERNS] = { 6u, 12u, 18u, 24u };
+            double elapsed_ms[BATCH_PATTERNS] = { 0.0, 0.0, 0.0, 0.0 };
+            uint32_t measured_layers[BATCH_PATTERNS] = { 0u, 0u, 0u, 0u };
+            const uint32_t cache_budget = ds4_gpu_stream_expert_cache_configured_count();
+            fprintf(stderr,
+                    "lead08_batch_overlap: START tokens=%u pairs=%u rounds=%u cache_budget=%u "
+                    "patterns_unique=[6,12,18,24]\n",
+                    (uint32_t)BATCH_K, pair_rows, (uint32_t)BATCH_ROUNDS, cache_budget);
+            const bool grouped_fidelity =
+                getenv("DS4_LEAD08_GROUPED_GATEUP_PROBE") != NULL &&
+                getenv("DS4_LEAD08_GROUPED_GATEUP_FIDELITY") != NULL;
+            if (grouped_fidelity) {
+                float *ref_gate = malloc((size_t)bmid_bytes);
+                float *ref_up = malloc((size_t)bmid_bytes);
+                float *ref_mid = malloc((size_t)bmid_bytes);
+                float *ref_out = malloc((size_t)bout_bytes);
+                float *got = malloc((size_t)(bmid_bytes > bout_bytes ? bmid_bytes : bout_bytes));
+                uint64_t gate_bits = 0, up_bits = 0, mid_bits = 0, out_bits = 0;
+                double gate_max = 0.0, up_max = 0.0, mid_max = 0.0, out_max = 0.0;
+                uint32_t argmax_flips = 0, fidelity_cases = 0;
+                uint32_t fid_layer = UINT32_MAX;
+                for (uint32_t il = 0; il < n_layer; il++) {
+                    const ds4_layer_weights *L = &weights->layer[il];
+                    if ((uint32_t)L->ffn_gate_exps->dim[1] == expert_mid_dim &&
+                        (uint32_t)L->ffn_down_exps->dim[1] == out_dim &&
+                        L->ffn_gate_exps->type == L0->ffn_gate_exps->type) {
+                        fid_layer = il;
+                        break;
+                    }
+                }
+                if (!ref_gate || !ref_up || !ref_mid || !ref_out || !got ||
+                    fid_layer == UINT32_MAX) {
+                    fprintf(stderr, "lead08_grouped_gateup_fid: allocation/layer discovery failed\n");
+                } else {
+                    const ds4_layer_weights *L = &weights->layer[fid_layer];
+                    for (uint32_t pattern = 0; pattern < BATCH_PATTERNS; pattern++) {
+                        const uint32_t base = (pattern * 29u) % (DS4_N_EXPERT - 24u + 1u);
+                        for (uint32_t t = 0; t < BATCH_K; t++) {
+                            for (uint32_t e = 0; e < n_exp; e++) {
+                                uint32_t group = 0;
+                                if (pattern == 1u) group = t / 2u;
+                                else if (pattern == 2u) group = t == 0u ? 0u : t - 1u;
+                                else if (pattern == 3u) group = t;
+                                bselh[t * n_exp + e] = (int32_t)(base + group * n_exp + e);
+                            }
+                        }
+                        ds4_gpu_tensor_write(bsel, 0, bselh, bsel_bytes);
+                        unsetenv("DS4_LEAD08_GROUPED_GATEUP_PROBE");
+                        int ref_ok = ds4_gpu_begin_commands();
+                        bool ref_mid_f16 = false;
+                        if (ref_ok) {
+                            ref_ok = ds4_gpu_routed_moe_batch_tensor(
+                                bout, bgate, bup, bmid, bexperts,
+                                model->map, model->size,
+                                L->ffn_gate_exps->abs_offset,
+                                L->ffn_up_exps->abs_offset,
+                                L->ffn_down_exps->abs_offset,
+                                L->ffn_gate_exps->type,
+                                L->ffn_down_exps->type,
+                                gate_expert_bytes, gate_row_bytes,
+                                down_expert_bytes, down_row_bytes,
+                                expert_in_dim, expert_mid_dim, out_dim,
+                                bsel, bw, DS4_N_EXPERT, n_exp,
+                                DS4_SWIGLU_CLAMP_EXP, bx, fid_layer, BATCH_K,
+                                &ref_mid_f16);
+                        }
+                        if (!ds4_gpu_end_commands()) ref_ok = 0;
+                        if (ref_ok) {
+                            ref_ok = ds4_gpu_tensor_read(bgate, 0, ref_gate, bmid_bytes) &&
+                                     ds4_gpu_tensor_read(bup, 0, ref_up, bmid_bytes) &&
+                                     ds4_gpu_tensor_read(bmid, 0, ref_mid, bmid_bytes) &&
+                                     ds4_gpu_tensor_read(bout, 0, ref_out, bout_bytes);
+                        }
+
+                        setenv("DS4_LEAD08_GROUPED_GATEUP_PROBE", "1", 1);
+                        int got_ok = ds4_gpu_begin_commands();
+                        bool got_mid_f16 = false;
+                        if (got_ok) {
+                            got_ok = ds4_gpu_routed_moe_batch_tensor(
+                                bout, bgate, bup, bmid, bexperts,
+                                model->map, model->size,
+                                L->ffn_gate_exps->abs_offset,
+                                L->ffn_up_exps->abs_offset,
+                                L->ffn_down_exps->abs_offset,
+                                L->ffn_gate_exps->type,
+                                L->ffn_down_exps->type,
+                                gate_expert_bytes, gate_row_bytes,
+                                down_expert_bytes, down_row_bytes,
+                                expert_in_dim, expert_mid_dim, out_dim,
+                                bsel, bw, DS4_N_EXPERT, n_exp,
+                                DS4_SWIGLU_CLAMP_EXP, bx, fid_layer, BATCH_K,
+                                &got_mid_f16);
+                        }
+                        if (!ds4_gpu_end_commands()) got_ok = 0;
+                        if (!ref_ok || !got_ok || ref_mid_f16 || got_mid_f16) {
+                            fprintf(stderr,
+                                    "lead08_grouped_gateup_fid: dispatch/read failed unique=%u layer=%u\n",
+                                    unique_counts[pattern], fid_layer);
+                            continue;
+                        }
+
+                        ds4_gpu_tensor_read(bgate, 0, got, bmid_bytes);
+                        for (uint64_t i = 0; i < bmid_bytes / sizeof(float); i++) {
+                            const double d = fabs((double)got[i] - (double)ref_gate[i]);
+                            if (d > gate_max) gate_max = d;
+                            if (memcmp(&got[i], &ref_gate[i], sizeof(float)) != 0) gate_bits++;
+                        }
+                        ds4_gpu_tensor_read(bup, 0, got, bmid_bytes);
+                        for (uint64_t i = 0; i < bmid_bytes / sizeof(float); i++) {
+                            const double d = fabs((double)got[i] - (double)ref_up[i]);
+                            if (d > up_max) up_max = d;
+                            if (memcmp(&got[i], &ref_up[i], sizeof(float)) != 0) up_bits++;
+                        }
+                        ds4_gpu_tensor_read(bmid, 0, got, bmid_bytes);
+                        for (uint64_t i = 0; i < bmid_bytes / sizeof(float); i++) {
+                            const double d = fabs((double)got[i] - (double)ref_mid[i]);
+                            if (d > mid_max) mid_max = d;
+                            if (memcmp(&got[i], &ref_mid[i], sizeof(float)) != 0) mid_bits++;
+                        }
+                        ds4_gpu_tensor_read(bout, 0, got, bout_bytes);
+                        for (uint64_t i = 0; i < bout_bytes / sizeof(float); i++) {
+                            const double d = fabs((double)got[i] - (double)ref_out[i]);
+                            if (d > out_max) out_max = d;
+                            if (memcmp(&got[i], &ref_out[i], sizeof(float)) != 0) out_bits++;
+                        }
+                        for (uint32_t t = 0; t < BATCH_K; t++) {
+                            uint32_t ref_argmax = 0, got_argmax = 0;
+                            for (uint32_t i = 1; i < out_dim; i++) {
+                                if (fabsf(ref_out[(uint64_t)t * out_dim + i]) >
+                                    fabsf(ref_out[(uint64_t)t * out_dim + ref_argmax])) ref_argmax = i;
+                                if (fabsf(got[(uint64_t)t * out_dim + i]) >
+                                    fabsf(got[(uint64_t)t * out_dim + got_argmax])) got_argmax = i;
+                            }
+                            if (ref_argmax != got_argmax) argmax_flips++;
+                        }
+                        fidelity_cases++;
+                    }
+                    fprintf(stderr,
+                            "lead08_grouped_gateup_fid: SUMMARY layer=%u cases=%u "
+                            "gate(max=%.3e bits=%llu) up(max=%.3e bits=%llu) "
+                            "mid(max=%.3e bits=%llu) out(max=%.3e bits=%llu) argmax_flips=%u\n",
+                            fid_layer, fidelity_cases,
+                            gate_max, (unsigned long long)gate_bits,
+                            up_max, (unsigned long long)up_bits,
+                            mid_max, (unsigned long long)mid_bits,
+                            out_max, (unsigned long long)out_bits,
+                            argmax_flips);
+                }
+                setenv("DS4_LEAD08_GROUPED_GATEUP_PROBE", "1", 1);
+                free(ref_gate);
+                free(ref_up);
+                free(ref_mid);
+                free(ref_out);
+                free(got);
+            }
+            for (uint32_t round = 0; round < BATCH_ROUNDS; round++) {
+                for (uint32_t oi = 0; oi < BATCH_PATTERNS; oi++) {
+                    const uint32_t pattern = (round & 1u) ?
+                        (BATCH_PATTERNS - 1u - oi) : oi;
+                    ds4_gpu_set_streaming_expert_cache_budget(cache_budget);
+                    const uint32_t cache_start = ds4_gpu_stream_expert_cache_current_count();
+                    double sample_ms = 0.0;
+                    uint32_t sample_layers = 0;
+                    for (uint32_t il = 0; il < n_layer; il++) {
+                        const ds4_layer_weights *L = &weights->layer[il];
+                        if ((uint32_t)L->ffn_gate_exps->dim[1] != expert_mid_dim ||
+                            (uint32_t)L->ffn_down_exps->dim[1] != out_dim ||
+                            L->ffn_gate_exps->type != L0->ffn_gate_exps->type) continue;
+                        const uint32_t span = DS4_N_EXPERT - 24u + 1u;
+                        const uint32_t base = (round * 37u + pattern * 29u + il * 11u) % span;
+                        for (uint32_t t = 0; t < BATCH_K; t++) {
+                            for (uint32_t e = 0; e < n_exp; e++) {
+                                uint32_t group = 0;
+                                if (pattern == 1u) group = t / 2u;
+                                else if (pattern == 2u) group = t == 0u ? 0u : t - 1u;
+                                else if (pattern == 3u) group = t;
+                                bselh[t * n_exp + e] = (int32_t)(base + group * n_exp + e);
+                            }
+                        }
+                        ds4_gpu_tensor_write(bsel, 0, bselh, bsel_bytes);
+                        const double t0 = now_sec();
+                        int dispatched = ds4_gpu_begin_commands();
+                        bool mid_is_f16 = false;
+                        if (dispatched) {
+                            dispatched = ds4_gpu_routed_moe_batch_tensor(
+                                bout, bgate, bup, bmid, bexperts,
+                                model->map, model->size,
+                                L->ffn_gate_exps->abs_offset,
+                                L->ffn_up_exps->abs_offset,
+                                L->ffn_down_exps->abs_offset,
+                                L->ffn_gate_exps->type,
+                                L->ffn_down_exps->type,
+                                gate_expert_bytes, gate_row_bytes,
+                                down_expert_bytes, down_row_bytes,
+                                expert_in_dim, expert_mid_dim, out_dim,
+                                bsel, bw, DS4_N_EXPERT, n_exp,
+                                DS4_SWIGLU_CLAMP_EXP, bx, il, BATCH_K,
+                                &mid_is_f16);
+                        }
+                        if (!ds4_gpu_end_commands()) dispatched = 0;
+                        if (!dispatched) {
+                            fprintf(stderr,
+                                    "lead08_batch_overlap: dispatch failed round=%u unique=%u layer=%u\n",
+                                    round, unique_counts[pattern], il);
+                            continue;
+                        }
+                        sample_ms += (now_sec() - t0) * 1000.0;
+                        sample_layers++;
+                    }
+                    const uint32_t cache_end = ds4_gpu_stream_expert_cache_current_count();
+                    elapsed_ms[pattern] += sample_ms;
+                    measured_layers[pattern] += sample_layers;
+                    fprintf(stderr,
+                            "lead08_batch_overlap: SAMPLE round=%u unique=%u layers=%u "
+                            "ms_per_layer=%.3f cache_entries=%u->%u\n",
+                            round, unique_counts[pattern], sample_layers,
+                            sample_layers ? sample_ms / (double)sample_layers : 0.0,
+                            cache_start, cache_end);
+                }
+            }
+            fprintf(stderr, "lead08_batch_overlap: SUMMARY tokens=%u pairs=%u",
+                    (uint32_t)BATCH_K, pair_rows);
+            for (uint32_t pattern = 0; pattern < BATCH_PATTERNS; pattern++) {
+                const double ms = measured_layers[pattern] ?
+                    elapsed_ms[pattern] / (double)measured_layers[pattern] : 0.0;
+                fprintf(stderr, " unique%u=%.3fms", unique_counts[pattern], ms);
+            }
+            fprintf(stderr, "\n");
+
+            /* Lead 08 iteration 8: upper-bound cross-cycle residency by replaying
+             * the exact same 18-unique workload without clearing the expert cache. */
+            if (cache_replay_probe) {
+                enum { REPLAY_CASES = 2 };
+                static const char *const replay_names[REPLAY_CASES] = { "cold", "replay" };
+                const uint32_t replay_unique = 18u;
+                const uint32_t replay_span = DS4_N_EXPERT - replay_unique + 1u;
+                double replay_ms[REPLAY_CASES] = { 0.0, 0.0 };
+                uint32_t replay_layers[REPLAY_CASES] = { 0u, 0u };
+                bool replay_fidelity = false;
+
+                fprintf(stderr,
+                        "lead08_cache_replay: START tokens=%u pairs=%u unique=%u rounds=%u "
+                        "order=cold,replay cache_budget=%u\n",
+                        (uint32_t)BATCH_K, pair_rows, replay_unique,
+                        (uint32_t)BATCH_ROUNDS, cache_budget);
+
+                float *ref_gate = malloc((size_t)bmid_bytes);
+                float *ref_up = malloc((size_t)bmid_bytes);
+                float *ref_mid = malloc((size_t)bmid_bytes);
+                float *ref_out = malloc((size_t)bout_bytes);
+                float *got = malloc((size_t)(bmid_bytes > bout_bytes ? bmid_bytes : bout_bytes));
+                uint32_t fid_layer = UINT32_MAX;
+                for (uint32_t il = 0; il < n_layer; il++) {
+                    const ds4_layer_weights *L = &weights->layer[il];
+                    if ((uint32_t)L->ffn_gate_exps->dim[1] == expert_mid_dim &&
+                        (uint32_t)L->ffn_down_exps->dim[1] == out_dim &&
+                        L->ffn_gate_exps->type == L0->ffn_gate_exps->type) {
+                        fid_layer = il;
+                        break;
+                    }
+                }
+                if (!ref_gate || !ref_up || !ref_mid || !ref_out || !got ||
+                    fid_layer == UINT32_MAX) {
+                    fprintf(stderr, "lead08_cache_replay_fid: allocation/layer discovery failed\n");
+                } else {
+                    const ds4_layer_weights *L = &weights->layer[fid_layer];
+                    for (uint32_t t = 0; t < BATCH_K; t++) {
+                        for (uint32_t e = 0; e < n_exp; e++) {
+                            const uint32_t group = t == 0u ? 0u : t - 1u;
+                            bselh[t * n_exp + e] = (int32_t)(group * n_exp + e);
+                        }
+                    }
+                    ds4_gpu_tensor_write(bsel, 0, bselh, bsel_bytes);
+                    ds4_gpu_set_streaming_expert_cache_budget(cache_budget);
+                    int ref_ok = ds4_gpu_begin_commands();
+                    bool ref_mid_f16 = false;
+                    if (ref_ok) {
+                        ref_ok = ds4_gpu_routed_moe_batch_tensor(
+                            bout, bgate, bup, bmid, bexperts,
+                            model->map, model->size,
+                            L->ffn_gate_exps->abs_offset,
+                            L->ffn_up_exps->abs_offset,
+                            L->ffn_down_exps->abs_offset,
+                            L->ffn_gate_exps->type,
+                            L->ffn_down_exps->type,
+                            gate_expert_bytes, gate_row_bytes,
+                            down_expert_bytes, down_row_bytes,
+                            expert_in_dim, expert_mid_dim, out_dim,
+                            bsel, bw, DS4_N_EXPERT, n_exp,
+                            DS4_SWIGLU_CLAMP_EXP, bx, fid_layer, BATCH_K,
+                            &ref_mid_f16);
+                    }
+                    if (!ds4_gpu_end_commands()) ref_ok = 0;
+                    if (ref_ok) {
+                        ref_ok = ds4_gpu_tensor_read(bgate, 0, ref_gate, bmid_bytes) &&
+                                 ds4_gpu_tensor_read(bup, 0, ref_up, bmid_bytes) &&
+                                 ds4_gpu_tensor_read(bmid, 0, ref_mid, bmid_bytes) &&
+                                 ds4_gpu_tensor_read(bout, 0, ref_out, bout_bytes);
+                    }
+
+                    int got_ok = ds4_gpu_begin_commands();
+                    bool got_mid_f16 = false;
+                    if (got_ok) {
+                        got_ok = ds4_gpu_routed_moe_batch_tensor(
+                            bout, bgate, bup, bmid, bexperts,
+                            model->map, model->size,
+                            L->ffn_gate_exps->abs_offset,
+                            L->ffn_up_exps->abs_offset,
+                            L->ffn_down_exps->abs_offset,
+                            L->ffn_gate_exps->type,
+                            L->ffn_down_exps->type,
+                            gate_expert_bytes, gate_row_bytes,
+                            down_expert_bytes, down_row_bytes,
+                            expert_in_dim, expert_mid_dim, out_dim,
+                            bsel, bw, DS4_N_EXPERT, n_exp,
+                            DS4_SWIGLU_CLAMP_EXP, bx, fid_layer, BATCH_K,
+                            &got_mid_f16);
+                    }
+                    if (!ds4_gpu_end_commands()) got_ok = 0;
+
+                    uint64_t gate_bits = 0, up_bits = 0, mid_bits = 0, out_bits = 0;
+                    uint32_t argmax_flips = 0;
+                    if (ref_ok && got_ok && !ref_mid_f16 && !got_mid_f16 &&
+                        ds4_gpu_tensor_read(bgate, 0, got, bmid_bytes)) {
+                        for (uint64_t i = 0; i < bmid_bytes / sizeof(float); i++) {
+                            if (memcmp(&got[i], &ref_gate[i], sizeof(float)) != 0) gate_bits++;
+                        }
+                        got_ok = ds4_gpu_tensor_read(bup, 0, got, bmid_bytes);
+                    } else {
+                        got_ok = 0;
+                    }
+                    if (got_ok) {
+                        for (uint64_t i = 0; i < bmid_bytes / sizeof(float); i++) {
+                            if (memcmp(&got[i], &ref_up[i], sizeof(float)) != 0) up_bits++;
+                        }
+                        got_ok = ds4_gpu_tensor_read(bmid, 0, got, bmid_bytes);
+                    }
+                    if (got_ok) {
+                        for (uint64_t i = 0; i < bmid_bytes / sizeof(float); i++) {
+                            if (memcmp(&got[i], &ref_mid[i], sizeof(float)) != 0) mid_bits++;
+                        }
+                        got_ok = ds4_gpu_tensor_read(bout, 0, got, bout_bytes);
+                    }
+                    if (got_ok) {
+                        for (uint64_t i = 0; i < bout_bytes / sizeof(float); i++) {
+                            if (memcmp(&got[i], &ref_out[i], sizeof(float)) != 0) out_bits++;
+                        }
+                        for (uint32_t t = 0; t < BATCH_K; t++) {
+                            uint32_t ref_argmax = 0, got_argmax = 0;
+                            for (uint32_t i = 1; i < out_dim; i++) {
+                                if (fabsf(ref_out[(uint64_t)t * out_dim + i]) >
+                                    fabsf(ref_out[(uint64_t)t * out_dim + ref_argmax])) ref_argmax = i;
+                                if (fabsf(got[(uint64_t)t * out_dim + i]) >
+                                    fabsf(got[(uint64_t)t * out_dim + got_argmax])) got_argmax = i;
+                            }
+                            if (ref_argmax != got_argmax) argmax_flips++;
+                        }
+                    }
+                    replay_fidelity = got_ok && gate_bits == 0 && up_bits == 0 &&
+                        mid_bits == 0 && out_bits == 0 && argmax_flips == 0;
+                    fprintf(stderr,
+                            "lead08_cache_replay_fid: layer=%u gate_bits=%llu up_bits=%llu "
+                            "mid_bits=%llu out_bits=%llu argmax_flips=%u -> %s\n",
+                            fid_layer,
+                            (unsigned long long)gate_bits,
+                            (unsigned long long)up_bits,
+                            (unsigned long long)mid_bits,
+                            (unsigned long long)out_bits,
+                            argmax_flips, replay_fidelity ? "PASS" : "FAIL");
+                }
+                free(ref_gate);
+                free(ref_up);
+                free(ref_mid);
+                free(ref_out);
+                free(got);
+
+                if (replay_fidelity) {
+                    for (uint32_t round = 0; round < BATCH_ROUNDS; round++) {
+                        ds4_gpu_set_streaming_expert_cache_budget(cache_budget);
+                        for (uint32_t replay_case = 0; replay_case < REPLAY_CASES; replay_case++) {
+                            const uint32_t cache_start =
+                                ds4_gpu_stream_expert_cache_current_count();
+                            double sample_ms = 0.0;
+                            uint32_t sample_layers = 0;
+                            fprintf(stderr,
+                                    "lead08_cache_replay: BEGIN round=%u case=%s\n",
+                                    round, replay_names[replay_case]);
+                            for (uint32_t il = 0; il < n_layer; il++) {
+                                const ds4_layer_weights *L = &weights->layer[il];
+                                if ((uint32_t)L->ffn_gate_exps->dim[1] != expert_mid_dim ||
+                                    (uint32_t)L->ffn_down_exps->dim[1] != out_dim ||
+                                    L->ffn_gate_exps->type != L0->ffn_gate_exps->type) continue;
+                                const uint32_t base = (round * 37u + il * 11u) % replay_span;
+                                for (uint32_t t = 0; t < BATCH_K; t++) {
+                                    for (uint32_t e = 0; e < n_exp; e++) {
+                                        const uint32_t group = t == 0u ? 0u : t - 1u;
+                                        bselh[t * n_exp + e] =
+                                            (int32_t)(base + group * n_exp + e);
+                                    }
+                                }
+                                ds4_gpu_tensor_write(bsel, 0, bselh, bsel_bytes);
+                                const double t0 = now_sec();
+                                int dispatched = ds4_gpu_begin_commands();
+                                bool mid_is_f16 = false;
+                                if (dispatched) {
+                                    dispatched = ds4_gpu_routed_moe_batch_tensor(
+                                        bout, bgate, bup, bmid, bexperts,
+                                        model->map, model->size,
+                                        L->ffn_gate_exps->abs_offset,
+                                        L->ffn_up_exps->abs_offset,
+                                        L->ffn_down_exps->abs_offset,
+                                        L->ffn_gate_exps->type,
+                                        L->ffn_down_exps->type,
+                                        gate_expert_bytes, gate_row_bytes,
+                                        down_expert_bytes, down_row_bytes,
+                                        expert_in_dim, expert_mid_dim, out_dim,
+                                        bsel, bw, DS4_N_EXPERT, n_exp,
+                                        DS4_SWIGLU_CLAMP_EXP, bx, il, BATCH_K,
+                                        &mid_is_f16);
+                                }
+                                if (!ds4_gpu_end_commands()) dispatched = 0;
+                                if (!dispatched) {
+                                    fprintf(stderr,
+                                            "lead08_cache_replay: dispatch failed round=%u "
+                                            "case=%s layer=%u\n",
+                                            round, replay_names[replay_case], il);
+                                    continue;
+                                }
+                                sample_ms += (now_sec() - t0) * 1000.0;
+                                sample_layers++;
+                            }
+                            const uint32_t cache_end =
+                                ds4_gpu_stream_expert_cache_current_count();
+                            replay_ms[replay_case] += sample_ms;
+                            replay_layers[replay_case] += sample_layers;
+                            fprintf(stderr,
+                                    "lead08_cache_replay: SAMPLE round=%u case=%s layers=%u "
+                                    "ms_per_layer=%.3f cache_entries=%u->%u\n",
+                                    round, replay_names[replay_case], sample_layers,
+                                    sample_layers ? sample_ms / (double)sample_layers : 0.0,
+                                    cache_start, cache_end);
+                        }
+                    }
+                }
+                fprintf(stderr,
+                        "lead08_cache_replay: SUMMARY tokens=%u pairs=%u unique=%u",
+                        (uint32_t)BATCH_K, pair_rows, replay_unique);
+                for (uint32_t replay_case = 0; replay_case < REPLAY_CASES; replay_case++) {
+                    const double ms = replay_layers[replay_case] ?
+                        replay_ms[replay_case] / (double)replay_layers[replay_case] : 0.0;
+                    fprintf(stderr, " %s=%.3fms", replay_names[replay_case], ms);
+                }
+                fprintf(stderr, "\n");
+            }
+
+            /* Lead 08 iteration 5: hold K, pair count, unique count, and duplicate
+             * multiplicities fixed while varying only expert-address locality. */
+            if (address_locality_probe) {
+                enum { LOCALITY_PATTERNS = 3 };
+                static const char *const locality_names[LOCALITY_PATTERNS] = {
+                    "contiguous", "permuted", "strided"
+                };
+                const uint32_t locality_unique = 18u;
+                const uint32_t locality_span = DS4_N_EXPERT - locality_unique + 1u;
+                uint32_t locality_stride = 17u;
+                for (;;) {
+                    uint32_t a = locality_stride;
+                    uint32_t b = DS4_N_EXPERT;
+                    while (b != 0u) {
+                        const uint32_t r = a % b;
+                        a = b;
+                        b = r;
+                    }
+                    if (a == 1u) break;
+                    locality_stride++;
+                }
+                double locality_ms[LOCALITY_PATTERNS] = { 0.0, 0.0, 0.0 };
+                uint32_t locality_layers[LOCALITY_PATTERNS] = { 0u, 0u, 0u };
+                fprintf(stderr,
+                        "lead08_address_locality: START tokens=%u pairs=%u unique=%u "
+                        "rounds=%u stride=%u patterns=[contiguous,permuted,strided]\n",
+                        (uint32_t)BATCH_K, pair_rows, locality_unique,
+                        (uint32_t)BATCH_ROUNDS, locality_stride);
+                for (uint32_t round = 0; round < BATCH_ROUNDS; round++) {
+                    for (uint32_t oi = 0; oi < LOCALITY_PATTERNS; oi++) {
+                        const uint32_t pattern = (round & 1u) ?
+                            (LOCALITY_PATTERNS - 1u - oi) : oi;
+                        ds4_gpu_set_streaming_expert_cache_budget(cache_budget);
+                        const uint32_t cache_start =
+                            ds4_gpu_stream_expert_cache_current_count();
+                        double sample_ms = 0.0;
+                        uint32_t sample_layers = 0;
+                        fprintf(stderr,
+                                "lead08_address_locality: BEGIN round=%u pattern=%s\n",
+                                round, locality_names[pattern]);
+                        for (uint32_t il = 0; il < n_layer; il++) {
+                            const ds4_layer_weights *L = &weights->layer[il];
+                            if ((uint32_t)L->ffn_gate_exps->dim[1] != expert_mid_dim ||
+                                (uint32_t)L->ffn_down_exps->dim[1] != out_dim ||
+                                L->ffn_gate_exps->type != L0->ffn_gate_exps->type) continue;
+                            const uint32_t base =
+                                (round * 37u + il * 11u) % locality_span;
+                            for (uint32_t t = 0; t < BATCH_K; t++) {
+                                for (uint32_t e = 0; e < n_exp; e++) {
+                                    const uint32_t group = t == 0u ? 0u : t - 1u;
+                                    const uint32_t logical = group * n_exp + e;
+                                    uint32_t expert = base + logical;
+                                    if (pattern == 1u) {
+                                        expert = base + (logical * 5u) % locality_unique;
+                                    } else if (pattern == 2u) {
+                                        expert = (base + logical * locality_stride) % DS4_N_EXPERT;
+                                    }
+                                    bselh[t * n_exp + e] = (int32_t)expert;
+                                }
+                            }
+                            ds4_gpu_tensor_write(bsel, 0, bselh, bsel_bytes);
+                            const double t0 = now_sec();
+                            int dispatched = ds4_gpu_begin_commands();
+                            bool mid_is_f16 = false;
+                            if (dispatched) {
+                                dispatched = ds4_gpu_routed_moe_batch_tensor(
+                                    bout, bgate, bup, bmid, bexperts,
+                                    model->map, model->size,
+                                    L->ffn_gate_exps->abs_offset,
+                                    L->ffn_up_exps->abs_offset,
+                                    L->ffn_down_exps->abs_offset,
+                                    L->ffn_gate_exps->type,
+                                    L->ffn_down_exps->type,
+                                    gate_expert_bytes, gate_row_bytes,
+                                    down_expert_bytes, down_row_bytes,
+                                    expert_in_dim, expert_mid_dim, out_dim,
+                                    bsel, bw, DS4_N_EXPERT, n_exp,
+                                    DS4_SWIGLU_CLAMP_EXP, bx, il, BATCH_K,
+                                    &mid_is_f16);
+                            }
+                            if (!ds4_gpu_end_commands()) dispatched = 0;
+                            if (!dispatched) {
+                                fprintf(stderr,
+                                        "lead08_address_locality: dispatch failed "
+                                        "round=%u pattern=%s layer=%u\n",
+                                        round, locality_names[pattern], il);
+                                continue;
+                            }
+                            sample_ms += (now_sec() - t0) * 1000.0;
+                            sample_layers++;
+                        }
+                        const uint32_t cache_end =
+                            ds4_gpu_stream_expert_cache_current_count();
+                        locality_ms[pattern] += sample_ms;
+                        locality_layers[pattern] += sample_layers;
+                        fprintf(stderr,
+                                "lead08_address_locality: SAMPLE round=%u pattern=%s "
+                                "layers=%u ms_per_layer=%.3f cache_entries=%u->%u\n",
+                                round, locality_names[pattern], sample_layers,
+                                sample_layers ? sample_ms / (double)sample_layers : 0.0,
+                                cache_start, cache_end);
+                    }
+                }
+                fprintf(stderr,
+                        "lead08_address_locality: SUMMARY tokens=%u pairs=%u unique=%u",
+                        (uint32_t)BATCH_K, pair_rows, locality_unique);
+                for (uint32_t pattern = 0; pattern < LOCALITY_PATTERNS; pattern++) {
+                    const double ms = locality_layers[pattern] ?
+                        locality_ms[pattern] / (double)locality_layers[pattern] : 0.0;
+                    fprintf(stderr, " %s=%.3fms", locality_names[pattern], ms);
+                }
+                fprintf(stderr, "\n");
+            }
+
+            /* Lead 08 iterations 6/7: preserve the production physical-row
+             * algorithm and vary one address-kernel geometry dimension. */
+            if (addr_nsg_probe || addr_nr0_probe) {
+                enum { GEOMETRY_MAX_PATTERNS = 4 };
+                static const uint32_t nsg_values[GEOMETRY_MAX_PATTERNS] =
+                    { 1u, 2u, 4u, 8u };
+                static const uint32_t nr0_values[GEOMETRY_MAX_PATTERNS] =
+                    { 2u, 4u, 8u, 0u };
+                const bool sweep_nr0 = addr_nr0_probe;
+                const uint32_t *geometry_values = sweep_nr0 ? nr0_values : nsg_values;
+                const uint32_t geometry_patterns = sweep_nr0 ? 3u : 4u;
+                const uint32_t geometry_baseline = sweep_nr0 ? 4u : 2u;
+                const char *geometry_name = sweep_nr0 ? "nr0" : "nsg";
+                const char *geometry_env = sweep_nr0 ?
+                    "DS4_LEAD08_ADDR_NR0" : "DS4_LEAD08_ADDR_NSG";
+                const char *fixed_geometry_env = sweep_nr0 ?
+                    "DS4_LEAD08_ADDR_NSG" : "DS4_LEAD08_ADDR_NR0";
+                const char *fixed_geometry_value = sweep_nr0 ? "2" : "4";
+                const uint32_t nsg_unique = 18u;
+                const uint32_t nsg_span = DS4_N_EXPERT - nsg_unique + 1u;
+                double nsg_ms[GEOMETRY_MAX_PATTERNS] = { 0.0, 0.0, 0.0, 0.0 };
+                uint32_t nsg_layers[GEOMETRY_MAX_PATTERNS] = { 0u, 0u, 0u, 0u };
+                bool nsg_valid[GEOMETRY_MAX_PATTERNS] = { false, true, false, false };
+                const char *prior_nsg = getenv(geometry_env);
+                char prior_nsg_copy[32] = { 0 };
+                const bool had_prior_nsg = prior_nsg != NULL;
+                if (had_prior_nsg) {
+                    snprintf(prior_nsg_copy, sizeof(prior_nsg_copy), "%s", prior_nsg);
+                }
+                const char *prior_fixed_geometry = getenv(fixed_geometry_env);
+                char prior_fixed_geometry_copy[32] = { 0 };
+                const bool had_prior_fixed_geometry = prior_fixed_geometry != NULL;
+                if (had_prior_fixed_geometry) {
+                    snprintf(prior_fixed_geometry_copy, sizeof(prior_fixed_geometry_copy), "%s",
+                             prior_fixed_geometry);
+                }
+                setenv(fixed_geometry_env, fixed_geometry_value, 1);
+
+                fprintf(stderr,
+                        "lead08_addr_%s: START tokens=%u pairs=%u unique=%u rounds=%u "
+                        "%s=%s baseline=%u\n",
+                        geometry_name,
+                        (uint32_t)BATCH_K, pair_rows, nsg_unique,
+                        (uint32_t)BATCH_ROUNDS, geometry_name,
+                        sweep_nr0 ? "[2,4,8]" : "[1,2,4,8]", geometry_baseline);
+
+                float *ref_gate = malloc((size_t)bmid_bytes);
+                float *ref_up = malloc((size_t)bmid_bytes);
+                float *ref_mid = malloc((size_t)bmid_bytes);
+                float *ref_out = malloc((size_t)bout_bytes);
+                float *got = malloc((size_t)(bmid_bytes > bout_bytes ? bmid_bytes : bout_bytes));
+                uint32_t fid_layer = UINT32_MAX;
+                for (uint32_t il = 0; il < n_layer; il++) {
+                    const ds4_layer_weights *L = &weights->layer[il];
+                    if ((uint32_t)L->ffn_gate_exps->dim[1] == expert_mid_dim &&
+                        (uint32_t)L->ffn_down_exps->dim[1] == out_dim &&
+                        L->ffn_gate_exps->type == L0->ffn_gate_exps->type) {
+                        fid_layer = il;
+                        break;
+                    }
+                }
+                if (!ref_gate || !ref_up || !ref_mid || !ref_out || !got ||
+                    fid_layer == UINT32_MAX) {
+                    fprintf(stderr,
+                            "lead08_addr_%s_fid: allocation/layer discovery failed\n",
+                            geometry_name);
+                } else {
+                    const ds4_layer_weights *L = &weights->layer[fid_layer];
+                    for (uint32_t t = 0; t < BATCH_K; t++) {
+                        for (uint32_t e = 0; e < n_exp; e++) {
+                            const uint32_t group = t == 0u ? 0u : t - 1u;
+                            bselh[t * n_exp + e] = (int32_t)(group * n_exp + e);
+                        }
+                    }
+                    ds4_gpu_tensor_write(bsel, 0, bselh, bsel_bytes);
+                    char baseline_value[8];
+                    snprintf(baseline_value, sizeof(baseline_value), "%u", geometry_baseline);
+                    setenv(geometry_env, baseline_value, 1);
+                    ds4_gpu_set_streaming_expert_cache_budget(cache_budget);
+                    int ref_ok = ds4_gpu_begin_commands();
+                    bool ref_mid_f16 = false;
+                    if (ref_ok) {
+                        ref_ok = ds4_gpu_routed_moe_batch_tensor(
+                            bout, bgate, bup, bmid, bexperts,
+                            model->map, model->size,
+                            L->ffn_gate_exps->abs_offset,
+                            L->ffn_up_exps->abs_offset,
+                            L->ffn_down_exps->abs_offset,
+                            L->ffn_gate_exps->type,
+                            L->ffn_down_exps->type,
+                            gate_expert_bytes, gate_row_bytes,
+                            down_expert_bytes, down_row_bytes,
+                            expert_in_dim, expert_mid_dim, out_dim,
+                            bsel, bw, DS4_N_EXPERT, n_exp,
+                            DS4_SWIGLU_CLAMP_EXP, bx, fid_layer, BATCH_K,
+                            &ref_mid_f16);
+                    }
+                    if (!ds4_gpu_end_commands()) ref_ok = 0;
+                    if (ref_ok) {
+                        ref_ok = ds4_gpu_tensor_read(bgate, 0, ref_gate, bmid_bytes) &&
+                                 ds4_gpu_tensor_read(bup, 0, ref_up, bmid_bytes) &&
+                                 ds4_gpu_tensor_read(bmid, 0, ref_mid, bmid_bytes) &&
+                                 ds4_gpu_tensor_read(bout, 0, ref_out, bout_bytes);
+                    }
+                    for (uint32_t pattern = 0; pattern < geometry_patterns; pattern++) {
+                        if (geometry_values[pattern] == geometry_baseline) continue;
+                        char value[8];
+                        snprintf(value, sizeof(value), "%u", geometry_values[pattern]);
+                        setenv(geometry_env, value, 1);
+                        ds4_gpu_set_streaming_expert_cache_budget(cache_budget);
+                        int got_ok = ds4_gpu_begin_commands();
+                        bool got_mid_f16 = false;
+                        if (got_ok) {
+                            got_ok = ds4_gpu_routed_moe_batch_tensor(
+                                bout, bgate, bup, bmid, bexperts,
+                                model->map, model->size,
+                                L->ffn_gate_exps->abs_offset,
+                                L->ffn_up_exps->abs_offset,
+                                L->ffn_down_exps->abs_offset,
+                                L->ffn_gate_exps->type,
+                                L->ffn_down_exps->type,
+                                gate_expert_bytes, gate_row_bytes,
+                                down_expert_bytes, down_row_bytes,
+                                expert_in_dim, expert_mid_dim, out_dim,
+                                bsel, bw, DS4_N_EXPERT, n_exp,
+                                DS4_SWIGLU_CLAMP_EXP, bx, fid_layer, BATCH_K,
+                                &got_mid_f16);
+                        }
+                        if (!ds4_gpu_end_commands()) got_ok = 0;
+                        uint64_t gate_bits = 0, up_bits = 0, mid_bits = 0, out_bits = 0;
+                        double gate_max = 0.0, up_max = 0.0, mid_max = 0.0, out_max = 0.0;
+                        uint32_t argmax_flips = 0;
+                        if (!ref_ok || !got_ok || ref_mid_f16 || got_mid_f16) {
+                            fprintf(stderr,
+                                    "lead08_addr_%s_fid: dispatch/read failed %s=%u layer=%u\n",
+                                    geometry_name, geometry_name,
+                                    geometry_values[pattern], fid_layer);
+                            continue;
+                        }
+                        ds4_gpu_tensor_read(bgate, 0, got, bmid_bytes);
+                        for (uint64_t i = 0; i < bmid_bytes / sizeof(float); i++) {
+                            const double d = fabs((double)got[i] - (double)ref_gate[i]);
+                            if (d > gate_max) gate_max = d;
+                            if (memcmp(&got[i], &ref_gate[i], sizeof(float)) != 0) gate_bits++;
+                        }
+                        ds4_gpu_tensor_read(bup, 0, got, bmid_bytes);
+                        for (uint64_t i = 0; i < bmid_bytes / sizeof(float); i++) {
+                            const double d = fabs((double)got[i] - (double)ref_up[i]);
+                            if (d > up_max) up_max = d;
+                            if (memcmp(&got[i], &ref_up[i], sizeof(float)) != 0) up_bits++;
+                        }
+                        ds4_gpu_tensor_read(bmid, 0, got, bmid_bytes);
+                        for (uint64_t i = 0; i < bmid_bytes / sizeof(float); i++) {
+                            const double d = fabs((double)got[i] - (double)ref_mid[i]);
+                            if (d > mid_max) mid_max = d;
+                            if (memcmp(&got[i], &ref_mid[i], sizeof(float)) != 0) mid_bits++;
+                        }
+                        ds4_gpu_tensor_read(bout, 0, got, bout_bytes);
+                        for (uint64_t i = 0; i < bout_bytes / sizeof(float); i++) {
+                            const double d = fabs((double)got[i] - (double)ref_out[i]);
+                            if (d > out_max) out_max = d;
+                            if (memcmp(&got[i], &ref_out[i], sizeof(float)) != 0) out_bits++;
+                        }
+                        for (uint32_t t = 0; t < BATCH_K; t++) {
+                            uint32_t ref_argmax = 0, got_argmax = 0;
+                            for (uint32_t i = 1; i < out_dim; i++) {
+                                if (fabsf(ref_out[(uint64_t)t * out_dim + i]) >
+                                    fabsf(ref_out[(uint64_t)t * out_dim + ref_argmax])) ref_argmax = i;
+                                if (fabsf(got[(uint64_t)t * out_dim + i]) >
+                                    fabsf(got[(uint64_t)t * out_dim + got_argmax])) got_argmax = i;
+                            }
+                            if (ref_argmax != got_argmax) argmax_flips++;
+                        }
+                        fprintf(stderr,
+                                "lead08_addr_%s_fid: %s=%u ref=%u layer=%u "
+                                "gate(max=%.3e bits=%llu) up(max=%.3e bits=%llu) "
+                                "mid(max=%.3e bits=%llu) out(max=%.3e bits=%llu) "
+                                "argmax_flips=%u\n",
+                                geometry_name, geometry_name, geometry_values[pattern],
+                                geometry_baseline, fid_layer,
+                                gate_max, (unsigned long long)gate_bits,
+                                up_max, (unsigned long long)up_bits,
+                                mid_max, (unsigned long long)mid_bits,
+                                out_max, (unsigned long long)out_bits,
+                                argmax_flips);
+                        nsg_valid[pattern] = gate_bits == 0 && up_bits == 0 &&
+                            mid_bits == 0 && out_bits == 0 && argmax_flips == 0;
+                    }
+                }
+                free(ref_gate);
+                free(ref_up);
+                free(ref_mid);
+                free(ref_out);
+                free(got);
+
+                for (uint32_t round = 0; round < BATCH_ROUNDS; round++) {
+                    for (uint32_t oi = 0; oi < geometry_patterns; oi++) {
+                        const uint32_t pattern = (round & 1u) ?
+                            (geometry_patterns - 1u - oi) : oi;
+                        if (!nsg_valid[pattern]) {
+                            fprintf(stderr,
+                                    "lead08_addr_%s: SKIP round=%u %s=%u fidelity=FAIL\n",
+                                    geometry_name, round, geometry_name,
+                                    geometry_values[pattern]);
+                            continue;
+                        }
+                        char value[8];
+                        snprintf(value, sizeof(value), "%u", geometry_values[pattern]);
+                        setenv(geometry_env, value, 1);
+                        ds4_gpu_set_streaming_expert_cache_budget(cache_budget);
+                        const uint32_t cache_start =
+                            ds4_gpu_stream_expert_cache_current_count();
+                        double sample_ms = 0.0;
+                        uint32_t sample_layers = 0;
+                        fprintf(stderr,
+                                "lead08_addr_%s: BEGIN round=%u %s=%u\n",
+                                geometry_name, round, geometry_name,
+                                geometry_values[pattern]);
+                        for (uint32_t il = 0; il < n_layer; il++) {
+                            const ds4_layer_weights *L = &weights->layer[il];
+                            if ((uint32_t)L->ffn_gate_exps->dim[1] != expert_mid_dim ||
+                                (uint32_t)L->ffn_down_exps->dim[1] != out_dim ||
+                                L->ffn_gate_exps->type != L0->ffn_gate_exps->type) continue;
+                            const uint32_t base = (round * 37u + il * 11u) % nsg_span;
+                            for (uint32_t t = 0; t < BATCH_K; t++) {
+                                for (uint32_t e = 0; e < n_exp; e++) {
+                                    const uint32_t group = t == 0u ? 0u : t - 1u;
+                                    bselh[t * n_exp + e] =
+                                        (int32_t)(base + group * n_exp + e);
+                                }
+                            }
+                            ds4_gpu_tensor_write(bsel, 0, bselh, bsel_bytes);
+                            const double t0 = now_sec();
+                            int dispatched = ds4_gpu_begin_commands();
+                            bool mid_is_f16 = false;
+                            if (dispatched) {
+                                dispatched = ds4_gpu_routed_moe_batch_tensor(
+                                    bout, bgate, bup, bmid, bexperts,
+                                    model->map, model->size,
+                                    L->ffn_gate_exps->abs_offset,
+                                    L->ffn_up_exps->abs_offset,
+                                    L->ffn_down_exps->abs_offset,
+                                    L->ffn_gate_exps->type,
+                                    L->ffn_down_exps->type,
+                                    gate_expert_bytes, gate_row_bytes,
+                                    down_expert_bytes, down_row_bytes,
+                                    expert_in_dim, expert_mid_dim, out_dim,
+                                    bsel, bw, DS4_N_EXPERT, n_exp,
+                                    DS4_SWIGLU_CLAMP_EXP, bx, il, BATCH_K,
+                                    &mid_is_f16);
+                            }
+                            if (!ds4_gpu_end_commands()) dispatched = 0;
+                            if (!dispatched) {
+                                fprintf(stderr,
+                                        "lead08_addr_%s: dispatch failed round=%u "
+                                        "%s=%u layer=%u\n",
+                                        geometry_name, round, geometry_name,
+                                        geometry_values[pattern], il);
+                                continue;
+                            }
+                            sample_ms += (now_sec() - t0) * 1000.0;
+                            sample_layers++;
+                        }
+                        const uint32_t cache_end =
+                            ds4_gpu_stream_expert_cache_current_count();
+                        nsg_ms[pattern] += sample_ms;
+                        nsg_layers[pattern] += sample_layers;
+                        fprintf(stderr,
+                                "lead08_addr_%s: SAMPLE round=%u %s=%u layers=%u "
+                                "ms_per_layer=%.3f cache_entries=%u->%u\n",
+                                geometry_name, round, geometry_name,
+                                geometry_values[pattern], sample_layers,
+                                sample_layers ? sample_ms / (double)sample_layers : 0.0,
+                                cache_start, cache_end);
+                    }
+                }
+                fprintf(stderr,
+                        "lead08_addr_%s: SUMMARY tokens=%u pairs=%u unique=%u",
+                        geometry_name, (uint32_t)BATCH_K, pair_rows, nsg_unique);
+                for (uint32_t pattern = 0; pattern < geometry_patterns; pattern++) {
+                    if (!nsg_valid[pattern]) {
+                        fprintf(stderr, " %s%u=INVALID", geometry_name,
+                                geometry_values[pattern]);
+                    } else {
+                        const double ms = nsg_layers[pattern] ?
+                            nsg_ms[pattern] / (double)nsg_layers[pattern] : 0.0;
+                        fprintf(stderr, " %s%u=%.3fms", geometry_name,
+                                geometry_values[pattern], ms);
+                    }
+                }
+                fprintf(stderr, "\n");
+                if (had_prior_nsg) {
+                    setenv(geometry_env, prior_nsg_copy, 1);
+                } else {
+                    unsetenv(geometry_env);
+                }
+                if (had_prior_fixed_geometry) {
+                    setenv(fixed_geometry_env, prior_fixed_geometry_copy, 1);
+                } else {
+                    unsetenv(fixed_geometry_env);
+                }
+            }
+        }
+        free(bxh);
+        free(bselh);
+        free(bwh);
+        ds4_gpu_tensor_free(bx);
+        ds4_gpu_tensor_free(bsel);
+        ds4_gpu_tensor_free(bw);
+        ds4_gpu_tensor_free(bout);
+        ds4_gpu_tensor_free(bgate);
+        ds4_gpu_tensor_free(bup);
+        ds4_gpu_tensor_free(bmid);
+        ds4_gpu_tensor_free(bexperts);
     }
     fprintf(stderr, "lead08_m2_fid: SUMMARY layers=%d worst_routed_out=%.3e worst_gateup_mid=%.3e argmax_flip=%d -> %s\n",
         nl, worst_out, worst_mid, worst_flip,
@@ -30179,6 +31138,7 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
         if (dist_batched_ok) {
             s->dspark_last_cycle.verify_dist.present = true;
             s->dspark_last_cycle.verify_dist.batched_verify_ms = dist_batched_ms;
+            s->dspark_last_cycle.verify_dist.max_flipped_batched_top2_margin = -1.0;
         }
         /* m3: committing batched (sublinear) verify. STS-driven verify_n keeps it ~E[a] tokens.
          * Either fully commits (batched_committed=true) or fully rolls back to the snapshot
@@ -30364,19 +31324,44 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
             if (dspark_timing) logits_read_ms = (now_sec() - logits_read_t0) * 1000.0;
         }
         if (dist_probe && batched_logits && seq_logits && verified > 0) {
+            static const double margin_guards[4] = { 0.25, 0.5, 1.0, 1.75 };
             int n_cmp = verified < verify_n ? verified : verify_n;
             int flips = 0;
             double max_abs = 0.0, sum_tv = 0.0, sum_kl = 0.0;
+            double sum_batched_margin = 0.0;
+            double min_batched_margin = DBL_MAX;
+            double max_flipped_batched_margin = -1.0;
+            int margin_guard_rows[4] = { 0, 0, 0, 0 };
+            bool margin_guard_cycle[4] = { false, false, false, false };
+            int margin_guard_missed_flips[4] = { 0, 0, 0, 0 };
             for (int i = 0; i < n_cmp; i++) {
                 const float *b = batched_logits + (size_t)i * DS4_N_VOCAB;
                 const float *q = seq_logits + (size_t)i * DS4_N_VOCAB;
-                uint32_t bam = 0, sam = 0;
-                double bmax = b[0], smax = q[0];
-                for (uint32_t v = 1; v < DS4_N_VOCAB; v++) {
-                    if (b[v] > bmax) { bmax = b[v]; bam = v; }
-                    if (q[v] > smax) { smax = q[v]; sam = v; }
+                int bam = -1, sam = -1;
+                float bmax_f = DS4_NEG_INF, bmax2_f = DS4_NEG_INF;
+                float smax_f = DS4_NEG_INF;
+                logits_top2(b, DS4_N_VOCAB, &bam, &bmax_f, NULL, &bmax2_f);
+                logits_top2(q, DS4_N_VOCAB, &sam, &smax_f, NULL, NULL);
+                const double bmax = bmax_f;
+                const double smax = smax_f;
+                const double batched_margin = bmax - (double)bmax2_f;
+                sum_batched_margin += batched_margin;
+                if (batched_margin < min_batched_margin) min_batched_margin = batched_margin;
+                const bool flipped = bam != sam;
+                if (flipped) {
+                    flips++;
+                    if (batched_margin > max_flipped_batched_margin) {
+                        max_flipped_batched_margin = batched_margin;
+                    }
                 }
-                if (bam != sam) flips++;
+                for (uint32_t g = 0; g < 4; g++) {
+                    if (batched_margin <= margin_guards[g]) {
+                        margin_guard_rows[g]++;
+                        margin_guard_cycle[g] = true;
+                    } else if (flipped) {
+                        margin_guard_missed_flips[g]++;
+                    }
+                }
                 double bez = 0.0, sez = 0.0;
                 for (uint32_t v = 0; v < DS4_N_VOCAB; v++) {
                     bez += exp((double)b[v] - bmax);
@@ -30401,6 +31386,18 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
             s->dspark_last_cycle.verify_dist.max_abs_logit_diff = max_abs;
             s->dspark_last_cycle.verify_dist.mean_tv = (n_cmp > 0) ? sum_tv / n_cmp : 0.0;
             s->dspark_last_cycle.verify_dist.mean_kl_seq_batched = (n_cmp > 0) ? sum_kl / n_cmp : 0.0;
+            s->dspark_last_cycle.verify_dist.mean_batched_top2_margin =
+                (n_cmp > 0) ? sum_batched_margin / n_cmp : 0.0;
+            s->dspark_last_cycle.verify_dist.min_batched_top2_margin =
+                (n_cmp > 0) ? min_batched_margin : 0.0;
+            s->dspark_last_cycle.verify_dist.max_flipped_batched_top2_margin =
+                max_flipped_batched_margin;
+            for (uint32_t g = 0; g < 4; g++) {
+                s->dspark_last_cycle.verify_dist.margin_guard_rows[g] = margin_guard_rows[g];
+                s->dspark_last_cycle.verify_dist.margin_guard_cycle[g] = margin_guard_cycle[g];
+                s->dspark_last_cycle.verify_dist.margin_guard_missed_flips[g] =
+                    margin_guard_missed_flips[g];
+            }
         }
         free(batched_logits);
         free(seq_logits);

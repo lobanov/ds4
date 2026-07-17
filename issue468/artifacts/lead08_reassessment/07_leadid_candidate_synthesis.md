@@ -1,5 +1,17 @@
 # Lead 08 workstream — iteration-0 lead-ID synthesis (candidate verify-cost mechanisms)
 
+> **2026-07-17 final update:** artifact 11 closes candidate 1 negative: the bounded
+> threadgroup-spill prototype is bit-exact but 22.9% slower at the target shape. Top-r and prefetch
+> were already negative; down-only de-dup and cost-aware STS were composition-scale and no longer
+> have a winning base mechanism. Artifact 12 also closes the margin fallback. Artifact 13 finds
+> <2% sensitivity to contiguous, same-set permuted, or slab-wide strided expert placement, closing
+> address remapping/packing. Artifact 14 finds only noisy 1-3% effects from exact NSG 1/4/8
+> production variants. Artifact 15 finds exact row tiles 2/8 slower total with no steady-state gain.
+> Artifact 16 finds a large exact cache-replay upper bound only on the DSpark-incompatible SSD
+> selected-address path; the compatible mapped path changes by 0.04%. Both geometry knobs and the
+> current-path residency carrier are far below the stage gate. Rankings below are
+> historical context, not active recommendations.
+
 **Date:** 2026-07-16. **Provenance:** 2 online searches (Cohere Apr-2026 MoE+SD post; MoE-Spec
 arXiv:2602.16052; + the standard fused/grouped-MoE pattern: vLLM Fused-MoE-Modular, PyTorch
 Locality-Aware MoE, FusedXpert SC25) + 1 codex lead-ID pass (gpt-5.5 xhigh, report retained at

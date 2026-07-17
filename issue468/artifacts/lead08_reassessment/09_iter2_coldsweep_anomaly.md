@@ -1,8 +1,9 @@
 # Lead 08 workstream — iteration-2 measurement-first probe: COLD-SWEEP ANOMALY (methodology blocker)
 
-**Date:** 2026-07-16. **Status:** iteration-2 measurement-first probe DONE, but it surfaced an
-**unexplained anomaly in the cold-sweep methodology** that must be resolved before any reliable
-iteration-2 kernel GO/NO-GO.
+**Date:** 2026-07-16. **Status:** **RESOLVED / superseded on 2026-07-17** by the controlled
+production-batch probe in `10_iter2_production_batch_overlap.md`. The anomaly came from comparing
+the persistent-cache single-token path after earlier sweeps; it was not a production batch-MoE
+measurement. This file retains the blocker that motivated the corrected probe.
 
 ## The probe (codex lead-ID's recommended no-kernel test)
 Added an overlapped-vs-disjoint M=1×2 cold sweep to `metal_graph_test_m2_fidelity_unit` (ds4.c):
@@ -47,8 +48,9 @@ lacks; the exact cause needs a focused pass.
    gap to shrink materially (the M=2 is occupancy-bound but not necessarily 4.4×).
 5. Then build + measure iteration-2's sequential-tile kernel on the fixed methodology.
 
-## Carry-over (unchanged)
-The de-dup **thesis** is unaffected (the probe's pair-vs-unique showed routed cost tracks physical
-pairs). The sequential-tile kernel design (codex-validated: per-token partials in threadgroup
-memory, expert-major grid, reuse the existing down/sum6) is still the iteration-2 plan. Only the
-**measurement methodology** needs fixing first.
+## Resolution (2026-07-17)
+
+The corrected K=4 production batch probe holds 24 physical pairs fixed and varies unique experts.
+It shows that total routed cost already tracks unique preparation, while realistic partial overlap
+still leaves gate+up at 97% of the disjoint cost. The iteration-2 result is therefore a conditional,
+bounded prototype GO, not the broad "physical pairs imply 6-8 ms reliable" claim. See artifact 10.

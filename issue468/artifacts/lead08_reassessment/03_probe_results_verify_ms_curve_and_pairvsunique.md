@@ -1,5 +1,12 @@
 # Lead 08 re-assessment — sub-lead 1 probe results (measurements 1 + 2): the verify_ms(K) curve + the pair-vs-unique fork
 
+> **Superseded attribution (2026-07-17):** the K-sweep claim that production cost tracks physical
+> pairs was confounded because K, physical compute, and unique preparation all changed together.
+> Artifact 10 holds K=4 / 24 pairs fixed: preparation already tracks unique experts, while sparse
+> doubletons still receive little gate+up GPU reuse. Retain this file for the verify curve and
+> stage proportions; do not reuse its 6-8 ms "reliable" prize. Artifact 11 subsequently records
+> the grouped prototype performance NO-GO, and artifact 12 closes the margin fallback negative.
+
 Date: 2026-07-16. Goal: `mrmkwnp6-6n9z9x`. Method: fixed-K sweep (DS4_DSPARK_VERIFY_K=K, STS bypassed) on a 5-entry subset of c_spec_fixed.jsonl, full-stack env (batched + anchor-reuse + prefix-ckp + Metal drafter), `DS4_MTP_VERIFY_PROFILE=1` (accurate total — NO per-stage sync inflation) + `DS4_MTP_VERIFY_EXPERT_PROFILE=1`. Artifacts: `/tmp/lead08_sweep/k{2,3,4,5}.err`.
 
 ## The verify_ms(K) curve (layer_execute is ~93% of the verify)
@@ -49,9 +56,13 @@ De-dup removes the redundant physical load (28.5% of the expert physical at K=4 
 
 ## Still open (deferred unless gate A requests)
 - **Measurement 1 completeness — the in-tree stage profile is UNRELIABLE for attn/ffn** (it returns attn=96%/ffn=4% but misses the routed experts — dispatched via the SSD-streaming path, outside the in-layer boundaries). **BUT `DS4_METAL_MOE_STAGE_PROFILE` (the batch-path flag) DOES capture the routed-MoE stages** (gate_up/down/activation_weight/sum). Use the linear fit for the expert-vs-non-expert split + the MoE-stage flag for the routed-MoE sub-breakdown.
-- Measurement 3 (Instruments L2 hit rate): the pair-vs-unique + the separator (below) already indicate cache-miss; Instruments would definitively confirm + size the coalescing headroom.
-- Measurement 4 (readahead/overlap flag sweep): a cheap parallel avenue.
-- Measurement 5 (exactness margin probe): for the exactness secondary.
+- Measurement 3 (Instruments L2 hit rate): unavailable on the retained host, which exposes only
+  `GPUTimestamp`. Artifact 13 instead ran a fixed-work production locality probe: contiguous,
+  same-set permuted, and slab-wide strided placement differ by <2%, so software address remapping is
+  closed negative. Hardware bandwidth-vs-compute attribution remains unmeasured.
+- Measurement 4 (readahead/overlap flag sweep): resolved below, no free win.
+- Measurement 5 (exactness margin probe): resolved NO-GO in artifact 12; the first observed-safe
+  threshold adds enough exact replay to erase the M3 speed advantage.
 
 ## SEPARATOR TEST (post codex-gate-A HOLD) — the routed-MoE dominates the K4→K5 marginal → resolves the confound → GO
 

@@ -1,0 +1,5 @@
+path,case,fidelity_status,total_ms_per_layer,total_delta_vs_cold_pct,selected_read_ms_per_layer,cache_wrap_load_ms_per_layer,rounds,layers
+ssd_selected_addr,cold,PASS,11.093750,0.000000,0.000267,5.407140,4,172
+ssd_selected_addr,replay,PASS,1.353250,-87.801690,0.000140,0.001407,4,172
+nonssd_mapped,cold,PASS,0.566000,0.000000,,,4,172
+nonssd_mapped,replay,PASS,0.565750,-0.044170,,,4,172

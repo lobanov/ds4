@@ -20,26 +20,68 @@ cycle (~16 ms/token off the target).
 | Goal | ≥20 % greedy throughput on ds4 IQ2XXS, output-preserved |
 | Current best | Full DSpark stack **+4.9 %** over plain (40.04 vs 38.16 t/s; score-neutral 61/92) — M3 |
 | The gap | +20 % not reached; verify ≈80 % of the cycle |
-| Open lever | **Verify cost remains the open +20 % lever** — Lead 08 fused-2-token-kernel thesis **NO-GO (4.4× slower, codex-confirmed)**; the de-dup is real but compute-fusion was occupancy-bound → **Lead 09** proposes the corrected mechanism (de-dup loads, sequential single-token compute) |
+| Open lever | **No demonstrated +20% lever.** Lead 08's grouped gate+up prototype is 22.9% slower, the observed-flip-safe margin guard falls below plain, layout/geometry probes move cost by only a few percent, and the large cache-replay prize exists only on an SSD path incompatible with DSpark; a future verifier attempt needs a different measured mechanism |
 | Closed (negative) | Drafter/input quality (Lead 07), drafter quant (Q4_K), non-expert finetune (Stage 2), DFlash, quant-mismatch |
 
 ## Investigation arc
 
 Reverse-chronological. Each entry: what was tested → verdict → canonical record.
 
-- **2026-07-16 — Lead 08 (fused low-K verify kernel): NO-GO on cost, codex-gate-B-confirmed.**
-  Built the single-stage M=2 routed-expert fused-kernel prototype (shared gate/up expert loads
-  across 2 tokens = "de-dup" + per-token selection-ordered down) + a self-contained fidelity/cost
-  unit-test harness (runs under `--dspark`; decode2_exact is MTP-only/unreachable). **Fidelity
-  (secondary): relaxed bar met** — M=2 vs M=1 routed_out max_abs≈4.8e-08, argmax_flip=0 across 5
-  layers (sub-ULP Metal fast-math noise, localized to the fused gate+up; NOT bit-exact). **Cost
-  (primary): FAIL** — cold all-layers sweep M=2=13.3 ms/layer vs M=1×2=3.0 ms/layer → **4.4×
-  slower**; the de-dup is overwhelmed by the fused kernel's register-pressure/occupancy overhead.
-  Codex gate B (gpt-5.5 xhigh): NO-GO stands (found a real M=2 perf bug — 18 vs 12 streams — but
-  even fixed the bound is ~2.9× slower; a real fix is a new kernel design, not bounded). The
-  probe's "de-dup is real" (pair-vs-unique) holds, but fusing the per-token compute is the wrong
-  mechanism — occupancy-bound here. M=2 code stays env-gated/dormant; do NOT productionize.
-  Artifacts 05/06 + the gate-B report; `pending/lead_08_fused_verify_kernel.md` (verdict block).
+- **2026-07-17 - Lead 08 iteration 8 cache residency: current-path NO-GO.**
+  Cold SSD selected-address preparation costs 5.407 ms/layer and bit-exact replay cuts routed time
+  11.094 -> 1.353 ms (-87.8%). That carrier is unavailable: the runtime rejects `--ssd-streaming`
+  with `--dspark`. The compatible mapped-weight path is already replay parity at 0.566 -> 0.566 ms
+  (-0.04%). A real full-stack trace shows 60.5%/76.0% per-layer LRU hits at capacities 16/32, but
+  exploiting them requires a separate SSD-compatible runtime, not another Lead 08 kernel change.
+  `artifacts/lead08_reassessment/16_iter8_cache_residency.md`.
+- **2026-07-17 - Lead 08 iteration 7 production row tile: NO-GO.**
+  Held NSG 2 and the K=4 18/24 physical-row workload fixed while sweeping 2/4/8 output rows per
+  SIMDgroup. Tiles 2 and 8 are bit-exact against production tile 4 but are +1.0%/+0.3% slower over
+  eight total-path rounds; tile 8 changes sign across repetitions, confirming noise scale.
+  Tile 8's apparent -2.5% matched gate+up result becomes +0.05% when startup-heavy layer 0 is
+  excluded; tile 2 becomes +1.3%. The production tile remains 4 and the geometry branch closes.
+  `artifacts/lead08_reassessment/15_iter7_addr_row_tile.md`.
+- **2026-07-17 - Lead 08 iteration 6 production address-kernel geometry: NO-GO.**
+  Held the K=4 physical-row algorithm and 18/24 shape fixed while sweeping 1/2/4/8 SIMDgroups per
+  threadgroup. All variants are bit-exact. The best total result is NSG 4 at -3.2%, but its matched
+  gate+up result is +1.1% overall / -1.1% excluding layer 0; NSG 8 is -2.0% / -0.7%. These noisy,
+  low-single-digit effects are far below the >=15% stage gate, so the production default stays NSG 2.
+  `artifacts/lead08_reassessment/14_iter6_addr_nsg_geometry.md`.
+- **2026-07-17 - Lead 08 iteration 5 expert-address locality: software-layout NO-GO.**
+  Held production K=4 work fixed at 24 physical rows / 18 unique experts and changed only expert
+  placement: contiguous, same-set permuted, or slab-wide strided. Across four cold-cache rounds,
+  permuted and strided total routed cost were only +1.9% and +0.7% versus contiguous; matched gate+up
+  deltas were +1.6% and +0.9% (+1.8%/+1.4% excluding layer 0). Expert remapping/packing cannot supply
+  the >=15% stage gain or 8.7-10 ms verifier prize. Hardware counters could still attribute the
+  remaining cost, but this controlled result closes address reordering as a mechanism.
+  `artifacts/lead08_reassessment/13_iter5_address_locality.md`.
+- **2026-07-17 - Lead 08 iteration 4 margin-guarded exact fallback: exactness/cost NO-GO.**
+  Extended the non-committing batch-vs-exact probe over the retained 10-prompt exactness workload.
+  The known flip has batch top-2 margin 0.3755, so threshold 0.25 misses it. Threshold 0.5 catches
+  the one observed flip but guards 27/158 probed cycles (17.1%); measured exact replay adds an
+  optimistic 7.0 ms over all cycles and projects 40.04 -> 36.37 t/s, below plain 38.16. One flip
+  cannot establish a universal margin bound. Do not implement the fallback policy.
+  `artifacts/lead08_reassessment/12_iter4_margin_guard.md`.
+- **2026-07-17 — Lead 08 iteration 3 grouped gate+up prototype: bit-exact -> performance NO-GO.**
+  Built the one bounded expert-major/threadgroup-spill prototype. Direct production comparison has
+  zero differing F32 bits in gate/up/weighted-mid/routed-output and zero argmax flips, but target
+  18-unique/24-pair gate+up regresses **4.869 -> 5.986 ms/layer (+22.9%)** instead of improving
+  >=15%; excluding layer 0 regresses 35.8%. The compact expert map makes disjoint execution parity,
+  while heavier overlap regresses 56-68%, isolating spill/barrier costs. Stop this branch;
+  do not integrate or run the final verifier gate. `artifacts/lead08_reassessment/11_iter3_grouped_gateup_prototype.md`.
+- **2026-07-17 — Lead 08 iteration 2 production overlap gate: blocker resolved -> CONDITIONAL GO.**
+  Replaced the cache-confounded M1x2 probe with K=4 `routed_moe_batch` measurements at a fixed 24
+  physical pairs and 6/12/18/24 unique experts. Total cost tracks union-aware preparation, but the
+  realistic partial-overlap gate+up stage (18 unique) is still **97% of fully disjoint** despite
+  25% fewer unique experts; sparse doubletons remain a real grouped-kernel opportunity. Down is
+  smaller. This authorized exactly one expert-major/threadgroup-spill prototype with a >=15% gate;
+  iteration 3 subsequently failed it and stopped the branch. The prior 6-8 ms prize was not proven.
+  `artifacts/lead08_reassessment/10_iter2_production_batch_overlap.md`.
+- **2026-07-16 — Lead 08 iteration 1 simultaneous M=2 fusion: structural NO-GO; reported magnitude
+  withdrawn.** Fidelity met the relaxed bar (max_abs≈4.8e-08, zero argmax flips), but the kernel
+  computes 18 vs 12 token-expert streams and doubles live per-thread state. The reported 4.4x and
+  derived 2.9x magnitudes used a cache-warm M1 comparator and are not cold-equivalent; do not reuse
+  them. The simultaneous design stays dormant. Artifacts 05/06/09 + gate-B report.
 - **2026-07-16 — Lead 07 (crossed FP/IQ2 oracle): PIVOT, closed negative.** The native-vs-IQ2
   drafter-acceptance gain is **not a recoverable hidden-side effect**. On a teacher-forced
   common trajectory the FP-vs-IQ2 p1 lift is +0.007 (CI incl 0); the recoverable hidden-side
@@ -97,7 +139,7 @@ The drafter is **not** the lever, on four independent grounds:
   IQ2XXS.** `archive/leads/lead_07_upstream_quality_ceiling.md`.
 - **DFlash drafter:** ~2.5× worse accepted prefix than DSpark on this corpus. `summaries/dflash_oracle_investigation.md`.
 
-### Verifier / cycle cost — THE OPEN +20 % LEVER (Lead 08)
+### Verifier / cycle cost — GAP REMAINS; TESTED LEAD 08 BRANCHES CLOSED
 
 Verify dominates ~80 % of the cycle; this is where the +20 % must come from.
 
@@ -107,9 +149,21 @@ Verify dominates ~80 % of the cycle; this is where the +20 % must come from.
   (crossover ~2.3 accepts at K=4); the runtime drafter is sound (live ≥ oracle). `summaries/dspark_runtime_milestone_2_progress.md`.
 - **Milestone 3:** committing batched verify (sublinear, divergent-but-score-neutral) + the
   full stack → **+4.9 % over plain**, the first config to beat plain locally. `summaries/dspark_runtime_milestone_3_progress.md`.
-- **Lead 08:** Phase A found retained headroom (~19–22 ms/cycle above the floor); Phase B found
-  no swap-only sublinear bit-exact verifier (~0.85× baseline) → the bounded **fused verify
-  kernel** build, exit gate `verify_ms(4) ≤ 50.5 ms`. `summaries/lead08_phaseB_floor_clearance_verdict.md`.
+- **Lead 08:** Phase A found retained headroom (~19–22 ms/cycle above the floor), but Phase B found
+  no swap-only sublinear bit-exact verifier (~0.85× baseline). The controlled production probe then
+  justified one grouped gate+up implementation. That prototype is bit-exact but **22.9% slower** at
+  the target 18/24 shape (35.8% slower excluding layer 0), so the predeclared >=15% stage gate fails
+  with the wrong sign. The grouped branch stops and the final `verify_ms(4) ≤ 50.5 ms` integration
+  gate is not warranted. The separate margin-guard probe also fails: threshold 0.25 misses the known
+  greedy flip, while 0.5 catches it only by triggering exact replay on 17.1% of probed cycles and
+  adding at least 7.0 ms/cycle, which erases M3's advantage over plain. Finally, a fixed-work
+  production probe varied only expert-address locality: same-set permutation and slab-wide striding
+  changed total routed cost by just +1.9% and +0.7% versus contiguous, with matched gate+up movement
+  below 2%. This closes software-visible address remapping/packing as the speculative coalescing
+  mechanism, without claiming hardware bandwidth-vs-compute attribution. A follow-up production
+  kernel-geometry sweep also fails: all variants are bit-exact, but matched effects remain within
+  about 3% and are inconsistent between total and isolated-stage views. Artifacts 10-14 under
+  `artifacts/lead08_reassessment/`.
 
 ### Scheduler & acceptance
 
@@ -133,10 +187,17 @@ The bench harness: `ds4-spec-bench` (`make ds4-spec-bench`) — use it, not the 
 
 ## Next step
 
-**Lead 08 — the fused verify kernel** is the primary open path to +20 %. It is a bounded
-sublinear bit-exact batch-path build (HC/compressor/attention on decode reductions + batched
-load sharing) with a hard exit gate: an end-to-end K=4 bit-exact verifier must profile
-`verify_ms(4) ≤ 50.5 ms`. GO is unconfirmed until that gate clears.
+**Lead 08:** no further grouped IQ2XXS gate+up, margin-guard fallback, expert-address reordering, or
+production address-kernel launch/tile-geometry work. The bounded kernel passed exactness but failed
+performance; the fallback either misses the known flip or erases the current speedup; the controlled
+locality microbenchmark shows <2% sensitivity; alternate SIMDgroup counts move cost by at most about
+3%; and alternate row tiles are slower total with no steady-state gain. All are far short of the
+gate. Exact cache replay exposes a large SSD selected-address upper bound, but that runtime cannot
+compose with DSpark and the compatible mapped path has no replay gap. Integration and the final K=4
+verifier gate are skipped. Any
+continuation must first establish a genuinely different mechanism with new controlled evidence. On
+this host `xctrace`/offline `metal` are absent and Metal exposes only `GPUTimestamp`; full Xcode GPU
+counters would be diagnostic attribution, not authorization to reopen any stopped branch.
 
 **Lead 10 — drafter re-distillation for IQ2XXS (soft labels)** is a proposed, lower-priority
 drafter-quality follow-up: the one untested route after Lead 07 (hidden-side, dead) and Stage 2
