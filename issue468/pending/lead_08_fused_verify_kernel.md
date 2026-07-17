@@ -1,8 +1,9 @@
 # Lead 08 — Fused low-K batch-verify kernel (close the verify-vs-floor gap)
 
-> **Current verdict (2026-07-17): iterations 12-14 move the captured layer-0 exactness frontier
+> **Current verdict (2026-07-18): iterations 12-14 move the captured layer-0 exactness frontier
 > through Q/KV, Q-b, attention, inverse RoPE, and output-B. Iteration 15 finds the post-attention
-> debt is inherited from the early HC mixer; V10 row-wise mixer projection is next. Iteration 10
+> debt is inherited from the early HC mixer. Iteration 16 exactifies that state through attention
+> HC post; V11 FFN HC input localization is next. Iteration 10
 > falsified the existing batch graph as a shared
 > M=1/M=K exactness family; iteration 9 corrected the iteration-8 locality profiler;
 > cache residency remains a current-path NO-GO; iterations 6/7
@@ -367,6 +368,44 @@ sufficient." (Confirmatory: a literal identical-input MoE kernel-equality harnes
 verify-bandwidth slope re-measure.)
 
 ## Worklog
+
+### 2026-07-18 - iteration-16 V10 contract: row-wise HC attention mixer
+
+**Hypothesis and preflight.** V9 established exact normalized input but 14/24 differing F16 mixer
+outputs. Metal dispatches `hc_attn_fn` (`16384 -> 24`) through the ordinary F16 matvec for M=1 and
+the low-K `mul_mv_ext` kernel for M=2..8. The challenger returned **PROCEED** with a dedicated F16
+row helper; the existing Q8 helper is not applicable.
+
+**Reference/candidate.** Both arms retain V6-V8 at layer 0. The candidate additionally sets
+`DS4_LEAD08_ROWWISE_HC_ATTN_MIX_LAYERS=1`, creating row-contiguous F32 input/output views and calling
+the existing F16 primitive with one token per row. The numeric cap is saved/restored only inside
+multi-token suffix verification. It applies only to attention `hc_attn_fn`, not the FFN mixer,
+DSpark drafter, split/sinkhorn, normalization, attention, expansion, or output head.
+
+**Exactness and outcomes.** `ProdHCFlat` must remain exact and `ProdHCMix` must become exact. If
+consumed `ProdHCSplit[4:24]` and `hc_attn_post` also become exact, V10 passes and the first downstream
+boundary is recaptured. Exact mix with differing split redirects to split/sinkhorn. Exact expansion
+inputs with differing HC post reopens expansion despite its row-independent source. A remaining mix
+difference with confirmed activation fails the helper or M1-family assumption. Final-logit flips do
+not fail V10 if the local frontier moves.
+
+**Economics and evidence.** Correctness dumps are untimed. Supporting process-first K=4 pairs hold
+all prior caps fixed and compare mixer `0 -> 1` and `0 -> 43`, without dumps/probing. The all-layer
+row loop repeats a roughly 0.75 MiB matrix per token/layer and is a naive implementation upper bound
+with profiler and downstream-routing confounds; it cannot update the 50.5 ms feasibility lower bound.
+Retain exact commands, stage/timing CSVs, activation logs, challenger result, and mandatory
+post-iteration audit before commit.
+
+**Result.** The candidate makes `ProdHCMix`, all consumed split state, and `hc_attn_post`
+bit-identical for the captured row. The first captured downstream difference moves to `hc_ffn_pre`.
+Four matched all-layer timing pairs have a -1.252 ms mean / -1.259 ms median layer-execution sign,
+but changed accepted-token patterns and trajectories make that sign route-confounded and
+uninterpretable for mixer economics. It shows only no obvious penalty in these instrumented runs.
+V11 must capture FFN HC flat/mix/split inputs before any analogous compute change. The first audit
+validated the implementation, correctness evidence, arithmetic, and V11 ordering but returned
+**NO-COMMIT** on the timing attribution plus two ledger/date inconsistencies. Those findings were
+corrected and the repeat audit returned **COMMIT**. Canonical artifact:
+`artifacts/lead08_reassessment/24_iter16_rowwise_hc_attn_mix.md`.
 
 ### 2026-07-17 - iteration-15 V9 HC expansion inputs -> REDESIGN / audit COMMIT
 

@@ -1,6 +1,6 @@
 # Issue 468 solution-space ledger
 
-Date: 2026-07-17. Purpose: make experiment selection explicit, comparable, and auditable. This is
+Date: 2026-07-18. Purpose: make experiment selection explicit, comparable, and auditable. This is
 the live decision ledger; `issue468/STATUS.md` remains the canonical narrative.
 
 ## Goal contract and common currency
@@ -61,7 +61,8 @@ corpus, exactness contract, and whether timing is decision-grade or diagnostic-o
 | V7 | Row-wise production Q-b at layer 0 | Resolves next observed V5 correctness debt | Exact through inverse RoPE for captured row | Diagnostic patch | Row-wise Q-b; repeat capture and cost discipline | Frontier moves through `kqv_back`; naive all-layer whole-graph delta +7.47 ms | `CLOSED` positive |
 | V8 | Attention-output low/final projection at layer 0 | Next observed V5 correctness debt | Exact through output-B for captured row | Diagnostic overlay | Capture then row-wise output-B | Output-A low is exact; frontier moves to HC expansion; redundant all-layer delta +6.99 ms | `CLOSED` positive |
 | V9 | HC expansion input localization at layer 0 | Resolve whether expansion or latent input differs | Expansion not independently implicated | Diagnostic capture | Capture all expansion inputs | Block/residual exact; HC mix and consumed split state differ | `CLOSED` redesign |
-| V10 | Row-wise HC mixer projection at layer 0 | First latent state debt exposed by V9 | Unproven | Diagnostic patch | Row-wise F16 mixer, recapture mix/split/HC post | `ProdHCMix` differs 14/24 before split | `OPEN`, rank 1 |
+| V10 | Row-wise HC attention mixer at layer 0 | First latent state debt exposed by V9 | Exact through attention HC post for captured row | Diagnostic patch | Row-wise F16 mixer, recapture mix/split/HC post | Frontier moves to FFN HC path; timing shows no obvious penalty but is route-confounded | `CLOSED` positive |
+| V11 | FFN HC input localization at layer 0 | First captured difference after V10 | Unproven | Diagnostic capture | Capture FFN flat/mix/split/block/residual | `hc_ffn_pre` differs with attention HC post exact | `OPEN`, rank 1 |
 | K1 | Grouped routed gate/up | Proposed expert-load sharing | Bit-exact on identical inputs | Composes | Production 18/24 prototype | 22.9% slower | `CLOSED` |
 | K2 | Expert address remapping / packing | Proposed coalescing | Exact | Composes | Fixed-work placement sweep | Less than 2% sensitivity | `CLOSED` |
 | K3 | Address-kernel SIMDgroup / row-tile geometry | Low-single-digit possible | Exact | Composes | Production fixed-work sweep | At most about 1-3%, inconsistent | `CLOSED` |
@@ -82,7 +83,7 @@ under `issue468/artifacts/lead08_reassessment/`):
   `18_iter10_batch_m1_target.md`, `lead08_phaseB_floor_clearance_verdict.md`, and
   `19_iter11_same_frontier_localization.md`, `20_iter12_rowwise_qkv.md`, and
   `21_iter13_rowwise_qb.md`, `22_iter14_rowwise_attn_out_b.md`, and
-  `23_iter15_hc_input_localization.md`.
+  `23_iter15_hc_input_localization.md`, and `24_iter16_rowwise_hc_attn_mix.md`.
 - K1-K3, M1-M2: Lead 08 reassessment artifacts `11_iter3_grouped_gateup_prototype.md`,
   `13_iter5_address_locality.md`, `14_iter6_addr_nsg_geometry.md`,
   `15_iter7_addr_row_tile.md`, and `16_iter8_cache_residency.md`.
@@ -107,8 +108,9 @@ M-dependent.
 | compressor / indexer | not exercised in the layer-0 raw-attention case | unknown | defer to first compressed-layer boundary |
 | attention reduction + inverse RoPE | bit-identical through `kqv_back` after V7 | exact for captured row | none |
 | attention-output low/final projection | output-A low exact; output-B exact after V8 overlay | exact for captured row | clean nonredundant API only after frontier survives |
-| HC mixer/split latent state | `ProdHCMix` differs 14/24; consumed split differs 15/20 | first unresolved latent boundary | V10 row-wise mixer, then recapture split |
-| HC expansion after attention | block/residual exact; consumed split differs | inherited from earlier HC state | do not exactify expansion |
+| attention HC mixer/split state | exact after V10 row-wise mixer | exact for captured row | none |
+| HC expansion after attention | exact inputs and output after V10 | exact for captured row | none |
+| FFN HC pre path | `hc_ffn_pre` first V10 downstream difference | first captured unresolved boundary; inputs not isolated | V11 capture every FFN HC input |
 | routed MoE gate/up | bit-exact in identical-input isolated prototype | exact in that harness; economics closed | retain production path; do not rebuild grouped K1 |
 | routed down / sum and shared FFN | not isolated end-to-end | unknown | test only after attention frontier moves |
 | output head | same batched function in V4 but inherited state differs | unknown independently | last boundary after layer path |
@@ -139,11 +141,11 @@ a full build.
 | Rank | Experiment | Why now | Pass | Fail / stop |
 |---:|---|---|---|---|
 | P0 | Enforce `spec_frontier_restore` success in the same-frontier probe and rerun iteration 11 | Audit found the core invariant was unchecked | **Resolved:** hard failure plus 267/267 successful restores; corpus and dumps reproduce | Repeat audit passed; proceed to V6 |
-| 1 | V10 row-wise HC mixer projection at layer 0 | V9 found the latent input debt | Mix/split frontier moves within budget | Stop only on unchanged mix or proven-unavoidable cost |
+| 1 | V11 FFN HC input localization | V10 moved attention path frontier | Identify exact-input/different-output boundary | Redesign rather than guessing FFN mixer |
 | 2 | Repeat first-divergence isolation at the newly exposed boundary | Delta-debug the pipeline, not guess stages | Frontier moves within budget | Stop V5 only when proven-unavoidable work exhausts budget |
 | 3 | Full-corpus exactness plus end-to-end K=4 timing | Only after all boundaries pass | Exact stream and <=50.5 ms verify, then >=20% composed run | Close V5 |
 | 4 | D5 soft-label redistillation | Only if an exact economic verifier survives and acceptance remains limiting | Powered p1 lift composes into >=20% model | Close drafter axis |
 
-P0 and V6-V9 are complete and audited. No
+P0 and V6-V10 are complete and audited. No
 GPU-timestamp-only, grouped-MoE, layout, geometry, mapped-residency, or margin-policy experiment may
-preempt V10 without new evidence that changes the ledger's upper bounds.
+preempt V11 without new evidence that changes the ledger's upper bounds.

@@ -10606,6 +10606,7 @@ typedef struct {
     uint32_t lead08_rowwise_qkv_layers;
     uint32_t lead08_rowwise_qb_layers;
     uint32_t lead08_rowwise_attn_out_b_layers;
+    uint32_t lead08_rowwise_hc_attn_mix_layers;
     uint32_t raw_cap;
     /* Maximum compressed-row capacity across layers.  Shared work buffers use
      * this worst-case size because ratio-4 indexer layers can still reach it. */
@@ -17609,6 +17610,37 @@ static bool metal_graph_matmul_q8_0_rows_as_m1(
     return ok;
 }
 
+/* Research-only exact-hybrid falsifier for F16 projections whose low-K
+ * kernel changes accumulation order relative to the M=1 matvec. */
+static bool metal_graph_matmul_f16_rows_as_m1(
+        ds4_gpu_tensor *out,
+        const ds4_model  *model,
+        const ds4_tensor *w,
+        uint64_t          in_dim,
+        uint64_t          out_dim,
+        ds4_gpu_tensor *x,
+        uint32_t          n_tokens) {
+    if (!w || w->type != DS4_TENSOR_F16) return false;
+
+    bool ok = true;
+    for (uint32_t row = 0; ok && row < n_tokens; row++) {
+        ds4_gpu_tensor *out_row = metal_graph_tensor_row_view(out, row, out_dim);
+        ds4_gpu_tensor *in_row = metal_graph_tensor_row_view(x, row, in_dim);
+        ok = out_row && in_row &&
+             ds4_gpu_matmul_f16_tensor(out_row,
+                                         model->map,
+                                         model->size,
+                                         w->abs_offset,
+                                         in_dim,
+                                         out_dim,
+                                         in_row,
+                                         1) != 0;
+        ds4_gpu_tensor_free(in_row);
+        ds4_gpu_tensor_free(out_row);
+    }
+    return ok;
+}
+
 /* Upload prompt token ids for kernels that need token-aware hash routing. */
 static bool metal_graph_upload_prompt_tokens(
         ds4_gpu_tensor *out_tokens,
@@ -17958,6 +17990,8 @@ static bool metal_graph_encode_layer_attention_batch(
     const bool rowwise_qb = n_tokens > 1 && il < g->lead08_rowwise_qb_layers;
     const bool rowwise_attn_out_b =
         n_tokens > 1 && il < g->lead08_rowwise_attn_out_b_layers;
+    const bool rowwise_hc_attn_mix =
+        n_tokens > 1 && il < g->lead08_rowwise_hc_attn_mix_layers;
     ds4_gpu_tensor *hc_mix_view = ds4_gpu_tensor_view(
             g->batch_hc_mix, 0, (uint64_t)n_tokens * mix_hc * sizeof(float));
     ds4_gpu_tensor *hc_split_view = ds4_gpu_tensor_view(
@@ -17975,14 +18009,24 @@ static bool metal_graph_encode_layer_attention_batch(
                                                       (uint32_t)hc_dim,
                                                       n_tokens,
                                                       DS4_RMS_EPS) != 0;
-    if (ok) ok = ds4_gpu_matmul_f16_tensor(hc_mix_view,
-                                             model->map,
-                                             model->size,
-                                             layer->hc_attn_fn->abs_offset,
-                                             hc_dim,
-                                             mix_hc,
-                                             g->batch_flat_hc,
-                                             n_tokens) != 0;
+    if (ok) {
+        ok = rowwise_hc_attn_mix
+            ? metal_graph_matmul_f16_rows_as_m1(hc_mix_view,
+                                                 model,
+                                                 layer->hc_attn_fn,
+                                                 hc_dim,
+                                                 mix_hc,
+                                                 g->batch_flat_hc,
+                                                 n_tokens)
+            : ds4_gpu_matmul_f16_tensor(hc_mix_view,
+                                         model->map,
+                                         model->size,
+                                         layer->hc_attn_fn->abs_offset,
+                                         hc_dim,
+                                         mix_hc,
+                                         g->batch_flat_hc,
+                                         n_tokens) != 0;
+    }
     if (metal_graph_use_reference_hc_decode()) {
         if (ok) ok = ds4_gpu_hc_split_sinkhorn_tensor(hc_split_view,
                                                         hc_mix_view,
@@ -22055,6 +22099,13 @@ static uint32_t lead08_rowwise_attn_out_b_layer_count(void) {
     return layers;
 }
 
+static uint32_t lead08_rowwise_hc_attn_mix_layer_count(void) {
+    static uint32_t layers = UINT32_MAX;
+    if (layers != UINT32_MAX) return layers;
+    layers = lead08_parse_layer_count("DS4_LEAD08_ROWWISE_HC_ATTN_MIX_LAYERS");
+    return layers;
+}
+
 static bool metal_graph_verify_suffix_tops(
         ds4_gpu_graph *g,
         const ds4_model       *model,
@@ -22104,10 +22155,13 @@ static bool metal_graph_verify_suffix_tops(
     const uint32_t saved_rowwise_qkv_layers = g->lead08_rowwise_qkv_layers;
     const uint32_t saved_rowwise_qb_layers = g->lead08_rowwise_qb_layers;
     const uint32_t saved_rowwise_attn_out_b_layers = g->lead08_rowwise_attn_out_b_layers;
+    const uint32_t saved_rowwise_hc_attn_mix_layers = g->lead08_rowwise_hc_attn_mix_layers;
     g->lead08_rowwise_qkv_layers = n_tokens > 1 ? lead08_rowwise_qkv_layer_count() : 0;
     g->lead08_rowwise_qb_layers = n_tokens > 1 ? lead08_rowwise_qb_layer_count() : 0;
     g->lead08_rowwise_attn_out_b_layers =
         n_tokens > 1 ? lead08_rowwise_attn_out_b_layer_count() : 0;
+    g->lead08_rowwise_hc_attn_mix_layers =
+        n_tokens > 1 ? lead08_rowwise_hc_attn_mix_layer_count() : 0;
     if (g->lead08_rowwise_qkv_layers) {
         static bool announced = false;
         if (!announced) {
@@ -22132,6 +22186,15 @@ static bool metal_graph_verify_suffix_tops(
             fprintf(stderr,
                     "ds4: lead08 row-wise M1 attention output-B active for %u verifier layers\n",
                     g->lead08_rowwise_attn_out_b_layers);
+            announced = true;
+        }
+    }
+    if (g->lead08_rowwise_hc_attn_mix_layers) {
+        static bool announced = false;
+        if (!announced) {
+            fprintf(stderr,
+                    "ds4: lead08 row-wise M1 HC attention mixer active for %u verifier layers\n",
+                    g->lead08_rowwise_hc_attn_mix_layers);
             announced = true;
         }
     }
@@ -22190,6 +22253,7 @@ static bool metal_graph_verify_suffix_tops(
     g->lead08_rowwise_qkv_layers = saved_rowwise_qkv_layers;
     g->lead08_rowwise_qb_layers = saved_rowwise_qb_layers;
     g->lead08_rowwise_attn_out_b_layers = saved_rowwise_attn_out_b_layers;
+    g->lead08_rowwise_hc_attn_mix_layers = saved_rowwise_hc_attn_mix_layers;
     if (!ok) return false;
 
     ok = ds4_gpu_begin_commands() != 0;

@@ -20,13 +20,19 @@ cycle (~16 ms/token off the target).
 | Goal | ≥20 % greedy throughput on ds4 IQ2XXS, output-preserved |
 | Current best | Full DSpark stack **+4.9 %** over plain (40.04 vs 38.16 t/s; score-neutral 61/92) — M3 |
 | The gap | +20 % not reached; verify ≈80 % of the cycle |
-| Open lever | **No demonstrated +20% lever.** Lead 08's grouped gate+up prototype is slower, margin fallback is uneconomic, layout/cache branches fail, and the existing batch graph is neither M-invariant nor fast enough as a shared M=1/M=K family. The exact-hybrid visible path is bit-identical through layer-0 attention output-B for one captured row, but a latent HC mixer/split state debt remains |
+| Open lever | **No demonstrated +20% lever.** Lead 08's grouped gate+up prototype is slower, margin fallback is uneconomic, layout/cache branches fail, and the existing batch graph is neither M-invariant nor fast enough as a shared M=1/M=K family. The exact-hybrid visible path is bit-identical through layer-0 attention HC post for one captured row; the first captured difference is now in the FFN HC path |
 | Closed (negative) | Drafter/input quality (Lead 07), drafter quant (Q4_K), non-expert finetune (Stage 2), DFlash, quant-mismatch |
 
 ## Investigation arc
 
 Reverse-chronological. Each entry: what was tested → verdict → canonical record.
 
+- **2026-07-18 - Lead 08 iteration 16 row-wise HC attention mixer: causal GO; corrected audit COMMIT.**
+  Exact mixer input now yields exact mix, consumed split state, and attention HC post for layer-0
+  row 0. The first captured difference moves to the FFN HC path. Four matched all-layer supporting
+  pairs show no obvious penalty, but their -1.25 ms sign is route-confounded and uninterpretable for
+  mixer economics. The first audit required this wording correction; the repeat audit returned COMMIT.
+  `artifacts/lead08_reassessment/24_iter16_rowwise_hc_attn_mix.md`.
 - **2026-07-17 - Lead 08 iteration 15 HC expansion inputs: REDESIGN; audit COMMIT.** Block and
   residual inputs are exact, but the early HC mixer differs in 14/24 values and the split post/comb
   state consumed after attention differs in 15/20. Expansion is not independently implicated; the
@@ -253,8 +259,8 @@ verifier gate are skipped. Any
 continuation must first establish a genuinely different mechanism with new controlled evidence.
 The original Phase B exact hybrid remains unbuilt. Iterations 12-14 move the same-frontier layer-0
 correctness boundary through Q/KV projection, Q-b, normalization, RoPE, attention, inverse RoPE,
-and attention output-B for one captured row. HC-input capture then shows the post-attention
-difference inherits latent state from the early F16 HC mixer; row-wise mixer projection is next.
+and attention output-B for one captured row. Row-wise attention HC mixing then makes the latent split
+state and attention HC post exact; branch-neutral localization of the FFN HC inputs is next.
 Continue only if the frontier moves and a credible path to `verify_ms(4) <= 50.5 ms`
 remains. The observed +7.47 ms all-layer whole-graph delta nearly consumes the modeled headroom but is a
 repeated-dispatch implementation upper bound; stop only when costs proven unavoidable exhaust the
