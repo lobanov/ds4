@@ -22,12 +22,21 @@ cycle (~16 ms/token off the target).
 | Goal | ≥20 % greedy throughput on ds4 IQ2XXS, exact-output-preserved |
 | Current best | Full DSpark stack **+4.9 %** over plain (40.04 vs 38.16 t/s; score-neutral 61/92) — M3 |
 | The gap | +20 % not reached; verify ≈80 % of the cycle |
-| Open lever | **V14 M3-bounded verifier acceleration.** T2c validly selects arithmetic/issue sensitivity on live mapped `tiny_pair_mv`; one maximum-removable arithmetic upper-bound kernel (U1) is authorized after preflight, not a production prototype. The direct carrier is only about 10.74 ms/cycle, so the required >=8.7 ms saving is an approximately 81% reduction. Final gates remain `verify_ms(4) <= 50.5 ms` and the M3 quality envelope |
+| Open lever | **No selected Lead 08 mechanism.** Corrected U1 proves even an optimistic nonsemantic arithmetic/dequant removal saves only 4.71-4.72 ms, below 8.7 ms. Arithmetic closes; only a genuinely independent mechanism with a fresh >=8.7 ms upper bound may reopen bounded work |
 | Closed (negative) | Drafter/input quality (Lead 07), drafter quant (Q4_K), non-expert finetune (Stage 2), DFlash, quant-mismatch |
 
 ## Investigation arc
 
 Reverse-chronological. Each entry: what was tested → verdict → canonical record.
+
+- **2026-07-18 - Lead 08 iteration 24 packed-weight floor: U1 economic STOP; corrected audit
+  COMMIT.** A nonsemantic checksum kernel retains mapped IQ2 q/scale loads, ID addressing, grid,
+  SIMD reduction, and stores while removing activation/LUT/dequant/dot work. All controls, 86-case
+  store-liveness/duplicate checks, 11,008 timestamps, and AIR gates pass. Paired saving intervals
+  are `[4.683,4.724]`/`[4.715,4.735]` ms, far below 8.7 ms. The first capture's
+  missing row offset was discarded. Arithmetic reduction closes without a production prototype.
+  The repeat audit reproduced corrected AIR, controls, evidence generation, and STOP economics.
+  `artifacts/lead08_reassessment/32_iter24_weight_floor.md`.
 
 - **2026-07-18 - Lead 08 iteration 23 direct mapped-pair replay: T2c VALID positive selector;
   audit COMMIT.** All selectors pass 86/86 full/direct bitwise cases; all 300 measured samples retain
@@ -313,11 +322,11 @@ Experiment selection and stop rules are maintained in
 **Lead 08:** T1's Metal-counter capability gate is blocked. T2a is ambiguous on the incompatible
 SSD carrier and T2b is invalid. T2c now validly selects one-sided arithmetic/issue sensitivity on
 the live mapped `tiny_pair_mv` kernel, without proving production is dequant-compute-bound. Its
-literal direct carrier is about 10.74 ms/cycle. The next action is an independently preflighted U1
-maximum-removable arithmetic upper-bound kernel retaining packed loads/addressing/geometry/stores.
-It must show a paired saving lower bound >=8.7 ms in both strata, approximately 81%; failure closes
-arithmetic reduction without production tuning. Only if U1 passes may a fixed-work production
-prototype be considered. Final bounded-track admission additionally
+literal direct carrier is about 10.74 ms/cycle. Corrected address-faithful U1 saves only 4.71-4.72
+ms even after removing activation and almost all
+semantics, so arithmetic/dequant reduction closes without a broad kernel sweep. The next action is
+a ledger reassessment limited to genuinely independent non-arithmetic mechanisms; if none has a
+fresh >=8.7 ms upper bound, Lead 08 bounded work is exhausted. Final bounded-track admission additionally
 requires `verify_ms(4) <= 50.5 ms` and `>= max(45.8 t/s, 1.20 x fresh plain)` on the 176-entry corpus, and no
 regression from a fresh matched M3 control on the recorded task-quality and distribution gates.
 The exact-hybrid V5/V13 path is deferred, not disproven. Do not repeat the grouped, margin, layout,

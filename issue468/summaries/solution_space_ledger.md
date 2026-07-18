@@ -73,7 +73,7 @@ historical M3 values are outer caps rather than substitutes for matched controls
 | V11 | FFN HC input localization at layer 0 | First captured difference after V10 | Mixer is first differing operation | Diagnostic capture | Capture FFN residual/flat/mix/split/pre | Residual and flat exact; mix differs 14/24 before split/pre | `CLOSED` redesign |
 | V12 | Row-wise FFN HC mixer at layer 0 | Exact-input/different-output boundary exposed by V11 | Exact through FFN norm for captured row | Diagnostic patch | Apply existing F16 rows-as-M1 helper only to `hc_ffn_fn` | Frontier moves to router logits; local profiled envelope -0.029 ms | `CLOSED` positive |
 | V13 | Generic same-accumulation batched-F16 design/cost inventory | Exact-track response to three exposed low-K F16 mismatches | Design only | Must preserve batch sharing | Inventory attention/FFN/router shapes, kernel route, shared mechanism, isolated cost carrier | Not run; unnecessary for M3-bounded admission | `DEFERRED` exactness track |
-| V14 | M3-quality-bounded verifier acceleration | Must save >=8.7 ms/cycle to close the live gap | No worse than matched M3 task/distribution envelope | Must preserve M3 composition and integrity | Bind a separator to the live mapped kernel, then one >=15% fixed-work prototype | T2c validly selects arithmetic/issue sensitivity, but the direct carrier is only about 10.74 ms/cycle | `OPEN`, blocked on U1 upper bound |
+| V14 | M3-quality-bounded verifier acceleration | Must save >=8.7 ms/cycle to close the live gap | No worse than matched M3 task/distribution envelope | Must preserve M3 composition and integrity | Bind a separator to the live mapped kernel, then one >=15% fixed-work prototype | Address-faithful U1 optimistic floor saves only 4.71-4.72 ms, less than the required prize | `CLOSED` arithmetic branch; no production prototype |
 | K1 | Grouped routed gate/up | Proposed expert-load sharing | Bit-exact on identical inputs | Composes | Production 18/24 prototype | 22.9% slower | `CLOSED` |
 | K2 | Expert address remapping / packing | Proposed coalescing | Exact | Composes | Fixed-work placement sweep | Less than 2% sensitivity | `CLOSED` |
 | K3 | Address-kernel SIMDgroup / row-tile geometry | Low-single-digit possible | Exact | Composes | Production fixed-work sweep | At most about 1-3%, inconsistent | `CLOSED` |
@@ -83,7 +83,7 @@ historical M3 values are outer caps rather than substitutes for matched controls
 | T2a | SSD selected-address ALU-headroom separator | Attribution only | Neutral | SSD path cannot compose with DSpark | Production plus companion-zero control; compiler-retained dependent FMA sweep at fixed bytes/rows/geometry | Layer-0 pattern bit-exact; control within 2%; monotonic response, but rounds 32: +5.41% total/+10.10% gate-up falls in the predeclared ambiguous band | `CLOSED` ambiguous; incompatible carrier |
 | T2b | Live mapped `tiny_pair_mv` ALU-headroom separator | Attribution only; may select arithmetic V14 mechanism | Neutral | Current K=4 `kernel_mul_mv_id_iq2_xxs_pair_f32` family | Literal production plus companion-zero and retained-FMA arms on two 18-unique selection strata; require all-layer dispatch/AIR/bitwise gates | Fidelity/AIR/dispatch pass and response is strong, but three control intervals escape +/-2%; overlap R32 lower CI is 24.958% | `CLOSED` invalid / near-threshold |
 | T2c | Control-stabilized mapped pair replay | Attribution only | Neutral | Same K=4 mapped pair carrier | Direct gate/up replay with GPU command-buffer timestamps, production duplicate, companion-zero, R32/R128, two strata | All controls/fidelity/AIR gates pass; R32 lower CI is +45.65%/+45.66% vs zero and R128 is monotonic | `CLOSED` positive selector; one-sided arithmetic/issue sensitivity |
-| U1 | Maximum-removable mapped-pair arithmetic upper bound | At most the approximately 10.74 ms/cycle direct carrier | Neutral research kernel | Same mapped carrier; not production semantics | Retain packed loads/addressing/geometry/stores, remove maximum arithmetic with AIR proof, require paired saving lower bound >=8.7 ms in both strata | T2c authorizes exactly one attempt; required saving is about 81% of literal production | `P0`; independent preflight required |
+| U1 | Maximum-removable mapped-pair arithmetic upper bound | At most the approximately 10.74 ms/cycle direct carrier | Neutral research kernel | Same mapped carrier; not production semantics | Retain packed loads/addressing/geometry/stores, remove maximum arithmetic with AIR proof, require paired saving lower bound >=8.7 ms in both strata | Corrected address-faithful floor saves 4.708/4.724 ms with upper bounds below 4.74 ms | `CLOSED` economic STOP |
 
 Canonical evidence index (summary names are under `issue468/summaries/`; reassessment artifacts are
 under `issue468/artifacts/lead08_reassessment/`):
@@ -223,12 +223,42 @@ proof that production is dequant-compute-bound. Direct production is only about 
 layers, so the unchanged absolute 8.7 ms prize is now an approximately 81% carrier-reduction gate.
 U1 must use that stricter measured bound rather than the iteration-22 profiler percentage.
 
+### U1 predeclared protocol (iteration 24)
+
+Independent preflight returned **GO**, with U1 explicitly narrowed to an optimistic packed-weight
+access/output-store floor rather than arithmetic-only attribution. The research kernel loads every
+8-byte IQ2 q payload and 2-byte scale at the exact production gate/up expert-row/subblock addresses,
+accumulates a live unsigned checksum per row/lane, performs a SIMD reduction, and overwrites both
+production-shaped output destinations. It retains the ID-derived expert dependence, mapped weight
+bases, runtime loops, NSG 2, NR0 4, 24-pair grid, and stores. It deliberately removes LUT
+initialization/barrier, activation loads, dequantization, and floating dot arithmetic.
+
+Arms are production, identical production duplicate, U1, and identical U1 duplicate. Use fixed IDs
+by layer in both overlap and coprime-dispersed strata, discard 16 balanced warmup rounds, then
+measure 32 Latin/reversed rounds per stratum with one command buffer per layer. Every sample must
+contain 43 positive finite GPU intervals. Production/duplicate paired relative intervals must fit
++/-1%; U1/duplicate must fit +/-3% and +/-0.10 ms. U1 duplicates must overwrite outputs with exact
+bits. AIR must retain ID, both mapped weight-base q/scale loads inside runtime row/subblock loops,
+SIMD reduction, and both output stores, while containing no floating FMA/multiply, dequant/LUT work,
+or threadgroup barrier.
+
+The primary statistic is the same-round paired absolute median saving with 20,000 deterministic
+bootstrap draws. A saving lower bound below 8.7 ms in either stratum, or stratum disagreement,
+closes arithmetic reduction without tuning. Passing only establishes that this deliberately
+optimistic floor is large enough; it requires ledger reassessment and another preflight and does not
+automatically authorize a production prototype. Repeated control, AIR, path, or output validity
+failure closes U1 invalid.
+
+**Outcome.** The first capture omitted the production first-row weight offset and was discarded.
+Corrected U1 passes validity controls but saves only 4.708104 ms `[4.683041,4.724125]` on overlap
+and 4.723667 ms `[4.715042,4.735250]` on dispersed IDs. Even the upper bounds miss 8.7 ms by about
+4 ms. Close arithmetic/dequant reduction without tuning or semantic prototype.
+
 ## Ranked queue and outcome rules
 
 | Rank | Experiment | Why now | Pass | Fail / stop |
 |---:|---|---|---|---|
-| P0 | U1 maximum-removable arithmetic upper bound preflight and one kernel | T2c validly selects arithmetic/issue sensitivity, but direct production is only about 10.74 ms/cycle | Retain packed loads/addressing/geometry/stores and prove with AIR; paired absolute saving lower bound >=8.7 ms in both strata | Close arithmetic reduction if the upper bound cannot remove about 81% of this carrier; do not tune variants |
-| 1 | V14 one mechanism-selected production prototype | Only if U1 proves enough absolute arithmetic prize | >=15% on identified hot stage and credible >=8.7 ms/cycle composed saving | Close that mechanism; do not tune variants below the gate |
+| P0 | Reassess remaining non-arithmetic ledger after U1 | Address-faithful optimistic arithmetic removal cannot supply the prize | Select only a genuinely independent mechanism with a fresh upper bound >=8.7 ms | If none remains, Lead 08 bounded track is exhausted |
 | 2 | V14 matched quality gate plus scheduled integration | Only after stage economics pass | No worse than fresh M3 control and historical caps; `verify_ms(4)<=50.5 ms`; save >=8.7 ms/cycle | Close candidate on any conjunctive failure |
 | 3 | V14 full 176-entry composition | Decisive interim result | `>= max(45.8 t/s, 1.20 x fresh plain)` with all quality/integrity gates | Close candidate |
 | 4 | V5/V13 exact track | Return path to primary goal after bounded path succeeds or is exhausted | Exact stream within economic gate | Defer or close based on cumulative lower bound |

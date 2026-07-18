@@ -5,10 +5,10 @@
 > matched M3 task-quality/distribution envelope. V1 is the interim baseline; the V5/V13 exact
 > accumulation track is deferred; T1 Metal counter attribution is tooling-blocked, T2a applies only
 > to the incompatible SSD address kernel, and mapped-kernel T2b is invalid on its control gate.
-> T2c now validly selects one-sided arithmetic/issue sensitivity; U1, exactly one maximum-removable
-> arithmetic upper-bound kernel, is P0. V14 mechanism-selected acceleration is the active branch.
-> The direct carrier is only about 10.74 ms/cycle, so the required >=8.7 ms prize is an approximately
-> 81% cut. K=4 verify must
+> T2c validly selected one-sided arithmetic/issue sensitivity, but corrected address-faithful U1
+> saves only 4.71-4.72 ms even after removing activation and almost all semantics. Arithmetic and
+> dequant reduction are economically closed; V14 has no selected mechanism. Only a genuinely
+> independent mechanism with a fresh >=8.7 ms upper bound may reopen bounded work. K=4 verify must
 > reach <=50.5 ms, and the composed 176-entry run must reach
 > `>= max(45.8 t/s, 1.20 x fresh plain)`.
 > Separators select one mechanism; they are not themselves evidence of a speedup.
@@ -382,6 +382,18 @@ sufficient." (Confirmatory: a literal identical-input MoE kernel-equality harnes
 verify-bandwidth slope re-measure.)
 
 ## Worklog
+
+### 2026-07-18 - iteration-24 optimistic packed-weight floor -> economic STOP
+
+U1 retains live mapped IQ2 q/scale loads, ID-dependent addressing, production geometry/SIMD
+reduction/stores, while intentionally removing activation, LUT/barrier, dequant, and dot work. All
+256 timing samples retain 43 intervals; sentinel-based 86-case duplicate checks and AIR gates pass.
+After discarding a first capture that omitted the production first-row weight offset, the corrected
+paired saving is 4.708104 `[4.683041,4.724125]` ms on overlap and 4.723667
+`[4.715042,4.735250]` ms on dispersed IDs. Even this nonsemantic optimistic floor misses 8.7 ms,
+so arithmetic/dequant reduction closes without tuning. Artifact:
+`artifacts/lead08_reassessment/32_iter24_weight_floor.md`. The corrected repeat audit reproduced
+address-faithful AIR, all controls, byte-identical CSV generation, and returned **COMMIT**.
 
 ### 2026-07-18 - iteration-23 direct mapped-pair GPU replay -> VALID positive selector
 

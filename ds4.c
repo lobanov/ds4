@@ -22533,8 +22533,14 @@ int metal_graph_test_m2_fidelity_unit(const ds4_model *model, const ds4_weights 
     const bool addr_nr0_probe = getenv("DS4_LEAD08_ADDR_NR0_PROBE") != NULL;
     const bool addr_alu_probe = getenv("DS4_LEAD08_ADDR_ALU_PROBE") != NULL;
     const bool mapped_alu_probe = getenv("DS4_LEAD08_MAPPED_ALU_PROBE") != NULL;
+    const bool mapped_arith_floor =
+        getenv("DS4_LEAD08_MAPPED_ARITH_FLOOR") != NULL;
     const bool mapped_alu_direct =
         getenv("DS4_LEAD08_MAPPED_ALU_DIRECT_REPLAY") != NULL;
+    if (mapped_arith_floor && (!mapped_alu_probe || !mapped_alu_direct)) {
+        fprintf(stderr, "lead08_m2_fid: mapped arithmetic floor requires probe+direct modes\n");
+        return -1;
+    }
     if (mapped_alu_direct) unsetenv("DS4_LEAD08_MAPPED_ALU_DIRECT_REPLAY");
     const bool cache_replay_probe = getenv("DS4_LEAD08_CACHE_REPLAY_PROBE") != NULL;
     const bool batch_overlap_probe =
@@ -23211,19 +23217,25 @@ int metal_graph_test_m2_fidelity_unit(const ds4_model *model, const ds4_weights 
                     { 0u, 1u, 8u, 32u, 128u };
                 static const uint32_t direct_alu_values[GEOMETRY_MAX_PATTERNS] =
                     { 0u, 2u, 1u, 32u, 128u };
+                static const uint32_t floor_values[GEOMETRY_MAX_PATTERNS] =
+                    { 0u, 2u, 3u, 4u, 0u };
                 const bool sweep_mapped_alu = mapped_alu_probe;
                 const bool sweep_alu = addr_alu_probe || sweep_mapped_alu;
                 const bool sweep_nr0 = addr_nr0_probe;
-                const uint32_t *geometry_values = mapped_alu_direct ? direct_alu_values :
+                const uint32_t *geometry_values = mapped_arith_floor ? floor_values :
+                    (mapped_alu_direct ? direct_alu_values :
                     (sweep_alu ? alu_values :
-                    (sweep_nr0 ? nr0_values : nsg_values));
-                const uint32_t geometry_patterns = sweep_alu ? 5u : (sweep_nr0 ? 3u : 4u);
+                    (sweep_nr0 ? nr0_values : nsg_values)));
+                const uint32_t geometry_patterns = mapped_arith_floor ? 4u :
+                    (sweep_alu ? 5u : (sweep_nr0 ? 3u : 4u));
                 const uint32_t geometry_baseline = sweep_alu ? 0u :
                     (sweep_nr0 ? 4u : 2u);
-                const uint32_t geometry_rounds = mapped_alu_direct ? 30u :
+                const uint32_t geometry_rounds = mapped_arith_floor ? 32u :
+                    (mapped_alu_direct ? 30u :
                     (sweep_mapped_alu ? 20u :
-                    (sweep_alu ? 10u : (uint32_t)BATCH_ROUNDS));
-                const uint32_t geometry_warmup_rounds = mapped_alu_direct ? 20u : 0u;
+                    (sweep_alu ? 10u : (uint32_t)BATCH_ROUNDS)));
+                const uint32_t geometry_warmup_rounds = mapped_arith_floor ? 16u :
+                    (mapped_alu_direct ? 20u : 0u);
                 const char *geometry_name = sweep_mapped_alu ? "mapped_alu" :
                     (sweep_alu ? "alu" : (sweep_nr0 ? "nr0" : "nsg"));
                 const char *geometry_env = sweep_mapped_alu ?
@@ -23264,6 +23276,8 @@ int metal_graph_test_m2_fidelity_unit(const ds4_model *model, const ds4_weights 
                         geometry_name,
                         (uint32_t)BATCH_K, pair_rows, nsg_unique,
                         geometry_rounds, geometry_name,
+                        mapped_arith_floor ?
+                            "[0=production,2=production-duplicate,3=weight-floor,4=weight-floor-duplicate]" :
                         mapped_alu_direct ?
                             "[0=production,2=production-duplicate,1=companion-zero,32,128]" :
                         (sweep_alu ? "[0=production,1=companion-zero,8,32,128]" :
@@ -23274,6 +23288,8 @@ int metal_graph_test_m2_fidelity_unit(const ds4_model *model, const ds4_weights 
                 float *ref_mid = malloc((size_t)bmid_bytes);
                 float *ref_out = malloc((size_t)bout_bytes);
                 float *got = malloc((size_t)(bmid_bytes > bout_bytes ? bmid_bytes : bout_bytes));
+                float *floor_gate = mapped_arith_floor ? malloc((size_t)bmid_bytes) : NULL;
+                float *floor_up = mapped_arith_floor ? malloc((size_t)bmid_bytes) : NULL;
                 uint32_t fidelity_cases[GEOMETRY_MAX_PATTERNS] = { 0 };
                 uint32_t fidelity_failures[GEOMETRY_MAX_PATTERNS] = { 0 };
                 uint32_t fid_layer = UINT32_MAX;
@@ -23287,6 +23303,7 @@ int metal_graph_test_m2_fidelity_unit(const ds4_model *model, const ds4_weights 
                     }
                 }
                 if (!ref_gate || !ref_up || !ref_mid || !ref_out || !got ||
+                    (mapped_arith_floor && (!floor_gate || !floor_up)) ||
                     fid_layer == UINT32_MAX) {
                     fprintf(stderr,
                             "lead08_addr_%s_fid: allocation/layer discovery failed\n",
@@ -23375,6 +23392,17 @@ int metal_graph_test_m2_fidelity_unit(const ds4_model *model, const ds4_weights 
                         }
                         if (!ds4_gpu_end_commands()) got_ok = 0;
                         if (mapped_alu_direct && got_ok) {
+                            const bool floor_candidate = mapped_arith_floor &&
+                                (geometry_values[pattern] == 3u || geometry_values[pattern] == 4u);
+                            uint32_t sentinel = geometry_values[pattern] == 3u ?
+                                0x7fc12345u : 0x7fc54321u;
+                            if (floor_candidate) {
+                                for (uint64_t i = 0; i < bmid_bytes / sizeof(uint32_t); i++) {
+                                    memcpy(&got[i], &sentinel, sizeof(sentinel));
+                                }
+                                got_ok = ds4_gpu_tensor_write(bgate, 0, got, bmid_bytes) &&
+                                    ds4_gpu_tensor_write(bup, 0, got, bmid_bytes);
+                            }
                             setenv("DS4_LEAD08_MAPPED_ALU_DIRECT_REPLAY", "1", 1);
                             bool direct_mid_f16 = false;
                             got_ok = ds4_gpu_begin_commands();
@@ -23409,6 +23437,46 @@ int metal_graph_test_m2_fidelity_unit(const ds4_model *model, const ds4_weights 
                                     "stratum=%u %s=%u layer=%u\n",
                                     geometry_name, fid_stratum, geometry_name,
                                     geometry_values[pattern], fid_layer);
+                            continue;
+                        }
+                        if (mapped_arith_floor &&
+                            (geometry_values[pattern] == 3u || geometry_values[pattern] == 4u)) {
+                            const uint32_t selector = geometry_values[pattern];
+                            const uint32_t sentinel = selector == 3u ? 0x7fc12345u : 0x7fc54321u;
+                            uint64_t unwritten = 0, duplicate_bits = 0;
+                            uint64_t output_hash = 1469598103934665603ull;
+                            got_ok = ds4_gpu_tensor_read(bgate, 0, got, bmid_bytes);
+                            for (uint64_t i = 0; got_ok && i < bmid_bytes / sizeof(uint32_t); i++) {
+                                uint32_t bits;
+                                memcpy(&bits, &got[i], sizeof(bits));
+                                output_hash = (output_hash ^ bits) * 1099511628211ull;
+                                if (bits == sentinel) unwritten++;
+                                if (selector == 3u) floor_gate[i] = got[i];
+                                else if (memcmp(&got[i], &floor_gate[i], sizeof(float)) != 0)
+                                    duplicate_bits++;
+                            }
+                            got_ok = got_ok && ds4_gpu_tensor_read(bup, 0, got, bmid_bytes);
+                            for (uint64_t i = 0; got_ok && i < bmid_bytes / sizeof(uint32_t); i++) {
+                                uint32_t bits;
+                                memcpy(&bits, &got[i], sizeof(bits));
+                                output_hash = (output_hash ^ bits) * 1099511628211ull;
+                                if (bits == sentinel) unwritten++;
+                                if (selector == 3u) floor_up[i] = got[i];
+                                else if (memcmp(&got[i], &floor_up[i], sizeof(float)) != 0)
+                                    duplicate_bits++;
+                            }
+                            const bool case_valid = got_ok && unwritten == 0 &&
+                                (selector == 3u || duplicate_bits == 0);
+                            if (!case_valid) fidelity_failures[pattern]++;
+                            nsg_valid[pattern] = nsg_valid[pattern] && case_valid;
+                            fprintf(stderr,
+                                    "lead08_addr_mapped_alu_floor_fid: stratum=%u selector=%u "
+                                    "layer=%u unwritten=%llu duplicate_bits=%llu hash=%016llx result=%s\n",
+                                    fid_stratum, selector, fid_layer,
+                                    (unsigned long long)unwritten,
+                                    (unsigned long long)duplicate_bits,
+                                    (unsigned long long)output_hash,
+                                    case_valid ? "PASS" : "FAIL");
                             continue;
                         }
                         ds4_gpu_tensor_read(bgate, 0, got, bmid_bytes);
@@ -23481,6 +23549,8 @@ int metal_graph_test_m2_fidelity_unit(const ds4_model *model, const ds4_weights 
                 free(ref_mid);
                 free(ref_out);
                 free(got);
+                free(floor_gate);
+                free(floor_up);
                 if (mapped_alu_direct) setenv("DS4_LEAD08_MAPPED_ALU_DIRECT_REPLAY", "1", 1);
 
                 const uint32_t timing_strata = sweep_mapped_alu ? 2u : 1u;

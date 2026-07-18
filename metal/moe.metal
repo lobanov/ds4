@@ -1107,6 +1107,80 @@ kernel void kernel_mul_mv_id_iq2_xxs_pair_alu_f32(
         probe.add);
 }
 
+// Lead 08 research-only optimistic floor. This preserves the packed IQ2 weight
+// footprint and output shape while replacing dequant/dot work with live checksums.
+kernel void kernel_mul_mv_id_iq2_xxs_pair_weight_floor_f32(
+        constant ds4_metal_args_mul_mv_id & args,
+        device const char * src0_gate,
+        device const char * src0_up,
+        device const char * src1,
+        device       char * dst_gate,
+        device       char * dst_up,
+        device const char * ids,
+        threadgroup  char * shmem [[threadgroup(0)]],
+        uint3  tgpig[[threadgroup_position_in_grid]],
+        ushort tiitg[[thread_index_in_threadgroup]],
+        ushort tiisg[[thread_index_in_simdgroup]],
+        ushort sgitg[[simdgroup_index_in_threadgroup]]) {
+    (void)src1;
+    (void)shmem;
+    (void)tiitg;
+
+    const short NSG = FC_mul_mv_nsg;
+    const int iid1 = tgpig.z / args.nei0;
+    const int idx = tgpig.z % args.nei0;
+    const int32_t expert = ((device const int32_t *)(ids + iid1 * args.nbi1))[idx];
+    const int first_row = (tgpig.x * NSG + sgitg) * N_R0_IQ2_XXS;
+    const int nb32 = (args.ne00 / QK_K) * (QK_K / 32);
+
+    device const block_iq2_xxs *xg =
+        (device const block_iq2_xxs *)(src0_gate + expert * args.nb02 +
+                                      (uint64_t)first_row * args.nb01);
+    device const block_iq2_xxs *xu =
+        (device const block_iq2_xxs *)(src0_up + expert * args.nb02 +
+                                      (uint64_t)first_row * args.nb01);
+    ulong sumg[N_R0_IQ2_XXS] = {0ul};
+    ulong sumu[N_R0_IQ2_XXS] = {0ul};
+
+    for (int ib32 = tiisg; ib32 < nb32; ib32 += 32) {
+        const int ibl = ib32 / (QK_K / 32);
+        const int ib = ib32 % (QK_K / 32);
+        device const block_iq2_xxs *xgr = xg + ibl;
+        device const block_iq2_xxs *xur = xu + ibl;
+        device const uint16_t *qg = xgr->qs + 4 * ib;
+        device const uint16_t *qu = xur->qs + 4 * ib;
+        device const half *dhg = &xgr->d;
+        device const half *dhu = &xur->d;
+
+        for (short row = 0; row < N_R0_IQ2_XXS; row++) {
+            const packed_ushort4 gate_q = *(device const packed_ushort4 *)qg;
+            const packed_ushort4 up_q = *(device const packed_ushort4 *)qu;
+            sumg[row] += as_type<ulong>(gate_q) + (ulong)as_type<ushort>(dhg[0]);
+            sumu[row] += as_type<ulong>(up_q) + (ulong)as_type<ushort>(dhu[0]);
+            dhg += args.nb01 / 2;
+            dhu += args.nb01 / 2;
+            qg += args.nb01 / 2;
+            qu += args.nb01 / 2;
+        }
+    }
+
+    const int64_t i12 = iid1;
+    device uint *dst_gate_u32 = (device uint *)dst_gate +
+        idx * args.ne0 + i12 * args.ne1 * args.ne0;
+    device uint *dst_up_u32 = (device uint *)dst_up +
+        idx * args.ne0 + i12 * args.ne1 * args.ne0;
+    for (int row = 0; row < N_R0_IQ2_XXS && first_row + row < args.ne0; row++) {
+        const uint gate_fold = (uint)sumg[row] ^ (uint)(sumg[row] >> 32);
+        const uint up_fold = (uint)sumu[row] ^ (uint)(sumu[row] >> 32);
+        const uint gate_bits = 0x3f000000u | (simd_sum(gate_fold) & 0x007fffffu);
+        const uint up_bits = 0x3f000000u | (simd_sum(up_fold) & 0x007fffffu);
+        if (tiisg == 0) {
+            dst_gate_u32[first_row + row] = gate_bits;
+            dst_up_u32[first_row + row] = up_bits;
+        }
+    }
+}
+
 // Decode-only routed expert gate/up projection fused with the DS4 activation:
 //
 //     mid = silu(clamp(gate)) * clamp(up) * route_weight
