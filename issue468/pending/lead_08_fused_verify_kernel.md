@@ -3,7 +3,8 @@
 > **Current verdict (2026-07-18): Lead 08 now has an explicit `INTERIM_BOUNDED` contract.**
 > Preserve exact output as the ultimate project gate, but pursue verifier speed within a fresh
 > matched M3 task-quality/distribution envelope. V1 is the interim baseline; the V5/V13 exact
-> accumulation track is deferred; T1 Metal counter attribution is P0; V14 counter-selected
+> accumulation track is deferred; T1 Metal counter attribution is tooling-blocked and T2 controlled
+> separation is P0; V14 mechanism-selected
 > acceleration is the active branch. The required prize remains >=8.7 ms/cycle, K=4 verify must
 > reach <=50.5 ms, and the composed 176-entry run must reach
 > `>= max(45.8 t/s, 1.20 x fresh plain)`.
@@ -353,11 +354,12 @@ fused (the full build). Keeps the Phase-B abort condition (>5% re-verification).
 
 ## Next steps
 
-**2026-07-18 current:** run a warm matched fixed-K4 M3-verifier versus M1-decode Metal-counter
-capture without dump/stage-sync instrumentation. Use the result only to select one distinct
-bandwidth/cache, ALU/dequant, occupancy/barrier, or dispatch/fusion mechanism. Then permit one
-fixed-work prototype only if its identified hot stage has a plausible >=8.7 ms/cycle prize; require
->=15% stage improvement before integration. Do not repeat the grouped, margin, address-layout,
+**2026-07-18 current:** preflight T2, a same-kernel arithmetic-intensity separator holding selected
+weights, addresses, physical rows, and dispatch geometry fixed. T1's CLI Metal-counter route is
+blocked by non-discriminating counters, empty shader intervals, and >5% perturbation. Only a valid
+separator may select one distinct bandwidth/cache or ALU/dequant mechanism. Then permit one fixed-work
+prototype only if its identified hot stage has a plausible >=8.7 ms/cycle prize; require >=15% stage
+improvement before integration. Do not repeat the grouped, margin, address-layout,
 geometry, mapped-residency, shared-family, or top-r mechanisms: the relaxed quality contract does
 not alter their economic falsifiers.
 
@@ -375,6 +377,26 @@ sufficient." (Confirmatory: a literal identical-input MoE kernel-equality harnes
 verify-bandwidth slope re-measure.)
 
 ## Worklog
+
+### 2026-07-18 - iteration-20 Metal counter capability gate -> tooling BLOCKED
+
+**Preflight and contract.** Independent challenge returned **REDESIGN**: compare an identical
+untraced fixed-K4 M3 control and Metal System Trace; require useful populated DRAM/cache, ALU, or
+occupancy/stall counters, resolved shader intervals, and <=5% steady verify perturbation. K1/K4
+same-path scaling and raw-M1 context were contingent on this capability gate.
+
+**Result.** The default `Metal GPU Counters` profile is unsupported. Metal System Trace records
+822,505 counter values, but its only counter is `RT Unit Active` and every value is zero. It resolves
+119 ds4 shader names but exports zero shader interval rows. The steady 21-cycle K4 verify median moves
+62.082 -> 66.754 ms (+7.526%); throughput moves 37.803 -> 35.703 t/s (-5.556%). Both the
+discrimination and <=5% perturbation gates fail.
+
+**Decision.** Make no bandwidth, compute, occupancy, or hot-kernel claim. Do not run K1/K4 under the
+same template. T1 becomes `BLOCKED`; a custom GUI template with a supported M5 counter set may reopen
+it. T2 same-kernel arithmetic-intensity separation becomes P0 and requires a fresh preflight before
+implementation. The large trace/XML exports remain temporary; compact result and reproduction:
+`artifacts/lead08_reassessment/28_iter20_metal_counter_capability.{md,csv}`. Mandatory audit is
+**COMMIT** after independently reproducing the warning, counts, medians, and deltas.
 
 ### 2026-07-18 - iteration-19 bounded-divergence contract and ledger reset
 

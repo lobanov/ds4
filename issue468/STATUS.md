@@ -22,12 +22,18 @@ cycle (~16 ms/token off the target).
 | Goal | ≥20 % greedy throughput on ds4 IQ2XXS, exact-output-preserved |
 | Current best | Full DSpark stack **+4.9 %** over plain (40.04 vs 38.16 t/s; score-neutral 61/92) — M3 |
 | The gap | +20 % not reached; verify ≈80 % of the cycle |
-| Open lever | **V14 M3-bounded verifier acceleration.** Full Xcode now exposes Metal counters; first obtain matched K=4 verifier/M1 attribution, then permit exactly one mechanism-specific fixed-work prototype. Required composed saving is >=8.7 ms/cycle, with `verify_ms(4) <= 50.5 ms` and the M3 quality envelope |
+| Open lever | **V14 M3-bounded verifier acceleration.** The xctrace capability gate failed, so T2 same-kernel arithmetic-intensity separation is now P0 before exactly one mechanism-specific prototype. Required composed saving is >=8.7 ms/cycle, with `verify_ms(4) <= 50.5 ms` and the M3 quality envelope |
 | Closed (negative) | Drafter/input quality (Lead 07), drafter quant (Q4_K), non-expert finetune (Stage 2), DFlash, quant-mismatch |
 
 ## Investigation arc
 
 Reverse-chronological. Each entry: what was tested → verdict → canonical record.
+
+- **2026-07-18 - Lead 08 iteration 20 Metal counter capability: tooling BLOCKED; audit COMMIT.**
+  Default GPU Counters rejects its profile. Metal System Trace exposes only zero-valued `RT Unit
+  Active`, resolves 119 shader names but zero shader intervals, and perturbs the steady K4 verify
+  median 62.082 -> 66.754 ms (+7.5%). No binding claim; T2 controlled separation becomes P0.
+  `artifacts/lead08_reassessment/28_iter20_metal_counter_capability.md`.
 
 - **2026-07-18 - Lead 08 iteration 19 bounded-divergence reframe: corrected audit COMMIT.**
   Exact output remains the project success gate, but Lead 08 may now optimize inside a matched M3
@@ -277,9 +283,12 @@ The bench harness: `ds4-spec-bench` (`make ds4-spec-bench`) — use it, not the 
 Experiment selection and stop rules are maintained in
 `summaries/solution_space_ledger.md`; new work must enter that ledger before implementation.
 
-**Lead 08:** run a warm matched fixed-K4 M3-verifier versus M1-decode Metal-counter capture without
-dump/stage-sync instrumentation. Use it only to choose one bandwidth/cache, ALU/dequant,
-occupancy/barrier, or dispatch/fusion mechanism; counters alone do not authorize implementation.
+**Lead 08:** T1's Metal-counter capability gate is blocked: the available CLI trace has no useful
+DRAM/cache, ALU, or occupancy/stall counters, no shader interval rows, and >5% timing perturbation.
+A custom Instruments GUI template may reopen it, but the next self-contained action is a preflighted
+T2 same-kernel arithmetic-intensity separator. Hold weights, addresses, dispatch geometry, and
+physical rows fixed while changing only compiler-retained register math; attribution still does not
+authorize implementation by itself.
 The selected fixed-work prototype must improve its identified hot stage by at least 15% and expose a
 credible >=8.7 ms/cycle composed saving before integration. Final bounded-track admission additionally
 requires `verify_ms(4) <= 50.5 ms` and `>= max(45.8 t/s, 1.20 x fresh plain)` on the 176-entry corpus, and no

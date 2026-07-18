@@ -79,7 +79,8 @@ historical M3 values are outer caps rather than substitutes for matched controls
 | K3 | Address-kernel SIMDgroup / row-tile geometry | Low-single-digit possible | Exact | Composes | Production fixed-work sweep | At most about 1-3%, inconsistent | `CLOSED` |
 | M1 | Cross-cycle expert residency on SSD selected-address path | Large isolated prize | Exact replay | DSpark rejects SSD streaming | Cold/resident replay plus compatibility check | -87.8% isolated, incompatible | `BLOCKED`, separate runtime lead |
 | M2 | Cross-cycle residency on mapped current path | Small | Exact | Composes | Cold/resident replay | 0.566 -> 0.566 ms/layer | `CLOSED` |
-| T1 | Metal counter attribution tied to V14 | Selector only; no direct speedup | Neutral | Full Xcode now available | Matched warm K4 verifier versus M1 decode trace | Prior timestamp-only probe insufficient; counter instruments now exposed | `P0`, then select one V14 mechanism |
+| T1 | Metal counter attribution tied to V14 | Selector only; no direct speedup | Neutral | CLI profiles lack useful M5 counters | Populated-counter and <=5% perturbation gate | Only zero-valued `RT Unit Active`; no shader intervals; +7.5% timing perturbation | `BLOCKED`; custom GUI template could reopen |
+| T2 | Same-kernel arithmetic-intensity separator | Attribution only; selects V14 mechanism | Neutral | Research-only fixed-work probe | Hold weights/addresses/geometry/rows fixed; amplify only register-resident math | Not run; must defeat compiler elimination | `P0`, preflight next |
 
 Canonical evidence index (summary names are under `issue468/summaries/`; reassessment artifacts are
 under `issue468/artifacts/lead08_reassessment/`):
@@ -100,9 +101,10 @@ under `issue468/artifacts/lead08_reassessment/`):
 - K1-K3, M1-M2: Lead 08 reassessment artifacts `11_iter3_grouped_gateup_prototype.md`,
   `13_iter5_address_locality.md`, `14_iter6_addr_nsg_geometry.md`,
   `15_iter7_addr_row_tile.md`, and `16_iter8_cache_residency.md`.
-- T1: `07_leadid_candidate_synthesis.md`, reassessment artifact
-  `27_iter19_bounded_divergence_reframe.md`, and the current Lead 08 worklog. Counters remain a
-  selector until attached to a controlled mechanism experiment.
+- T1-T2: `07_leadid_candidate_synthesis.md`, reassessment artifacts
+  `27_iter19_bounded_divergence_reframe.md` and `28_iter20_metal_counter_capability.md`, and the
+  current Lead 08 worklog. T1 is blocked; T2 remains a selector until attached to a controlled
+  mechanism experiment.
 
 ## Deferred Lead 08 exactness frontier
 
@@ -164,13 +166,14 @@ a full build.
 
 | Rank | Experiment | Why now | Pass | Fail / stop |
 |---:|---|---|---|---|
-| P0 | T1 matched Metal counter trace: warm fixed-K4 M3 verifier versus M1 decode | Full Xcode now exposes the missing discriminator; routed-path binding remains unmeasured | Identify dominant kernels and one bandwidth/cache, ALU/dequant, occupancy/barrier, or dispatch/fusion hypothesis | If unavailable/ambiguous, run a controlled separator; make no binding claim |
+| P0 | T2 same-kernel arithmetic-intensity separator | T1 capability gate failed: no useful counters or shader intervals and >5% perturbation | Identify whether fixed-byte production-shaped cost responds materially to register-resident math amplification | If compiler elimination or fixed-work control fails, redesign; make no binding claim |
 | 1 | V14 one counter-selected fixed-work prototype | Prevent another untargeted kernel sweep | >=15% on identified hot stage and credible >=8.7 ms/cycle composed saving | Close that mechanism; do not tune variants below the gate |
 | 2 | V14 matched quality gate plus scheduled integration | Only after stage economics pass | No worse than fresh M3 control and historical caps; `verify_ms(4)<=50.5 ms`; save >=8.7 ms/cycle | Close candidate on any conjunctive failure |
 | 3 | V14 full 176-entry composition | Decisive interim result | `>= max(45.8 t/s, 1.20 x fresh plain)` with all quality/integrity gates | Close candidate |
 | 4 | V5/V13 exact track | Return path to primary goal after bounded path succeeds or is exhausted | Exact stream within economic gate | Defer or close based on cumulative lower bound |
 | 5 | D5 soft-label redistillation | Only if verifier economics survive and acceptance remains limiting | Powered p1 lift composes materially | Close drafter axis |
 
+T1 is blocked after its capability gate; no K1/K4 trace is authorized with the same template.
 The old restore P0 and V6-V12 are complete and audited. They remain retained exact-track evidence.
 No grouped-MoE, layout, geometry, mapped-residency, shared-family, top-r, or margin-policy experiment
 may be repeated without new evidence that changes its upper bound. Counter attribution is not itself

@@ -1,0 +1,3 @@
+arm,verify_n,steady_cycles,median_verify_ms,tokens_per_second,counter_names,counter_value_rows,nonzero_counter_values,resolved_shader_names,shader_interval_rows,verdict
+untraced_control,4,21,62.082000,37.8032753,not_recorded,0,0,0,0,control
+metal_system_trace,4,21,66.754000,35.7028895,RT Unit Active,822505,0,119,0,capability_fail
