@@ -48,6 +48,10 @@ static id<MTLCommandBuffer> g_batch_cb;
 static id<MTLComputeCommandEncoder> g_batch_enc;
 static double g_last_command_gpu_ms;
 static double g_last_command_kernel_ms;
+static double g_last_command_gpu_start;
+static double g_last_command_gpu_end;
+static uint32_t g_last_command_status;
+static int g_last_command_completed;
 static NSMutableArray<id<MTLCommandBuffer>> *g_pending_cbs;
 static id<MTLSharedEvent> g_selected_readback_event;
 static uint64_t g_selected_readback_event_value;
@@ -6815,6 +6819,10 @@ int ds4_gpu_end_commands(void) {
     const double gpu_end = cb.GPUEndTime;
     const double kernel_start = cb.kernelStartTime;
     const double kernel_end = cb.kernelEndTime;
+    g_last_command_gpu_start = gpu_start;
+    g_last_command_gpu_end = gpu_end;
+    g_last_command_status = (uint32_t)cb.status;
+    g_last_command_completed = cb.status == MTLCommandBufferStatusCompleted;
     g_last_command_gpu_ms = gpu_end > gpu_start ? (gpu_end - gpu_start) * 1000.0 : 0.0;
     g_last_command_kernel_ms =
         kernel_end > kernel_start ? (kernel_end - kernel_start) * 1000.0 : 0.0;
@@ -6827,6 +6835,22 @@ double ds4_gpu_last_command_gpu_ms(void) {
 
 double ds4_gpu_last_command_kernel_ms(void) {
     return g_last_command_kernel_ms;
+}
+
+double ds4_gpu_last_command_gpu_start(void) {
+    return g_last_command_gpu_start;
+}
+
+double ds4_gpu_last_command_gpu_end(void) {
+    return g_last_command_gpu_end;
+}
+
+uint32_t ds4_gpu_last_command_status(void) {
+    return g_last_command_status;
+}
+
+int ds4_gpu_last_command_completed(void) {
+    return g_last_command_completed;
 }
 
 static int ds4_gpu_flash_attn_stage_profile_boundary(

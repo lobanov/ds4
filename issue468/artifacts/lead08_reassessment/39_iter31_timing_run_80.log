@@ -1,0 +1,8 @@
+ds4: Metal device Apple M5 Max, 128.00 GiB RAM
+ds4: Metal 4 tensor API enabled for Tensor kernels
+ds4: drift-patch flags hc_stable=on norm_unify=on kv_raw_f32=off rope_exp2_log2=off math_safe=off tensor_matmul=on
+ds4: DSpark support model loaded: /Users/lobanov/Projects/ds4/gguf/dspark.gguf (draft=1)
+ds4: Metal model views created in 2.230 ms, residency requested in 382.895 ms, warmup 2.982 ms (mapped 82697.67 MiB from offset 5.09 MiB)
+ds4: Metal mapped mmaped model as 3 overlapping shared buffers
+ds4: metal backend initialized for graph diagnostics
+lead08_exact_smallm_timing: blocks=80 dispatches=344 warm_hash_e=45511b7150b45b22 warm_hash_c=260cc33618b51f1b result=TIMING_CAPTURED csv=issue468/artifacts/lead08_reassessment/39_iter31_timing_raw_80.csv

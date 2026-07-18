@@ -6,8 +6,9 @@
 > cross-quant exact small-M dense inventory and admits V15, one Q8/F16 family-level capability
 > prototype. V15 Stage A passes 430/430 all-layer M=2 word-exact cases; Stage B1 passes
 > 10,535/10,535 direct M=2..8/seven-site cases and fourteen-kernel AIR topology; Stage B2a passes
-> 903/903 captured C5 cases and the 43-layer nonredundant output-B seam. Stage B2b's <=7.5 ms
-> fixed-work economic gate remains untested. T1 Metal counter attribution is tooling-blocked, T2a applies only
+> 903/903 captured C5 cases and the 43-layer nonredundant output-B seam. Stage B2b's carrier is
+> nominally ~3.47 ms faster, but both allowed runs fail timing validity; persistent ambiguity is STOP.
+> T1 Metal counter attribution is tooling-blocked, T2a applies only
 > to the incompatible SSD address kernel, and mapped-kernel T2b is invalid on its control gate.
 > T2c validly selected one-sided arithmetic/issue sensitivity, but corrected address-faithful U1
 > saves only 4.71-4.72 ms even after removing activation and almost all semantics. Arithmetic and
@@ -92,7 +93,7 @@
 > mechanism, not another grouped gate+up variant.
 
 Date: 2026-07-07 (refreshed 2026-07-18). Status:
-**M3-bounded V14 exhausted -> V15 Stage B2a correctness/seam passed, Stage B2b timing pending; prior grouped, margin,
+**M3-bounded V14 exhausted -> V15 Stage B2b stopped on persistent timing ambiguity; prior grouped, margin,
 address-layout, production-geometry, and existing batch-family mechanisms remain NO-GO.**
 This doc remains the Lead 08 provenance record. Phase A result:
 `issue468/summaries/mtp_verifier_engineering_and_phaseA.md`; Phase B canonical
@@ -364,10 +365,9 @@ fused (the full build). Keeps the Phase-B abort condition (>5% re-verification).
 
 **2026-07-18 current:** corrected U1 closes arithmetic/dequant below 4.74 ms, and the iteration-25
 mechanism audit finds no independent concrete >=8.7 ms package on the current in-RAM runtime.
-Lead 08 `INTERIM_BOUNDED` is exhausted. V15 Stage A, B1, and B2a now pass: the Q8/F16 family is
-word-exact across C0-C5, and the 43-layer output-B seam is nonredundant and exact. Stage B2b is next:
-an M=4 fixed-work dense-carrier candidate-minus-current-ext delta upper bound <=7.5 ms. It is an
-admission screen, not full-verifier economics. No graph integration is authorized before it passes.
+Lead 08 `INTERIM_BOUNDED` is exhausted. V15 Stage A, B1, and B2a pass, but Stage B2b stops on
+persistent timing-validity ambiguity after the one allowed repeat. The isolated carrier's nominal
+~3.47 ms saving is not an admission result. No graph integration is authorized.
 Lead 05 remains an alternate only if SSD compatibility is in scope.
 Do not repeat grouped, margin,
 address-layout, geometry, mapped-residency, existing batch-family, or top-r mechanisms without evidence that
@@ -387,6 +387,23 @@ sufficient." (Confirmatory: a literal identical-input MoE kernel-equality harnes
 verify-bandwidth slope re-measure.)
 
 ## Worklog
+
+### 2026-07-18 - iteration-31 V15 Stage-B2b fixed-work timing -> STOP persistent ambiguity
+
+Independent preflight returned `REDESIGN, then proceed`: expose raw Metal start/end/completed status
+and stratify within-arm stability by arm and schedule. The implemented carrier uses disjoint outputs,
+fixed position-103 inputs, eight dispatches/layer/344 per observation, four excluded warmup blocks,
+all-output sentinel/finiteness/hash checks, and no measured readback. All command buffers complete.
+
+The 40-block run has candidate-minus-ext median/upper `-3.459979/-3.442208 ms`, but three stability
+strata fail. The one allowed 80-block repeat has `-3.475594/-3.455875 ms`; schedule and drift controls
+pass, but all four stratified relative intervals cross a bound by 0.082 to 0.211 percentage points.
+Persistent ambiguity is `STOP`; no threshold waiver or graph rollout is authorized. Artifact:
+`artifacts/lead08_reassessment/39_iter31_fixed_work_timing.md`.
+
+Red team first returned `FIX` because C5 input finiteness used `isfinite` under `-ffast-math`.
+Bitwise IEEE rejection, an injected-`+Inf` fail-closed test, and unchanged 903/903 plus 43/43 live
+replay resolved it; the required repeat audit returned `COMMIT`.
 
 ### 2026-07-18 - iteration-30 V15 Stage-B2a C5 and output-B seam -> PASS correctness
 

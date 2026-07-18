@@ -1,0 +1,81 @@
+{
+  "blocks": 40,
+  "bootstrap_draws": 100000,
+  "candidate_minus_ext_median_ms": -3.4599790000000006,
+  "candidate_minus_ext_upper_95_ms": -3.442208250000001,
+  "claim_scope": "fixed-work dense-carrier admission screen only",
+  "economic_limit_ms": 7.5,
+  "measured_observations": 160,
+  "outcome": "AMBIGUOUS",
+  "primary_seed": 288789,
+  "schedule_effect": {
+    "ci_high_ms": 0.017614249999999387,
+    "ci_low_ms": -0.0778439999999998,
+    "pass": true,
+    "point_ms": -0.030208750000003448
+  },
+  "schema": "lead08-v15-b2b-timing-v1",
+  "stability": [
+    {
+      "absolute_median_ms": -0.0973335000000013,
+      "arm": "E",
+      "n": 20,
+      "pass": false,
+      "relative_ci_high_pct": 0.8133900695153071,
+      "relative_ci_low_pct": -1.0151660873556827,
+      "relative_median_pct": -0.5025248747049158,
+      "schedule": "ECCE"
+    },
+    {
+      "absolute_median_ms": 0.07577099999999959,
+      "arm": "C",
+      "n": 20,
+      "pass": false,
+      "relative_ci_high_pct": 1.1191263469268127,
+      "relative_ci_low_pct": -1.1441026816054944,
+      "relative_median_pct": 0.48104271760740946,
+      "schedule": "ECCE"
+    },
+    {
+      "absolute_median_ms": -0.042771000000000114,
+      "arm": "E",
+      "n": 20,
+      "pass": false,
+      "relative_ci_high_pct": 1.1455496904844382,
+      "relative_ci_low_pct": -1.074042539275926,
+      "relative_median_pct": -0.22026784709556949,
+      "schedule": "CEEC"
+    },
+    {
+      "absolute_median_ms": 0.01956249999999926,
+      "arm": "C",
+      "n": 20,
+      "pass": true,
+      "relative_ci_high_pct": 0.9405243767699223,
+      "relative_ci_low_pct": -0.7546264597946366,
+      "relative_median_pct": 0.1226414952946463,
+      "schedule": "CEEC"
+    }
+  ],
+  "theil_sen": {
+    "C_ms_per_block": 6.51249999999437e-05,
+    "E_ms_per_block": -0.0008030375000003254,
+    "delta_ms_per_block": 0.0013263166666666493
+  },
+  "validity": "AMBIGUOUS",
+  "validity_failures": [
+    "stability:ECCE:E",
+    "stability:ECCE:C",
+    "stability:CEEC:E"
+  ],
+  "work_census": {
+    "common_output_a_weight_mib_per_layer": 34.0,
+    "exposed_weight_mib_per_layer": 77.875,
+    "layers": 43,
+    "logical_dispatches_per_layer": 8,
+    "logical_dispatches_per_observation": 344,
+    "physical_dram_traffic_claimed": false,
+    "sites": 7,
+    "unique_mapped_weight_bytes": 5044305920
+  }
+}

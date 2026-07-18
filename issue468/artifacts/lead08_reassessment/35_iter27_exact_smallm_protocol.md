@@ -155,6 +155,11 @@ A timing-validity failure is `AMBIGUOUS`; repeat once with 80 otherwise identica
 and the same numeric thresholds. Persistent ambiguity is `STOP`, not GO. Source/AIR topology,
 bitwise correctness, or seam failure is a direct `STOP`, never an ambiguous timing result.
 
+Iteration-31 preflight correction: retain raw `GPUStartTime`, `GPUEndTime`, and completed status.
+Evaluate the A2-minus-A1 control separately for E/C within each `ECCE`/`CEEC` schedule, using seeds
+`0x468160 + 2*schedule_id + arm_id`; pooling schedules can hide opposite order effects. The 40-block
+run and one 80-block repeat both fail this corrected validity gate, so Stage B2b closes `STOP`.
+
 ### Outcome tree
 
 - `PASS`: both formats and all direct cases are bit-exact, every candidate uses one logical weight

@@ -54,6 +54,10 @@ int ds4_gpu_tensor_read_after_selected_event(const ds4_gpu_tensor *tensor,
 int ds4_gpu_end_commands(void);
 double ds4_gpu_last_command_gpu_ms(void);
 double ds4_gpu_last_command_kernel_ms(void);
+double ds4_gpu_last_command_gpu_start(void);
+double ds4_gpu_last_command_gpu_end(void);
+uint32_t ds4_gpu_last_command_status(void);
+int ds4_gpu_last_command_completed(void);
 int ds4_gpu_synchronize(void);
 
 int ds4_gpu_set_model_map(const void *model_map, uint64_t model_size);

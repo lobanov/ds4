@@ -64,7 +64,8 @@ STATUS.md on 2026-07-16 so STATUS reads as a single coherent narrative.)
 - Lead 08 V15 executable protocol: `artifacts/lead08_reassessment/35_iter27_exact_smallm_protocol.md`; stages both-format M2 capability before exhaustive M2..8/seam/economic work, with fixed input, AIR, bitwise, timing, and outcome contracts
 - Lead 08 V15 Stage-A exact small-M pair: `artifacts/lead08_reassessment/36_iter28_exact_smallm_pair.md`, retained 430-case CSV, compact AIR map, and deterministic constructor/hash/cardinality validator; Q8 Q-a and F16 router M=2 pass bitwise at all 43 offsets, admitting Stage B without changing graph callsites
 - Lead 08 V15 Stage-B1 direct family: `artifacts/lead08_reassessment/37_iter29_exact_smallm_direct.md`, retained 10,535-case CSV and fourteen-specialization AIR map; M=2..8 at all seven real sites passes direct bit equality, while C5/output-B seam/timing remain Stage B2
-- Lead 08 V15 Stage-B2a C5/seam: `artifacts/lead08_reassessment/38_iter30_c5_seam.md`, retained 903-case C5 CSV, 43-case seam CSV, 301-file external capture manifest, and capture-run record; C5 and the nonredundant output-B seam pass, while B2b timing remains open
+- Lead 08 V15 Stage-B2a C5/seam: `artifacts/lead08_reassessment/38_iter30_c5_seam.md`, retained 903-case C5 CSV, 43-case seam CSV, 301-file external capture manifest, and capture-run record; C5 and the nonredundant output-B seam pass
+- Lead 08 V15 Stage-B2b timing: `artifacts/lead08_reassessment/39_iter31_fixed_work_timing.md`, retained 40/80-block raw timing and deterministic summaries; nominal candidate saving is ~3.47 ms but persistent stratified-stability ambiguity closes V15 STOP
 - DSpark runtime milestones: M2 `summaries/dspark_runtime_milestone_2_progress.md`; M3 `summaries/dspark_runtime_milestone_3_progress.md`; initial benchmark `summaries/dspark_runtime_initial_benchmark.md`; M3 bench artifacts `artifacts/dspark_m3_bench/`
 
 ## Scheduler & acceptance axis (see STATUS)

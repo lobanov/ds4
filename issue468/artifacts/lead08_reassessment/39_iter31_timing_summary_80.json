@@ -1,0 +1,84 @@
+{
+  "blocks": 80,
+  "bootstrap_draws": 100000,
+  "candidate_minus_ext_median_ms": -3.4755937500000007,
+  "candidate_minus_ext_upper_95_ms": -3.455874999999999,
+  "claim_scope": "fixed-work dense-carrier admission screen only",
+  "economic_limit_ms": 7.5,
+  "measured_observations": 320,
+  "outcome": "STOP",
+  "primary_seed": 288789,
+  "prior_summary": "issue468/artifacts/lead08_reassessment/39_iter31_timing_summary_40.json",
+  "repeat_disposition": "persistent ambiguity is STOP",
+  "schedule_effect": {
+    "ci_high_ms": 0.03547925000000163,
+    "ci_low_ms": -0.037697749999996866,
+    "pass": true,
+    "point_ms": 0.004344000000001458
+  },
+  "schema": "lead08-v15-b2b-timing-v1",
+  "stability": [
+    {
+      "absolute_median_ms": 0.04383349999999986,
+      "arm": "E",
+      "n": 40,
+      "pass": false,
+      "relative_ci_high_pct": 0.7984877091629008,
+      "relative_ci_low_pct": -1.1377853330714087,
+      "relative_median_pct": 0.2272376058174251,
+      "schedule": "ECCE"
+    },
+    {
+      "absolute_median_ms": -0.0027920000000003498,
+      "arm": "C",
+      "n": 40,
+      "pass": false,
+      "relative_ci_high_pct": 1.1265803568063273,
+      "relative_ci_low_pct": -0.9486377113947522,
+      "relative_median_pct": -0.017600411308179915,
+      "schedule": "ECCE"
+    },
+    {
+      "absolute_median_ms": 0.06454200000000121,
+      "arm": "E",
+      "n": 40,
+      "pass": false,
+      "relative_ci_high_pct": 1.0821141472008022,
+      "relative_ci_low_pct": -0.9193596797229928,
+      "relative_median_pct": 0.33424395667693363,
+      "schedule": "CEEC"
+    },
+    {
+      "absolute_median_ms": 0.000396000000000285,
+      "arm": "C",
+      "n": 40,
+      "pass": false,
+      "relative_ci_high_pct": 1.2112186277580084,
+      "relative_ci_low_pct": -0.8919210543481826,
+      "relative_median_pct": 0.0023593735219079107,
+      "schedule": "CEEC"
+    }
+  ],
+  "theil_sen": {
+    "C_ms_per_block": 3.343010291594126e-05,
+    "E_ms_per_block": 0.00016180341569766663,
+    "delta_ms_per_block": -6.923611111110827e-05
+  },
+  "validity": "AMBIGUOUS",
+  "validity_failures": [
+    "stability:ECCE:E",
+    "stability:ECCE:C",
+    "stability:CEEC:E",
+    "stability:CEEC:C"
+  ],
+  "work_census": {
+    "common_output_a_weight_mib_per_layer": 34.0,
+    "exposed_weight_mib_per_layer": 77.875,
+    "layers": 43,
+    "logical_dispatches_per_layer": 8,
+    "logical_dispatches_per_observation": 344,
+    "physical_dram_traffic_claimed": false,
+    "sites": 7,
+    "unique_mapped_weight_bytes": 5044305920
+  }
+}

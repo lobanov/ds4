@@ -22,12 +22,19 @@ cycle (~16 ms/token off the target).
 | Goal | ≥20 % greedy throughput on ds4 IQ2XXS, exact-output-preserved |
 | Current best | Full DSpark stack **+4.9 %** over plain (40.04 vs 38.16 t/s; score-neutral 61/92) — M3 |
 | The gap | +20 % not reached; verify ≈80 % of the cycle |
-| Open lever | **Lead 08 V15 Stage B2b economic gate.** Stage B2a passes 903/903 captured C5 cases and the 43-layer nonredundant output-B seam. Run the fixed-work M4 dense carrier and require candidate-minus-ext upper delta <=7.5 ms |
-| Closed (negative) | Drafter/input quality (Lead 07), drafter quant (Q4_K), non-expert finetune (Stage 2), DFlash, quant-mismatch |
+| Open lever | **None currently admitted.** Lead 08 V15's isolated carrier is nominally ~3.47 ms faster, but both allowed runs fail the predeclared timing-validity gate; persistent ambiguity is STOP and graph rollout is not authorized |
+| Closed (negative) | Lead 08 V15 timing admission, drafter/input quality (Lead 07), drafter quant (Q4_K), non-expert finetune (Stage 2), DFlash, quant-mismatch |
 
 ## Investigation arc
 
 Reverse-chronological. Each entry: what was tested → verdict → canonical record.
+
+- **2026-07-18 - Lead 08 iteration 31 V15 Stage B2b: STOP persistent ambiguity.** The corrected
+  carrier records raw completed Metal timestamps for 344 dispatches/observation. The 40-block run
+  has C-minus-E median/upper `-3.460/-3.442 ms` but fails three stratified stability controls. The
+  one allowed 80-block repeat remains `-3.476/-3.456 ms` yet fails all four controls by up to 0.211 pp.
+  Per protocol this is STOP, not a speed result; no graph rollout is admitted.
+  `artifacts/lead08_reassessment/39_iter31_fixed_work_timing.md`.
 
 - **2026-07-18 - Lead 08 iteration 30 V15 Stage B2a: PASS capture/replay/seam.** A corrected
   fixed-K4 lowercase-`b_` capture at position 103 yields exactly 301 external files and 57,065,472
@@ -381,12 +388,13 @@ no independent concrete >=8.7 ms mechanism, so Lead 08 bounded work is exhausted
 V13 completes the cross-quant inventory and iteration 27 completes V15's executable protocol.
 Iterations 28-30 pass Stage A, B1, and B2a: all fourteen Q8/F16 M=2..8 specializations cover the
 seven sites/C0-C4, captured C5 is exact for M=2..4, and output-B is factored nonredundantly with a
-passing 43-layer seam. Stage B2b is now P0: the fixed-work M4 dense-carrier economic gate. This is
-not yet a speed result, full-path exactness, or graph-rollout authorization.
+passing 43-layer seam. Iteration 31's 40/80-block timing runs are nominally favorable but persistently
+ambiguous under the predeclared validity gate, closing V15 `STOP`. This is not a speed result,
+full-path exactness, or graph-rollout authorization.
 Lead 05 SSD compatibility remains an alternate redirect if that scope becomes acceptable. Any future bounded-track admission additionally
 requires `verify_ms(4) <= 50.5 ms` and `>= max(45.8 t/s, 1.20 x fresh plain)` on the 176-entry corpus, and no
 regression from a fresh matched M3 control on the recorded task-quality and distribution gates.
-V5 is active only behind the V15 P0; V13 is complete. Do not repeat the grouped, margin, layout,
+V5 is blocked by V15's persistent-ambiguity STOP; V13 is complete. Do not repeat the grouped, margin, layout,
 geometry, mapped-residency, existing batch-family, or top-r experiments without evidence that changes their
 upper bounds.
 
