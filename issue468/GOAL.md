@@ -29,6 +29,29 @@ Secondary gates:
 - avoid pathological memory overhead or replay overhead,
 - show a plausible path to server-side gains after local single-request gains are proven.
 
+## Lead 08 interim bounded-divergence contract
+
+As of 2026-07-18, Lead 08 may pursue verifier speedups under an
+`INTERIM_BOUNDED` contract while exact preservation remains the primary project
+gate above. This is an explicit research tradeoff, not a redefinition of
+primary success.
+
+An interim candidate must improve the current Milestone-3 batch verifier and
+show no worse task-quality/distribution divergence than a fresh, matched M3
+control:
+
+- at temperature 0, preserve the retained 92-question task score and verdict
+  agreement envelope;
+- above temperature 0, preserve the retained batch-versus-exact distribution
+  envelope on a fixed common trajectory;
+- report committed-token divergence, scheduler/acceptance changes, and state
+  integrity even when they are not the admission metric; and
+- retain exact sequential verification as the fallback.
+
+Passing this interim contract can justify continued engineering and an
+approximate runtime option. It must not be reported as satisfying the primary
+exact-output goal.
+
 ## Working hypothesis
 
 DSpark can only beat baseline locally if:

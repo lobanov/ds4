@@ -1,10 +1,20 @@
 # Lead 08 — Fused low-K batch-verify kernel (close the verify-vs-floor gap)
 
-> **Current verdict (2026-07-18): iterations 12-14 move the captured layer-0 exactness frontier
+> **Current verdict (2026-07-18): Lead 08 now has an explicit `INTERIM_BOUNDED` contract.**
+> Preserve exact output as the ultimate project gate, but pursue verifier speed within a fresh
+> matched M3 task-quality/distribution envelope. V1 is the interim baseline; the V5/V13 exact
+> accumulation track is deferred; T1 Metal counter attribution is P0; V14 counter-selected
+> acceleration is the active branch. The required prize remains >=8.7 ms/cycle, K=4 verify must
+> reach <=50.5 ms, and the composed 176-entry run must reach
+> `>= max(45.8 t/s, 1.20 x fresh plain)`.
+> Counters select one mechanism; they are not themselves evidence of a speedup.
+>
+> **Retained exact-track state:** iterations 12-14 move the captured layer-0 exactness frontier
 > through Q/KV, Q-b, attention, inverse RoPE, and output-B. Iteration 15 finds the post-attention
 > debt is inherited from the early HC mixer. Iteration 16 exactifies that state through attention
 > HC post; iteration 17 localizes the next debt to the FFN HC mixer, and iteration 18 exactifies
-> through FFN normalization. A generic same-accumulation batched-F16 inventory is next. Iteration 10
+> through FFN normalization. A generic same-accumulation batched-F16 inventory would be next if the
+> deferred exact track resumes. Iteration 10
 > falsified the existing batch graph as a shared
 > M=1/M=K exactness family; iteration 9 corrected the iteration-8 locality profiler;
 > cache residency remains a current-path NO-GO; iterations 6/7
@@ -72,9 +82,9 @@
 > env-gated code only as research instrumentation. Any future Lead 08 attempt requires a different
 > mechanism, not another grouped gate+up variant.
 
-Date: 2026-07-07 (refreshed 2026-07-17). Status:
-**Phase B swap-only NO-GO -> grouped prototype NO-GO -> margin fallback NO-GO -> address-layout
-NO-GO -> production geometry NO-GO -> existing batch-family exactness NO-GO.**
+Date: 2026-07-07 (refreshed 2026-07-18). Status:
+**Phase B exact track deferred -> M3-bounded V14 acceleration active; prior grouped, margin,
+address-layout, production-geometry, and existing batch-family mechanisms remain NO-GO.**
 This doc remains the Lead 08 provenance record. Phase A result:
 `issue468/summaries/mtp_verifier_engineering_and_phaseA.md`; Phase B canonical
 summary `issue468/summaries/lead08_phaseB_floor_clearance_verdict.md`.
@@ -343,17 +353,13 @@ fused (the full build). Keeps the Phase-B abort condition (>5% re-verification).
 
 ## Next steps
 
-**2026-07-17 current:** the measurement gate, bounded grouped implementation, separate
-margin-fallback probe, fixed-work address-locality probe, and both production-kernel geometry sweeps are
-complete. The prototype is exact but slower; the fallback either misses the known flip or erases
-M3's speed advantage; address placement moves routed cost by <2%; NSG variants move it by only 1-3%.
-Alternate output-row tiles stay within about 1% total and show no steady-state gate+up gain.
-Exact expert replay is material only on the SSD selected-address runtime, which is incompatible with
-DSpark; the compatible mapped path changes by 0.04%.
-Do not run the end-to-end
-`verify_ms(4) <= 50.5 ms` integration gate, build another spill variant, or implement the margin
-policy, address remapping, or another launch/tiling geometry variant. Any future verifier attempt must
-establish a different mechanism with new evidence first.
+**2026-07-18 current:** run a warm matched fixed-K4 M3-verifier versus M1-decode Metal-counter
+capture without dump/stage-sync instrumentation. Use the result only to select one distinct
+bandwidth/cache, ALU/dequant, occupancy/barrier, or dispatch/fusion mechanism. Then permit one
+fixed-work prototype only if its identified hot stage has a plausible >=8.7 ms/cycle prize; require
+>=15% stage improvement before integration. Do not repeat the grouped, margin, address-layout,
+geometry, mapped-residency, shared-family, or top-r mechanisms: the relaxed quality contract does
+not alter their economic falsifiers.
 
 **Milestone COMPLETE (2026-07-13): Phase B characterization + decisive measurements →
 FINAL verdict = NO-GO via swaps → bounded build attempt with a hard exit gate
@@ -369,6 +375,46 @@ sufficient." (Confirmatory: a literal identical-input MoE kernel-equality harnes
 verify-bandwidth slope re-measure.)
 
 ## Worklog
+
+### 2026-07-18 - iteration-19 bounded-divergence contract and ledger reset
+
+**Decision.** The user accepts M3's interim tradeoff for Lead 08: task-quality non-regression at
+temperature 0 and close batch-versus-exact distributions above temperature 0. This does not replace
+the project's exact-output success criterion. The independent challenger returned **REDESIGN, then
+PROCEED**, requiring fresh same-binary controls rather than unmatched historical comparisons.
+
+**Reference/candidate.** Every V14 experiment uses fresh plain and frozen-M3 controls. Candidate is
+the same M3 composition with exactly one verifier mechanism changed; exact sequential verification
+is the fixed-frontier quality anchor. Scheduler, acceptance, `verify_n`, expert work, correction
+tokens, and state/restore integrity are reported so speed cannot be attributed silently to less work.
+
+**Quality invariant.** On 92Q, candidate score and same-verdict agreement must be at least both the
+fresh M3 values and historical 61/92 and 83/92; plain-PASS to candidate-FAIL changes must be no more
+than both fresh M3 and historical 4. The distribution probe runs candidate and M3 batch paths
+non-committing beside exact sequential verification and hard-fails unless their exact-owned
+trajectories and keyed cycle/row work match. Candidate metrics must be no worse than fresh M3 and
+the historical envelope: flip rate <=1/156, mean / median / p90 / max TV <=0.0104 / 0.0035 / 0.0308 /
+0.104, compared-cycle rate above TV 0.05 <=3/90, mean/max KL <=0.0022/0.054, and max absolute logit
+delta <=4.56. Committed-token divergence is reported and investigated if worse than M3, but is not
+an admission metric under the user-defined temperature-0 functional gate.
+
+**Economics and outcome tree.** T1 first captures warm fixed-K4 M3 verification against M1 decode
+with Metal counters. Bandwidth/cache, ALU/dequant, occupancy/barrier, or dispatch/fusion evidence
+selects exactly one V14 mechanism. Ambiguous/unavailable counters redirect to a controlled separator,
+not an attribution claim. A prototype needs >=15% on the selected hot stage and a credible >=8.7
+ms/cycle composed saving. Integration requires `verify_ms(4)<=50.5 ms`, >=8.7 ms/cycle full-stack
+saving, and `>= max(45.8 t/s, 1.20 x fresh plain)` on the 176-entry corpus with all quality gates
+passing.
+
+**Ledger reassessment.** V1 is `INTERIM_BASELINE`; V5 and V13 are deferred exact-track work; V6-V12
+remain valid retained evidence. Previously failed grouped, margin, layout, geometry, mapped-residency,
+shared-family, and top-r branches remain closed. D5 is only a conditional later composition. T1 is
+P0 and V14 is the active rank-1 performance branch. Canonical contract and rationale:
+`artifacts/lead08_reassessment/27_iter19_bounded_divergence_reframe.md`. Mandatory post-iteration
+audit first returned **NO-COMMIT** on four contract holes. After making fresh-M3 quality gates
+conjunctive, enforcing an exact-owned paired trajectory, requiring both the absolute and relative
+throughput bars, and resolving committed-token divergence as a report-only metric, repeat audit
+returned **COMMIT**.
 
 ### 2026-07-18 - iteration-18 V12 contract: row-wise HC FFN mixer
 

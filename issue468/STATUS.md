@@ -7,7 +7,9 @@ full artifact/tool inventory moved to `issue468/inventories/dossier_inventory.md
 ## Bottom line
 
 **Goal:** validate whether DSpark-style speculative decoding can deliver **≥20 % greedy
-decode throughput on ds4 (DeepSeek-V4-Flash, IQ2XXS)** with output preserved.
+decode throughput on ds4 (DeepSeek-V4-Flash, IQ2XXS)** with exact output preserved. Lead 08 now
+also has an explicit `INTERIM_BOUNDED` track: M3-level task-quality/distribution non-regression is
+acceptable for selecting and measuring a faster verifier, but cannot satisfy the primary goal.
 
 **Current best (Milestone 3, 2026-07-15, COMPLETE):** the full DSpark stack **beats plain
 ds4 by +4.9 %** (40.04 vs 38.16 t/s, full 176-entry corpus; +4.8 % on long-context) and is
@@ -17,15 +19,23 @@ cycle (~16 ms/token off the target).
 
 | | |
 |---|---|
-| Goal | ≥20 % greedy throughput on ds4 IQ2XXS, output-preserved |
+| Goal | ≥20 % greedy throughput on ds4 IQ2XXS, exact-output-preserved |
 | Current best | Full DSpark stack **+4.9 %** over plain (40.04 vs 38.16 t/s; score-neutral 61/92) — M3 |
 | The gap | +20 % not reached; verify ≈80 % of the cycle |
-| Open lever | **No demonstrated +20% lever.** Lead 08's grouped gate+up prototype is slower, margin fallback is uneconomic, layout/cache branches fail, and the existing batch graph is neither M-invariant nor fast enough as a shared M=1/M=K family. The exact-hybrid visible path is bit-identical through layer-0 FFN normalization for one captured row; the F16 router projection is the first differing operation |
+| Open lever | **V14 M3-bounded verifier acceleration.** Full Xcode now exposes Metal counters; first obtain matched K=4 verifier/M1 attribution, then permit exactly one mechanism-specific fixed-work prototype. Required composed saving is >=8.7 ms/cycle, with `verify_ms(4) <= 50.5 ms` and the M3 quality envelope |
 | Closed (negative) | Drafter/input quality (Lead 07), drafter quant (Q4_K), non-expert finetune (Stage 2), DFlash, quant-mismatch |
 
 ## Investigation arc
 
 Reverse-chronological. Each entry: what was tested → verdict → canonical record.
+
+- **2026-07-18 - Lead 08 iteration 19 bounded-divergence reframe: corrected audit COMMIT.**
+  Exact output remains the project success gate, but Lead 08 may now optimize inside a matched M3
+  task-quality/distribution envelope. V1 becomes the interim baseline; V5/V13 exact accumulation is
+  deferred; failed performance mechanisms remain closed; counter-guided V14 becomes rank 1.
+  The first audit caught four contract holes; the corrected paired-control, trajectory, throughput,
+  and committed-divergence rules passed repeat audit.
+  `artifacts/lead08_reassessment/27_iter19_bounded_divergence_reframe.md`.
 
 - **2026-07-18 - Lead 08 iteration 18 row-wise HC FFN mixer: causal GO; audit COMMIT.**
   Mixer, split, HC pre, and FFN norm become exact for layer-0 row 0; router logits are the next
@@ -202,12 +212,15 @@ The drafter is **not** the lever, on four independent grounds:
   IQ2XXS.** `archive/leads/lead_07_upstream_quality_ceiling.md`.
 - **DFlash drafter:** ~2.5× worse accepted prefix than DSpark on this corpus. `summaries/dflash_oracle_investigation.md`.
 
-### Verifier / cycle cost — GAP REMAINS; TESTED LEAD 08 BRANCHES CLOSED
+### Verifier / cycle cost — GAP REMAINS; BOUNDED TRACK OPEN
 
 Verify dominates ~80 % of the cycle; this is where the +20 % must come from.
 
-- **The verifier is memory-bandwidth-bound** (not compute): verify(K=2) ≈ one decode; the
-  shipped MTP path is net-negative at every K. `summaries/mtp_verifier_bench_results.md`.
+- **Binding regime is not yet established empirically.** Host readback is not the bottleneck and
+  dense Q8 paths are plausibly bandwidth-bound, but the production routed IQ2 verifier has not been
+  separated among DRAM traffic, dequant/instruction throughput, occupancy/stalls, and dispatch
+  gaps. The old roofline/source audit is a hypothesis, not a hardware-counter result.
+  `summaries/mtp_verifier_bandwidth_binding.md`.
 - **Milestone 2:** the sublinear batched verifier is break-even at oracle acceptance
   (crossover ~2.3 accepts at K=4); the runtime drafter is sound (live ≥ oracle). `summaries/dspark_runtime_milestone_2_progress.md`.
 - **Milestone 3:** committing batched verify (sublinear, divergent-but-score-neutral) + the
@@ -232,7 +245,12 @@ Verify dominates ~80 % of the cycle; this is where the +20 % must come from.
   built. Iteration 10 tests the cheaper existing-batch shared-family strategy, but it diverges on
   5/10 prompts, regresses target M=1 by 13.0%, and delivers only +13.4% over that slower baseline.
   Iteration 11 then localizes the first same-frontier row-0 divergence to layer-0 attention
-  projection, before routed MoE. Artifacts 10-19 under `artifacts/lead08_reassessment/`.
+  projection, before routed MoE. Iterations 12-18 move that captured exact frontier through FFN
+  normalization, but the bounded contract now defers further exactification. The failed grouped,
+  layout, geometry, mapped-residency, shared-family, top-r, and margin mechanisms remain closed:
+  relaxing exactness does not change their economic falsifiers. V14 instead requires counter-guided
+  selection of a genuinely different performance mechanism. Artifacts 10-27 under
+  `artifacts/lead08_reassessment/`.
 
 ### Scheduler & acceptance
 
@@ -259,26 +277,16 @@ The bench harness: `ds4-spec-bench` (`make ds4-spec-bench`) — use it, not the 
 Experiment selection and stop rules are maintained in
 `summaries/solution_space_ledger.md`; new work must enter that ledger before implementation.
 
-**Lead 08:** no further grouped IQ2XXS gate+up, margin-guard fallback, expert-address reordering,
-existing-batch M=1 re-baselining, or
-production address-kernel launch/tile-geometry work. The bounded kernel passed exactness but failed
-performance; the fallback either misses the known flip or erases the current speedup; the controlled
-locality microbenchmark shows <2% sensitivity; alternate SIMDgroup counts move cost by at most about
-3%; and alternate row tiles are slower total with no steady-state gain. All are far short of the
-gate. Exact cache replay exposes a large SSD selected-address upper bound, but that runtime cannot
-compose with DSpark and the compatible mapped path has no replay gap. Integration and the final K=4
-verifier gate are skipped. Any
-continuation must first establish a genuinely different mechanism with new controlled evidence.
-The original Phase B exact hybrid remains unbuilt. Iterations 12-14 move the same-frontier layer-0
-correctness boundary through Q/KV projection, Q-b, normalization, RoPE, attention, inverse RoPE,
-and attention output-B for one captured row. Row-wise attention HC mixing then makes the latent split
-state and attention HC post exact. FFN input localization then finds exact residual/RMS input and a
-differing F16 mixer output. Row-wise FFN mixing then moves exactness through FFN normalization and
-exposes the F16 router projection; a generic same-accumulation batched-F16 inventory is next.
-Continue only if the frontier moves and a credible path to `verify_ms(4) <= 50.5 ms`
-remains. The observed +7.47 ms all-layer whole-graph delta nearly consumes the modeled headroom but is a
-repeated-dispatch implementation upper bound; stop only when costs proven unavoidable exhaust the
-retained feasibility floor.
+**Lead 08:** run a warm matched fixed-K4 M3-verifier versus M1-decode Metal-counter capture without
+dump/stage-sync instrumentation. Use it only to choose one bandwidth/cache, ALU/dequant,
+occupancy/barrier, or dispatch/fusion mechanism; counters alone do not authorize implementation.
+The selected fixed-work prototype must improve its identified hot stage by at least 15% and expose a
+credible >=8.7 ms/cycle composed saving before integration. Final bounded-track admission additionally
+requires `verify_ms(4) <= 50.5 ms` and `>= max(45.8 t/s, 1.20 x fresh plain)` on the 176-entry corpus, and no
+regression from a fresh matched M3 control on the recorded task-quality and distribution gates.
+The exact-hybrid V5/V13 path is deferred, not disproven. Do not repeat the grouped, margin, layout,
+geometry, mapped-residency, shared-family, or top-r experiments without evidence that changes their
+upper bounds.
 
 **Lead 10 — drafter re-distillation for IQ2XXS (soft labels)** is a proposed, lower-priority
 drafter-quality follow-up: the one untested route after Lead 07 (hidden-side, dead) and Stage 2
