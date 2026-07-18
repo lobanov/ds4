@@ -3,12 +3,12 @@
 > **Current verdict (2026-07-18): Lead 08 now has an explicit `INTERIM_BOUNDED` contract.**
 > Preserve exact output as the ultimate project gate, but pursue verifier speed within a fresh
 > matched M3 task-quality/distribution envelope. V1 is the interim baseline; the V5/V13 exact
-> accumulation track is deferred; T1 Metal counter attribution is tooling-blocked and T2 controlled
-> separation is P0; V14 mechanism-selected
+> accumulation track is deferred; T1 Metal counter attribution is tooling-blocked, T2a applies only
+> to the incompatible SSD address kernel, and mapped-kernel T2b is P0; V14 mechanism-selected
 > acceleration is the active branch. The required prize remains >=8.7 ms/cycle, K=4 verify must
 > reach <=50.5 ms, and the composed 176-entry run must reach
 > `>= max(45.8 t/s, 1.20 x fresh plain)`.
-> Counters select one mechanism; they are not themselves evidence of a speedup.
+> Separators select one mechanism; they are not themselves evidence of a speedup.
 >
 > **Retained exact-track state:** iterations 12-14 move the captured layer-0 exactness frontier
 > through Q/KV, Q-b, attention, inverse RoPE, and output-B. Iteration 15 finds the post-attention
@@ -354,10 +354,12 @@ fused (the full build). Keeps the Phase-B abort condition (>5% re-verification).
 
 ## Next steps
 
-**2026-07-18 current:** preflight T2, a same-kernel arithmetic-intensity separator holding selected
-weights, addresses, physical rows, and dispatch geometry fixed. T1's CLI Metal-counter route is
-blocked by non-discriminating counters, empty shader intervals, and >5% perturbation. Only a valid
-separator may select one distinct bandwidth/cache or ALU/dequant mechanism. Then permit one fixed-work
+**2026-07-18 current:** T2a retained dependent runtime FMAs and produced a monotonic response, but
+rounds 32 fall in the predeclared ambiguous band on the SSD selected-address kernel. That carrier cannot compose with DSpark, so it
+does not establish the live verifier's binding regime. A mapped path trace identifies 688/688 K4
+records as `tiny_pair_mv`. Preflight T2b on its `kernel_mul_mv_id_iq2_xxs_pair_f32` gate/up family,
+holding weights, physical rows, and dispatch geometry fixed and proving the actual
+dispatch. Only that valid live-kernel separator may select one distinct traffic/latency or ALU/instruction mechanism. Then permit one fixed-work
 prototype only if its identified hot stage has a plausible >=8.7 ms/cycle prize; require >=15% stage
 improvement before integration. Do not repeat the grouped, margin, address-layout,
 geometry, mapped-residency, shared-family, or top-r mechanisms: the relaxed quality contract does
@@ -377,6 +379,34 @@ sufficient." (Confirmatory: a literal identical-input MoE kernel-equality harnes
 verify-bandwidth slope re-measure.)
 
 ## Worklog
+
+### 2026-07-18 - iteration-21 selected-address ALU separator -> T2a AMBIGUOUS
+
+**Preflight and implementation.** Independent challenge narrowed the claim from dequant/FMA binding
+to ALU headroom. A research-only companion address kernel adds two dependent runtime identity-FMA
+chains for rounds 8/32/128 while preserving bytes, addresses, 24 rows, geometry, reductions, and
+outputs. Literal production plus a companion-zero arm bound specialization overhead. The existing
+K4 harness supplies a layer-0 bitwise gate/up/mid/output/argmax pattern and 10 samples over all 43
+layers under rotated/reversed order balance. Dumped runtime source compiled with `metal -S` retains both FMAs and the dynamic
+backedge; the production specialization has zero probe-field loads or probe instructions.
+
+**Result.** Production and companion-zero differ by -1.14% total/-0.19% gate/up, passing the 2%
+control. Against companion-zero, rounds 32 add +5.41% total/+10.10% synchronized gate/up; rounds 128
+add +23.72%/+51.38%. All companion arms are bitwise identical to production on the layer-0 pattern.
+The response is monotonic, but rounds 32 fall in the predeclared 5-25% ambiguous band and 8-round
+intervals include zero. It does not distinguish DRAM, cache, addressing, occupancy, unexcluded
+control/codegen effects, or dequant cost.
+
+**Scope correction and decision.** The initial mapped-path run was discarded because it never
+dispatched the address kernel. The valid result is exclusive to the SSD selected-address carrier,
+which cannot compose with DSpark. Close T2a as ambiguous evidence only; keep V14
+unauthorized. A follow-up trace identifies all 688 mapped K4 stage records as `tiny_pair_mv`; T2b
+on its `kernel_mul_mv_id_iq2_xxs_pair_f32` family becomes P0. Artifact and compact statistics:
+`artifacts/lead08_reassessment/29_iter21_ssd_addr_alu_headroom.{md,csv}`.
+The initial audit rejected the control and fidelity wording; after adding a literal-production arm,
+a companion-zero arm, balanced rotations, and precise layer-0 scope, the repeat audit rejected only
+an unsupported nonlinear-response claim. The corrected monotonic, approximately linear but
+threshold-ambiguous classification passed the final repeat audit: **COMMIT**.
 
 ### 2026-07-18 - iteration-20 Metal counter capability gate -> tooling BLOCKED
 

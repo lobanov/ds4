@@ -119,6 +119,10 @@ struct ds4_metal_dsv4_moe_swiglu_weight_args {
     uint64_t weight_stride;
     uint32_t write_clamped;
     float clamp_value;
+    uint32_t alu_rounds;
+    float alu_mul;
+    float alu_add;
+    uint32_t alu_pad;
 };
 
 struct ds4_metal_dsv4_moe_sum6_args {
@@ -682,7 +686,7 @@ void kernel_mul_mv_iq2_xxs_f32_impl(
     }
 }
 
-template<int nr0>
+template<int nr0, bool alu_probe = false>
 void kernel_mul_mv_iq2_xxs_pair_f32_impl(
         ds4_metal_args_mul_mv args,
         device const char * src0_gate,
@@ -693,7 +697,10 @@ void kernel_mul_mv_iq2_xxs_pair_f32_impl(
         threadgroup  char * shmem,
         uint3  tgpig,
         ushort tiisg,
-        ushort sgitg) {
+        ushort sgitg,
+        uint alu_rounds = 0,
+        float alu_mul = 1.0f,
+        float alu_add = 0.0f) {
     const short NSG = FC_mul_mv_nsg;
 
     const int nb = args.ne00/QK_K;
@@ -784,6 +791,12 @@ void kernel_mul_mv_iq2_xxs_pair_f32_impl(
                     const float v = yl[8*l + j];
                     sg += v * gridg[j] * (signg & ds4_metal_kmask_iq2xs[j] ? -1.f : 1.f);
                     su += v * gridu[j] * (signu & ds4_metal_kmask_iq2xs[j] ? -1.f : 1.f);
+                }
+            }
+            if (alu_probe) {
+                for (uint round = 0; round < alu_rounds; ++round) {
+                    sg = fma(sg, alu_mul, alu_add);
+                    su = fma(su, alu_mul, alu_add);
                 }
             }
             sumg[row] += dg * sg;
@@ -1452,7 +1465,7 @@ kernel void kernel_mul_mv_slots6_iq2_xxs_pair_swiglu_f32(
     (void)tiitg;
 }
 
-template<int nr0>
+template<int nr0, bool alu_probe = false>
 void kernel_mul_mv_addr_iq2_xxs_pair_swiglu_f32_impl(
         constant ds4_metal_args_mul_mv_id & args,
         constant ds4_metal_dsv4_moe_swiglu_weight_args & act,
@@ -1504,17 +1517,34 @@ void kernel_mul_mv_addr_iq2_xxs_pair_swiglu_f32_impl(
         args.ne0, 1, args.nr0, 1, 1,
     };
 
-    kernel_mul_mv_iq2_xxs_pair_f32_impl<nr0>(
-        args0,
-        src0_gate_cur,
-        src0_up_cur,
-        src1_cur,
-        dst_gate_cur,
-        dst_up_cur,
-        shmem,
-        tgpig,
-        tiisg,
-        sgitg);
+    if (alu_probe) {
+        kernel_mul_mv_iq2_xxs_pair_f32_impl<nr0, true>(
+            args0,
+            src0_gate_cur,
+            src0_up_cur,
+            src1_cur,
+            dst_gate_cur,
+            dst_up_cur,
+            shmem,
+            tgpig,
+            tiisg,
+            sgitg,
+            act.alu_rounds,
+            act.alu_mul,
+            act.alu_add);
+    } else {
+        kernel_mul_mv_iq2_xxs_pair_f32_impl<nr0, false>(
+            args0,
+            src0_gate_cur,
+            src0_up_cur,
+            src1_cur,
+            dst_gate_cur,
+            dst_up_cur,
+            shmem,
+            tgpig,
+            tiisg,
+            sgitg);
+    }
 
     const short NSG = FC_mul_mv_nsg;
     const int first_row = (tgpig.x * NSG + sgitg) * nr0;
@@ -1560,6 +1590,29 @@ kernel void kernel_mul_mv_addr_iq2_xxs_pair_swiglu_f32(
         ushort tiisg[[thread_index_in_simdgroup]],
         ushort sgitg[[simdgroup_index_in_threadgroup]]) {
     kernel_mul_mv_addr_iq2_xxs_pair_swiglu_f32_impl<N_R0_IQ2_XXS>(
+        args, act, gate_addrs, up_addrs, src1, dst_gate, dst_up, dst_mid,
+        ids, weights, shmem, tgpig, tiitg, tiisg, sgitg);
+}
+
+// Lead 08 research-only arithmetic-headroom probe. Runtime-unknown identity
+// FMA chains retain all production reads, addressing, reductions, and outputs.
+kernel void kernel_mul_mv_addr_iq2_xxs_pair_swiglu_alu_f32(
+        constant ds4_metal_args_mul_mv_id & args,
+        constant ds4_metal_dsv4_moe_swiglu_weight_args & act,
+        device const uint64_t * gate_addrs,
+        device const uint64_t * up_addrs,
+        device const char * src1,
+        device       char * dst_gate,
+        device       char * dst_up,
+        device       char * dst_mid,
+        device const char * ids,
+        device const char * weights,
+        threadgroup  char * shmem [[threadgroup(0)]],
+        uint3  tgpig[[threadgroup_position_in_grid]],
+        ushort tiitg[[thread_index_in_threadgroup]],
+        ushort tiisg[[thread_index_in_simdgroup]],
+        ushort sgitg[[simdgroup_index_in_threadgroup]]) {
+    kernel_mul_mv_addr_iq2_xxs_pair_swiglu_f32_impl<N_R0_IQ2_XXS, true>(
         args, act, gate_addrs, up_addrs, src1, dst_gate, dst_up, dst_mid,
         ids, weights, shmem, tgpig, tiitg, tiisg, sgitg);
 }

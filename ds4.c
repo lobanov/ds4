@@ -22531,10 +22531,11 @@ int metal_graph_test_m2_fidelity_unit(const ds4_model *model, const ds4_weights 
     const bool address_locality_probe = getenv("DS4_LEAD08_ADDRESS_LOCALITY_PROBE") != NULL;
     const bool addr_nsg_probe = getenv("DS4_LEAD08_ADDR_NSG_PROBE") != NULL;
     const bool addr_nr0_probe = getenv("DS4_LEAD08_ADDR_NR0_PROBE") != NULL;
+    const bool addr_alu_probe = getenv("DS4_LEAD08_ADDR_ALU_PROBE") != NULL;
     const bool cache_replay_probe = getenv("DS4_LEAD08_CACHE_REPLAY_PROBE") != NULL;
     const bool batch_overlap_probe =
         getenv("DS4_LEAD08_BATCH_OVERLAP_PROBE") != NULL || address_locality_probe ||
-        addr_nsg_probe || addr_nr0_probe || cache_replay_probe;
+        addr_nsg_probe || addr_nr0_probe || addr_alu_probe || cache_replay_probe;
     /* Legacy iteration-1 comparator. Its M=1 path uses the persistent selected-expert cache,
      * so the reported M=2/M=1x2 ratio is not a cold-equivalent production comparison. */
     if (!batch_overlap_probe) {
@@ -23195,49 +23196,63 @@ int metal_graph_test_m2_fidelity_unit(const ds4_model *model, const ds4_weights 
 
             /* Lead 08 iterations 6/7: preserve the production physical-row
              * algorithm and vary one address-kernel geometry dimension. */
-            if (addr_nsg_probe || addr_nr0_probe) {
-                enum { GEOMETRY_MAX_PATTERNS = 4 };
+            if (addr_nsg_probe || addr_nr0_probe || addr_alu_probe) {
+                enum { GEOMETRY_MAX_PATTERNS = 5 };
                 static const uint32_t nsg_values[GEOMETRY_MAX_PATTERNS] =
-                    { 1u, 2u, 4u, 8u };
+                    { 1u, 2u, 4u, 8u, 0u };
                 static const uint32_t nr0_values[GEOMETRY_MAX_PATTERNS] =
-                    { 2u, 4u, 8u, 0u };
+                    { 2u, 4u, 8u, 0u, 0u };
+                static const uint32_t alu_values[GEOMETRY_MAX_PATTERNS] =
+                    { 0u, 1u, 8u, 32u, 128u };
+                const bool sweep_alu = addr_alu_probe;
                 const bool sweep_nr0 = addr_nr0_probe;
-                const uint32_t *geometry_values = sweep_nr0 ? nr0_values : nsg_values;
-                const uint32_t geometry_patterns = sweep_nr0 ? 3u : 4u;
-                const uint32_t geometry_baseline = sweep_nr0 ? 4u : 2u;
-                const char *geometry_name = sweep_nr0 ? "nr0" : "nsg";
-                const char *geometry_env = sweep_nr0 ?
-                    "DS4_LEAD08_ADDR_NR0" : "DS4_LEAD08_ADDR_NSG";
-                const char *fixed_geometry_env = sweep_nr0 ?
-                    "DS4_LEAD08_ADDR_NSG" : "DS4_LEAD08_ADDR_NR0";
+                const uint32_t *geometry_values = sweep_alu ? alu_values :
+                    (sweep_nr0 ? nr0_values : nsg_values);
+                const uint32_t geometry_patterns = sweep_alu ? 5u : (sweep_nr0 ? 3u : 4u);
+                const uint32_t geometry_baseline = sweep_alu ? 0u :
+                    (sweep_nr0 ? 4u : 2u);
+                const uint32_t geometry_rounds = sweep_alu ? 10u : (uint32_t)BATCH_ROUNDS;
+                const char *geometry_name = sweep_alu ? "alu" : (sweep_nr0 ? "nr0" : "nsg");
+                const char *geometry_env = sweep_alu ?
+                    "DS4_LEAD08_ADDR_ALU_ROUNDS" :
+                    (sweep_nr0 ? "DS4_LEAD08_ADDR_NR0" : "DS4_LEAD08_ADDR_NSG");
+                const char *fixed_geometry_env = sweep_alu ? NULL : (sweep_nr0 ?
+                    "DS4_LEAD08_ADDR_NSG" : "DS4_LEAD08_ADDR_NR0");
                 const char *fixed_geometry_value = sweep_nr0 ? "2" : "4";
                 const uint32_t nsg_unique = 18u;
                 const uint32_t nsg_span = DS4_N_EXPERT - nsg_unique + 1u;
                 double nsg_ms[GEOMETRY_MAX_PATTERNS] = { 0.0, 0.0, 0.0, 0.0 };
                 uint32_t nsg_layers[GEOMETRY_MAX_PATTERNS] = { 0u, 0u, 0u, 0u };
-                bool nsg_valid[GEOMETRY_MAX_PATTERNS] = { false, true, false, false };
+                bool nsg_valid[GEOMETRY_MAX_PATTERNS] =
+                    { false, false, false, false, false };
+                for (uint32_t pattern = 0; pattern < geometry_patterns; pattern++) {
+                    if (geometry_values[pattern] == geometry_baseline) nsg_valid[pattern] = true;
+                }
                 const char *prior_nsg = getenv(geometry_env);
                 char prior_nsg_copy[32] = { 0 };
                 const bool had_prior_nsg = prior_nsg != NULL;
                 if (had_prior_nsg) {
                     snprintf(prior_nsg_copy, sizeof(prior_nsg_copy), "%s", prior_nsg);
                 }
-                const char *prior_fixed_geometry = getenv(fixed_geometry_env);
+                const char *prior_fixed_geometry = fixed_geometry_env ?
+                    getenv(fixed_geometry_env) : NULL;
                 char prior_fixed_geometry_copy[32] = { 0 };
                 const bool had_prior_fixed_geometry = prior_fixed_geometry != NULL;
                 if (had_prior_fixed_geometry) {
                     snprintf(prior_fixed_geometry_copy, sizeof(prior_fixed_geometry_copy), "%s",
                              prior_fixed_geometry);
                 }
-                setenv(fixed_geometry_env, fixed_geometry_value, 1);
+                if (fixed_geometry_env) setenv(fixed_geometry_env, fixed_geometry_value, 1);
 
                 fprintf(stderr,
                         "lead08_addr_%s: START tokens=%u pairs=%u unique=%u rounds=%u "
                         "%s=%s baseline=%u\n",
                         geometry_name,
                         (uint32_t)BATCH_K, pair_rows, nsg_unique,
-                        (uint32_t)BATCH_ROUNDS, geometry_name,
-                        sweep_nr0 ? "[2,4,8]" : "[1,2,4,8]", geometry_baseline);
+                        geometry_rounds, geometry_name,
+                        sweep_alu ? "[0=production,1=companion-zero,8,32,128]" :
+                            (sweep_nr0 ? "[2,4,8]" : "[1,2,4,8]"),
+                        geometry_baseline);
 
                 float *ref_gate = malloc((size_t)bmid_bytes);
                 float *ref_up = malloc((size_t)bmid_bytes);
@@ -23388,10 +23403,18 @@ int metal_graph_test_m2_fidelity_unit(const ds4_model *model, const ds4_weights 
                 free(ref_out);
                 free(got);
 
-                for (uint32_t round = 0; round < BATCH_ROUNDS; round++) {
+                for (uint32_t round = 0; round < geometry_rounds; round++) {
                     for (uint32_t oi = 0; oi < geometry_patterns; oi++) {
-                        const uint32_t pattern = (round & 1u) ?
-                            (geometry_patterns - 1u - oi) : oi;
+                        uint32_t pattern;
+                        if (sweep_alu) {
+                            const uint32_t rotation = round % geometry_patterns;
+                            pattern = round < geometry_patterns ?
+                                (rotation + oi) % geometry_patterns :
+                                (rotation + geometry_patterns - oi) % geometry_patterns;
+                        } else {
+                            pattern = (round & 1u) ?
+                                (geometry_patterns - 1u - oi) : oi;
+                        }
                         if (!nsg_valid[pattern]) {
                             fprintf(stderr,
                                     "lead08_addr_%s: SKIP round=%u %s=%u fidelity=FAIL\n",
@@ -23489,9 +23512,9 @@ int metal_graph_test_m2_fidelity_unit(const ds4_model *model, const ds4_weights 
                 } else {
                     unsetenv(geometry_env);
                 }
-                if (had_prior_fixed_geometry) {
+                if (fixed_geometry_env && had_prior_fixed_geometry) {
                     setenv(fixed_geometry_env, prior_fixed_geometry_copy, 1);
-                } else {
+                } else if (fixed_geometry_env) {
                     unsetenv(fixed_geometry_env);
                 }
             }
