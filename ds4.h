@@ -151,6 +151,9 @@ int ds4_engine_open(ds4_engine **out, const ds4_engine_options *opt);
 /* Lead 08 M=2 fidelity unit test (DS4_M2_FIDELITY_TEST): returns 0=BIT_EXACT, 1=divergent, -1=error. */
 int ds4_engine_m2_fidelity_test(ds4_engine *e);
 
+/* Lead 08 V15 Stage-A exact small-M gate: returns 0=BIT_EXACT, 1=divergent, -1=error. */
+int ds4_engine_exact_smallm_fidelity_test(ds4_engine *e);
+
 /* Lead 08 iter-1 (DS4_TOP_R): override routed-expert top-r post-load (MoE-Spec budgeting probe). */
 void ds4_override_expert_used(uint32_t r);
 void ds4_engine_close(ds4_engine *e);

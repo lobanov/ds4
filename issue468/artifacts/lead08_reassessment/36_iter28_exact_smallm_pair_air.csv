@@ -1,0 +1,3 @@
+format,source_weight_loop,air_function_start,air_primary_backedge,raw_weight_load,token_in_weight_address,air_result
+q8_0,metal/dense.metal:588,42926,43102,qs=43048;scale=43040,no,PASS
+f16,metal/dense.metal:654,43106,43307,half4=43255,no,PASS

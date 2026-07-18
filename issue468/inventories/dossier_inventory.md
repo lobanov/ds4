@@ -62,6 +62,7 @@ STATUS.md on 2026-07-16 so STATUS reads as a single coherent narrative.)
 - Lead 08 bounded-track exhaustion: `artifacts/lead08_reassessment/33_iter25_bounded_track_exhaustion.md`; systematic post-U1 audit finds no independent composable >=8.7 ms mechanism on the current in-RAM runtime
 - Lead 08 exact small-M dense inventory: `artifacts/lead08_reassessment/34_iter26_exact_smallm_dense_inventory.md`; completes V13 across four Q8 and three F16 sites, specifies the literal-M1/load-once invariant, traffic accounting, seams, and conditional V15 direct-bit/economic gate
 - Lead 08 V15 executable protocol: `artifacts/lead08_reassessment/35_iter27_exact_smallm_protocol.md`; stages both-format M2 capability before exhaustive M2..8/seam/economic work, with fixed input, AIR, bitwise, timing, and outcome contracts
+- Lead 08 V15 Stage-A exact small-M pair: `artifacts/lead08_reassessment/36_iter28_exact_smallm_pair.md`, retained 430-case CSV, compact AIR map, and deterministic constructor/hash/cardinality validator; Q8 Q-a and F16 router M=2 pass bitwise at all 43 offsets, admitting Stage B without changing graph callsites
 - DSpark runtime milestones: M2 `summaries/dspark_runtime_milestone_2_progress.md`; M3 `summaries/dspark_runtime_milestone_3_progress.md`; initial benchmark `summaries/dspark_runtime_initial_benchmark.md`; M3 bench artifacts `artifacts/dspark_m3_bench/`
 
 ## Scheduler & acceptance axis (see STATUS)

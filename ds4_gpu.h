@@ -287,6 +287,23 @@ int ds4_gpu_matmul_f16_tensor(
         const ds4_gpu_tensor *x,
         uint64_t                n_tok);
 
+typedef enum {
+    DS4_GPU_EXACT_SMALLM_Q8_0 = 0,
+    DS4_GPU_EXACT_SMALLM_F16  = 1,
+} ds4_gpu_exact_smallm_format;
+
+/* Lead 08 V15 research-only exact M=2 dense-family capability gate. */
+int ds4_gpu_exact_smallm_dense_tensor(
+        ds4_gpu_tensor              *out,
+        const void                  *model_map,
+        uint64_t                     model_size,
+        uint64_t                     weight_offset,
+        uint64_t                     in_dim,
+        uint64_t                     out_dim,
+        const ds4_gpu_tensor        *x,
+        uint32_t                     n_tok,
+        ds4_gpu_exact_smallm_format  format);
+
 int ds4_gpu_matmul_f16_pair_tensor(
         ds4_gpu_tensor       *out_a,
         ds4_gpu_tensor       *out_b,

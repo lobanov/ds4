@@ -554,6 +554,200 @@ typedef decltype(kernel_mul_mv_t_t_4<half, half4, half, half4>) mul_mv_t_t_4;
 template [[host_name("kernel_mul_mv_f32_f32_4")]] kernel mul_mv_t_t_4 kernel_mul_mv_t_t_4<float, float4, float, float4>;
 template [[host_name("kernel_mul_mv_f16_f32_4")]] kernel mul_mv_t_t_4 kernel_mul_mv_t_t_4<half,  half4,  float, float4>;
 
+// Lead 08 V15 Stage A: share one logical weight traversal across two tokens
+// while retaining the literal decode-time arithmetic and reduction per token.
+template<short M, short NR0, typename args_t>
+void kernel_exact_smallm_q8_accumulate(
+        args_t args,
+        device const char * src0,
+        device const char * src1,
+        thread float (&sumf)[M][NR0],
+        uint3  tgpig,
+        ushort tiisg,
+        ushort sgitg) {
+    const short NSG = FC_mul_mv_nsg;
+    constexpr short NW = N_SIMDWIDTH;
+    constexpr short NQ = 8;
+    const int nb = args.ne00/QK8_0;
+    const int r0 = tgpig.x*NR0;
+
+    device const block_q8_0 * ax[NR0];
+    FOR_UNROLL (short row = 0; row < NR0; ++row) {
+        ax[row] = (device const block_q8_0 *) (src0 + (uint64_t)(r0 + row)*args.nb01);
+    }
+
+    const short ix = tiisg/(NW/NQ);
+    const short il = tiisg%(NW/NQ);
+    const int ib0 = sgitg*NQ + ix;
+    device const float * yb[M];
+    FOR_UNROLL (short token = 0; token < M; ++token) {
+        yb[token] = (device const float *) (src1 + (uint64_t)token*args.nb11) +
+                    ib0*QK8_0 + il*NQ;
+    }
+
+    for (int ib = ib0; ib < nb; ib += NSG*NQ) {
+        float yl[M][NQ];
+        FOR_UNROLL (short token = 0; token < M; ++token) {
+            FOR_UNROLL (short i = 0; i < NQ; ++i) {
+                yl[token][i] = yb[token][i];
+            }
+        }
+
+        FOR_UNROLL (short row = 0; row < NR0; ++row) {
+            device const int8_t * qs_ptr = ax[row][ib].qs + il*NQ;
+            int8_t qs[NQ];
+            FOR_UNROLL (short i = 0; i < NQ; ++i) {
+                qs[i] = qs_ptr[i];
+            }
+            const half d = ax[row][ib].d;
+            FOR_UNROLL (short token = 0; token < M; ++token) {
+                float sumq = 0.f;
+                FOR_UNROLL (short i = 0; i < NQ; ++i) {
+                    sumq += qs[i] * yl[token][i];
+                }
+                sumf[token][row] += sumq*d;
+            }
+        }
+
+        FOR_UNROLL (short token = 0; token < M; ++token) {
+            yb[token] += NSG*NQ*QK8_0;
+        }
+    }
+}
+
+template<short M, short NR0, typename args_t>
+void kernel_exact_smallm_f16_accumulate(
+        args_t args,
+        device const char * src0,
+        device const char * src1,
+        thread float (&sumf)[M][NR0],
+        uint3  tgpig,
+        ushort tiisg,
+        ushort sgitg) {
+    const short NSG = FC_mul_mv_nsg;
+    constexpr short NW = N_SIMDWIDTH;
+    constexpr short NB = 32;
+    constexpr short NF = 16;
+    constexpr short NF4 = NF/4;
+    const int nb = args.ne00/NB;
+    const int r0 = tgpig.x*NR0;
+
+    device const half  * ax[NR0];
+    device const half4 * ax4[NR0];
+    FOR_UNROLL (short row = 0; row < NR0; ++row) {
+        const uint64_t offset0 = (uint64_t)(r0 + row)*args.nb01;
+        ax[row] = (device const half *) (src0 + offset0);
+        ax4[row] = (device const half4 *) (src0 + offset0);
+    }
+
+    const short ix = tiisg/(NW/NF);
+    const short il = tiisg%(NW/NF);
+    const int ib0 = sgitg*NF + ix;
+    device const float4 * yb4[M];
+    device const float * y[M];
+    FOR_UNROLL (short token = 0; token < M; ++token) {
+        y[token] = (device const float *) (src1 + (uint64_t)token*args.nb11);
+        yb4[token] = (device const float4 *) (src1 + (uint64_t)token*args.nb11) +
+                     (ib0*NB + il*NF)/4;
+    }
+
+    for (int ib = ib0; ib < nb; ib += NSG*NF) {
+        float4 yl4[M][NF4];
+        FOR_UNROLL (short token = 0; token < M; ++token) {
+            FOR_UNROLL (short i = 0; i < NF4; ++i) {
+                yl4[token][i] = yb4[token][i];
+            }
+        }
+
+        FOR_UNROLL (short row = 0; row < NR0; ++row) {
+            device const half4 * xb4 = ax4[row] + (ib*NB + il*NF)/4;
+            float4 xl4[NF4];
+            FOR_UNROLL (short i = 0; i < NF4; ++i) {
+                xl4[i] = float4(xb4[i]);
+            }
+            FOR_UNROLL (short token = 0; token < M; ++token) {
+                float sumq = 0.f;
+                FOR_UNROLL (short i = 0; i < NF4; ++i) {
+                    sumq += dot(xl4[i], yl4[token][i]);
+                }
+                sumf[token][row] += sumq;
+            }
+        }
+
+        FOR_UNROLL (short token = 0; token < M; ++token) {
+            yb4[token] += NSG*NF*NW/4;
+        }
+    }
+
+    for (int i = nb*NB + sgitg*NW + tiisg; i < args.ne00; i += NW*NSG) {
+        FOR_UNROLL (short row = 0; row < NR0; ++row) {
+            const half xv = ax[row][i];
+            FOR_UNROLL (short token = 0; token < M; ++token) {
+                sumf[token][row] += xv*y[token][i];
+            }
+        }
+    }
+}
+
+template<short M, short NR0, typename args_t,
+         void (*accumulate)(args_t, device const char *, device const char *,
+                            thread float (&)[M][NR0], uint3, ushort, ushort)>
+void kernel_exact_smallm_dense_structure(
+        args_t args,
+        device const char * src0,
+        device const char * src1,
+        device char * dst,
+        threadgroup char * shmem,
+        uint3  tgpig,
+        ushort tiisg,
+        ushort sgitg) {
+    float sumf[M][NR0];
+    FOR_UNROLL (short token = 0; token < M; ++token) {
+        FOR_UNROLL (short row = 0; row < NR0; ++row) {
+            sumf[token][row] = 0.f;
+        }
+    }
+
+    accumulate(args, src0, src1, sumf, tgpig, tiisg, sgitg);
+
+    FOR_UNROLL (short token = 0; token < M; ++token) {
+        device float * dst_token = (device float *) dst + (uint64_t)token*args.ne0;
+        helper_mv_reduce_and_write<NR0>(dst_token, sumf[token], tgpig.x*NR0,
+                                        args.ne01, tiisg, sgitg, shmem);
+        threadgroup_barrier(mem_flags::mem_threadgroup);
+    }
+}
+
+[[host_name("kernel_lead08_exact_smallm_q8_0_f32_m2")]]
+kernel void kernel_lead08_exact_smallm_q8_0_f32_m2(
+        constant ds4_metal_args_mul_mv_ext & args,
+        device const char * src0,
+        device const char * src1,
+        device char * dst,
+        threadgroup char * shmem [[threadgroup(0)]],
+        uint3 tgpig [[threadgroup_position_in_grid]],
+        ushort tiisg [[thread_index_in_simdgroup]],
+        ushort sgitg [[simdgroup_index_in_threadgroup]]) {
+    kernel_exact_smallm_dense_structure<2, 2, constant ds4_metal_args_mul_mv_ext &,
+        kernel_exact_smallm_q8_accumulate<2, 2, constant ds4_metal_args_mul_mv_ext &>>(
+            args, src0, src1, dst, shmem, tgpig, tiisg, sgitg);
+}
+
+[[host_name("kernel_lead08_exact_smallm_f16_f32_m2")]]
+kernel void kernel_lead08_exact_smallm_f16_f32_m2(
+        constant ds4_metal_args_mul_mv_ext & args,
+        device const char * src0,
+        device const char * src1,
+        device char * dst,
+        threadgroup char * shmem [[threadgroup(0)]],
+        uint3 tgpig [[threadgroup_position_in_grid]],
+        ushort tiisg [[thread_index_in_simdgroup]],
+        ushort sgitg [[simdgroup_index_in_threadgroup]]) {
+    kernel_exact_smallm_dense_structure<2, 2, constant ds4_metal_args_mul_mv_ext &,
+        kernel_exact_smallm_f16_accumulate<2, 2, constant ds4_metal_args_mul_mv_ext &>>(
+            args, src0, src1, dst, shmem, tgpig, tiisg, sgitg);
+}
+
 // DS4 compressor projections always compute two same-shaped F16 matvecs from
 // the same normalized activation: one for projected KV and one for pooling
 // scores.  This paired variant keeps the exact dense F16 row-reduction shape

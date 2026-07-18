@@ -3,8 +3,10 @@
 > **Current verdict (2026-07-18): bounded work is exhausted; primary exact track resumed.**
 > The prior `INTERIM_BOUNDED` contract remains a valid research envelope, but no current-runtime
 > mechanism clears its 8.7 ms admission bar. V1 remains the interim baseline. V13 has completed a
-> cross-quant exact small-M dense inventory and conditionally admits V15, one Q8/F16 family-level
-> capability prototype. T1 Metal counter attribution is tooling-blocked, T2a applies only
+> cross-quant exact small-M dense inventory and admits V15, one Q8/F16 family-level capability
+> prototype. V15 Stage A now passes 430/430 all-layer M=2 word-exact cases with compiled AIR
+> showing one logical weight traversal per format. Stage B's M=2..8, seven-site, output-B seam,
+> and <=7.5 ms cumulative economic gates remain untested. T1 Metal counter attribution is tooling-blocked, T2a applies only
 > to the incompatible SSD address kernel, and mapped-kernel T2b is invalid on its control gate.
 > T2c validly selected one-sided arithmetic/issue sensitivity, but corrected address-faithful U1
 > saves only 4.71-4.72 ms even after removing activation and almost all semantics. Arithmetic and
@@ -19,7 +21,8 @@
 > debt is inherited from the early HC mixer. Iteration 16 exactifies that state through attention
 > HC post; iteration 17 localizes the next debt to the FFN HC mixer, and iteration 18 exactifies
 > through FFN normalization. Iteration 26 shows that the required dense mechanism must span four Q8
-> and three F16 sites; V15 is the next conditional capability gate. Iteration 10
+> and three F16 sites; iteration 28 passes V15 Stage A for Q8 Q-a and the F16 router. Stage B is
+> the next conditional family/economic gate. Iteration 10
 > falsified the existing batch graph as a shared
 > M=1/M=K exactness family; iteration 9 corrected the iteration-8 locality profiler;
 > cache residency remains a current-path NO-GO; iterations 6/7
@@ -88,7 +91,7 @@
 > mechanism, not another grouped gate+up variant.
 
 Date: 2026-07-07 (refreshed 2026-07-18). Status:
-**M3-bounded V14 exhausted -> primary exact V15 capability gate active; prior grouped, margin,
+**M3-bounded V14 exhausted -> V15 Stage A passed, Stage B pending; prior grouped, margin,
 address-layout, production-geometry, and existing batch-family mechanisms remain NO-GO.**
 This doc remains the Lead 08 provenance record. Phase A result:
 `issue468/summaries/mtp_verifier_engineering_and_phaseA.md`; Phase B canonical
@@ -360,10 +363,11 @@ fused (the full build). Keeps the Phase-B abort condition (>5% re-verification).
 
 **2026-07-18 current:** corrected U1 closes arithmetic/dequant below 4.74 ms, and the iteration-25
 mechanism audit finds no independent concrete >=8.7 ms package on the current in-RAM runtime.
-Lead 08 `INTERIM_BOUNDED` is exhausted. V13's cross-quant inventory admits one conditional V15
-Q8/F16 family capability prototype; iteration 27 must first predeclare its executable fixed-work
-protocol. Its direct bit gate and <=7.5 ms candidate-minus-current-ext all-layer delta upper bound
-must pass before graph integration. Lead 05 remains an alternate only if SSD compatibility is in scope.
+Lead 08 `INTERIM_BOUNDED` is exhausted. V15 Stage A now passes both Q8/F16 M=2 capability gates:
+430/430 all-layer C0-C4 cases are word-exact and source/AIR retain one logical traversal. Stage B
+is next: M=2..8 at all seven sites, a nonredundant output-B seam, C5 scope, and an M=4 all-layer
+candidate-minus-current-ext delta upper bound <=7.5 ms. No graph integration is authorized before
+that passes. Lead 05 remains an alternate only if SSD compatibility is in scope.
 Do not repeat grouped, margin,
 address-layout, geometry, mapped-residency, existing batch-family, or top-r mechanisms without evidence that
 changes their upper bounds.
@@ -382,6 +386,27 @@ sufficient." (Confirmatory: a literal identical-input MoE kernel-equality harnes
 verify-bandwidth slope re-measure.)
 
 ## Worklog
+
+### 2026-07-18 - iteration-28 V15 Stage-A exact small-M M=2 -> PASS capability
+
+Implemented one research-only Q8/F16 host operation and shared M-token structural Metal template,
+with no production graph callsite changes. Q8 Q-a retains M1 NR0 2 / NSG 4 and the per-token
+eight-Q sum then scale boundary; F16 router retains M1 NR0 2 / NSG 8 and four half4/float4 dots.
+The candidate dispatch is one `(ceil(N/2),1,1)` grid; raw weights are loaded outside the two token
+arithmetic chains. A dedicated filtered harness compares against two unchanged production M1 calls
+in the same command buffer and emits explicit CSV evidence.
+
+The retained decisive run covers 43 layers x two formats x C0-C4 = 430 unique cases. The
+deterministic validator reconstructs every input and reports 215/215 cases per format, 86/86 per
+corpus, zero differing F32 words, and zero max absolute difference. Runtime Metal compilation and
+`metal -S` both pass. AIR contains one primary Q8 block-loop backedge and one primary F16 block-loop
+backedge, with raw-weight loads before token arithmetic and no token term in weight addresses. This
+is logical compiled-source evidence, not proof of physical DRAM transactions. Stage A establishes
+capability only; Stage B's wider family, seam, and economics remain open. Artifact:
+`artifacts/lead08_reassessment/36_iter28_exact_smallm_pair.md`.
+The first red-team returned `FIX` because filtered subsets could exit as decisive `BIT_EXACT` and
+odd N was unsafe under unconditional NR0 2. Both now fail closed; the repeat independently rebuilt,
+reproduced 430/430 exact cases and fresh AIR, and returned `COMMIT`. Stage B is authorized.
 
 ### 2026-07-18 - iteration-27 V15 executable protocol -> REDESIGN / staged GO
 

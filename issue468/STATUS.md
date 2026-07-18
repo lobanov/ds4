@@ -22,12 +22,20 @@ cycle (~16 ms/token off the target).
 | Goal | ≥20 % greedy throughput on ds4 IQ2XXS, exact-output-preserved |
 | Current best | Full DSpark stack **+4.9 %** over plain (40.04 vs 38.16 t/s; score-neutral 61/92) — M3 |
 | The gap | +20 % not reached; verify ≈80 % of the cycle |
-| Open lever | **Lead 08 V15 Stage A cross-quant M2 capability.** Protocol preflight is complete. Implement both Q8 Q-a and F16 router research kernels together; require all-43/C0-C4 bit equality and one logical weight traversal before the full M2..8/economic stage |
+| Open lever | **Lead 08 V15 Stage B full-family/economic gate.** Stage A passes 430/430 Q8/F16 M=2 cases with one logical traversal. Extend both formats to M=2..8/all seven sites, factor output-B nonredundantly, then require the M=4 all-layer delta upper bound <=7.5 ms |
 | Closed (negative) | Drafter/input quality (Lead 07), drafter quant (Q4_K), non-expert finetune (Stage 2), DFlash, quant-mismatch |
 
 ## Investigation arc
 
 Reverse-chronological. Each entry: what was tested → verdict → canonical record.
+
+- **2026-07-18 - Lead 08 iteration 28 V15 Stage A: PASS capability.** One research-only host
+  operation and shared structural Metal template cover Q8 Q-a and the F16 router at M=2 without
+  changing graph callsites. All 430 real-offset/C0-C4 cases match two unchanged M1 references word
+  for word. Runtime compilation and AIR show one logical format traversal, raw loads before the
+  independent token arithmetic, and no token term in weight addresses; physical DRAM traffic is
+  not claimed. Stage B's M=2..8 seven-site coverage, output-B seam, and <=7.5 ms economic gate are
+  still untested. `artifacts/lead08_reassessment/36_iter28_exact_smallm_pair.md`.
 
 - **2026-07-18 - Lead 08 iteration 27 V15 protocol: REDESIGN; staged GO.** A monolithic both-format
   M=2..8 build, seam refactor, exhaustive correctness, and timing iteration is not auditable. Stage A
@@ -356,10 +364,11 @@ literal direct carrier is about 10.74 ms/cycle. Corrected address-faithful U1 sa
 ms even after removing activation and almost all
 semantics, so arithmetic/dequant reduction closes without a broad kernel sweep. Iteration 25 finds
 no independent concrete >=8.7 ms mechanism, so Lead 08 bounded work is exhausted on this runtime.
-V13 completes the cross-quant inventory and iteration 27 completes V15's executable protocol. Stage A
-is now the primary exact-track step: both Q8 Q-a and F16 router M=2 research specializations, all 43
-offsets/C0-C4, literal M1 bits, and one logical weight traversal. Only an audited both-format pass
-admits Stage B's full M=2..8/seam/economic gate. This is not yet a speed result or full-path exactness.
+V13 completes the cross-quant inventory and iteration 27 completes V15's executable protocol.
+Iteration 28 passes Stage A: both Q8 Q-a and F16 router M=2 specializations cover all 43 offsets and
+C0-C4 with literal M1 bits and one logical traversal. Stage B is now P0: full M=2..8 coverage,
+the nonredundant output-B seam, and the cumulative economic gate. This is not yet a speed result or
+full-path exactness.
 Lead 05 SSD compatibility remains an alternate redirect if that scope becomes acceptable. Any future bounded-track admission additionally
 requires `verify_ms(4) <= 50.5 ms` and `>= max(45.8 t/s, 1.20 x fresh plain)` on the 176-entry corpus, and no
 regression from a fresh matched M3 control on the recorded task-quality and distribution gates.

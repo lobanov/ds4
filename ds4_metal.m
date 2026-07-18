@@ -13617,6 +13617,83 @@ int ds4_gpu_matmul_f16_pair_tensor(
     return 1;
 }
 
+int ds4_gpu_exact_smallm_dense_tensor(
+        ds4_gpu_tensor              *out,
+        const void                  *model_map,
+        uint64_t                     model_size,
+        uint64_t                     weight_offset,
+        uint64_t                     in_dim,
+        uint64_t                     out_dim,
+        const ds4_gpu_tensor        *x,
+        uint32_t                     n_tok,
+        ds4_gpu_exact_smallm_format  format) {
+    if (!g_initialized && !ds4_gpu_init()) return 0;
+    if (!out || !x || !model_map || n_tok != 2u ||
+        in_dim == 0 || out_dim == 0 || in_dim > UINT32_MAX || out_dim > UINT32_MAX ||
+        (in_dim & 31u) != 0 || (out_dim & 1u) != 0 ||
+        (format != DS4_GPU_EXACT_SMALLM_Q8_0 && format != DS4_GPU_EXACT_SMALLM_F16)) {
+        return 0;
+    }
+
+    @autoreleasepool {
+        id<MTLBuffer> xbuf = ds4_gpu_tensor_buffer(x);
+        id<MTLBuffer> outbuf = ds4_gpu_tensor_buffer(out);
+        const uint64_t x_bytes = (uint64_t)n_tok * in_dim * sizeof(float);
+        const uint64_t out_bytes = (uint64_t)n_tok * out_dim * sizeof(float);
+        if (!xbuf || !outbuf ||
+            ds4_gpu_tensor_bytes(x) < x_bytes || ds4_gpu_tensor_bytes(out) < out_bytes) {
+            fprintf(stderr, "ds4: Lead 08 exact small-M received undersized activation buffers\n");
+            return 0;
+        }
+
+        const uint64_t row_bytes = format == DS4_GPU_EXACT_SMALLM_Q8_0
+            ? (in_dim / 32u) * 34u
+            : in_dim * sizeof(uint16_t);
+        if (out_dim > UINT64_MAX / row_bytes) return 0;
+        const uint64_t weight_bytes = out_dim * row_bytes;
+        if (weight_offset > model_size || weight_bytes > model_size - weight_offset) {
+            fprintf(stderr, "ds4: Lead 08 exact small-M weights are outside the mapped model\n");
+            return 0;
+        }
+
+        uint64_t inner_offset = 0;
+        id<MTLBuffer> wbuf = ds4_gpu_wrap_model_range(model_map, model_size,
+                                                       weight_offset, weight_bytes,
+                                                       &inner_offset);
+        if (!wbuf) return 0;
+
+        const int16_t nsg = format == DS4_GPU_EXACT_SMALLM_Q8_0 ? 4 : 8;
+        const char *pipeline_name = format == DS4_GPU_EXACT_SMALLM_Q8_0
+            ? "kernel_lead08_exact_smallm_q8_0_f32_m2"
+            : "kernel_lead08_exact_smallm_f16_f32_m2";
+        id<MTLComputePipelineState> pipeline =
+            ds4_gpu_get_mul_mv_pipeline(pipeline_name, nsg);
+        if (!pipeline) return 0;
+
+        ds4_gpu_mul_mv_ext_args args =
+            ds4_gpu_make_mv_ext_args(in_dim, out_dim, n_tok,
+                                      format == DS4_GPU_EXACT_SMALLM_Q8_0 ? 34u : sizeof(uint16_t),
+                                      row_bytes);
+
+        int owned = 0;
+        id<MTLCommandBuffer> cb = ds4_gpu_command_buffer(&owned);
+        if (!cb) return 0;
+        id<MTLComputeCommandEncoder> enc = ds4_gpu_compute_encoder(cb);
+        [enc setComputePipelineState:pipeline];
+        [enc setBytes:&args length:sizeof(args) atIndex:0];
+        [enc setBuffer:wbuf offset:(NSUInteger)inner_offset atIndex:1];
+        [enc setBuffer:xbuf offset:ds4_gpu_tensor_offset(x) atIndex:2];
+        [enc setBuffer:outbuf offset:ds4_gpu_tensor_offset(out) atIndex:3];
+        [enc setThreadgroupMemoryLength:32u * 2u * sizeof(float) atIndex:0];
+        [enc dispatchThreadgroups:MTLSizeMake(((NSUInteger)out_dim + 1u) / 2u, 1, 1)
+             threadsPerThreadgroup:MTLSizeMake(32, (NSUInteger)nsg, 1)];
+        ds4_gpu_end_compute_encoder(cb, enc);
+
+        if (!ds4_gpu_finish_command_buffer(cb, owned, "Lead 08 exact small-M M2")) return 0;
+    }
+    return 1;
+}
+
 int ds4_gpu_matmul_f32_tensor(
         ds4_gpu_tensor       *out,
         const void             *model_map,
