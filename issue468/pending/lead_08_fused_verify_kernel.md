@@ -1,9 +1,10 @@
 # Lead 08 — Fused low-K batch-verify kernel (close the verify-vs-floor gap)
 
-> **Current verdict (2026-07-18): Lead 08 now has an explicit `INTERIM_BOUNDED` contract.**
-> Preserve exact output as the ultimate project gate, but pursue verifier speed within a fresh
-> matched M3 task-quality/distribution envelope. V1 is the interim baseline; the V5/V13 exact
-> accumulation track is deferred; T1 Metal counter attribution is tooling-blocked, T2a applies only
+> **Current verdict (2026-07-18): bounded work is exhausted; primary exact track resumed.**
+> The prior `INTERIM_BOUNDED` contract remains a valid research envelope, but no current-runtime
+> mechanism clears its 8.7 ms admission bar. V1 remains the interim baseline. V13 has completed a
+> cross-quant exact small-M dense inventory and conditionally admits V15, one Q8/F16 family-level
+> capability prototype. T1 Metal counter attribution is tooling-blocked, T2a applies only
 > to the incompatible SSD address kernel, and mapped-kernel T2b is invalid on its control gate.
 > T2c validly selected one-sided arithmetic/issue sensitivity, but corrected address-faithful U1
 > saves only 4.71-4.72 ms even after removing activation and almost all semantics. Arithmetic and
@@ -13,12 +14,12 @@
 > `>= max(45.8 t/s, 1.20 x fresh plain)`.
 > Separators select one mechanism; they are not themselves evidence of a speedup.
 >
-> **Retained exact-track state:** iterations 12-14 move the captured layer-0 exactness frontier
+> **Active exact-track state:** iterations 12-14 move the captured layer-0 exactness frontier
 > through Q/KV, Q-b, attention, inverse RoPE, and output-B. Iteration 15 finds the post-attention
 > debt is inherited from the early HC mixer. Iteration 16 exactifies that state through attention
 > HC post; iteration 17 localizes the next debt to the FFN HC mixer, and iteration 18 exactifies
-> through FFN normalization. A generic same-accumulation batched-F16 inventory would be next if the
-> deferred exact track resumes. Iteration 10
+> through FFN normalization. Iteration 26 shows that the required dense mechanism must span four Q8
+> and three F16 sites; V15 is the next conditional capability gate. Iteration 10
 > falsified the existing batch graph as a shared
 > M=1/M=K exactness family; iteration 9 corrected the iteration-8 locality profiler;
 > cache residency remains a current-path NO-GO; iterations 6/7
@@ -87,7 +88,7 @@
 > mechanism, not another grouped gate+up variant.
 
 Date: 2026-07-07 (refreshed 2026-07-18). Status:
-**Phase B exact track deferred -> M3-bounded V14 acceleration active; prior grouped, margin,
+**M3-bounded V14 exhausted -> primary exact V15 capability gate active; prior grouped, margin,
 address-layout, production-geometry, and existing batch-family mechanisms remain NO-GO.**
 This doc remains the Lead 08 provenance record. Phase A result:
 `issue468/summaries/mtp_verifier_engineering_and_phaseA.md`; Phase B canonical
@@ -359,9 +360,12 @@ fused (the full build). Keeps the Phase-B abort condition (>5% re-verification).
 
 **2026-07-18 current:** corrected U1 closes arithmetic/dequant below 4.74 ms, and the iteration-25
 mechanism audit finds no independent concrete >=8.7 ms package on the current in-RAM runtime.
-Lead 08 `INTERIM_BOUNDED` is exhausted. Redirect to Lead 05 only if SSD compatibility is in scope,
-or resume deferred V13/V5 exact work without a speed promise. Do not repeat grouped, margin,
-address-layout, geometry, mapped-residency, shared-family, or top-r mechanisms without evidence that
+Lead 08 `INTERIM_BOUNDED` is exhausted. V13's cross-quant inventory admits one conditional V15
+Q8/F16 family capability prototype; iteration 27 must first predeclare its executable fixed-work
+protocol. Its direct bit gate and <=7.5 ms candidate-minus-current-ext all-layer delta upper bound
+must pass before graph integration. Lead 05 remains an alternate only if SSD compatibility is in scope.
+Do not repeat grouped, margin,
+address-layout, geometry, mapped-residency, existing batch-family, or top-r mechanisms without evidence that
 changes their upper bounds.
 
 **Milestone COMPLETE (2026-07-13): Phase B characterization + decisive measurements →
@@ -378,6 +382,25 @@ sufficient." (Confirmatory: a literal identical-input MoE kernel-equality harnes
 verify-bandwidth slope re-measure.)
 
 ## Worklog
+
+### 2026-07-18 - iteration-26 cross-quant exact small-M inventory -> DESIGN COMPLETE / conditional V15
+
+Returned to the primary exact-output track after bounded-track exhaustion. Independent preflight
+rejected an F16/router-only patch and required one family spanning all seven exposed dense sites:
+four Q8 projections and three F16 projections. Their weights total 77.875 MiB/layer (3.270 GiB per
+43-layer traversal); four standalone M1 rows add 9.810 GiB, so row helpers cannot be production.
+Literal M1 Q8/F16 bodies and integration seams make a load-once family structurally plausible, but
+output-B needs a nonredundant batch seam and no implementation/economic result exists. V13 closes design-positive;
+V15 conditionally admits one common Q8/F16 M=2..8 capability prototype, gated on direct bit equality
+for all seven shapes and a candidate-minus-current-ext all-layer delta upper bound <=7.5 ms over the
+conservative 43 ms policy base. Iteration 27 must predeclare the executable fixed-work timing protocol
+before any code. The first red-team returned `FIX` on floor/lower-bound wording, protocol completeness,
+output-B mechanism neutrality, four source lines, and stale family-closure wording; all were corrected
+for repeat audit. The repeat returned `FIX` only on possible lower-bound double counting; the final
+formula now permits one validated end-to-end lower bound or a sum of proved non-overlapping component
+bounds, and policy rollout requires cumulative matched timing rather than additive isolated deltas.
+The final repeat audit returned `COMMIT`.
+`artifacts/lead08_reassessment/34_iter26_exact_smallm_dense_inventory.md`.
 
 ### 2026-07-18 - iteration-25 bounded-track reassessment -> STOP / EXHAUSTED
 
@@ -530,7 +553,7 @@ passing.
 
 **Ledger reassessment.** V1 is `INTERIM_BASELINE`; V5 and V13 are deferred exact-track work; V6-V12
 remain valid retained evidence. Previously failed grouped, margin, layout, geometry, mapped-residency,
-shared-family, and top-r branches remain closed. D5 is only a conditional later composition. T1 is
+existing batch-family, and top-r branches remain closed. D5 is only a conditional later composition. T1 is
 P0 and V14 is the active rank-1 performance branch. Canonical contract and rationale:
 `artifacts/lead08_reassessment/27_iter19_bounded_divergence_reframe.md`. Mandatory post-iteration
 audit first returned **NO-COMMIT** on four contract holes. After making fresh-M3 quality gates

@@ -22,12 +22,22 @@ cycle (~16 ms/token off the target).
 | Goal | ≥20 % greedy throughput on ds4 IQ2XXS, exact-output-preserved |
 | Current best | Full DSpark stack **+4.9 %** over plain (40.04 vs 38.16 t/s; score-neutral 61/92) — M3 |
 | The gap | +20 % not reached; verify ≈80 % of the cycle |
-| Open lever | **Lead 08 bounded track exhausted.** Corrected U1 is below 4.74 ms and a systematic reassessment finds no independent composable >=8.7 ms mechanism. Redirect to Lead 05 compatibility if SSD scope is acceptable, or deferred V13/V5 exact work without a speed promise |
+| Open lever | **Lead 08 V15 exact dense-family capability gate.** Bounded work is exhausted. V13 inventories one structurally plausible Q8/F16 load-once family across all seven exposed dense debts; iteration 27 must preflight the protocol before implementation, direct bits, and a candidate-minus-current-ext all-layer delta upper bound <=7.5 ms |
 | Closed (negative) | Drafter/input quality (Lead 07), drafter quant (Q4_K), non-expert finetune (Stage 2), DFlash, quant-mismatch |
 
 ## Investigation arc
 
 Reverse-chronological. Each entry: what was tested → verdict → canonical record.
+
+- **2026-07-18 - Lead 08 iteration 26 exact small-M dense inventory: DESIGN COMPLETE; V15
+  conditional.** The initially proposed F16/router helper was too narrow. The exposed exactness debt
+  spans four Q8 and three F16 sites totaling 77.875 MiB/layer. Four independent M1 traversals add
+  9.810 GiB/43 layers, so the only admissible structure loads each weight once while retaining an
+  independent literal M1 arithmetic DAG per token. Source seams are plausible, though output-B
+  requires a nonredundant batch seam. Admit one common-family capability prototype only after a
+  mandatory timing-protocol preflight: direct bits on all seven
+  shapes and candidate-minus-current-ext all-43 delta upper CI <=7.5 ms. No implementation or speed claim yet.
+  `artifacts/lead08_reassessment/34_iter26_exact_smallm_dense_inventory.md`.
 
 - **2026-07-18 - Lead 08 iteration 25 bounded-track audit: STOP / EXHAUSTED; corrected audit COMMIT.**
   The removable arithmetic saving is upper-bounded below 4.74 ms by U1; retained traffic is distinct but has no surviving
@@ -262,7 +272,7 @@ The drafter is **not** the lever, on four independent grounds:
   IQ2XXS.** `archive/leads/lead_07_upstream_quality_ceiling.md`.
 - **DFlash drafter:** ~2.5× worse accepted prefix than DSpark on this corpus. `summaries/dflash_oracle_investigation.md`.
 
-### Verifier / cycle cost — GAP REMAINS; BOUNDED TRACK OPEN
+### Verifier / cycle cost — GAP REMAINS; EXACT CAPABILITY GATE OPEN
 
 Verify dominates ~80 % of the cycle; this is where the +20 % must come from.
 
@@ -297,9 +307,13 @@ Verify dominates ~80 % of the cycle; this is where the +20 % must come from.
   Iteration 11 then localizes the first same-frontier row-0 divergence to layer-0 attention
   projection, before routed MoE. Iterations 12-18 move that captured exact frontier through FFN
   normalization, but the bounded contract now defers further exactification. The failed grouped,
-  layout, geometry, mapped-residency, shared-family, top-r, and margin mechanisms remain closed:
-  relaxing exactness does not change their economic falsifiers. V14 instead requires counter-guided
-  selection of a genuinely different performance mechanism. Artifacts 10-27 under
+  layout, geometry, mapped-residency, existing batch-family, top-r, and margin mechanisms remain closed:
+  relaxing exactness does not change their economic falsifiers. Iterations 20-25 then exhaust V14:
+  counters are unavailable, controlled arithmetic sensitivity does not yield the required saving,
+  and no independent composable >=8.7 ms mechanism survives. Iteration 26 returns to exactness and
+  completes V13's seven-site cross-quant inventory. V15 is now the sole conditional capability
+  gate; it is not yet implementation, speed, or full-path exactness evidence. The 43 ms value is a
+  conservative policy base within a modeled 39-43 ms range, not a proved lower bound. Artifacts 10-34 under
   `artifacts/lead08_reassessment/`.
 
 ### Scheduler & acceptance
@@ -334,11 +348,17 @@ literal direct carrier is about 10.74 ms/cycle. Corrected address-faithful U1 sa
 ms even after removing activation and almost all
 semantics, so arithmetic/dequant reduction closes without a broad kernel sweep. Iteration 25 finds
 no independent concrete >=8.7 ms mechanism, so Lead 08 bounded work is exhausted on this runtime.
-Only Lead 05 SSD compatibility or deferred V13/V5 exact work remains as a redirect. Final bounded-track admission additionally
+V13 now completes a cross-quant exact dense-family inventory. One conditional V15 capability gate is
+the primary exact-track next step, preceded by a mandatory executable-protocol preflight: Q8+F16,
+one weight traversal, literal M1 arithmetic per token,
+no redundant output-B work, direct bit equality on all seven shapes, and candidate-minus-current-ext
+all-layer delta upper CI <=7.5 ms above the conservative 43 ms policy base. This is not yet a speed
+result or full-path exactness.
+Lead 05 SSD compatibility remains an alternate redirect if that scope becomes acceptable. Any future bounded-track admission additionally
 requires `verify_ms(4) <= 50.5 ms` and `>= max(45.8 t/s, 1.20 x fresh plain)` on the 176-entry corpus, and no
 regression from a fresh matched M3 control on the recorded task-quality and distribution gates.
-The exact-hybrid V5/V13 path is deferred, not disproven. Do not repeat the grouped, margin, layout,
-geometry, mapped-residency, shared-family, or top-r experiments without evidence that changes their
+V5 is active only behind the V15 P0; V13 is complete. Do not repeat the grouped, margin, layout,
+geometry, mapped-residency, existing batch-family, or top-r experiments without evidence that changes their
 upper bounds.
 
 **Lead 10 — drafter re-distillation for IQ2XXS (soft labels)** is a proposed, lower-priority

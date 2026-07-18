@@ -64,7 +64,7 @@ historical M3 values are outer caps rather than substitutes for matched controls
 | V2 | Exact sequential verifier | Correct reference | Exact | Composes | End-to-end throughput | About 0.85x baseline | `CLOSED` economic NO-GO |
 | V3 | Margin-guarded exact fallback | Could repair rare flips | No universal observed bound | Composes | Margin coverage + replay cost | Safe observed threshold guards 17.1%, adds >=7 ms/cycle | `CLOSED` |
 | V4 | Shared batch M=1/M=K operation family | Exactness by shared family if M-invariant | Fails | Composes | Matched target rebaseline + corpus | 5/10 exact; M1 -13.0%; stack -1.3% vs shipped | `CLOSED` |
-| V5 | Exact hybrid: row-wise exact state transitions plus invariant batch sharing | Possible route back to primary exact contract | Unproven | Intended to compose | Stage-by-stage first-divergence movement plus cumulative cost bound | Original design never built; V6-V12 retain diagnostic value | `DEFERRED` behind bounded track |
+| V5 | Exact hybrid: row-wise exact state transitions plus invariant batch sharing | Possible route back to primary exact contract | Unproven | Intended to compose | Stage-by-stage first-divergence movement plus cumulative cost bound | Original design never built; V6-V12 retain diagnostic value; V15 is its next capability dependency | `OPEN` behind V15 P0 |
 | V6 | Row-wise batch-M1 Q/KV projection at layer 0 | Resolves first observed V5 correctness debt | Exact through Q/KV norm and KV path for captured row | Diagnostic patch | Exactify Q/KV; repeat position-104 capture; measure delta | Frontier moves to Qcur; noisy naive all-layer delta +0.56 ms mean with downstream-work confound | `CLOSED` positive |
 | V7 | Row-wise production Q-b at layer 0 | Resolves next observed V5 correctness debt | Exact through inverse RoPE for captured row | Diagnostic patch | Row-wise Q-b; repeat capture and cost discipline | Frontier moves through `kqv_back`; naive all-layer whole-graph delta +7.47 ms | `CLOSED` positive |
 | V8 | Attention-output low/final projection at layer 0 | Next observed V5 correctness debt | Exact through output-B for captured row | Diagnostic overlay | Capture then row-wise output-B | Output-A low is exact; frontier moves to HC expansion; redundant all-layer delta +6.99 ms | `CLOSED` positive |
@@ -72,8 +72,9 @@ historical M3 values are outer caps rather than substitutes for matched controls
 | V10 | Row-wise HC attention mixer at layer 0 | First latent state debt exposed by V9 | Exact through attention HC post for captured row | Diagnostic patch | Row-wise F16 mixer, recapture mix/split/HC post | Frontier moves to FFN HC path; timing shows no obvious penalty but is route-confounded | `CLOSED` positive |
 | V11 | FFN HC input localization at layer 0 | First captured difference after V10 | Mixer is first differing operation | Diagnostic capture | Capture FFN residual/flat/mix/split/pre | Residual and flat exact; mix differs 14/24 before split/pre | `CLOSED` redesign |
 | V12 | Row-wise FFN HC mixer at layer 0 | Exact-input/different-output boundary exposed by V11 | Exact through FFN norm for captured row | Diagnostic patch | Apply existing F16 rows-as-M1 helper only to `hc_ffn_fn` | Frontier moves to router logits; local profiled envelope -0.029 ms | `CLOSED` positive |
-| V13 | Generic same-accumulation batched-F16 design/cost inventory | Exact-track response to three exposed low-K F16 mismatches | Design only | Must preserve batch sharing | Inventory attention/FFN/router shapes, kernel route, shared mechanism, isolated cost carrier | Not run; unnecessary for M3-bounded admission | `DEFERRED` exactness track |
+| V13 | Cross-quant exact-row small-M dense design/cost inventory | Covers all seven exposed Q8/F16 accumulation debts | Exact by construction if literal M1 DAG survives | Must share one weight traversal and provide a nonredundant output-B seam | Inventory shapes, kernels, traffic, seams, invariant, cumulative bound | 77.875 MiB/layer surface; M1-row K4 adds 9.810 GiB/43 layers; common design structurally plausible | `CLOSED` positive design; no speed claim |
 | V14 | M3-quality-bounded verifier acceleration | Must save >=8.7 ms/cycle to close the live gap | No worse than matched M3 task/distribution envelope | Must preserve M3 composition and integrity | Bind a separator to the live mapped kernel, then one >=15% fixed-work prototype | U1 closes arithmetic below 4.74 ms; iteration-25 audit finds no independent composable >=8.7 ms mechanism | `CLOSED`; bounded track exhausted |
+| V15 | Exact-row small-M dense family capability gate | Could fit the 43 ms conservative policy base while removing exposed dense divergence | Bit-exact against M independent production M1 calls | Q8+F16, M=2..8, one traversal, nonredundant output-B seam | Iter-27 protocol preflight, then one common skeleton; direct bits on seven shapes; candidate-minus-current-ext all-43 delta upper CI <=7.5 ms | V13 proves source seams/design only; implementation and economics untested | `P0` protocol preflight; no code before GO |
 | K1 | Grouped routed gate/up | Proposed expert-load sharing | Bit-exact on identical inputs | Composes | Production 18/24 prototype | 22.9% slower | `CLOSED` |
 | K2 | Expert address remapping / packing | Proposed coalescing | Exact | Composes | Fixed-work placement sweep | Less than 2% sensitivity | `CLOSED` |
 | K3 | Address-kernel SIMDgroup / row-tile geometry | Low-single-digit possible | Exact | Composes | Production fixed-work sweep | At most about 1-3%, inconsistent | `CLOSED` |
@@ -110,10 +111,10 @@ under `issue468/artifacts/lead08_reassessment/`):
   T2b closes invalid in `30_iter22_mapped_alu_separator.md`; T2c closes positive as a one-sided
   selector in `31_iter23_direct_gpu_replay.md`; U1 is the only authorized follow-up.
 
-## Deferred Lead 08 exactness frontier
+## Active Lead 08 exactness frontier
 
-This frontier is retained for an eventual return to the primary exact contract, but it no longer
-drives the bounded-track queue. The exact-hybrid search advances only at the first unresolved
+This frontier again drives the primary exact contract after bounded-track exhaustion. The
+exact-hybrid search advances only at the first unresolved
 operation boundary. A downstream
 difference inherited from an earlier stage is not evidence that the downstream stage is independently
 M-dependent.
@@ -135,7 +136,7 @@ M-dependent.
 | FFN HC residual + flat RMS | bit-identical after V10 in V11 capture | exact for captured row | none |
 | FFN HC mixer | exact flat input; exact after V12 row-wise mixer | exact for captured row | none |
 | FFN HC split + weighted sum + norm | bit-identical after V12 row-wise mixer | exact for captured row | none |
-| FFN router projection | exact norm input, 186/256 differing logits after V12 | first captured unresolved operation | defer with V13; do not patch on bounded track |
+| FFN router projection | exact norm input, 186/256 differing logits after V12 | first captured unresolved operation | V15 family gate; no router-only patch |
 | routed MoE gate/up | bit-exact in identical-input isolated prototype | exact in that harness; economics closed | retain production path; do not rebuild grouped K1 |
 | routed down / sum and shared FFN | not isolated end-to-end | unknown | test only after attention frontier moves |
 | output head | same batched function in V4 but inherited state differs | unknown independently | last boundary after layer path |
@@ -160,11 +161,13 @@ acceptance, scheduler, expert work, and correction-token changes are mandatory o
 
 For deferred exact-hybrid stages, correctness and performance remain coupled:
 
-`candidate lower bound = proven-unavoidable exactified work + optimistic remaining batch floor + runtime overhead`
+`LB_exact = one validated end-to-end lower bound, or proved non-overlapping unavoidable component lower bounds`
 
-The branch stops as soon as that lower bound cannot meet `verify_ms(4) <= 50.5 ms`. Moving the
-correctness frontier without measuring incremental cost is diagnostic progress, not authorization for
-a full build.
+The modeled 39-43 ms byte-floor range is not itself a proved lower bound. For conservative prototype
+admission, use 43 ms as a policy base and require a cumulative matched exactness-delta upper bound to keep the
+projection at or below `verify_ms(4) <= 50.5 ms`. The branch is mathematically exhausted only if an
+independently validated `LB_exact` exceeds 50.5 ms. Moving the correctness frontier without measuring
+incremental cost is diagnostic progress, not authorization for a full build.
 
 ### T2b predeclared protocol (iteration 22)
 
@@ -258,14 +261,15 @@ and 4.723667 ms `[4.715042,4.735250]` on dispersed IDs. Even the upper bounds mi
 
 | Rank | Experiment | Why now | Pass | Fail / stop |
 |---:|---|---|---|---|
-| P0 | Redirect decision | Lead 08 bounded track is exhausted on the current runtime | Lead 05 compatibility falsifier if SSD scope is acceptable, otherwise deferred V13/V5 exact inventory | Do not reopen bounded Lead 08 without new >=8.7 ms independent evidence |
-| 2 | V14 matched quality gate plus scheduled integration | Only after stage economics pass | No worse than fresh M3 control and historical caps; `verify_ms(4)<=50.5 ms`; save >=8.7 ms/cycle | Close candidate on any conjunctive failure |
-| 3 | V14 full 176-entry composition | Decisive interim result | `>= max(45.8 t/s, 1.20 x fresh plain)` with all quality/integrity gates | Close candidate |
-| 4 | V5/V13 exact track | Return path to primary goal after bounded path succeeds or is exhausted | Exact stream within economic gate | Defer or close based on cumulative lower bound |
+| P0 | V15 protocol preflight, then exact dense-family capability gate | V13 completed the currently admitted exact dense design | Predeclare executable fixed-work protocol; then Q8+F16 direct bits on all seven shapes and candidate-minus-current-ext all-43 delta upper CI <=7.5 ms | No code without preflight GO; stop/REDESIGN on K traversals, redundant B, any bit failure, or policy miss |
+| 2 | Exact graph frontier after V15 | Only after family capability and economics pass | Move layer-0 frontier through router, then continue first unresolved boundary | Stop family when policy projection exceeds 50.5 ms; prove exhaustion only from validated lower bound |
+| 3 | V14 matched quality/integration | Dormant unless a genuinely new independent >=8.7 ms bounded mechanism appears | Historical bounded gates unchanged | Do not reopen from attribution alone |
 | 5 | D5 soft-label redistillation | Only if verifier economics survive and acceptance remains limiting | Powered p1 lift composes materially | Close drafter axis |
 
 T1 is blocked after its capability gate; no K1/K4 trace is authorized with the same template.
 The old restore P0 and V6-V12 are complete and audited. They remain retained exact-track evidence.
-No grouped-MoE, layout, geometry, mapped-residency, shared-family, top-r, or margin-policy experiment
+No grouped-MoE, layout, geometry, mapped-residency, existing batch-family, top-r, or margin-policy experiment
 may be repeated without new evidence that changes its upper bound. Counter attribution is not itself
-a GO and must select exactly one V14 mechanism.
+a GO and must select exactly one V14 mechanism. V15 is a different cross-quant exact-accumulation
+family and is admitted only by the gates in artifact 34; it does not reopen iteration 10's existing
+batch-family experiment.
