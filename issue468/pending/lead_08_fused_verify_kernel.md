@@ -4,9 +4,11 @@
 > Preserve exact output as the ultimate project gate, but pursue verifier speed within a fresh
 > matched M3 task-quality/distribution envelope. V1 is the interim baseline; the V5/V13 exact
 > accumulation track is deferred; T1 Metal counter attribution is tooling-blocked, T2a applies only
-> to the incompatible SSD address kernel, and mapped-kernel T2b is invalid on its control gate;
-> control-stabilized T2c is P0; V14 mechanism-selected
-> acceleration is the active branch. The required prize remains >=8.7 ms/cycle, K=4 verify must
+> to the incompatible SSD address kernel, and mapped-kernel T2b is invalid on its control gate.
+> T2c now validly selects one-sided arithmetic/issue sensitivity; U1, exactly one maximum-removable
+> arithmetic upper-bound kernel, is P0. V14 mechanism-selected acceleration is the active branch.
+> The direct carrier is only about 10.74 ms/cycle, so the required >=8.7 ms prize is an approximately
+> 81% cut. K=4 verify must
 > reach <=50.5 ms, and the composed 176-entry run must reach
 > `>= max(45.8 t/s, 1.20 x fresh plain)`.
 > Separators select one mechanism; they are not themselves evidence of a speedup.
@@ -355,14 +357,14 @@ fused (the full build). Keeps the Phase-B abort condition (>5% re-verification).
 
 ## Next steps
 
-**2026-07-18 current:** T2a is ambiguous on an incompatible SSD carrier. T2b reaches the live mapped
-`tiny_pair_mv` gate/up family and shows strong arithmetic sensitivity, but fails its predeclared
-production/companion-zero interval and narrowly misses the overlap positive threshold. Preflight a
-control-stabilized T2c direct replay on the same `kernel_mul_mv_id_iq2_xxs_pair_f32` carrier,
-excluding diagnostic logging from timing. Only a valid live-kernel separator may select one
-ALU/instruction mechanism; weak evidence cannot select traffic/latency. Then permit one fixed-work
-prototype only if its identified hot stage has a plausible >=8.7 ms/cycle prize; require >=15% stage
-improvement before integration. Do not repeat the grouped, margin, address-layout,
+**2026-07-18 current:** T2c passes its control, fidelity, schedule, timestamp, and AIR gates and
+validly selects one-sided arithmetic/issue sensitivity on the live mapped
+`kernel_mul_mv_id_iq2_xxs_pair_f32` carrier. This does not establish dequant-compute dominance or
+select traffic/latency. Independently preflight U1, exactly one maximum-removable arithmetic
+upper-bound kernel retaining packed loads, address calculation, geometry, and stores. Its paired
+absolute saving lower bound must reach 8.7 ms in both strata; because clean direct production is
+only about 10.74 ms/cycle, this is an approximately 81% cut. Failure closes arithmetic reduction
+without production tuning. Do not repeat the grouped, margin, address-layout,
 geometry, mapped-residency, shared-family, or top-r mechanisms: the relaxed quality contract does
 not alter their economic falsifiers.
 
@@ -380,6 +382,33 @@ sufficient." (Confirmatory: a literal identical-input MoE kernel-equality harnes
 verify-bandwidth slope re-measure.)
 
 ## Worklog
+
+### 2026-07-18 - iteration-23 direct mapped-pair GPU replay -> VALID positive selector
+
+**Preflight and implementation.** The independent preflight returned REDESIGN for a final
+control-stabilized separator. The harness directly replays the existing mapped K4 pair encoder and
+returns after gate/up, committing one layer per command buffer. Metal GPU start/end timestamps are
+primary; activation, down, stage profiling, and per-layer timed logging are excluded. Literal
+production, identical production duplicate, companion actual-zero, R32, and R128 run across two
+fixed-ID strata after 20 warmup rounds and 30 measured balanced rounds.
+
+**Result.** All four nonbaseline selectors pass 86/86 full-routed plus explicit-direct bitwise cases.
+All 300 samples contain 43 positive finite GPU intervals and every arm occupies every position six
+times per stratum. Duplicate/production paired intervals are `[-0.064,+0.099]%` and
+`[-0.071,+0.154]%`; zero/production intervals are `[+1.149,+1.341]%` and
+`[+1.054,+1.195]%`. R32 versus zero is +45.762% `[+45.652,+45.934]` on overlap and
++45.795% `[+45.660,+46.014]` on dispersed IDs; R128 is about +222%. AIR preserves the separate
+runtime argument, two FMA calls, and dynamic backedge only in the companion.
+
+**Decision.** Close T2c **positive as a one-sided arithmetic/issue selector**. It neither proves
+production dequant-compute dominance nor authorizes a production kernel. It authorizes exactly one
+preflighted U1 maximum-removable arithmetic upper bound. Direct production is only about
+10.73-10.76 ms across all 43 layers, so the unchanged 8.7 ms/cycle prize requires approximately 81%
+removal; U1 must meet that absolute lower-bound gate in both strata or close arithmetic reduction.
+Canonical artifact and retained layer/summary CSVs:
+`artifacts/lead08_reassessment/31_iter23_direct_gpu_replay.md`. The independent audit regenerated
+the layer, sample, and summary CSVs byte-identically, reproduced fidelity/AIR/statistics/economics,
+confirmed the one-sided claim limit, and returned **COMMIT**.
 
 ### 2026-07-18 - iteration-22 mapped tiny-pair ALU separator -> INVALID / near-threshold
 

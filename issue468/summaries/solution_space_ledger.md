@@ -73,7 +73,7 @@ historical M3 values are outer caps rather than substitutes for matched controls
 | V11 | FFN HC input localization at layer 0 | First captured difference after V10 | Mixer is first differing operation | Diagnostic capture | Capture FFN residual/flat/mix/split/pre | Residual and flat exact; mix differs 14/24 before split/pre | `CLOSED` redesign |
 | V12 | Row-wise FFN HC mixer at layer 0 | Exact-input/different-output boundary exposed by V11 | Exact through FFN norm for captured row | Diagnostic patch | Apply existing F16 rows-as-M1 helper only to `hc_ffn_fn` | Frontier moves to router logits; local profiled envelope -0.029 ms | `CLOSED` positive |
 | V13 | Generic same-accumulation batched-F16 design/cost inventory | Exact-track response to three exposed low-K F16 mismatches | Design only | Must preserve batch sharing | Inventory attention/FFN/router shapes, kernel route, shared mechanism, isolated cost carrier | Not run; unnecessary for M3-bounded admission | `DEFERRED` exactness track |
-| V14 | M3-quality-bounded verifier acceleration | Must save >=8.7 ms/cycle to close the live gap | No worse than matched M3 task/distribution envelope | Must preserve M3 composition and integrity | Bind a separator to the live mapped kernel, then one >=15% fixed-work prototype | T2b is strong but invalid on its control gate; mechanism remains unselected | `OPEN`, blocked on T2c |
+| V14 | M3-quality-bounded verifier acceleration | Must save >=8.7 ms/cycle to close the live gap | No worse than matched M3 task/distribution envelope | Must preserve M3 composition and integrity | Bind a separator to the live mapped kernel, then one >=15% fixed-work prototype | T2c validly selects arithmetic/issue sensitivity, but the direct carrier is only about 10.74 ms/cycle | `OPEN`, blocked on U1 upper bound |
 | K1 | Grouped routed gate/up | Proposed expert-load sharing | Bit-exact on identical inputs | Composes | Production 18/24 prototype | 22.9% slower | `CLOSED` |
 | K2 | Expert address remapping / packing | Proposed coalescing | Exact | Composes | Fixed-work placement sweep | Less than 2% sensitivity | `CLOSED` |
 | K3 | Address-kernel SIMDgroup / row-tile geometry | Low-single-digit possible | Exact | Composes | Production fixed-work sweep | At most about 1-3%, inconsistent | `CLOSED` |
@@ -82,7 +82,8 @@ historical M3 values are outer caps rather than substitutes for matched controls
 | T1 | Metal counter attribution tied to V14 | Selector only; no direct speedup | Neutral | CLI profiles lack useful M5 counters | Populated-counter and <=5% perturbation gate | Only zero-valued `RT Unit Active`; no shader intervals; +7.5% timing perturbation | `BLOCKED`; custom GUI template could reopen |
 | T2a | SSD selected-address ALU-headroom separator | Attribution only | Neutral | SSD path cannot compose with DSpark | Production plus companion-zero control; compiler-retained dependent FMA sweep at fixed bytes/rows/geometry | Layer-0 pattern bit-exact; control within 2%; monotonic response, but rounds 32: +5.41% total/+10.10% gate-up falls in the predeclared ambiguous band | `CLOSED` ambiguous; incompatible carrier |
 | T2b | Live mapped `tiny_pair_mv` ALU-headroom separator | Attribution only; may select arithmetic V14 mechanism | Neutral | Current K=4 `kernel_mul_mv_id_iq2_xxs_pair_f32` family | Literal production plus companion-zero and retained-FMA arms on two 18-unique selection strata; require all-layer dispatch/AIR/bitwise gates | Fidelity/AIR/dispatch pass and response is strong, but three control intervals escape +/-2%; overlap R32 lower CI is 24.958% | `CLOSED` invalid / near-threshold |
-| T2c | Control-stabilized mapped pair replay | Attribution only | Neutral | Same K=4 mapped pair carrier | Preflight direct replay that excludes diagnostic logging from timing and must pass the production/zero interval before classification | T2b indicates a strong response but fails its control gate | `P0`, preflight next |
+| T2c | Control-stabilized mapped pair replay | Attribution only | Neutral | Same K=4 mapped pair carrier | Direct gate/up replay with GPU command-buffer timestamps, production duplicate, companion-zero, R32/R128, two strata | All controls/fidelity/AIR gates pass; R32 lower CI is +45.65%/+45.66% vs zero and R128 is monotonic | `CLOSED` positive selector; one-sided arithmetic/issue sensitivity |
+| U1 | Maximum-removable mapped-pair arithmetic upper bound | At most the approximately 10.74 ms/cycle direct carrier | Neutral research kernel | Same mapped carrier; not production semantics | Retain packed loads/addressing/geometry/stores, remove maximum arithmetic with AIR proof, require paired saving lower bound >=8.7 ms in both strata | T2c authorizes exactly one attempt; required saving is about 81% of literal production | `P0`; independent preflight required |
 
 Canonical evidence index (summary names are under `issue468/summaries/`; reassessment artifacts are
 under `issue468/artifacts/lead08_reassessment/`):
@@ -103,11 +104,11 @@ under `issue468/artifacts/lead08_reassessment/`):
 - K1-K3, M1-M2: Lead 08 reassessment artifacts `11_iter3_grouped_gateup_prototype.md`,
   `13_iter5_address_locality.md`, `14_iter6_addr_nsg_geometry.md`,
   `15_iter7_addr_row_tile.md`, and `16_iter8_cache_residency.md`.
-- T1-T2b: `07_leadid_candidate_synthesis.md`, reassessment artifacts
+- T1-U1: `07_leadid_candidate_synthesis.md`, reassessment artifacts
   `27_iter19_bounded_divergence_reframe.md` and `28_iter20_metal_counter_capability.md`, and the
   current Lead 08 worklog. `29_iter21_ssd_addr_alu_headroom.md` closes T2a ambiguous; T1 is blocked and
-  T2b closes invalid in `30_iter22_mapped_alu_separator.md`; T2c is the remaining control-stabilized
-  selector attempt.
+  T2b closes invalid in `30_iter22_mapped_alu_separator.md`; T2c closes positive as a one-sided
+  selector in `31_iter23_direct_gpu_replay.md`; U1 is the only authorized follow-up.
 
 ## Deferred Lead 08 exactness frontier
 
@@ -191,12 +192,43 @@ disagreement, or stratum-dependent results are **AMBIGUOUS**. A weak response ne
 traffic prototype; that requires a separately preflighted byte/latency separator or captured-live
 replay.
 
+### T2c predeclared protocol (iteration 23)
+
+The independent preflight returned **REDESIGN**. T2c directly replays the existing mapped K4 pair
+encoding and returns after gate/up. Each layer gets one command buffer; post-completion Metal
+`GPUStartTime`/`GPUEndTime` is the primary timing, with kernel and wall intervals supporting. No
+activation/down, stage profiler, or per-layer log is in the timed interval. Each sample sums 43
+layers with fixed per-layer IDs in both overlap and coprime-dispersed strata.
+
+Arms are literal production, identical-production duplicate, companion actual-zero, R32, and R128.
+Discard two complete ten-round Latin/reversed schedules, then measure 30 rounds per stratum; each arm
+occupies each order position six times. Full routed fidelity remains bit-exact across 43 layers times
+two strata, direct gate/up must match, every sample must contain 43 valid finite GPU intervals, and
+AIR retention remains mandatory. Production/duplicate paired 95% intervals must fit +/-1% and
+production/companion-zero intervals +/-2% in both strata. Any validity failure permanently closes
+this separator family.
+
+After valid controls, R32 lower CI at least 25% in both strata plus positive monotonic R128 is
+arithmetic/issue-sensitive; R32 upper CI below 5% in both plus positive R128 lower bounds is spare
+headroom; otherwise close ambiguous. Positive classification authorizes only one maximum-removable
+arithmetic upper-bound kernel that retains packed-byte loads/addressing with AIR proof. Its saving
+lower bound must reach 47% of the 18.4 ms gate/up stage; otherwise close arithmetic reduction.
+
+**Outcome.** T2c passes every validity gate. Production/duplicate paired intervals are
+`[-0.064,+0.099]%` and `[-0.071,+0.154]%`; companion-zero/production intervals are
+`[+1.149,+1.341]%` and `[+1.054,+1.195]%`. R32 versus companion-zero is +45.762%
+`[+45.652,+45.934]` on overlap and +45.795% `[+45.660,+46.014]` on dispersed IDs; R128
+is about +222% in both. The result is a valid one-sided arithmetic/issue-sensitive selector, not
+proof that production is dequant-compute-bound. Direct production is only about 10.74 ms across 43
+layers, so the unchanged absolute 8.7 ms prize is now an approximately 81% carrier-reduction gate.
+U1 must use that stricter measured bound rather than the iteration-22 profiler percentage.
+
 ## Ranked queue and outcome rules
 
 | Rank | Experiment | Why now | Pass | Fail / stop |
 |---:|---|---|---|---|
-| P0 | T2c control-stabilized mapped pair replay preflight | T2b is strong but invalid because its production/zero intervals miss the control gate | Recover a valid one-sided arithmetic classification without changing the live carrier; any selected mechanism must plausibly cut about 47% of the 18.4 ms/cycle gate/up stage to save 8.7 ms | If a direct replay cannot pass the +/-2% control interval, stop this separator family; do not authorize a prototype |
-| 1 | V14 one counter-selected fixed-work prototype | Prevent another untargeted kernel sweep | >=15% on identified hot stage and credible >=8.7 ms/cycle composed saving | Close that mechanism; do not tune variants below the gate |
+| P0 | U1 maximum-removable arithmetic upper bound preflight and one kernel | T2c validly selects arithmetic/issue sensitivity, but direct production is only about 10.74 ms/cycle | Retain packed loads/addressing/geometry/stores and prove with AIR; paired absolute saving lower bound >=8.7 ms in both strata | Close arithmetic reduction if the upper bound cannot remove about 81% of this carrier; do not tune variants |
+| 1 | V14 one mechanism-selected production prototype | Only if U1 proves enough absolute arithmetic prize | >=15% on identified hot stage and credible >=8.7 ms/cycle composed saving | Close that mechanism; do not tune variants below the gate |
 | 2 | V14 matched quality gate plus scheduled integration | Only after stage economics pass | No worse than fresh M3 control and historical caps; `verify_ms(4)<=50.5 ms`; save >=8.7 ms/cycle | Close candidate on any conjunctive failure |
 | 3 | V14 full 176-entry composition | Decisive interim result | `>= max(45.8 t/s, 1.20 x fresh plain)` with all quality/integrity gates | Close candidate |
 | 4 | V5/V13 exact track | Return path to primary goal after bounded path succeeds or is exhausted | Exact stream within economic gate | Defer or close based on cumulative lower bound |

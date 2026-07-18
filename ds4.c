@@ -22533,6 +22533,9 @@ int metal_graph_test_m2_fidelity_unit(const ds4_model *model, const ds4_weights 
     const bool addr_nr0_probe = getenv("DS4_LEAD08_ADDR_NR0_PROBE") != NULL;
     const bool addr_alu_probe = getenv("DS4_LEAD08_ADDR_ALU_PROBE") != NULL;
     const bool mapped_alu_probe = getenv("DS4_LEAD08_MAPPED_ALU_PROBE") != NULL;
+    const bool mapped_alu_direct =
+        getenv("DS4_LEAD08_MAPPED_ALU_DIRECT_REPLAY") != NULL;
+    if (mapped_alu_direct) unsetenv("DS4_LEAD08_MAPPED_ALU_DIRECT_REPLAY");
     const bool cache_replay_probe = getenv("DS4_LEAD08_CACHE_REPLAY_PROBE") != NULL;
     const bool batch_overlap_probe =
         getenv("DS4_LEAD08_BATCH_OVERLAP_PROBE") != NULL || address_locality_probe ||
@@ -23206,16 +23209,21 @@ int metal_graph_test_m2_fidelity_unit(const ds4_model *model, const ds4_weights 
                     { 2u, 4u, 8u, 0u, 0u };
                 static const uint32_t alu_values[GEOMETRY_MAX_PATTERNS] =
                     { 0u, 1u, 8u, 32u, 128u };
+                static const uint32_t direct_alu_values[GEOMETRY_MAX_PATTERNS] =
+                    { 0u, 2u, 1u, 32u, 128u };
                 const bool sweep_mapped_alu = mapped_alu_probe;
                 const bool sweep_alu = addr_alu_probe || sweep_mapped_alu;
                 const bool sweep_nr0 = addr_nr0_probe;
-                const uint32_t *geometry_values = sweep_alu ? alu_values :
-                    (sweep_nr0 ? nr0_values : nsg_values);
+                const uint32_t *geometry_values = mapped_alu_direct ? direct_alu_values :
+                    (sweep_alu ? alu_values :
+                    (sweep_nr0 ? nr0_values : nsg_values));
                 const uint32_t geometry_patterns = sweep_alu ? 5u : (sweep_nr0 ? 3u : 4u);
                 const uint32_t geometry_baseline = sweep_alu ? 0u :
                     (sweep_nr0 ? 4u : 2u);
-                const uint32_t geometry_rounds = sweep_mapped_alu ? 20u :
-                    (sweep_alu ? 10u : (uint32_t)BATCH_ROUNDS);
+                const uint32_t geometry_rounds = mapped_alu_direct ? 30u :
+                    (sweep_mapped_alu ? 20u :
+                    (sweep_alu ? 10u : (uint32_t)BATCH_ROUNDS));
+                const uint32_t geometry_warmup_rounds = mapped_alu_direct ? 20u : 0u;
                 const char *geometry_name = sweep_mapped_alu ? "mapped_alu" :
                     (sweep_alu ? "alu" : (sweep_nr0 ? "nr0" : "nsg"));
                 const char *geometry_env = sweep_mapped_alu ?
@@ -23256,8 +23264,10 @@ int metal_graph_test_m2_fidelity_unit(const ds4_model *model, const ds4_weights 
                         geometry_name,
                         (uint32_t)BATCH_K, pair_rows, nsg_unique,
                         geometry_rounds, geometry_name,
-                        sweep_alu ? "[0=production,1=companion-zero,8,32,128]" :
-                            (sweep_nr0 ? "[2,4,8]" : "[1,2,4,8]"),
+                        mapped_alu_direct ?
+                            "[0=production,2=production-duplicate,1=companion-zero,32,128]" :
+                        (sweep_alu ? "[0=production,1=companion-zero,8,32,128]" :
+                            (sweep_nr0 ? "[2,4,8]" : "[1,2,4,8]")),
                         geometry_baseline, sweep_mapped_alu ? 2u : 1u);
                 float *ref_gate = malloc((size_t)bmid_bytes);
                 float *ref_up = malloc((size_t)bmid_bytes);
@@ -23364,6 +23374,29 @@ int metal_graph_test_m2_fidelity_unit(const ds4_model *model, const ds4_weights 
                                 &got_mid_f16);
                         }
                         if (!ds4_gpu_end_commands()) got_ok = 0;
+                        if (mapped_alu_direct && got_ok) {
+                            setenv("DS4_LEAD08_MAPPED_ALU_DIRECT_REPLAY", "1", 1);
+                            bool direct_mid_f16 = false;
+                            got_ok = ds4_gpu_begin_commands();
+                            if (got_ok) {
+                                got_ok = ds4_gpu_routed_moe_batch_tensor(
+                                    bout, bgate, bup, bmid, bexperts,
+                                    model->map, model->size,
+                                    L->ffn_gate_exps->abs_offset,
+                                    L->ffn_up_exps->abs_offset,
+                                    L->ffn_down_exps->abs_offset,
+                                    L->ffn_gate_exps->type,
+                                    L->ffn_down_exps->type,
+                                    gate_expert_bytes, gate_row_bytes,
+                                    down_expert_bytes, down_row_bytes,
+                                    expert_in_dim, expert_mid_dim, out_dim,
+                                    bsel, bw, DS4_N_EXPERT, n_exp,
+                                    DS4_SWIGLU_CLAMP_EXP, bx, fid_layer, BATCH_K,
+                                    &direct_mid_f16);
+                            }
+                            if (!ds4_gpu_end_commands()) got_ok = 0;
+                            unsetenv("DS4_LEAD08_MAPPED_ALU_DIRECT_REPLAY");
+                        }
                         uint64_t gate_bits = 0, up_bits = 0, mid_bits = 0, out_bits = 0;
                         double gate_max = 0.0, up_max = 0.0, mid_max = 0.0, out_max = 0.0;
                         uint32_t argmax_flips = 0;
@@ -23448,10 +23481,15 @@ int metal_graph_test_m2_fidelity_unit(const ds4_model *model, const ds4_weights 
                 free(ref_mid);
                 free(ref_out);
                 free(got);
+                if (mapped_alu_direct) setenv("DS4_LEAD08_MAPPED_ALU_DIRECT_REPLAY", "1", 1);
 
                 const uint32_t timing_strata = sweep_mapped_alu ? 2u : 1u;
                 for (uint32_t stratum = 0; stratum < timing_strata; stratum++) {
-                for (uint32_t round = 0; round < geometry_rounds; round++) {
+                const uint32_t total_rounds = geometry_warmup_rounds + geometry_rounds;
+                for (uint32_t sweep_round = 0; sweep_round < total_rounds; sweep_round++) {
+                    const bool measured = sweep_round >= geometry_warmup_rounds;
+                    const uint32_t round = measured ?
+                        sweep_round - geometry_warmup_rounds : sweep_round;
                     for (uint32_t oi = 0; oi < geometry_patterns; oi++) {
                         uint32_t pattern;
                         if (sweep_alu) {
@@ -23479,19 +23517,24 @@ int metal_graph_test_m2_fidelity_unit(const ds4_model *model, const ds4_weights 
                         const uint32_t cache_start =
                             ds4_gpu_stream_expert_cache_current_count();
                         double sample_ms = 0.0;
+                        double sample_gpu_ms = 0.0;
+                        double sample_kernel_ms = 0.0;
+                        double layer_gpu_ms[n_layer];
                         uint32_t sample_layers = 0;
-                        fprintf(stderr,
-                                "lead08_addr_%s: BEGIN stratum=%u round=%u %s=%u\n",
-                                geometry_name, stratum, round, geometry_name,
-                                geometry_values[pattern]);
+                        if (measured) {
+                            fprintf(stderr,
+                                    "lead08_addr_%s: BEGIN stratum=%u round=%u %s=%u\n",
+                                    geometry_name, stratum, round, geometry_name,
+                                    geometry_values[pattern]);
+                        }
                         for (uint32_t il = 0; il < n_layer; il++) {
                             const ds4_layer_weights *L = &weights->layer[il];
                             if ((uint32_t)L->ffn_gate_exps->dim[1] != expert_mid_dim ||
                                 (uint32_t)L->ffn_down_exps->dim[1] != out_dim ||
                                 L->ffn_gate_exps->type != L0->ffn_gate_exps->type) continue;
                             const uint32_t base = stratum == 0u ?
-                                (round * 37u + il * 11u) % nsg_span :
-                                (round * 37u + il * 11u) % DS4_N_EXPERT;
+                                (mapped_alu_direct ? il * 11u : round * 37u + il * 11u) % nsg_span :
+                                (mapped_alu_direct ? il * 11u : round * 37u + il * 11u) % DS4_N_EXPERT;
                             for (uint32_t t = 0; t < BATCH_K; t++) {
                                 for (uint32_t e = 0; e < n_exp; e++) {
                                     const uint32_t group = t == 0u ? 0u : t - 1u;
@@ -23522,6 +23565,10 @@ int metal_graph_test_m2_fidelity_unit(const ds4_model *model, const ds4_weights 
                                     &mid_is_f16);
                             }
                             if (!ds4_gpu_end_commands()) dispatched = 0;
+                            const double gpu_ms = ds4_gpu_last_command_gpu_ms();
+                            const double kernel_ms = ds4_gpu_last_command_kernel_ms();
+                            if (mapped_alu_direct && (!(gpu_ms > 0.0) || !isfinite(gpu_ms) ||
+                                !(kernel_ms > 0.0) || !isfinite(kernel_ms))) dispatched = 0;
                             if (!dispatched) {
                                 fprintf(stderr,
                                         "lead08_addr_%s: dispatch failed round=%u "
@@ -23531,19 +23578,31 @@ int metal_graph_test_m2_fidelity_unit(const ds4_model *model, const ds4_weights 
                                 continue;
                             }
                             sample_ms += (now_sec() - t0) * 1000.0;
+                            sample_gpu_ms += gpu_ms;
+                            sample_kernel_ms += kernel_ms;
+                            layer_gpu_ms[sample_layers] = gpu_ms;
                             sample_layers++;
                         }
                         const uint32_t cache_end =
                             ds4_gpu_stream_expert_cache_current_count();
-                        nsg_ms[pattern] += sample_ms;
-                        nsg_layers[pattern] += sample_layers;
-                        fprintf(stderr,
-                                "lead08_addr_%s: SAMPLE stratum=%u round=%u %s=%u layers=%u "
-                                "ms_per_layer=%.3f cache_entries=%u->%u\n",
-                                geometry_name, stratum, round, geometry_name,
-                                geometry_values[pattern], sample_layers,
-                                sample_layers ? sample_ms / (double)sample_layers : 0.0,
-                                cache_start, cache_end);
+                        if (measured) {
+                            nsg_ms[pattern] += mapped_alu_direct ? sample_gpu_ms : sample_ms;
+                            nsg_layers[pattern] += sample_layers;
+                            fprintf(stderr,
+                                    "lead08_addr_%s: SAMPLE stratum=%u round=%u %s=%u layers=%u "
+                                    "gpu_ms=%.6f kernel_ms=%.6f wall_ms=%.6f "
+                                    "ms_per_layer=%.6f cache_entries=%u->%u gpu_layers=[",
+                                    geometry_name, stratum, round, geometry_name,
+                                    geometry_values[pattern], sample_layers,
+                                    sample_gpu_ms, sample_kernel_ms, sample_ms,
+                                    sample_layers ? (mapped_alu_direct ? sample_gpu_ms : sample_ms) /
+                                        (double)sample_layers : 0.0,
+                                    cache_start, cache_end);
+                            for (uint32_t il = 0; il < sample_layers; il++) {
+                                fprintf(stderr, "%s%.6f", il ? "," : "", layer_gpu_ms[il]);
+                            }
+                            fprintf(stderr, "]\n");
+                        }
                     }
                 }
                 }

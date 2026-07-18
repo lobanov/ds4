@@ -22,12 +22,23 @@ cycle (~16 ms/token off the target).
 | Goal | ≥20 % greedy throughput on ds4 IQ2XXS, exact-output-preserved |
 | Current best | Full DSpark stack **+4.9 %** over plain (40.04 vs 38.16 t/s; score-neutral 61/92) — M3 |
 | The gap | +20 % not reached; verify ≈80 % of the cycle |
-| Open lever | **V14 M3-bounded verifier acceleration.** T2b on live mapped `tiny_pair_mv` produced strong arithmetic sensitivity but failed its production/companion-zero control gate. T2c control-stabilized direct replay preflight is P0; no prototype is authorized. Required composed saving remains >=8.7 ms/cycle, with `verify_ms(4) <= 50.5 ms` and the M3 quality envelope |
+| Open lever | **V14 M3-bounded verifier acceleration.** T2c validly selects arithmetic/issue sensitivity on live mapped `tiny_pair_mv`; one maximum-removable arithmetic upper-bound kernel (U1) is authorized after preflight, not a production prototype. The direct carrier is only about 10.74 ms/cycle, so the required >=8.7 ms saving is an approximately 81% reduction. Final gates remain `verify_ms(4) <= 50.5 ms` and the M3 quality envelope |
 | Closed (negative) | Drafter/input quality (Lead 07), drafter quant (Q4_K), non-expert finetune (Stage 2), DFlash, quant-mismatch |
 
 ## Investigation arc
 
 Reverse-chronological. Each entry: what was tested → verdict → canonical record.
+
+- **2026-07-18 - Lead 08 iteration 23 direct mapped-pair replay: T2c VALID positive selector;
+  audit COMMIT.** All selectors pass 86/86 full/direct bitwise cases; all 300 measured samples retain
+  43 positive finite command-buffer GPU intervals; each arm occupies every order position six times.
+  Duplicate/production intervals stay inside +/-0.16% and companion-zero/production inside +1.35%.
+  R32 versus zero is +45.76%/+45.79% with lower bounds above +45.65%; R128 is about +222%.
+  This establishes one-sided arithmetic/issue sensitivity, not dequant-compute dominance. Direct
+  production is about 10.74 ms/cycle, making the 8.7 ms prize an approximately 81% carrier cut. Only
+  one preflighted maximum-removable arithmetic upper-bound kernel is authorized. The audit
+  regenerated all evidence and reproduced the code-path, AIR, statistics, and decision.
+  `artifacts/lead08_reassessment/31_iter23_direct_gpu_replay.md`.
 
 - **2026-07-18 - Lead 08 iteration 22 mapped ALU separator: T2b INVALID / near-threshold;
   audit COMMIT.** All companion arms are bit-exact on 86/86 all-layer/two-stratum cases, all
@@ -300,12 +311,13 @@ Experiment selection and stop rules are maintained in
 `summaries/solution_space_ledger.md`; new work must enter that ledger before implementation.
 
 **Lead 08:** T1's Metal-counter capability gate is blocked. T2a is ambiguous on the incompatible
-SSD carrier. T2b reaches the live mapped `tiny_pair_mv` kernel and shows strong retained-FMA
-sensitivity, but fails its production/companion-zero control gate and is invalid. The next action is
-a freshly preflighted T2c control-stabilized direct replay of the same carrier. Attribution still
-does not authorize implementation.
-The selected fixed-work prototype must improve its identified hot stage by at least 15% and expose a
-credible >=8.7 ms/cycle composed saving before integration. Final bounded-track admission additionally
+SSD carrier and T2b is invalid. T2c now validly selects one-sided arithmetic/issue sensitivity on
+the live mapped `tiny_pair_mv` kernel, without proving production is dequant-compute-bound. Its
+literal direct carrier is about 10.74 ms/cycle. The next action is an independently preflighted U1
+maximum-removable arithmetic upper-bound kernel retaining packed loads/addressing/geometry/stores.
+It must show a paired saving lower bound >=8.7 ms in both strata, approximately 81%; failure closes
+arithmetic reduction without production tuning. Only if U1 passes may a fixed-work production
+prototype be considered. Final bounded-track admission additionally
 requires `verify_ms(4) <= 50.5 ms` and `>= max(45.8 t/s, 1.20 x fresh plain)` on the 176-entry corpus, and no
 regression from a fresh matched M3 control on the recorded task-quality and distribution gates.
 The exact-hybrid V5/V13 path is deferred, not disproven. Do not repeat the grouped, margin, layout,

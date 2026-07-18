@@ -46,6 +46,8 @@ static id<MTLCommandQueue> g_queue;
 static id<MTLLibrary> g_library;
 static id<MTLCommandBuffer> g_batch_cb;
 static id<MTLComputeCommandEncoder> g_batch_enc;
+static double g_last_command_gpu_ms;
+static double g_last_command_kernel_ms;
 static NSMutableArray<id<MTLCommandBuffer>> *g_pending_cbs;
 static id<MTLSharedEvent> g_selected_readback_event;
 static uint64_t g_selected_readback_event_value;
@@ -6790,7 +6792,23 @@ int ds4_gpu_end_commands(void) {
     g_batch_cb = nil;
     g_stream_expert_cache_owned_seq = g_stream_expert_cache_batch_seq;
     g_stream_expert_cache_batch_seq = 0;
-    return ds4_gpu_finish_command_buffer(cb, 1, "command batch");
+    const int ok = ds4_gpu_finish_command_buffer(cb, 1, "command batch");
+    const double gpu_start = cb.GPUStartTime;
+    const double gpu_end = cb.GPUEndTime;
+    const double kernel_start = cb.kernelStartTime;
+    const double kernel_end = cb.kernelEndTime;
+    g_last_command_gpu_ms = gpu_end > gpu_start ? (gpu_end - gpu_start) * 1000.0 : 0.0;
+    g_last_command_kernel_ms =
+        kernel_end > kernel_start ? (kernel_end - kernel_start) * 1000.0 : 0.0;
+    return ok;
+}
+
+double ds4_gpu_last_command_gpu_ms(void) {
+    return g_last_command_gpu_ms;
+}
+
+double ds4_gpu_last_command_kernel_ms(void) {
+    return g_last_command_kernel_ms;
 }
 
 static int ds4_gpu_flash_attn_stage_profile_boundary(
@@ -25656,6 +25674,8 @@ int ds4_gpu_routed_moe_batch_tensor(
              (gate_type == DS4_METAL_TENSOR_Q4_K && g_moe_mul_mv_id_q4_k_pair_pipeline));
         const bool use_lead08_mapped_alu_probe =
             getenv("DS4_LEAD08_MAPPED_ALU_PROBE") != NULL;
+        const bool use_lead08_mapped_alu_direct =
+            getenv("DS4_LEAD08_MAPPED_ALU_DIRECT_REPLAY") != NULL;
         unsigned long lead08_mapped_alu_selector = 0ul;
         ds4_gpu_lead08_alu_probe_args lead08_mapped_alu_args = {
             .rounds = 0u,
@@ -25663,6 +25683,10 @@ int ds4_gpu_routed_moe_batch_tensor(
             .add = 0.0f,
             .pad = 0u,
         };
+        if (use_lead08_mapped_alu_direct && !use_lead08_mapped_alu_probe) {
+            fprintf(stderr, "ds4: Lead 08 direct replay requires mapped ALU probe mode\n");
+            return 0;
+        }
         if (use_lead08_mapped_alu_probe) {
             if (use_iq2_batch_selected_addr || use_lead08_grouped_gateup_probe ||
                 use_mm_id || !use_tiny_pair_mv || n_tokens != 4u ||
@@ -25682,16 +25706,17 @@ int ds4_gpu_routed_moe_batch_tensor(
                 strtoul(rounds_env, &end, 10) : 0ul;
             if ((rounds_env && rounds_env[0] &&
                  (!end || end == rounds_env || *end != '\0')) ||
-                (parsed != 0ul && parsed != 1ul && parsed != 8ul &&
+                (parsed != 0ul && parsed != 1ul && parsed != 2ul && parsed != 8ul &&
                  parsed != 32ul && parsed != 128ul)) {
                 fprintf(stderr,
                         "ds4: invalid DS4_LEAD08_MAPPED_ALU_ROUNDS=%s "
-                        "(expected 0=production,1=companion-zero,8,32,128)\n",
+                        "(expected 0=production,1=companion-zero,2=production-duplicate,8,32,128)\n",
                         rounds_env ? rounds_env : "");
                 return 0;
             }
             lead08_mapped_alu_selector = parsed;
-            lead08_mapped_alu_args.rounds = parsed == 1ul ? 0u : (uint32_t)parsed;
+            lead08_mapped_alu_args.rounds =
+                parsed == 1ul || parsed == 2ul ? 0u : (uint32_t)parsed;
         }
         ds4_gpu_mul_mm_id_map_args gate_map_args = { 0 };
         ds4_gpu_mul_mm_id_args gate_mm_args = { 0 };
@@ -26160,13 +26185,15 @@ int ds4_gpu_routed_moe_batch_tensor(
             }
         } else if (use_tiny_pair_mv) {
             id<MTLComputePipelineState> pair_pipeline =
-                use_lead08_mapped_alu_probe && lead08_mapped_alu_selector != 0ul ?
+                use_lead08_mapped_alu_probe && lead08_mapped_alu_selector != 0ul &&
+                    lead08_mapped_alu_selector != 2ul ?
                     g_moe_mul_mv_id_iq2_xxs_pair_alu_pipeline :
                 gate_type == DS4_METAL_TENSOR_IQ2_XXS ?
                     g_moe_mul_mv_id_iq2_xxs_pair_pipeline :
                     g_moe_mul_mv_id_q4_k_pair_pipeline;
             const ds4_gpu_lead08_alu_probe_args *alu_probe_args =
-                use_lead08_mapped_alu_probe && lead08_mapped_alu_selector != 0ul ?
+                use_lead08_mapped_alu_probe && lead08_mapped_alu_selector != 0ul &&
+                    lead08_mapped_alu_selector != 2ul ?
                     &lead08_mapped_alu_args : NULL;
             ok = ds4_gpu_encode_mul_mv_id_pair(cb,
                                                  pair_pipeline,
@@ -26187,7 +26214,7 @@ int ds4_gpu_routed_moe_batch_tensor(
                                                  2,
                                                  false,
                                                  alu_probe_args);
-            if (ok && use_lead08_mapped_alu_probe) {
+            if (ok && use_lead08_mapped_alu_probe && !use_lead08_mapped_alu_direct) {
                 fprintf(stderr,
                         "lead08_mapped_alu_dispatch: layer=%u path=tiny_pair_mv "
                         "gate=IQ2_XXS tokens=%u pairs=%u nsg=2 nr0=%d pipeline=%s selector=%lu\n",
@@ -26226,6 +26253,7 @@ int ds4_gpu_routed_moe_batch_tensor(
                                                   false);
         }
         DS4_METAL_PROFILE_MOE_STAGE("gate_up");
+        if (use_lead08_mapped_alu_direct) return ok;
         const bool use_fused_activation = !g_quality_mode && !use_q4_batch_expert_table;
         const bool use_mid_f16 =
             use_mm_id &&
