@@ -60,8 +60,10 @@ meaning materially changes.
 | `DS4_MOE_REPLAY_SELECTED_IDS` | diagnostic | Replays routed expert ids instead of using live router selection. |
 | `DS4_M2_FIDELITY_TEST` | diagnostic | Runs the self-contained Lead 08 routed-MoE fidelity/cost harness and exits. |
 | `DS4_LEAD08_EXACT_SMALLM_GATE` | diagnostic | Runs the Lead 08 V15 exact small-M research capability gate and exits; does not alter production graph callsites. |
-| `DS4_LEAD08_EXACT_SMALLM_PHASE` | diagnostic | Selects the V15 phase: `pair` runs Stage A M=2 Q-a/router; `direct` runs Stage B1 M=2..8 at all seven tensor sites. Other values fail closed. |
+| `DS4_LEAD08_EXACT_SMALLM_PHASE` | diagnostic | Selects the V15 phase: `pair` runs Stage A M=2 Q-a/router; `direct` runs Stage B1 M=2..8/C0-C4; `c5` replays the fixed position-103 M=2..4 capture and requires the output-B seam. Other values fail closed. |
 | `DS4_LEAD08_EXACT_SMALLM_CSV` | diagnostic | Required explicit output path for per-case CSV evidence; the early-exit gate intentionally does not create bench JSONL. |
+| `DS4_LEAD08_EXACT_SMALLM_CAPTURE_DIR` | diagnostic | Required by phase `c5`; directory containing exactly named lowercase-`b_` external F32 captures from position 103. |
+| `DS4_LEAD08_EXACT_SMALLM_SEAM_CSV` | diagnostic | Required by phase `c5`; records all 43 M4 E/S/C output-B seam checks and dispatch census. |
 | `DS4_LEAD08_EXACT_SMALLM_LAYER` | diagnostic | Optional bring-up filter: one layer index or `all`; filtered success reports `FILTERED_PASS` and exits nonzero, so it cannot decide PASS. |
 | `DS4_LEAD08_EXACT_SMALLM_SITE` | diagnostic | Optional Stage-B1 bring-up filter: site `0..6` or `all`; filtered success is diagnostic-only and exits nonzero. |
 | `DS4_LEAD08_EXACT_SMALLM_FORMAT` | diagnostic | Optional bring-up filter: `q8_0`, `f16`, or `all`; filtered success is diagnostic-only and exits nonzero. |

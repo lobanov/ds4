@@ -74,7 +74,7 @@ historical M3 values are outer caps rather than substitutes for matched controls
 | V12 | Row-wise FFN HC mixer at layer 0 | Exact-input/different-output boundary exposed by V11 | Exact through FFN norm for captured row | Diagnostic patch | Apply existing F16 rows-as-M1 helper only to `hc_ffn_fn` | Frontier moves to router logits; local profiled envelope -0.029 ms | `CLOSED` positive |
 | V13 | Cross-quant exact-row small-M dense design/cost inventory | Covers all seven exposed Q8/F16 accumulation debts | Exact by construction if literal M1 DAG survives | Must share one weight traversal and provide a nonredundant output-B seam | Inventory shapes, kernels, traffic, seams, invariant, cumulative bound | 77.875 MiB/layer surface; M1-row K4 adds 9.810 GiB/43 layers; common design structurally plausible | `CLOSED` positive design; no speed claim |
 | V14 | M3-quality-bounded verifier acceleration | Must save >=8.7 ms/cycle to close the live gap | No worse than matched M3 task/distribution envelope | Must preserve M3 composition and integrity | Bind a separator to the live mapped kernel, then one >=15% fixed-work prototype | U1 closes arithmetic below 4.74 ms; iteration-25 audit finds no independent composable >=8.7 ms mechanism | `CLOSED`; bounded track exhausted |
-| V15 | Exact-row small-M dense family capability gate | Could fit the 43 ms conservative policy base while removing exposed dense divergence | Stage A and B1 direct matrices are bit-exact against M independent production M1 calls | Q8+F16 at every stage; one traversal; nonredundant output-B seam | Stage B2 C5/seam/cumulative timing after passed direct M=2..8 family | B1: 10,535/10,535 seven-site cases exact; 14 AIR topology checks pass; no speed claim | `P0` Stage B2; research-only |
+| V15 | Exact-row small-M dense family capability gate | Could fit the 43 ms conservative policy base while removing exposed dense divergence | Stage A/B1 and captured B2a matrices are bit-exact against M independent production M1 calls | Q8+F16 at every stage; one traversal; nonredundant output-B seam | Stage B2b fixed-work dense-carrier timing after passed C5/seam | B2a: 903/903 C5 cases plus 43 seams exact/nonredundant; no speed claim | `P0` Stage B2b; research-only |
 | K1 | Grouped routed gate/up | Proposed expert-load sharing | Bit-exact on identical inputs | Composes | Production 18/24 prototype | 22.9% slower | `CLOSED` |
 | K2 | Expert address remapping / packing | Proposed coalescing | Exact | Composes | Fixed-work placement sweep | Less than 2% sensitivity | `CLOSED` |
 | K3 | Address-kernel SIMDgroup / row-tile geometry | Low-single-digit possible | Exact | Composes | Production fixed-work sweep | At most about 1-3%, inconsistent | `CLOSED` |
@@ -103,8 +103,9 @@ under `issue468/artifacts/lead08_reassessment/`):
   `23_iter15_hc_input_localization.md`, `24_iter16_rowwise_hc_attn_mix.md`, and
   `25_iter17_ffn_hc_input_localization.md`, and `26_iter18_rowwise_hc_ffn_mix.md`.
 - V13-V15: `34_iter26_exact_smallm_dense_inventory.md`,
-  `35_iter27_exact_smallm_protocol.md`, `36_iter28_exact_smallm_pair.md`, and
-  `37_iter29_exact_smallm_direct.md`; Stage A/B1 direct capability passes while Stage B2 remains P0.
+  `35_iter27_exact_smallm_protocol.md`, `36_iter28_exact_smallm_pair.md`,
+  `37_iter29_exact_smallm_direct.md`, and `38_iter30_c5_seam.md`; Stage A/B1/B2a correctness and
+  seam pass while Stage B2b timing remains P0.
 - K1-K3, M1-M2: Lead 08 reassessment artifacts `11_iter3_grouped_gateup_prototype.md`,
   `13_iter5_address_locality.md`, `14_iter6_addr_nsg_geometry.md`,
   `15_iter7_addr_row_tile.md`, and `16_iter8_cache_residency.md`.
@@ -266,7 +267,8 @@ and 4.723667 ms `[4.715042,4.735250]` on dispersed IDs. Even the upper bounds mi
 |---:|---|---|---|---|
 | Closed | V15 Stage A cross-quant M2 capability | Cheapest debuggable proof of shared-weight literal-M1 arithmetic | 430/430 Q8 Q-a + F16 router cases exact; AIR/source one logical traversal | Capability passed; no graph edits or speed claim |
 | Closed | V15 Stage B1 direct family | Admitted by Stage A pass | 10,535/10,535 M2..8/seven-site/C0-C4 cases exact; 14 AIR topology checks pass | Capability passed; no seam, timing, or graph claim |
-| P0 | V15 Stage B2 seam/economics | Final Stage-B dependency | C5 for M2..4, nonredundant B with sentinel/low equality, M4 all-43 delta upper <=7.5 ms | One validity repeat only; otherwise stop |
+| Closed | V15 Stage B2a C5/seam | Admitted by B1 pass | 301-file capture; 903/903 C5 cases; 43 nonredundant B seams exact | Correctness passed; no timing or graph claim |
+| P0 | V15 Stage B2b dense-carrier economics | Final Stage-B dependency | M4 all-43 candidate-minus-ext delta upper <=7.5 ms with predeclared validity gates | One validity repeat only; screen is not full-verifier economics |
 | 2 | Exact graph frontier after V15 | Only after Stage B capability and economics pass | Move layer-0 frontier through router, then continue first unresolved boundary | Stop family when policy projection exceeds 50.5 ms; prove exhaustion only from validated lower bound |
 | 4 | V14 matched quality/integration | Dormant unless a genuinely new independent >=8.7 ms bounded mechanism appears | Historical bounded gates unchanged | Do not reopen from attribution alone |
 | 5 | D5 soft-label redistillation | Only if verifier economics survive and acceptance remains limiting | Powered p1 lift composes materially | Close drafter axis |

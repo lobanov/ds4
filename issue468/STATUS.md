@@ -22,12 +22,19 @@ cycle (~16 ms/token off the target).
 | Goal | ≥20 % greedy throughput on ds4 IQ2XXS, exact-output-preserved |
 | Current best | Full DSpark stack **+4.9 %** over plain (40.04 vs 38.16 t/s; score-neutral 61/92) — M3 |
 | The gap | +20 % not reached; verify ≈80 % of the cycle |
-| Open lever | **Lead 08 V15 Stage B2 seam/economic gate.** Stage B1 passes 10,535/10,535 direct M=2..8/seven-site cases and fourteen-kernel AIR topology. Capture C5, factor output-B nonredundantly, then require the M=4 all-layer delta upper bound <=7.5 ms |
+| Open lever | **Lead 08 V15 Stage B2b economic gate.** Stage B2a passes 903/903 captured C5 cases and the 43-layer nonredundant output-B seam. Run the fixed-work M4 dense carrier and require candidate-minus-ext upper delta <=7.5 ms |
 | Closed (negative) | Drafter/input quality (Lead 07), drafter quant (Q4_K), non-expert finetune (Stage 2), DFlash, quant-mismatch |
 
 ## Investigation arc
 
 Reverse-chronological. Each entry: what was tested → verdict → canonical record.
+
+- **2026-07-18 - Lead 08 iteration 30 V15 Stage B2a: PASS capture/replay/seam.** A corrected
+  fixed-K4 lowercase-`b_` capture at position 103 yields exactly 301 external files and 57,065,472
+  finite bytes. All 903 M=2..4 C5 direct cases are word-exact. Across all 43 output-B seams,
+  combined and split low/ext outputs match, 704,512 sentinel words remain unchanged, and exact B
+  matches four M1 calls. Timing remains B2b; this is no speed or rollout result.
+  `artifacts/lead08_reassessment/38_iter30_c5_seam.md`.
 
 - **2026-07-18 - Lead 08 iteration 29 V15 Stage B1: PASS direct capability.** The shared Q8/F16
   family now has static M=2..8 specializations. All 10,535 all-layer/seven-site/C0-C4 direct cases
@@ -372,10 +379,10 @@ ms even after removing activation and almost all
 semantics, so arithmetic/dequant reduction closes without a broad kernel sweep. Iteration 25 finds
 no independent concrete >=8.7 ms mechanism, so Lead 08 bounded work is exhausted on this runtime.
 V13 completes the cross-quant inventory and iteration 27 completes V15's executable protocol.
-Iteration 28 passes Stage A, and iteration 29 passes Stage B1: all fourteen Q8/F16 M=2..8
-specializations cover all seven real tensor sites, 43 offsets, and C0-C4 with literal M1 bits and
-the required logical topology. Stage B2 is now P0: captured C5, the nonredundant output-B seam,
-and the cumulative economic gate. This is not yet a speed result or full-path exactness.
+Iterations 28-30 pass Stage A, B1, and B2a: all fourteen Q8/F16 M=2..8 specializations cover the
+seven sites/C0-C4, captured C5 is exact for M=2..4, and output-B is factored nonredundantly with a
+passing 43-layer seam. Stage B2b is now P0: the fixed-work M4 dense-carrier economic gate. This is
+not yet a speed result, full-path exactness, or graph-rollout authorization.
 Lead 05 SSD compatibility remains an alternate redirect if that scope becomes acceptable. Any future bounded-track admission additionally
 requires `verify_ms(4) <= 50.5 ms` and `>= max(45.8 t/s, 1.20 x fresh plain)` on the 176-entry corpus, and no
 regression from a fresh matched M3 control on the recorded task-quality and distribution gates.

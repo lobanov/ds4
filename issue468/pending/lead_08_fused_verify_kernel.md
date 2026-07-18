@@ -4,9 +4,10 @@
 > The prior `INTERIM_BOUNDED` contract remains a valid research envelope, but no current-runtime
 > mechanism clears its 8.7 ms admission bar. V1 remains the interim baseline. V13 has completed a
 > cross-quant exact small-M dense inventory and admits V15, one Q8/F16 family-level capability
-> prototype. V15 Stage A passes 430/430 all-layer M=2 word-exact cases; Stage B1 now passes
-> 10,535/10,535 direct M=2..8/seven-site cases and fourteen-kernel AIR topology. Stage B2's C5,
-> nonredundant output-B seam, and <=7.5 ms cumulative economic gates remain untested. T1 Metal counter attribution is tooling-blocked, T2a applies only
+> prototype. V15 Stage A passes 430/430 all-layer M=2 word-exact cases; Stage B1 passes
+> 10,535/10,535 direct M=2..8/seven-site cases and fourteen-kernel AIR topology; Stage B2a passes
+> 903/903 captured C5 cases and the 43-layer nonredundant output-B seam. Stage B2b's <=7.5 ms
+> fixed-work economic gate remains untested. T1 Metal counter attribution is tooling-blocked, T2a applies only
 > to the incompatible SSD address kernel, and mapped-kernel T2b is invalid on its control gate.
 > T2c validly selected one-sided arithmetic/issue sensitivity, but corrected address-faithful U1
 > saves only 4.71-4.72 ms even after removing activation and almost all semantics. Arithmetic and
@@ -91,7 +92,7 @@
 > mechanism, not another grouped gate+up variant.
 
 Date: 2026-07-07 (refreshed 2026-07-18). Status:
-**M3-bounded V14 exhausted -> V15 Stage B1 direct capability passed, Stage B2 pending; prior grouped, margin,
+**M3-bounded V14 exhausted -> V15 Stage B2a correctness/seam passed, Stage B2b timing pending; prior grouped, margin,
 address-layout, production-geometry, and existing batch-family mechanisms remain NO-GO.**
 This doc remains the Lead 08 provenance record. Phase A result:
 `issue468/summaries/mtp_verifier_engineering_and_phaseA.md`; Phase B canonical
@@ -363,12 +364,11 @@ fused (the full build). Keeps the Phase-B abort condition (>5% re-verification).
 
 **2026-07-18 current:** corrected U1 closes arithmetic/dequant below 4.74 ms, and the iteration-25
 mechanism audit finds no independent concrete >=8.7 ms package on the current in-RAM runtime.
-Lead 08 `INTERIM_BOUNDED` is exhausted. V15 Stage A and B1 now pass: the Q8/F16 M=2..8 family is
-word-exact across 10,535 direct all-layer/seven-site/C0-C4 cases, and all fourteen specializations
-retain the required logical AIR topology. Stage B2 is next: a captured C5 matrix, nonredundant
-output-B seam, and an M=4 all-layer candidate-minus-current-ext delta upper bound <=7.5 ms. No graph
-integration is authorized before that passes. Lead 05 remains an alternate only if SSD compatibility
-is in scope.
+Lead 08 `INTERIM_BOUNDED` is exhausted. V15 Stage A, B1, and B2a now pass: the Q8/F16 family is
+word-exact across C0-C5, and the 43-layer output-B seam is nonredundant and exact. Stage B2b is next:
+an M=4 fixed-work dense-carrier candidate-minus-current-ext delta upper bound <=7.5 ms. It is an
+admission screen, not full-verifier economics. No graph integration is authorized before it passes.
+Lead 05 remains an alternate only if SSD compatibility is in scope.
 Do not repeat grouped, margin,
 address-layout, geometry, mapped-residency, existing batch-family, or top-r mechanisms without evidence that
 changes their upper bounds.
@@ -387,6 +387,27 @@ sufficient." (Confirmatory: a literal identical-input MoE kernel-equality harnes
 verify-bandwidth slope re-measure.)
 
 ## Worklog
+
+### 2026-07-18 - iteration-30 V15 Stage-B2a C5 and output-B seam -> PASS correctness
+
+Independent preflight returned `REDESIGN`: the protocol capture command exited at the model-only
+gate before running the prompt, and the historical position-104 batch had only two rows once K4 was
+pinned. A position census fixed the current lowercase diagnostic-batch capture at position 103.
+Seven neutral aliases produced exactly 301 external files/57,065,472 finite bytes with a complete
+hash manifest. All 903 M=2..4/all-layer/seven-site C5 cases match M unchanged M1 calls word-for-word.
+
+Factored the existing direct batch-low encoder into one shared host helper used by both the unchanged
+combined API and a research-only low-only wrapper. Across 43 M4 seams, E/S/C low outputs equal the
+captured low over 1,409,024 words, E/S ext outputs match over 704,512 words, all output sentinel
+words remain unchanged by low-only, and candidate B matches four M1 calls. No graph callsite changed.
+B2b timing remains P0 and no speed/rollout claim exists. Artifact:
+`artifacts/lead08_reassessment/38_iter30_c5_seam.md`.
+
+The first post-iteration red team returned `FIX` because the manifest mixed an actual capture-record
+path with template argv/prefix fields. After the generator recorded the supplied JSONL and expanded
+capture prefix, the repeat audit regenerated the manifest byte-identically, repeated the forced
+build and all Stage-A/B1/B2a gates, and returned `COMMIT`. The seam dispatch census is source-derived;
+the distinct buffers and pre-overwrite sentinel independently establish that C does not run ext B.
 
 ### 2026-07-18 - iteration-29 V15 Stage-B1 direct M=2..8 family -> PASS capability
 

@@ -1,0 +1,3968 @@
+{
+  "capture_command": {
+    "DS4_DSPARK_ANCHOR_REUSE": "1",
+    "DS4_DSPARK_DRAFT_METAL": "1",
+    "DS4_DSPARK_DRAFT_METAL_STS": "1",
+    "DS4_DSPARK_VERIFY_BATCHED": "0",
+    "DS4_DSPARK_VERIFY_DIST_PROBE": "1",
+    "DS4_DSPARK_VERIFY_K": "4",
+    "DS4_DSPARK_VERIFY_PREFIX_CHECKPOINT": "1",
+    "DS4_METAL_GRAPH_DUMP_LAYER": "all",
+    "DS4_METAL_GRAPH_DUMP_NAME": "Lead08C5HCAttnFlat,Lead08C5AttnNorm,Lead08C5QLoraNorm,Lead08C5Heads,Lead08C5Low,Lead08C5HCFFNFlat,Lead08C5FFNNorm",
+    "DS4_METAL_GRAPH_DUMP_POS": "103",
+    "DS4_METAL_GRAPH_DUMP_PREFIX": "/tmp/lead08_iter30_c5_v4/c5",
+    "argv": [
+      "./ds4-spec-bench",
+      "--metal",
+      "-m",
+      "/Users/lobanov/Projects/ds4/gguf/DeepSeek-V4-Flash-IQ2XXS-w2Q2K-AProjQ8-SExpQ8-OutQ8-chat-v2-imatrix.gguf",
+      "--dspark",
+      "/Users/lobanov/Projects/ds4/gguf/dspark.gguf",
+      "--bulk-config",
+      "issue468/artifacts/lead08_reassessment/19_iter11_code_sort_pairs_config.jsonl",
+      "--jsonl-out",
+      "/tmp/lead08_iter30_capture_v4.jsonl"
+    ],
+    "gate": "unset"
+  },
+  "capture_json": {
+    "path": "/tmp/lead08_iter30_capture_v4.jsonl",
+    "sha256": "fc4c209f2daea5d9d574411aaaa75e6a4dc0e322a8cf5b198dc26702db6c29ec"
+  },
+  "captures": [
+    {
+      "bytes": 65536,
+      "file": "c5_b_Lead08C5AttnNorm-0_pos103.bin",
+      "layer": 0,
+      "name": "Lead08C5AttnNorm",
+      "position": 103,
+      "sha256": "1674831c2fcae2c7169d756cf97a0b1bb756e5a52e6ccc5df1c0698322666675",
+      "shape": [
+        4,
+        4096
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 65536,
+      "file": "c5_b_Lead08C5AttnNorm-10_pos103.bin",
+      "layer": 10,
+      "name": "Lead08C5AttnNorm",
+      "position": 103,
+      "sha256": "064087266c057baea8d0791ce1933bc65c7c415081ef87b16dbcd6c0d0eaf053",
+      "shape": [
+        4,
+        4096
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 65536,
+      "file": "c5_b_Lead08C5AttnNorm-11_pos103.bin",
+      "layer": 11,
+      "name": "Lead08C5AttnNorm",
+      "position": 103,
+      "sha256": "0ba1b84b95534fe48954077dd0bbf073fcff8f654a920917643dddf78a0b0486",
+      "shape": [
+        4,
+        4096
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 65536,
+      "file": "c5_b_Lead08C5AttnNorm-12_pos103.bin",
+      "layer": 12,
+      "name": "Lead08C5AttnNorm",
+      "position": 103,
+      "sha256": "c6cbda42fbef200e076028fd38e52118323c62bcee63e171064ac4365626b48a",
+      "shape": [
+        4,
+        4096
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 65536,
+      "file": "c5_b_Lead08C5AttnNorm-13_pos103.bin",
+      "layer": 13,
+      "name": "Lead08C5AttnNorm",
+      "position": 103,
+      "sha256": "fe4847d5be60467f22cc31e0e940b1be7ca04f3bc2d0d3f1e86fdf0a97d887b4",
+      "shape": [
+        4,
+        4096
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 65536,
+      "file": "c5_b_Lead08C5AttnNorm-14_pos103.bin",
+      "layer": 14,
+      "name": "Lead08C5AttnNorm",
+      "position": 103,
+      "sha256": "d9a7457bbbb1da2f405d0795e0812c3149d671763b881c71b847cac6aaac8fc2",
+      "shape": [
+        4,
+        4096
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 65536,
+      "file": "c5_b_Lead08C5AttnNorm-15_pos103.bin",
+      "layer": 15,
+      "name": "Lead08C5AttnNorm",
+      "position": 103,
+      "sha256": "5e9ed2abae3943e0d1aebf90aa6611f1abced700a9c9c2e2f4d021c8084ba833",
+      "shape": [
+        4,
+        4096
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 65536,
+      "file": "c5_b_Lead08C5AttnNorm-16_pos103.bin",
+      "layer": 16,
+      "name": "Lead08C5AttnNorm",
+      "position": 103,
+      "sha256": "3f69260b435df24d3505a455a24bf760836d6de715f3690baeaf03d34ca7016a",
+      "shape": [
+        4,
+        4096
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 65536,
+      "file": "c5_b_Lead08C5AttnNorm-17_pos103.bin",
+      "layer": 17,
+      "name": "Lead08C5AttnNorm",
+      "position": 103,
+      "sha256": "8e6e0deccbf06e45b9804b7f0c8b547944e599d777d0ceda2900695a333fabcf",
+      "shape": [
+        4,
+        4096
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 65536,
+      "file": "c5_b_Lead08C5AttnNorm-18_pos103.bin",
+      "layer": 18,
+      "name": "Lead08C5AttnNorm",
+      "position": 103,
+      "sha256": "04442d596cb40851f4f3c17b369243be999bcbdead4a96dc0eb6efa6f2c327f5",
+      "shape": [
+        4,
+        4096
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 65536,
+      "file": "c5_b_Lead08C5AttnNorm-19_pos103.bin",
+      "layer": 19,
+      "name": "Lead08C5AttnNorm",
+      "position": 103,
+      "sha256": "d8c1015f411abd81115e031142c3e0ad704b2912f355eeb2abd3b590986f7676",
+      "shape": [
+        4,
+        4096
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 65536,
+      "file": "c5_b_Lead08C5AttnNorm-1_pos103.bin",
+      "layer": 1,
+      "name": "Lead08C5AttnNorm",
+      "position": 103,
+      "sha256": "e4d07fad50d64010cb13667f9d276f92fc4c3c4f30f632342b6376dd997795d1",
+      "shape": [
+        4,
+        4096
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 65536,
+      "file": "c5_b_Lead08C5AttnNorm-20_pos103.bin",
+      "layer": 20,
+      "name": "Lead08C5AttnNorm",
+      "position": 103,
+      "sha256": "210fb3a8e4221ed4eed5947733230ace5f308bff854e2b1738a3a182c58e2dfc",
+      "shape": [
+        4,
+        4096
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 65536,
+      "file": "c5_b_Lead08C5AttnNorm-21_pos103.bin",
+      "layer": 21,
+      "name": "Lead08C5AttnNorm",
+      "position": 103,
+      "sha256": "34de4b81d37e798b7b2cbce73580d1a3e4c0f4b80410c6d2e2622498607f6f83",
+      "shape": [
+        4,
+        4096
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 65536,
+      "file": "c5_b_Lead08C5AttnNorm-22_pos103.bin",
+      "layer": 22,
+      "name": "Lead08C5AttnNorm",
+      "position": 103,
+      "sha256": "15f48c14d1c39a6cb07bff8b5dc9387315df3ea059fd582decc39f0dab0c94e9",
+      "shape": [
+        4,
+        4096
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 65536,
+      "file": "c5_b_Lead08C5AttnNorm-23_pos103.bin",
+      "layer": 23,
+      "name": "Lead08C5AttnNorm",
+      "position": 103,
+      "sha256": "77b3326c6cce7e1a2db7c2244a15952ed62c9ae07d7867499536d4e8e4d39cbe",
+      "shape": [
+        4,
+        4096
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 65536,
+      "file": "c5_b_Lead08C5AttnNorm-24_pos103.bin",
+      "layer": 24,
+      "name": "Lead08C5AttnNorm",
+      "position": 103,
+      "sha256": "9c68a32c727df0b58f00b4012f0abd31579c469b2c1538a077bc0775551d13df",
+      "shape": [
+        4,
+        4096
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 65536,
+      "file": "c5_b_Lead08C5AttnNorm-25_pos103.bin",
+      "layer": 25,
+      "name": "Lead08C5AttnNorm",
+      "position": 103,
+      "sha256": "88e23f498fc89d0cf523d45cb7a9074ccc2721230b855f025df43b4dfff840d3",
+      "shape": [
+        4,
+        4096
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 65536,
+      "file": "c5_b_Lead08C5AttnNorm-26_pos103.bin",
+      "layer": 26,
+      "name": "Lead08C5AttnNorm",
+      "position": 103,
+      "sha256": "521f33a88d327ebfb3b41f5edf5f19ed1d01451941c378b1a5766a63589e35b8",
+      "shape": [
+        4,
+        4096
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 65536,
+      "file": "c5_b_Lead08C5AttnNorm-27_pos103.bin",
+      "layer": 27,
+      "name": "Lead08C5AttnNorm",
+      "position": 103,
+      "sha256": "006dc08142331025cc12db16c7c79e25be739dac4a90f775e9daf8d2494e8744",
+      "shape": [
+        4,
+        4096
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 65536,
+      "file": "c5_b_Lead08C5AttnNorm-28_pos103.bin",
+      "layer": 28,
+      "name": "Lead08C5AttnNorm",
+      "position": 103,
+      "sha256": "ffe002b8ff9441ea6f5fadf5d48f53665bfd7a0f00527bfa078ea53fddd4be62",
+      "shape": [
+        4,
+        4096
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 65536,
+      "file": "c5_b_Lead08C5AttnNorm-29_pos103.bin",
+      "layer": 29,
+      "name": "Lead08C5AttnNorm",
+      "position": 103,
+      "sha256": "ebc96de5ce0bfe45737b6610706c77ad369b55e891d7747b96b31c2fe88de6a0",
+      "shape": [
+        4,
+        4096
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 65536,
+      "file": "c5_b_Lead08C5AttnNorm-2_pos103.bin",
+      "layer": 2,
+      "name": "Lead08C5AttnNorm",
+      "position": 103,
+      "sha256": "9322caf930c498d223d8039dd718c3c7de7e7e8677d7d572bb2a536419e91680",
+      "shape": [
+        4,
+        4096
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 65536,
+      "file": "c5_b_Lead08C5AttnNorm-30_pos103.bin",
+      "layer": 30,
+      "name": "Lead08C5AttnNorm",
+      "position": 103,
+      "sha256": "45d27d095c3a2be8667198940eb068bc649c3d34a229e0d7032ca7f472b61595",
+      "shape": [
+        4,
+        4096
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 65536,
+      "file": "c5_b_Lead08C5AttnNorm-31_pos103.bin",
+      "layer": 31,
+      "name": "Lead08C5AttnNorm",
+      "position": 103,
+      "sha256": "dfcfd2717d15e5c40f953e095a0c3da549bacd770abd91d973d3c3f5b49bce8d",
+      "shape": [
+        4,
+        4096
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 65536,
+      "file": "c5_b_Lead08C5AttnNorm-32_pos103.bin",
+      "layer": 32,
+      "name": "Lead08C5AttnNorm",
+      "position": 103,
+      "sha256": "52ccc71cb6baf677366dbe321db0ac1e6f6b1ffe4912dc02dda46c0ed1367675",
+      "shape": [
+        4,
+        4096
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 65536,
+      "file": "c5_b_Lead08C5AttnNorm-33_pos103.bin",
+      "layer": 33,
+      "name": "Lead08C5AttnNorm",
+      "position": 103,
+      "sha256": "02559344a2e198f3ddf7dd5eb75f1037a01cf4bc2a9ef8af77a4928e996d45e3",
+      "shape": [
+        4,
+        4096
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 65536,
+      "file": "c5_b_Lead08C5AttnNorm-34_pos103.bin",
+      "layer": 34,
+      "name": "Lead08C5AttnNorm",
+      "position": 103,
+      "sha256": "50ad27316954a588ca30975012cb6004d6535eae48af1ae7a1c12b067c913218",
+      "shape": [
+        4,
+        4096
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 65536,
+      "file": "c5_b_Lead08C5AttnNorm-35_pos103.bin",
+      "layer": 35,
+      "name": "Lead08C5AttnNorm",
+      "position": 103,
+      "sha256": "48f20a164efa0cce84d1505af085a1c1df82f6d1ed91b09d6e710c622451d63a",
+      "shape": [
+        4,
+        4096
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 65536,
+      "file": "c5_b_Lead08C5AttnNorm-36_pos103.bin",
+      "layer": 36,
+      "name": "Lead08C5AttnNorm",
+      "position": 103,
+      "sha256": "bf187abc0a268f99a5e070e67fbbe5463f96203e0e922e354b6ab372fe711aba",
+      "shape": [
+        4,
+        4096
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 65536,
+      "file": "c5_b_Lead08C5AttnNorm-37_pos103.bin",
+      "layer": 37,
+      "name": "Lead08C5AttnNorm",
+      "position": 103,
+      "sha256": "794f74a0a4e0ce5ec50272ed69cd78daafbfe3a8f55bd1e350aef450116bbb9d",
+      "shape": [
+        4,
+        4096
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 65536,
+      "file": "c5_b_Lead08C5AttnNorm-38_pos103.bin",
+      "layer": 38,
+      "name": "Lead08C5AttnNorm",
+      "position": 103,
+      "sha256": "d42e292967fa6ec5c707fac8b03685d90aa2ea2f901d2862264e0825a5fe11ab",
+      "shape": [
+        4,
+        4096
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 65536,
+      "file": "c5_b_Lead08C5AttnNorm-39_pos103.bin",
+      "layer": 39,
+      "name": "Lead08C5AttnNorm",
+      "position": 103,
+      "sha256": "1a276ddf297837a883303066f5e8b786389bd205c834c0a3ccb2a62835d3a9fc",
+      "shape": [
+        4,
+        4096
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 65536,
+      "file": "c5_b_Lead08C5AttnNorm-3_pos103.bin",
+      "layer": 3,
+      "name": "Lead08C5AttnNorm",
+      "position": 103,
+      "sha256": "552e46b4e63886244851c799c7b0add7dc51fb71deebd8e138dfb7c2cb8419ad",
+      "shape": [
+        4,
+        4096
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 65536,
+      "file": "c5_b_Lead08C5AttnNorm-40_pos103.bin",
+      "layer": 40,
+      "name": "Lead08C5AttnNorm",
+      "position": 103,
+      "sha256": "cc9a1b8eb9c67c089722254d66b349ab30ebfd49724593a52c9caab26ae09284",
+      "shape": [
+        4,
+        4096
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 65536,
+      "file": "c5_b_Lead08C5AttnNorm-41_pos103.bin",
+      "layer": 41,
+      "name": "Lead08C5AttnNorm",
+      "position": 103,
+      "sha256": "ef8a4809950e104d3db508da57892fea3a89e264cb6768c2106d4039aa1b784b",
+      "shape": [
+        4,
+        4096
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 65536,
+      "file": "c5_b_Lead08C5AttnNorm-42_pos103.bin",
+      "layer": 42,
+      "name": "Lead08C5AttnNorm",
+      "position": 103,
+      "sha256": "73200398de5bac85055efae6c26aa1d468e78a1f9ea7af97e4214b8c9f7df867",
+      "shape": [
+        4,
+        4096
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 65536,
+      "file": "c5_b_Lead08C5AttnNorm-4_pos103.bin",
+      "layer": 4,
+      "name": "Lead08C5AttnNorm",
+      "position": 103,
+      "sha256": "5c57520fbb5823be3720b2fc12db0e245950ef83a70d9c85c236c25edace4cef",
+      "shape": [
+        4,
+        4096
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 65536,
+      "file": "c5_b_Lead08C5AttnNorm-5_pos103.bin",
+      "layer": 5,
+      "name": "Lead08C5AttnNorm",
+      "position": 103,
+      "sha256": "09af195fce96397210bb14b19e7a3e003273311caae981de7325f6abd6b07163",
+      "shape": [
+        4,
+        4096
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 65536,
+      "file": "c5_b_Lead08C5AttnNorm-6_pos103.bin",
+      "layer": 6,
+      "name": "Lead08C5AttnNorm",
+      "position": 103,
+      "sha256": "0333fe217d41ebad3c8d54bde8f17cb88d3590f59e057f4483ea7c096f2914e8",
+      "shape": [
+        4,
+        4096
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 65536,
+      "file": "c5_b_Lead08C5AttnNorm-7_pos103.bin",
+      "layer": 7,
+      "name": "Lead08C5AttnNorm",
+      "position": 103,
+      "sha256": "0ce034e28aae00e8f458a83185dc538ad05db3c694416e7829a9e5be44c5842b",
+      "shape": [
+        4,
+        4096
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 65536,
+      "file": "c5_b_Lead08C5AttnNorm-8_pos103.bin",
+      "layer": 8,
+      "name": "Lead08C5AttnNorm",
+      "position": 103,
+      "sha256": "9384f73c3907b83d9b3df0342091f3b1ca34cb85c7c294a96018d03e2c54285d",
+      "shape": [
+        4,
+        4096
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 65536,
+      "file": "c5_b_Lead08C5AttnNorm-9_pos103.bin",
+      "layer": 9,
+      "name": "Lead08C5AttnNorm",
+      "position": 103,
+      "sha256": "eb5fa511ad3599e7400efbdb4370d87fd5bc35fae0e24ddb30eb5558dafed636",
+      "shape": [
+        4,
+        4096
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 65536,
+      "file": "c5_b_Lead08C5FFNNorm-0_pos103.bin",
+      "layer": 0,
+      "name": "Lead08C5FFNNorm",
+      "position": 103,
+      "sha256": "109bd0a3b29c691d31fdf783f47640f7c15eb5a0f378fcec3c38d04dbfdef624",
+      "shape": [
+        4,
+        4096
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 65536,
+      "file": "c5_b_Lead08C5FFNNorm-10_pos103.bin",
+      "layer": 10,
+      "name": "Lead08C5FFNNorm",
+      "position": 103,
+      "sha256": "99d8f2766960bb79cce87c13994bfcf325482f9794720b342c086084b928c829",
+      "shape": [
+        4,
+        4096
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 65536,
+      "file": "c5_b_Lead08C5FFNNorm-11_pos103.bin",
+      "layer": 11,
+      "name": "Lead08C5FFNNorm",
+      "position": 103,
+      "sha256": "8f80d99914fb71b34ed9e5c31ee5afd4c71cdc004a73c5099cb25fb70491c477",
+      "shape": [
+        4,
+        4096
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 65536,
+      "file": "c5_b_Lead08C5FFNNorm-12_pos103.bin",
+      "layer": 12,
+      "name": "Lead08C5FFNNorm",
+      "position": 103,
+      "sha256": "50b188c91f91644633772e21c081b2f4f72ff60f011b9289f289e56fad3c75fe",
+      "shape": [
+        4,
+        4096
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 65536,
+      "file": "c5_b_Lead08C5FFNNorm-13_pos103.bin",
+      "layer": 13,
+      "name": "Lead08C5FFNNorm",
+      "position": 103,
+      "sha256": "1a884cb53b3e5a293351ddca7a853e4212f7c4a787bbc127e79a9ad125d9cba9",
+      "shape": [
+        4,
+        4096
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 65536,
+      "file": "c5_b_Lead08C5FFNNorm-14_pos103.bin",
+      "layer": 14,
+      "name": "Lead08C5FFNNorm",
+      "position": 103,
+      "sha256": "bb41becf5a47119affe0971afc896511be034aee74c28e03b886141f887bac52",
+      "shape": [
+        4,
+        4096
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 65536,
+      "file": "c5_b_Lead08C5FFNNorm-15_pos103.bin",
+      "layer": 15,
+      "name": "Lead08C5FFNNorm",
+      "position": 103,
+      "sha256": "c64dbdded16d7fa00ca0987d2ab0f0c53a1d7e604849aee731c431168f481e1f",
+      "shape": [
+        4,
+        4096
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 65536,
+      "file": "c5_b_Lead08C5FFNNorm-16_pos103.bin",
+      "layer": 16,
+      "name": "Lead08C5FFNNorm",
+      "position": 103,
+      "sha256": "f977bb6321fd4fc57f2b30b01ab3bdff4b2d014e9ed378e6e935abbdb87d30c9",
+      "shape": [
+        4,
+        4096
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 65536,
+      "file": "c5_b_Lead08C5FFNNorm-17_pos103.bin",
+      "layer": 17,
+      "name": "Lead08C5FFNNorm",
+      "position": 103,
+      "sha256": "93657167b8ed5740dacf5b3be5868181faf9c0d2b44bbf00b8b34b7406990ef2",
+      "shape": [
+        4,
+        4096
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 65536,
+      "file": "c5_b_Lead08C5FFNNorm-18_pos103.bin",
+      "layer": 18,
+      "name": "Lead08C5FFNNorm",
+      "position": 103,
+      "sha256": "f3a7895087b9a10b568999e7bb4cf88b2f3418c27302c54bb19df832c163f3de",
+      "shape": [
+        4,
+        4096
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 65536,
+      "file": "c5_b_Lead08C5FFNNorm-19_pos103.bin",
+      "layer": 19,
+      "name": "Lead08C5FFNNorm",
+      "position": 103,
+      "sha256": "db149b6a022023fcbc869e51a661d36821ed7da9e37d1adc81b1056c1ef1aa9b",
+      "shape": [
+        4,
+        4096
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 65536,
+      "file": "c5_b_Lead08C5FFNNorm-1_pos103.bin",
+      "layer": 1,
+      "name": "Lead08C5FFNNorm",
+      "position": 103,
+      "sha256": "0876151a0fbb821694e7b7ad23ba87c1779045f705c9b421a5be1b4c8d00f698",
+      "shape": [
+        4,
+        4096
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 65536,
+      "file": "c5_b_Lead08C5FFNNorm-20_pos103.bin",
+      "layer": 20,
+      "name": "Lead08C5FFNNorm",
+      "position": 103,
+      "sha256": "252c7db1c04cb0c5dc05bf34ae02ece651d757003e93e85681c9cab95da7586a",
+      "shape": [
+        4,
+        4096
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 65536,
+      "file": "c5_b_Lead08C5FFNNorm-21_pos103.bin",
+      "layer": 21,
+      "name": "Lead08C5FFNNorm",
+      "position": 103,
+      "sha256": "11d8408dd51fbeab36f16ae6d0a5e4147fc11f056b48a55aaa077dcf419108d8",
+      "shape": [
+        4,
+        4096
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 65536,
+      "file": "c5_b_Lead08C5FFNNorm-22_pos103.bin",
+      "layer": 22,
+      "name": "Lead08C5FFNNorm",
+      "position": 103,
+      "sha256": "9567d7031d5b2f9b5f623c66776fb7f2b60d4fc4ca064048372ed5ce09661af0",
+      "shape": [
+        4,
+        4096
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 65536,
+      "file": "c5_b_Lead08C5FFNNorm-23_pos103.bin",
+      "layer": 23,
+      "name": "Lead08C5FFNNorm",
+      "position": 103,
+      "sha256": "8e7eaa6780784a4c685d8e001dd8803650e8b1aa96f25e70c082d063484d8c0f",
+      "shape": [
+        4,
+        4096
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 65536,
+      "file": "c5_b_Lead08C5FFNNorm-24_pos103.bin",
+      "layer": 24,
+      "name": "Lead08C5FFNNorm",
+      "position": 103,
+      "sha256": "37af5f661e2f8c8b1475f6c14fbf68ff021ea64638542b10ac2f2f3f695dda12",
+      "shape": [
+        4,
+        4096
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 65536,
+      "file": "c5_b_Lead08C5FFNNorm-25_pos103.bin",
+      "layer": 25,
+      "name": "Lead08C5FFNNorm",
+      "position": 103,
+      "sha256": "737ee0bea7040c576e5a2db91c93a8a29797ec89c13ad731e885651f58ffc080",
+      "shape": [
+        4,
+        4096
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 65536,
+      "file": "c5_b_Lead08C5FFNNorm-26_pos103.bin",
+      "layer": 26,
+      "name": "Lead08C5FFNNorm",
+      "position": 103,
+      "sha256": "b9548c3f82c3c712e8d54bf37aea92ec0f6f1cae704830e6f6c1a8186a40385b",
+      "shape": [
+        4,
+        4096
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 65536,
+      "file": "c5_b_Lead08C5FFNNorm-27_pos103.bin",
+      "layer": 27,
+      "name": "Lead08C5FFNNorm",
+      "position": 103,
+      "sha256": "b3c574a862c65ffb46092f431ae5aa02cc0397dc69d5d2257dd519aea80dead8",
+      "shape": [
+        4,
+        4096
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 65536,
+      "file": "c5_b_Lead08C5FFNNorm-28_pos103.bin",
+      "layer": 28,
+      "name": "Lead08C5FFNNorm",
+      "position": 103,
+      "sha256": "bb008e129f736d4f94ef86c7ef703c1e3627ec9f3b3684607b2dfa69037d2ab5",
+      "shape": [
+        4,
+        4096
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 65536,
+      "file": "c5_b_Lead08C5FFNNorm-29_pos103.bin",
+      "layer": 29,
+      "name": "Lead08C5FFNNorm",
+      "position": 103,
+      "sha256": "49101e2b88c964b1d9656bc98c9f5d3f4fdefdbd1d2a748f5b1a257ac998a0cd",
+      "shape": [
+        4,
+        4096
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 65536,
+      "file": "c5_b_Lead08C5FFNNorm-2_pos103.bin",
+      "layer": 2,
+      "name": "Lead08C5FFNNorm",
+      "position": 103,
+      "sha256": "b43b0c5f5915e5f3f01b543404a4a8a32e7eecefa19f0f61cb2dfb053feb68c5",
+      "shape": [
+        4,
+        4096
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 65536,
+      "file": "c5_b_Lead08C5FFNNorm-30_pos103.bin",
+      "layer": 30,
+      "name": "Lead08C5FFNNorm",
+      "position": 103,
+      "sha256": "50eef40245e2a903956453c9937eed5a565978f1f3ce6d1e832c720f1aa1fc7b",
+      "shape": [
+        4,
+        4096
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 65536,
+      "file": "c5_b_Lead08C5FFNNorm-31_pos103.bin",
+      "layer": 31,
+      "name": "Lead08C5FFNNorm",
+      "position": 103,
+      "sha256": "304cfc74413852252be1ad0c5ade963fa30d6f8a0952c1828c7096804bae1ee1",
+      "shape": [
+        4,
+        4096
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 65536,
+      "file": "c5_b_Lead08C5FFNNorm-32_pos103.bin",
+      "layer": 32,
+      "name": "Lead08C5FFNNorm",
+      "position": 103,
+      "sha256": "160eb33440e6bde365a16e4a5986232ec9a75e0a17e88c38b8e1bc8054c08865",
+      "shape": [
+        4,
+        4096
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 65536,
+      "file": "c5_b_Lead08C5FFNNorm-33_pos103.bin",
+      "layer": 33,
+      "name": "Lead08C5FFNNorm",
+      "position": 103,
+      "sha256": "0b86e6a325d13dfbe40958bf678847e011e37256237510ae3c580af456a0f581",
+      "shape": [
+        4,
+        4096
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 65536,
+      "file": "c5_b_Lead08C5FFNNorm-34_pos103.bin",
+      "layer": 34,
+      "name": "Lead08C5FFNNorm",
+      "position": 103,
+      "sha256": "a67497df56b1dd999acf0be7ffd68868963a50757ef40dbad23f4c4ca96a3dfb",
+      "shape": [
+        4,
+        4096
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 65536,
+      "file": "c5_b_Lead08C5FFNNorm-35_pos103.bin",
+      "layer": 35,
+      "name": "Lead08C5FFNNorm",
+      "position": 103,
+      "sha256": "74c6e2c883ef41bbd4de6886a3f3292520b9a43e7345da583acf499acfa15635",
+      "shape": [
+        4,
+        4096
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 65536,
+      "file": "c5_b_Lead08C5FFNNorm-36_pos103.bin",
+      "layer": 36,
+      "name": "Lead08C5FFNNorm",
+      "position": 103,
+      "sha256": "eaba2a2dd3a788fa917e87f69e90e339a94863efaeeff448939074ad4f6c9148",
+      "shape": [
+        4,
+        4096
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 65536,
+      "file": "c5_b_Lead08C5FFNNorm-37_pos103.bin",
+      "layer": 37,
+      "name": "Lead08C5FFNNorm",
+      "position": 103,
+      "sha256": "6133980a2e663c05706f35b7f0b668d4100e8df51e520d89e64ea85ba33bc9fa",
+      "shape": [
+        4,
+        4096
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 65536,
+      "file": "c5_b_Lead08C5FFNNorm-38_pos103.bin",
+      "layer": 38,
+      "name": "Lead08C5FFNNorm",
+      "position": 103,
+      "sha256": "271e3f33258010a89d06e52c34465ebf76b8a387f763e418b6f0c1fd2b039560",
+      "shape": [
+        4,
+        4096
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 65536,
+      "file": "c5_b_Lead08C5FFNNorm-39_pos103.bin",
+      "layer": 39,
+      "name": "Lead08C5FFNNorm",
+      "position": 103,
+      "sha256": "7597359a2713796a131c3d49d5ec83471eed927cd56db260d3f55075cb5260f5",
+      "shape": [
+        4,
+        4096
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 65536,
+      "file": "c5_b_Lead08C5FFNNorm-3_pos103.bin",
+      "layer": 3,
+      "name": "Lead08C5FFNNorm",
+      "position": 103,
+      "sha256": "f97ae25e76cc50552c5b06771b93db431cc55308ca964b50a97c8ff384a5e414",
+      "shape": [
+        4,
+        4096
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 65536,
+      "file": "c5_b_Lead08C5FFNNorm-40_pos103.bin",
+      "layer": 40,
+      "name": "Lead08C5FFNNorm",
+      "position": 103,
+      "sha256": "cfd50aeccd449757621485ec6b256da2044b8ef00953220a09e7766ac3336e20",
+      "shape": [
+        4,
+        4096
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 65536,
+      "file": "c5_b_Lead08C5FFNNorm-41_pos103.bin",
+      "layer": 41,
+      "name": "Lead08C5FFNNorm",
+      "position": 103,
+      "sha256": "c489cd72478944a88eaca5fdcf4e41211330f4cc00d9d95a76b1151ad8389f9a",
+      "shape": [
+        4,
+        4096
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 65536,
+      "file": "c5_b_Lead08C5FFNNorm-42_pos103.bin",
+      "layer": 42,
+      "name": "Lead08C5FFNNorm",
+      "position": 103,
+      "sha256": "5882e5c655d175e3b4b1da9543f2cdb6f9a66d62f1fd321748d3a5f7688bf0d2",
+      "shape": [
+        4,
+        4096
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 65536,
+      "file": "c5_b_Lead08C5FFNNorm-4_pos103.bin",
+      "layer": 4,
+      "name": "Lead08C5FFNNorm",
+      "position": 103,
+      "sha256": "51ab73027693de1d6ffb7397ee3d46e8bbe206521a14ebbef4c10be71e056535",
+      "shape": [
+        4,
+        4096
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 65536,
+      "file": "c5_b_Lead08C5FFNNorm-5_pos103.bin",
+      "layer": 5,
+      "name": "Lead08C5FFNNorm",
+      "position": 103,
+      "sha256": "fc90b40da5e0f76de5b77a17317ce26240ab45f6a9386e85287ddab45f2f3a9e",
+      "shape": [
+        4,
+        4096
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 65536,
+      "file": "c5_b_Lead08C5FFNNorm-6_pos103.bin",
+      "layer": 6,
+      "name": "Lead08C5FFNNorm",
+      "position": 103,
+      "sha256": "27ed02f9f4d7ff1a506a48cb72eff22b2c6e97d7aa4e8fdb74982682dbd0d774",
+      "shape": [
+        4,
+        4096
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 65536,
+      "file": "c5_b_Lead08C5FFNNorm-7_pos103.bin",
+      "layer": 7,
+      "name": "Lead08C5FFNNorm",
+      "position": 103,
+      "sha256": "cbcc09d10a7cf3d1efe47bae5df37f492da187a9738a912fecd258377f408de9",
+      "shape": [
+        4,
+        4096
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 65536,
+      "file": "c5_b_Lead08C5FFNNorm-8_pos103.bin",
+      "layer": 8,
+      "name": "Lead08C5FFNNorm",
+      "position": 103,
+      "sha256": "55853c3f079e77dd072972164b0de3b271b0b5eb85bc981fbad64fb5f43b4566",
+      "shape": [
+        4,
+        4096
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 65536,
+      "file": "c5_b_Lead08C5FFNNorm-9_pos103.bin",
+      "layer": 9,
+      "name": "Lead08C5FFNNorm",
+      "position": 103,
+      "sha256": "3101e885a7f9525f8f8c7a1af057e326db034730ebdc90c2e8d7e0c6927a5d51",
+      "shape": [
+        4,
+        4096
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 262144,
+      "file": "c5_b_Lead08C5HCAttnFlat-0_pos103.bin",
+      "layer": 0,
+      "name": "Lead08C5HCAttnFlat",
+      "position": 103,
+      "sha256": "f9e9b0b42fcf60f666a0cb66dcc2967384aab757eb187b45318a2bcfe6a78553",
+      "shape": [
+        4,
+        16384
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 262144,
+      "file": "c5_b_Lead08C5HCAttnFlat-10_pos103.bin",
+      "layer": 10,
+      "name": "Lead08C5HCAttnFlat",
+      "position": 103,
+      "sha256": "df9a4e71cfc50c3382bcb1fba2787b34e55b1a5708a326deff117a696009a560",
+      "shape": [
+        4,
+        16384
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 262144,
+      "file": "c5_b_Lead08C5HCAttnFlat-11_pos103.bin",
+      "layer": 11,
+      "name": "Lead08C5HCAttnFlat",
+      "position": 103,
+      "sha256": "d07a314a8e59d5fef9517ff152aa58572d725e16a9bf9a4c171c2787d75235ac",
+      "shape": [
+        4,
+        16384
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 262144,
+      "file": "c5_b_Lead08C5HCAttnFlat-12_pos103.bin",
+      "layer": 12,
+      "name": "Lead08C5HCAttnFlat",
+      "position": 103,
+      "sha256": "dd426c21b3fc163f053e8e917a50c83055deb3ef5284d664dbd7bca60f4ccdd7",
+      "shape": [
+        4,
+        16384
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 262144,
+      "file": "c5_b_Lead08C5HCAttnFlat-13_pos103.bin",
+      "layer": 13,
+      "name": "Lead08C5HCAttnFlat",
+      "position": 103,
+      "sha256": "b24b6a1105ddd526b9a582c3ee4153f3d9f71f1321c5eb42ccbb2520d45d5e95",
+      "shape": [
+        4,
+        16384
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 262144,
+      "file": "c5_b_Lead08C5HCAttnFlat-14_pos103.bin",
+      "layer": 14,
+      "name": "Lead08C5HCAttnFlat",
+      "position": 103,
+      "sha256": "0cfd3616510490931162f141a894349c7f3c277a4f9dfa350af2f0da90aadc35",
+      "shape": [
+        4,
+        16384
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 262144,
+      "file": "c5_b_Lead08C5HCAttnFlat-15_pos103.bin",
+      "layer": 15,
+      "name": "Lead08C5HCAttnFlat",
+      "position": 103,
+      "sha256": "ef84f14003c443614f88d544af89ddf9cd041bc005d46869fd50c925923e4d15",
+      "shape": [
+        4,
+        16384
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 262144,
+      "file": "c5_b_Lead08C5HCAttnFlat-16_pos103.bin",
+      "layer": 16,
+      "name": "Lead08C5HCAttnFlat",
+      "position": 103,
+      "sha256": "eb50ca30c274524521b3021be8bbfb8761fb0e35b80adeee5cc593522de456be",
+      "shape": [
+        4,
+        16384
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 262144,
+      "file": "c5_b_Lead08C5HCAttnFlat-17_pos103.bin",
+      "layer": 17,
+      "name": "Lead08C5HCAttnFlat",
+      "position": 103,
+      "sha256": "a3a2fcb1543dde247aaf802fbc1c7af4dcbae3007673e8df78f12927e574d363",
+      "shape": [
+        4,
+        16384
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 262144,
+      "file": "c5_b_Lead08C5HCAttnFlat-18_pos103.bin",
+      "layer": 18,
+      "name": "Lead08C5HCAttnFlat",
+      "position": 103,
+      "sha256": "932e57b1e496967eb6d5a9583a94609bc1c9896b04e4a84a1f90baa2def10929",
+      "shape": [
+        4,
+        16384
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 262144,
+      "file": "c5_b_Lead08C5HCAttnFlat-19_pos103.bin",
+      "layer": 19,
+      "name": "Lead08C5HCAttnFlat",
+      "position": 103,
+      "sha256": "00efc2390b269199fc619cc0e1bf2cd9b6f2d58017a63f9656d74bf8174ee3db",
+      "shape": [
+        4,
+        16384
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 262144,
+      "file": "c5_b_Lead08C5HCAttnFlat-1_pos103.bin",
+      "layer": 1,
+      "name": "Lead08C5HCAttnFlat",
+      "position": 103,
+      "sha256": "ad77f2ca559dba1e1582846e8cc381be946550b88f9eb85b681c097d087c1b3f",
+      "shape": [
+        4,
+        16384
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 262144,
+      "file": "c5_b_Lead08C5HCAttnFlat-20_pos103.bin",
+      "layer": 20,
+      "name": "Lead08C5HCAttnFlat",
+      "position": 103,
+      "sha256": "79e7ab62f263bc2391a484009bf6b87408859a857617fee3b56d193e8cd56a7f",
+      "shape": [
+        4,
+        16384
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 262144,
+      "file": "c5_b_Lead08C5HCAttnFlat-21_pos103.bin",
+      "layer": 21,
+      "name": "Lead08C5HCAttnFlat",
+      "position": 103,
+      "sha256": "a1240f807ca128ce2cf5d1923b0e7933e1556d82f9475e44742b2b104b63b344",
+      "shape": [
+        4,
+        16384
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 262144,
+      "file": "c5_b_Lead08C5HCAttnFlat-22_pos103.bin",
+      "layer": 22,
+      "name": "Lead08C5HCAttnFlat",
+      "position": 103,
+      "sha256": "ef3a8bcdb4d56224cc1e3c11980c74f04683ff139edf3ee10a266fea69944547",
+      "shape": [
+        4,
+        16384
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 262144,
+      "file": "c5_b_Lead08C5HCAttnFlat-23_pos103.bin",
+      "layer": 23,
+      "name": "Lead08C5HCAttnFlat",
+      "position": 103,
+      "sha256": "f773b37739b0f0fdb3209ac01c0dacb0d982e26b612d32268c7107e6bad26c47",
+      "shape": [
+        4,
+        16384
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 262144,
+      "file": "c5_b_Lead08C5HCAttnFlat-24_pos103.bin",
+      "layer": 24,
+      "name": "Lead08C5HCAttnFlat",
+      "position": 103,
+      "sha256": "9ac234bcc0a9dd90c73ef5885e2238c38efed4b8e62cfc3f619799ba1947fb6d",
+      "shape": [
+        4,
+        16384
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 262144,
+      "file": "c5_b_Lead08C5HCAttnFlat-25_pos103.bin",
+      "layer": 25,
+      "name": "Lead08C5HCAttnFlat",
+      "position": 103,
+      "sha256": "f1408d46ab3be969bad536e0f77a1104cc4b358c482d220d8d24719113205d23",
+      "shape": [
+        4,
+        16384
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 262144,
+      "file": "c5_b_Lead08C5HCAttnFlat-26_pos103.bin",
+      "layer": 26,
+      "name": "Lead08C5HCAttnFlat",
+      "position": 103,
+      "sha256": "4293c3c7ebb4d4c474f41d468f75a3a8f53c7411a32ec7b9d6dd0889d230b7fd",
+      "shape": [
+        4,
+        16384
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 262144,
+      "file": "c5_b_Lead08C5HCAttnFlat-27_pos103.bin",
+      "layer": 27,
+      "name": "Lead08C5HCAttnFlat",
+      "position": 103,
+      "sha256": "fe86a370b06107ae5553e0090262c447768732956b6fd0d14c08a99abdea61e3",
+      "shape": [
+        4,
+        16384
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 262144,
+      "file": "c5_b_Lead08C5HCAttnFlat-28_pos103.bin",
+      "layer": 28,
+      "name": "Lead08C5HCAttnFlat",
+      "position": 103,
+      "sha256": "5d1cda9fdbc413da4123039b1bd1443b312c5e3ae7352d97733ded61ae22e5e2",
+      "shape": [
+        4,
+        16384
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 262144,
+      "file": "c5_b_Lead08C5HCAttnFlat-29_pos103.bin",
+      "layer": 29,
+      "name": "Lead08C5HCAttnFlat",
+      "position": 103,
+      "sha256": "4550fd8ffc924a4cefeb0cabefca12458a25a337db98f50396fd3a811106800e",
+      "shape": [
+        4,
+        16384
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 262144,
+      "file": "c5_b_Lead08C5HCAttnFlat-2_pos103.bin",
+      "layer": 2,
+      "name": "Lead08C5HCAttnFlat",
+      "position": 103,
+      "sha256": "92d86add23cc6bfe2f5d8a62c719d7d9804318db94fa4b6b74b7b9edbcdb2c33",
+      "shape": [
+        4,
+        16384
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 262144,
+      "file": "c5_b_Lead08C5HCAttnFlat-30_pos103.bin",
+      "layer": 30,
+      "name": "Lead08C5HCAttnFlat",
+      "position": 103,
+      "sha256": "897b4276e3b4d30e10215c61fba865c6a4764e687627599394228c235149859c",
+      "shape": [
+        4,
+        16384
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 262144,
+      "file": "c5_b_Lead08C5HCAttnFlat-31_pos103.bin",
+      "layer": 31,
+      "name": "Lead08C5HCAttnFlat",
+      "position": 103,
+      "sha256": "ac20cfd5ae1f5c8fe281675e477bce7ee44dd96671f4bb2f1b9af6e7f1beda07",
+      "shape": [
+        4,
+        16384
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 262144,
+      "file": "c5_b_Lead08C5HCAttnFlat-32_pos103.bin",
+      "layer": 32,
+      "name": "Lead08C5HCAttnFlat",
+      "position": 103,
+      "sha256": "1f025e89252d25f8a6dac3b44ffb3772827e5ccd0a7332d2d873348d685a35ea",
+      "shape": [
+        4,
+        16384
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 262144,
+      "file": "c5_b_Lead08C5HCAttnFlat-33_pos103.bin",
+      "layer": 33,
+      "name": "Lead08C5HCAttnFlat",
+      "position": 103,
+      "sha256": "87f19f169fd6de5457998cbf9009f7c7a5514cf37e84d72df32e67cfa79bd29d",
+      "shape": [
+        4,
+        16384
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 262144,
+      "file": "c5_b_Lead08C5HCAttnFlat-34_pos103.bin",
+      "layer": 34,
+      "name": "Lead08C5HCAttnFlat",
+      "position": 103,
+      "sha256": "46c2646f4794866953f74b3868abe3d429c431d97ad30945133fe75470ceb9c0",
+      "shape": [
+        4,
+        16384
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 262144,
+      "file": "c5_b_Lead08C5HCAttnFlat-35_pos103.bin",
+      "layer": 35,
+      "name": "Lead08C5HCAttnFlat",
+      "position": 103,
+      "sha256": "47ca0dc04d0c7ad2949b629704e4deaaacbf9b58cfc26ebd792adf047de192b7",
+      "shape": [
+        4,
+        16384
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 262144,
+      "file": "c5_b_Lead08C5HCAttnFlat-36_pos103.bin",
+      "layer": 36,
+      "name": "Lead08C5HCAttnFlat",
+      "position": 103,
+      "sha256": "9bd6f791cd34d314b3a914aee4ba6d83d989e03d1a8a4ace023bc69862a76246",
+      "shape": [
+        4,
+        16384
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 262144,
+      "file": "c5_b_Lead08C5HCAttnFlat-37_pos103.bin",
+      "layer": 37,
+      "name": "Lead08C5HCAttnFlat",
+      "position": 103,
+      "sha256": "cd425931e852adf07053140282a04b37594b2046b969f357ebc541f5f4575141",
+      "shape": [
+        4,
+        16384
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 262144,
+      "file": "c5_b_Lead08C5HCAttnFlat-38_pos103.bin",
+      "layer": 38,
+      "name": "Lead08C5HCAttnFlat",
+      "position": 103,
+      "sha256": "e302512ef94889769ff75b7d82e1d2cc34f7472832131bad2a64e3dd1f04442b",
+      "shape": [
+        4,
+        16384
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 262144,
+      "file": "c5_b_Lead08C5HCAttnFlat-39_pos103.bin",
+      "layer": 39,
+      "name": "Lead08C5HCAttnFlat",
+      "position": 103,
+      "sha256": "49e56d0a340a9cdf7b0780e56c177cbb9353ff4821848f10c95220bc398a6103",
+      "shape": [
+        4,
+        16384
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 262144,
+      "file": "c5_b_Lead08C5HCAttnFlat-3_pos103.bin",
+      "layer": 3,
+      "name": "Lead08C5HCAttnFlat",
+      "position": 103,
+      "sha256": "707a72e215a40d94d7a80c3427522eda29162950383a0184f39633de11edae84",
+      "shape": [
+        4,
+        16384
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 262144,
+      "file": "c5_b_Lead08C5HCAttnFlat-40_pos103.bin",
+      "layer": 40,
+      "name": "Lead08C5HCAttnFlat",
+      "position": 103,
+      "sha256": "3bbc1849aaa097447e09a40c90b386d995ecf5377e28fa56712d472662e78884",
+      "shape": [
+        4,
+        16384
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 262144,
+      "file": "c5_b_Lead08C5HCAttnFlat-41_pos103.bin",
+      "layer": 41,
+      "name": "Lead08C5HCAttnFlat",
+      "position": 103,
+      "sha256": "11f5e0c2f2e3674770ccb4118f7596977bac9d9bdf95926c809ff21e3b12e148",
+      "shape": [
+        4,
+        16384
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 262144,
+      "file": "c5_b_Lead08C5HCAttnFlat-42_pos103.bin",
+      "layer": 42,
+      "name": "Lead08C5HCAttnFlat",
+      "position": 103,
+      "sha256": "c37438b73ee9eea4183401bda71e43c856d998a03146af2932052982508eb7db",
+      "shape": [
+        4,
+        16384
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 262144,
+      "file": "c5_b_Lead08C5HCAttnFlat-4_pos103.bin",
+      "layer": 4,
+      "name": "Lead08C5HCAttnFlat",
+      "position": 103,
+      "sha256": "45a69680a20b172469c43be18a0f287eb5ea0483d388508495afcb98eb51705b",
+      "shape": [
+        4,
+        16384
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 262144,
+      "file": "c5_b_Lead08C5HCAttnFlat-5_pos103.bin",
+      "layer": 5,
+      "name": "Lead08C5HCAttnFlat",
+      "position": 103,
+      "sha256": "7d3fdd6c245398efb11fc670e12af6513a53ae124d5f681b6b9ba82e6e59b4da",
+      "shape": [
+        4,
+        16384
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 262144,
+      "file": "c5_b_Lead08C5HCAttnFlat-6_pos103.bin",
+      "layer": 6,
+      "name": "Lead08C5HCAttnFlat",
+      "position": 103,
+      "sha256": "81bb6bde8c4b30b753f4b648916e1c1e2fe4e595f81a1ab3aabec25d8b148f0b",
+      "shape": [
+        4,
+        16384
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 262144,
+      "file": "c5_b_Lead08C5HCAttnFlat-7_pos103.bin",
+      "layer": 7,
+      "name": "Lead08C5HCAttnFlat",
+      "position": 103,
+      "sha256": "dac845423f3552cdf827470e46cf9e6f4266f03f39808d59113ddf4e67936937",
+      "shape": [
+        4,
+        16384
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 262144,
+      "file": "c5_b_Lead08C5HCAttnFlat-8_pos103.bin",
+      "layer": 8,
+      "name": "Lead08C5HCAttnFlat",
+      "position": 103,
+      "sha256": "38eb7845b8211f834476d7764c05ce2fa4c5ecff01087c877eea321ac02e905f",
+      "shape": [
+        4,
+        16384
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 262144,
+      "file": "c5_b_Lead08C5HCAttnFlat-9_pos103.bin",
+      "layer": 9,
+      "name": "Lead08C5HCAttnFlat",
+      "position": 103,
+      "sha256": "d8137eaed48f8eedbdb358b4936101d2bb770f12753eefcdc86c80b8578a8964",
+      "shape": [
+        4,
+        16384
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 262144,
+      "file": "c5_b_Lead08C5HCFFNFlat-0_pos103.bin",
+      "layer": 0,
+      "name": "Lead08C5HCFFNFlat",
+      "position": 103,
+      "sha256": "4f135917319ffbb6aa9229f5767c54435cafb2a10219067faffa4e9d3d5735e9",
+      "shape": [
+        4,
+        16384
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 262144,
+      "file": "c5_b_Lead08C5HCFFNFlat-10_pos103.bin",
+      "layer": 10,
+      "name": "Lead08C5HCFFNFlat",
+      "position": 103,
+      "sha256": "aa363970f34c26724ff26efe3e3208230257ebb8721c4202c72dc54661738756",
+      "shape": [
+        4,
+        16384
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 262144,
+      "file": "c5_b_Lead08C5HCFFNFlat-11_pos103.bin",
+      "layer": 11,
+      "name": "Lead08C5HCFFNFlat",
+      "position": 103,
+      "sha256": "4eea219c01ec998005d5bbafb75b93af152d58e6b0b655620dc11e9e2b19535d",
+      "shape": [
+        4,
+        16384
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 262144,
+      "file": "c5_b_Lead08C5HCFFNFlat-12_pos103.bin",
+      "layer": 12,
+      "name": "Lead08C5HCFFNFlat",
+      "position": 103,
+      "sha256": "72d218bb884ea6779af38504c26ebb81b61a477a5212b6bddd6bae0342b7bc55",
+      "shape": [
+        4,
+        16384
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 262144,
+      "file": "c5_b_Lead08C5HCFFNFlat-13_pos103.bin",
+      "layer": 13,
+      "name": "Lead08C5HCFFNFlat",
+      "position": 103,
+      "sha256": "e2bc63368f24feb31cd5c630e68a0231a81239b7d51f076f617c801e8d88fe25",
+      "shape": [
+        4,
+        16384
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 262144,
+      "file": "c5_b_Lead08C5HCFFNFlat-14_pos103.bin",
+      "layer": 14,
+      "name": "Lead08C5HCFFNFlat",
+      "position": 103,
+      "sha256": "7c17426b3f478d68803cc53f82193cb37e30876cf8ae5ee6d19cdcb31c9741ca",
+      "shape": [
+        4,
+        16384
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 262144,
+      "file": "c5_b_Lead08C5HCFFNFlat-15_pos103.bin",
+      "layer": 15,
+      "name": "Lead08C5HCFFNFlat",
+      "position": 103,
+      "sha256": "98b25511a03cb2865240e0defeb0f85381984a7bff7c9f3c86497f9baf71ffa9",
+      "shape": [
+        4,
+        16384
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 262144,
+      "file": "c5_b_Lead08C5HCFFNFlat-16_pos103.bin",
+      "layer": 16,
+      "name": "Lead08C5HCFFNFlat",
+      "position": 103,
+      "sha256": "e32ac16c47bb6b8f028c2a8a7aed5dbba2347f9e8c98ca394adf15444c6e8ee8",
+      "shape": [
+        4,
+        16384
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 262144,
+      "file": "c5_b_Lead08C5HCFFNFlat-17_pos103.bin",
+      "layer": 17,
+      "name": "Lead08C5HCFFNFlat",
+      "position": 103,
+      "sha256": "c79d92cc5441c720e6b366a8d2583d177426cf73d4c201f4e89a228a6ccafa67",
+      "shape": [
+        4,
+        16384
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 262144,
+      "file": "c5_b_Lead08C5HCFFNFlat-18_pos103.bin",
+      "layer": 18,
+      "name": "Lead08C5HCFFNFlat",
+      "position": 103,
+      "sha256": "f9541590fc746cf27c840f00349b7b0f4e014a69107ec1472d5c6016c5d0db3f",
+      "shape": [
+        4,
+        16384
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 262144,
+      "file": "c5_b_Lead08C5HCFFNFlat-19_pos103.bin",
+      "layer": 19,
+      "name": "Lead08C5HCFFNFlat",
+      "position": 103,
+      "sha256": "356ef0592d5682a1b0ef64b943dbf889f30edfb4c19eac04db81c03bc12a7ea0",
+      "shape": [
+        4,
+        16384
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 262144,
+      "file": "c5_b_Lead08C5HCFFNFlat-1_pos103.bin",
+      "layer": 1,
+      "name": "Lead08C5HCFFNFlat",
+      "position": 103,
+      "sha256": "7777abfedc7903012d4b6015ff1c7cfd78546bd6f7f3050c82f7fc549c083fe0",
+      "shape": [
+        4,
+        16384
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 262144,
+      "file": "c5_b_Lead08C5HCFFNFlat-20_pos103.bin",
+      "layer": 20,
+      "name": "Lead08C5HCFFNFlat",
+      "position": 103,
+      "sha256": "dcc966696df6cba1647176b397752713c0085ff22a457afae60f936d4f57310b",
+      "shape": [
+        4,
+        16384
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 262144,
+      "file": "c5_b_Lead08C5HCFFNFlat-21_pos103.bin",
+      "layer": 21,
+      "name": "Lead08C5HCFFNFlat",
+      "position": 103,
+      "sha256": "187f308704f28a29d3ae0edbd0f90d3a7b92ad8c076bb10a57a1c48283f9536d",
+      "shape": [
+        4,
+        16384
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 262144,
+      "file": "c5_b_Lead08C5HCFFNFlat-22_pos103.bin",
+      "layer": 22,
+      "name": "Lead08C5HCFFNFlat",
+      "position": 103,
+      "sha256": "85b87abb8b6f5e1324e00ffc763532cfc52c48a0e72192330153793ad35f5ea0",
+      "shape": [
+        4,
+        16384
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 262144,
+      "file": "c5_b_Lead08C5HCFFNFlat-23_pos103.bin",
+      "layer": 23,
+      "name": "Lead08C5HCFFNFlat",
+      "position": 103,
+      "sha256": "12a6bc710a1a5daf750be79739d7ea607b8224b25c897cb0a8c4900d25e48f78",
+      "shape": [
+        4,
+        16384
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 262144,
+      "file": "c5_b_Lead08C5HCFFNFlat-24_pos103.bin",
+      "layer": 24,
+      "name": "Lead08C5HCFFNFlat",
+      "position": 103,
+      "sha256": "04cea4e80951671fcf63d728c356e0fd7aa55c813ce9700ed14b1ae5ce94fa5a",
+      "shape": [
+        4,
+        16384
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 262144,
+      "file": "c5_b_Lead08C5HCFFNFlat-25_pos103.bin",
+      "layer": 25,
+      "name": "Lead08C5HCFFNFlat",
+      "position": 103,
+      "sha256": "ed71fe19d8bf32464a5eb7766a0b722b1421e1ee83aac18d4b9029f05858d624",
+      "shape": [
+        4,
+        16384
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 262144,
+      "file": "c5_b_Lead08C5HCFFNFlat-26_pos103.bin",
+      "layer": 26,
+      "name": "Lead08C5HCFFNFlat",
+      "position": 103,
+      "sha256": "69e8ac91df716e2f2ddc9b84d35334124828f0bc4609960b82f49aa7c9348dcb",
+      "shape": [
+        4,
+        16384
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 262144,
+      "file": "c5_b_Lead08C5HCFFNFlat-27_pos103.bin",
+      "layer": 27,
+      "name": "Lead08C5HCFFNFlat",
+      "position": 103,
+      "sha256": "a4be0615a5f324039c522e5c340736ae72d31446596fafdc03dd7004ff914035",
+      "shape": [
+        4,
+        16384
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 262144,
+      "file": "c5_b_Lead08C5HCFFNFlat-28_pos103.bin",
+      "layer": 28,
+      "name": "Lead08C5HCFFNFlat",
+      "position": 103,
+      "sha256": "7eeb70f86156b9b76c9a17824529a64d9ff91dda848822ca4e62af8ca56dcb40",
+      "shape": [
+        4,
+        16384
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 262144,
+      "file": "c5_b_Lead08C5HCFFNFlat-29_pos103.bin",
+      "layer": 29,
+      "name": "Lead08C5HCFFNFlat",
+      "position": 103,
+      "sha256": "06d659660849df8891b1591fd01cf24542521ea485de34f2866dd905a44de158",
+      "shape": [
+        4,
+        16384
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 262144,
+      "file": "c5_b_Lead08C5HCFFNFlat-2_pos103.bin",
+      "layer": 2,
+      "name": "Lead08C5HCFFNFlat",
+      "position": 103,
+      "sha256": "6818aa35de2e39b9308295c47bc3706975a1a993437ef069503e3bdd085596ba",
+      "shape": [
+        4,
+        16384
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 262144,
+      "file": "c5_b_Lead08C5HCFFNFlat-30_pos103.bin",
+      "layer": 30,
+      "name": "Lead08C5HCFFNFlat",
+      "position": 103,
+      "sha256": "cf2fadf760be0c028fb002f24738d1ba21a206b95dd88396b85df7fa3bbd54d2",
+      "shape": [
+        4,
+        16384
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 262144,
+      "file": "c5_b_Lead08C5HCFFNFlat-31_pos103.bin",
+      "layer": 31,
+      "name": "Lead08C5HCFFNFlat",
+      "position": 103,
+      "sha256": "c4f89f51633704c76da7d3395159a613bcd8801ec4cc7216612964a61824b393",
+      "shape": [
+        4,
+        16384
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 262144,
+      "file": "c5_b_Lead08C5HCFFNFlat-32_pos103.bin",
+      "layer": 32,
+      "name": "Lead08C5HCFFNFlat",
+      "position": 103,
+      "sha256": "75a43faf18228edb8936c7faa58495733b3194c52be67aaca23505366b0155d7",
+      "shape": [
+        4,
+        16384
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 262144,
+      "file": "c5_b_Lead08C5HCFFNFlat-33_pos103.bin",
+      "layer": 33,
+      "name": "Lead08C5HCFFNFlat",
+      "position": 103,
+      "sha256": "063e7bd64b8689ddb113628c7325fe438f514ee13661854f84480a62e4ebc51b",
+      "shape": [
+        4,
+        16384
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 262144,
+      "file": "c5_b_Lead08C5HCFFNFlat-34_pos103.bin",
+      "layer": 34,
+      "name": "Lead08C5HCFFNFlat",
+      "position": 103,
+      "sha256": "54577fe0179307437525eccfa3f1a8446e74416d2a4b5a395a61cb88e77289a3",
+      "shape": [
+        4,
+        16384
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 262144,
+      "file": "c5_b_Lead08C5HCFFNFlat-35_pos103.bin",
+      "layer": 35,
+      "name": "Lead08C5HCFFNFlat",
+      "position": 103,
+      "sha256": "1a4377c0a1e28ff0a9bf3ab4c8f7bfe9150590ebe2f5a078f21b61e3805d1b86",
+      "shape": [
+        4,
+        16384
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 262144,
+      "file": "c5_b_Lead08C5HCFFNFlat-36_pos103.bin",
+      "layer": 36,
+      "name": "Lead08C5HCFFNFlat",
+      "position": 103,
+      "sha256": "9bbf9fe08a10fe4ae3a5d67dabea911c534ef968a8ffcd28fda8f6b134792ded",
+      "shape": [
+        4,
+        16384
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 262144,
+      "file": "c5_b_Lead08C5HCFFNFlat-37_pos103.bin",
+      "layer": 37,
+      "name": "Lead08C5HCFFNFlat",
+      "position": 103,
+      "sha256": "3660fe6959c7c80b00201143ffde09e37521171d00b7ad0892a6babef3c878c8",
+      "shape": [
+        4,
+        16384
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 262144,
+      "file": "c5_b_Lead08C5HCFFNFlat-38_pos103.bin",
+      "layer": 38,
+      "name": "Lead08C5HCFFNFlat",
+      "position": 103,
+      "sha256": "12a78efb3e4ccab3888344fbc5286e6770da810af3b2857548db59518ce0fefa",
+      "shape": [
+        4,
+        16384
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 262144,
+      "file": "c5_b_Lead08C5HCFFNFlat-39_pos103.bin",
+      "layer": 39,
+      "name": "Lead08C5HCFFNFlat",
+      "position": 103,
+      "sha256": "b3cc44c9c5302712d2caa502ad3aa64d77b549d670acb3fd44b576dead88b75d",
+      "shape": [
+        4,
+        16384
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 262144,
+      "file": "c5_b_Lead08C5HCFFNFlat-3_pos103.bin",
+      "layer": 3,
+      "name": "Lead08C5HCFFNFlat",
+      "position": 103,
+      "sha256": "7f719885fa45f395d68f91a11abb22157b9624341d07f032a3d40edc118bd9c9",
+      "shape": [
+        4,
+        16384
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 262144,
+      "file": "c5_b_Lead08C5HCFFNFlat-40_pos103.bin",
+      "layer": 40,
+      "name": "Lead08C5HCFFNFlat",
+      "position": 103,
+      "sha256": "a7ba42ff54730080424ff16c8dd21c9cb6b37be1970c0758ae96c59091d30ac8",
+      "shape": [
+        4,
+        16384
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 262144,
+      "file": "c5_b_Lead08C5HCFFNFlat-41_pos103.bin",
+      "layer": 41,
+      "name": "Lead08C5HCFFNFlat",
+      "position": 103,
+      "sha256": "ac73cd2cbbc12fe73cddc9a9686a18f4922c5f4b6953959d1b171099b9b76fc1",
+      "shape": [
+        4,
+        16384
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 262144,
+      "file": "c5_b_Lead08C5HCFFNFlat-42_pos103.bin",
+      "layer": 42,
+      "name": "Lead08C5HCFFNFlat",
+      "position": 103,
+      "sha256": "7874db3fea8d7cf5084b6677ce32c1cd48bc9411d4b2d4ecc293fbccbb1f2f1a",
+      "shape": [
+        4,
+        16384
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 262144,
+      "file": "c5_b_Lead08C5HCFFNFlat-4_pos103.bin",
+      "layer": 4,
+      "name": "Lead08C5HCFFNFlat",
+      "position": 103,
+      "sha256": "b027aa9019cfd2c0f73452df165ab552250bc43c359e66f8a66ff69f5157bf66",
+      "shape": [
+        4,
+        16384
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 262144,
+      "file": "c5_b_Lead08C5HCFFNFlat-5_pos103.bin",
+      "layer": 5,
+      "name": "Lead08C5HCFFNFlat",
+      "position": 103,
+      "sha256": "99ee9a15b819711a2b988e49e44e16d492cc558cc2db7f4d586acbdbacae9647",
+      "shape": [
+        4,
+        16384
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 262144,
+      "file": "c5_b_Lead08C5HCFFNFlat-6_pos103.bin",
+      "layer": 6,
+      "name": "Lead08C5HCFFNFlat",
+      "position": 103,
+      "sha256": "9beeeb132ebb0c331b7909358ce3e2b0bf08a207e81535be5a5cb3e748c0c0a1",
+      "shape": [
+        4,
+        16384
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 262144,
+      "file": "c5_b_Lead08C5HCFFNFlat-7_pos103.bin",
+      "layer": 7,
+      "name": "Lead08C5HCFFNFlat",
+      "position": 103,
+      "sha256": "e0a22f0fab92bde93179c4192f37a93d62c00093ea4a4c628c73de850ada5a0a",
+      "shape": [
+        4,
+        16384
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 262144,
+      "file": "c5_b_Lead08C5HCFFNFlat-8_pos103.bin",
+      "layer": 8,
+      "name": "Lead08C5HCFFNFlat",
+      "position": 103,
+      "sha256": "0001717b21680108276aff74bd841da5d6270d6083324e2194145ff8936d8fd1",
+      "shape": [
+        4,
+        16384
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 262144,
+      "file": "c5_b_Lead08C5HCFFNFlat-9_pos103.bin",
+      "layer": 9,
+      "name": "Lead08C5HCFFNFlat",
+      "position": 103,
+      "sha256": "95b2e71c45bde112e992b71356748781a500702c058ce677cc0baedf33c27857",
+      "shape": [
+        4,
+        16384
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 524288,
+      "file": "c5_b_Lead08C5Heads-0_pos103.bin",
+      "layer": 0,
+      "name": "Lead08C5Heads",
+      "position": 103,
+      "sha256": "3501fb4a4761b5056378d7c9dcd28109e66530d65eff0e335ccd2de8d95ca7d3",
+      "shape": [
+        4,
+        32768
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 524288,
+      "file": "c5_b_Lead08C5Heads-10_pos103.bin",
+      "layer": 10,
+      "name": "Lead08C5Heads",
+      "position": 103,
+      "sha256": "9e1b5a05f14a4e834f3e91613dce243ba2b53d57a9dc467012a4a5db3ba99aa7",
+      "shape": [
+        4,
+        32768
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 524288,
+      "file": "c5_b_Lead08C5Heads-11_pos103.bin",
+      "layer": 11,
+      "name": "Lead08C5Heads",
+      "position": 103,
+      "sha256": "64466c23fbcceab6553e1f64ac8567911037223613b4483470587f64e9c3abb9",
+      "shape": [
+        4,
+        32768
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 524288,
+      "file": "c5_b_Lead08C5Heads-12_pos103.bin",
+      "layer": 12,
+      "name": "Lead08C5Heads",
+      "position": 103,
+      "sha256": "2bcf3a721f05795141ebc71c8bbcc5a3e779c7deff1280cc992288e0540b3a21",
+      "shape": [
+        4,
+        32768
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 524288,
+      "file": "c5_b_Lead08C5Heads-13_pos103.bin",
+      "layer": 13,
+      "name": "Lead08C5Heads",
+      "position": 103,
+      "sha256": "fd95a6fc851978d029780195d722209a0125c3e9a709b5f91480e74b82be0961",
+      "shape": [
+        4,
+        32768
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 524288,
+      "file": "c5_b_Lead08C5Heads-14_pos103.bin",
+      "layer": 14,
+      "name": "Lead08C5Heads",
+      "position": 103,
+      "sha256": "52b7a459c5e1943197fcc6f15394a5a6598e414c0248ca532d07772e7fcb2216",
+      "shape": [
+        4,
+        32768
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 524288,
+      "file": "c5_b_Lead08C5Heads-15_pos103.bin",
+      "layer": 15,
+      "name": "Lead08C5Heads",
+      "position": 103,
+      "sha256": "e0e7b514804c9ea6be6150414740e4b9d91fad73d1df03bff230e1be14a08684",
+      "shape": [
+        4,
+        32768
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 524288,
+      "file": "c5_b_Lead08C5Heads-16_pos103.bin",
+      "layer": 16,
+      "name": "Lead08C5Heads",
+      "position": 103,
+      "sha256": "f8762930c4360946e496bb455162d83b8e0a7b282a85a61ba55e7b783a972a64",
+      "shape": [
+        4,
+        32768
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 524288,
+      "file": "c5_b_Lead08C5Heads-17_pos103.bin",
+      "layer": 17,
+      "name": "Lead08C5Heads",
+      "position": 103,
+      "sha256": "ad2e19e40a9d0f1d5bedd71d5868b2ca559ff5a92780d9bc6db2d01c8e715974",
+      "shape": [
+        4,
+        32768
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 524288,
+      "file": "c5_b_Lead08C5Heads-18_pos103.bin",
+      "layer": 18,
+      "name": "Lead08C5Heads",
+      "position": 103,
+      "sha256": "e9e63456c83c882ee11947424d058e0644e1d5101a06691e61ebab8d633ca018",
+      "shape": [
+        4,
+        32768
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 524288,
+      "file": "c5_b_Lead08C5Heads-19_pos103.bin",
+      "layer": 19,
+      "name": "Lead08C5Heads",
+      "position": 103,
+      "sha256": "c8f18c9cd0164c7f8878bc7326bcc355365a21adca53eff4732014114bccd18e",
+      "shape": [
+        4,
+        32768
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 524288,
+      "file": "c5_b_Lead08C5Heads-1_pos103.bin",
+      "layer": 1,
+      "name": "Lead08C5Heads",
+      "position": 103,
+      "sha256": "5f46d7e66b35a9bf436df7a65994aa0b14315e7cce0536893242966026a8f99a",
+      "shape": [
+        4,
+        32768
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 524288,
+      "file": "c5_b_Lead08C5Heads-20_pos103.bin",
+      "layer": 20,
+      "name": "Lead08C5Heads",
+      "position": 103,
+      "sha256": "7a55bf466a07b5d805a755cbfa3a6baf9e42b94795c321b114cfb050a4a309a8",
+      "shape": [
+        4,
+        32768
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 524288,
+      "file": "c5_b_Lead08C5Heads-21_pos103.bin",
+      "layer": 21,
+      "name": "Lead08C5Heads",
+      "position": 103,
+      "sha256": "a1dad873305bc93d9426531cdeb31116301865d2c0e7ed912f02b41f3f18e689",
+      "shape": [
+        4,
+        32768
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 524288,
+      "file": "c5_b_Lead08C5Heads-22_pos103.bin",
+      "layer": 22,
+      "name": "Lead08C5Heads",
+      "position": 103,
+      "sha256": "5989b0dcebb1cd2c69790584a5b54396f6aa0b661b4e2a43d91e6a45ea89a5d3",
+      "shape": [
+        4,
+        32768
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 524288,
+      "file": "c5_b_Lead08C5Heads-23_pos103.bin",
+      "layer": 23,
+      "name": "Lead08C5Heads",
+      "position": 103,
+      "sha256": "9d242939d0e6ee461631be5ef0ef36cf933581c57de9cc6aa22505c35b521aab",
+      "shape": [
+        4,
+        32768
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 524288,
+      "file": "c5_b_Lead08C5Heads-24_pos103.bin",
+      "layer": 24,
+      "name": "Lead08C5Heads",
+      "position": 103,
+      "sha256": "4db8be914441119fc90db4f2be3a0bcc2c3a60682938316e7efd282b43d43c43",
+      "shape": [
+        4,
+        32768
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 524288,
+      "file": "c5_b_Lead08C5Heads-25_pos103.bin",
+      "layer": 25,
+      "name": "Lead08C5Heads",
+      "position": 103,
+      "sha256": "922813f1426baba81702566b2dc82d4f7f2c3d28aa0639344aa7aff47dcebf8d",
+      "shape": [
+        4,
+        32768
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 524288,
+      "file": "c5_b_Lead08C5Heads-26_pos103.bin",
+      "layer": 26,
+      "name": "Lead08C5Heads",
+      "position": 103,
+      "sha256": "3e752778907b556dcb0a9140c5158d4daa95abc8faca2936656d233e50ebed3b",
+      "shape": [
+        4,
+        32768
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 524288,
+      "file": "c5_b_Lead08C5Heads-27_pos103.bin",
+      "layer": 27,
+      "name": "Lead08C5Heads",
+      "position": 103,
+      "sha256": "aba5b78fa8c9e570d054572b20eb386c72d588283ac5162cb3ae0445d3904b67",
+      "shape": [
+        4,
+        32768
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 524288,
+      "file": "c5_b_Lead08C5Heads-28_pos103.bin",
+      "layer": 28,
+      "name": "Lead08C5Heads",
+      "position": 103,
+      "sha256": "bb07e76288e4df079e7b5e2d3f029ecf7f7d496db51ba7bff47ab4b1346c13bd",
+      "shape": [
+        4,
+        32768
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 524288,
+      "file": "c5_b_Lead08C5Heads-29_pos103.bin",
+      "layer": 29,
+      "name": "Lead08C5Heads",
+      "position": 103,
+      "sha256": "06dbdc4499b867c28f9b089cf449839ebba182e88b78793107844dbd176d4efb",
+      "shape": [
+        4,
+        32768
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 524288,
+      "file": "c5_b_Lead08C5Heads-2_pos103.bin",
+      "layer": 2,
+      "name": "Lead08C5Heads",
+      "position": 103,
+      "sha256": "9d2bcbc8117fa21732a20f4eb0476bb61b7e7b46a73a74aefedb1e1be9713f7d",
+      "shape": [
+        4,
+        32768
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 524288,
+      "file": "c5_b_Lead08C5Heads-30_pos103.bin",
+      "layer": 30,
+      "name": "Lead08C5Heads",
+      "position": 103,
+      "sha256": "910f44a4ff68393a5c358b926e4df1ce02c9620feb178f6b4d9517cc839baeb4",
+      "shape": [
+        4,
+        32768
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 524288,
+      "file": "c5_b_Lead08C5Heads-31_pos103.bin",
+      "layer": 31,
+      "name": "Lead08C5Heads",
+      "position": 103,
+      "sha256": "a5d13faf0836e8cc9591e663cc41447316e035093c848fa1fa389d7f3f700ef8",
+      "shape": [
+        4,
+        32768
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 524288,
+      "file": "c5_b_Lead08C5Heads-32_pos103.bin",
+      "layer": 32,
+      "name": "Lead08C5Heads",
+      "position": 103,
+      "sha256": "c346c71bb6271a2993c69ece32a80468db1b583643c151fac2557b2952ebf1df",
+      "shape": [
+        4,
+        32768
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 524288,
+      "file": "c5_b_Lead08C5Heads-33_pos103.bin",
+      "layer": 33,
+      "name": "Lead08C5Heads",
+      "position": 103,
+      "sha256": "593b9a24884dffe293b77a805a36d226e21151ff32df8a714cfa0699a4098922",
+      "shape": [
+        4,
+        32768
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 524288,
+      "file": "c5_b_Lead08C5Heads-34_pos103.bin",
+      "layer": 34,
+      "name": "Lead08C5Heads",
+      "position": 103,
+      "sha256": "5d9e0a50ac10da936600d73eee6a68979a8b89b0dba28c5ed0e24d6f4fd88c5f",
+      "shape": [
+        4,
+        32768
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 524288,
+      "file": "c5_b_Lead08C5Heads-35_pos103.bin",
+      "layer": 35,
+      "name": "Lead08C5Heads",
+      "position": 103,
+      "sha256": "762d04720bc525ec629a95ce360a05053ca4a6d2d88298fe6c01aff36b06cc72",
+      "shape": [
+        4,
+        32768
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 524288,
+      "file": "c5_b_Lead08C5Heads-36_pos103.bin",
+      "layer": 36,
+      "name": "Lead08C5Heads",
+      "position": 103,
+      "sha256": "f50ce31963590b449f5a8870f45b8641ab3dd41e9fca4de51b40af2baed9c983",
+      "shape": [
+        4,
+        32768
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 524288,
+      "file": "c5_b_Lead08C5Heads-37_pos103.bin",
+      "layer": 37,
+      "name": "Lead08C5Heads",
+      "position": 103,
+      "sha256": "a9bcd4cc19fdfc21460d047671693870c5b5345695a18c9a271e8754ff651709",
+      "shape": [
+        4,
+        32768
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 524288,
+      "file": "c5_b_Lead08C5Heads-38_pos103.bin",
+      "layer": 38,
+      "name": "Lead08C5Heads",
+      "position": 103,
+      "sha256": "491c06fef8009b8526b418bac2f0310f95d73fb4e0ff4b68769014c7ce815c9b",
+      "shape": [
+        4,
+        32768
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 524288,
+      "file": "c5_b_Lead08C5Heads-39_pos103.bin",
+      "layer": 39,
+      "name": "Lead08C5Heads",
+      "position": 103,
+      "sha256": "1c95e1c437f4a3738fb0433d3605362abee5c9a5b8571cafbcd4216ddddd3fec",
+      "shape": [
+        4,
+        32768
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 524288,
+      "file": "c5_b_Lead08C5Heads-3_pos103.bin",
+      "layer": 3,
+      "name": "Lead08C5Heads",
+      "position": 103,
+      "sha256": "1e7ba48e989082e72e3d05ff0eb51bafbbed15f3c160ec24e181886eafbf0440",
+      "shape": [
+        4,
+        32768
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 524288,
+      "file": "c5_b_Lead08C5Heads-40_pos103.bin",
+      "layer": 40,
+      "name": "Lead08C5Heads",
+      "position": 103,
+      "sha256": "7cf9c7dcf67f6bb9f5d3c63e17f11791f0596887eee8670355e337cbfd504e1d",
+      "shape": [
+        4,
+        32768
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 524288,
+      "file": "c5_b_Lead08C5Heads-41_pos103.bin",
+      "layer": 41,
+      "name": "Lead08C5Heads",
+      "position": 103,
+      "sha256": "636a6e4bf692f9ccd65697a8e949c0038d070171ab20386deb15db5afa379a81",
+      "shape": [
+        4,
+        32768
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 524288,
+      "file": "c5_b_Lead08C5Heads-42_pos103.bin",
+      "layer": 42,
+      "name": "Lead08C5Heads",
+      "position": 103,
+      "sha256": "ff2be1d21bea2cf1c5a90610cf37a9c306be23b29c15388df377331397f6f160",
+      "shape": [
+        4,
+        32768
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 524288,
+      "file": "c5_b_Lead08C5Heads-4_pos103.bin",
+      "layer": 4,
+      "name": "Lead08C5Heads",
+      "position": 103,
+      "sha256": "8c50688efa1565905814d3da3a3071d633ced39e8e7ed97711775eee84f4e7c3",
+      "shape": [
+        4,
+        32768
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 524288,
+      "file": "c5_b_Lead08C5Heads-5_pos103.bin",
+      "layer": 5,
+      "name": "Lead08C5Heads",
+      "position": 103,
+      "sha256": "e3f49537716914ed7735f02c025aaa8603e5096d9fed254ab2764a3864b83854",
+      "shape": [
+        4,
+        32768
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 524288,
+      "file": "c5_b_Lead08C5Heads-6_pos103.bin",
+      "layer": 6,
+      "name": "Lead08C5Heads",
+      "position": 103,
+      "sha256": "9b170eb2b3cec8e8067f15a81451cc1f3e7ac75d16787b21c2ee63ed7b04aca2",
+      "shape": [
+        4,
+        32768
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 524288,
+      "file": "c5_b_Lead08C5Heads-7_pos103.bin",
+      "layer": 7,
+      "name": "Lead08C5Heads",
+      "position": 103,
+      "sha256": "15a2151f08f271e5db475a324ca74ad5e918f4f1dbe39b7f152da4edc39b72df",
+      "shape": [
+        4,
+        32768
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 524288,
+      "file": "c5_b_Lead08C5Heads-8_pos103.bin",
+      "layer": 8,
+      "name": "Lead08C5Heads",
+      "position": 103,
+      "sha256": "7adf96c0aca0163374e3baa96ec6a9b0204b89a38a53c8548c57dace234f900d",
+      "shape": [
+        4,
+        32768
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 524288,
+      "file": "c5_b_Lead08C5Heads-9_pos103.bin",
+      "layer": 9,
+      "name": "Lead08C5Heads",
+      "position": 103,
+      "sha256": "36fc198b4c83c90f4a0a2a18d3cf3472c5691bdb92ae4c84ed0d06c807f691d9",
+      "shape": [
+        4,
+        32768
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 131072,
+      "file": "c5_b_Lead08C5Low-0_pos103.bin",
+      "layer": 0,
+      "name": "Lead08C5Low",
+      "position": 103,
+      "sha256": "0b092b6ad8771162f9fc6e8354c1bc318d8b0efcbddf72a27108b28b7de4f32e",
+      "shape": [
+        4,
+        8192
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 131072,
+      "file": "c5_b_Lead08C5Low-10_pos103.bin",
+      "layer": 10,
+      "name": "Lead08C5Low",
+      "position": 103,
+      "sha256": "2cf1eb1b4d39f5241056b0822444f7733bceb3522ae54dcfe54f5d4a2d391a28",
+      "shape": [
+        4,
+        8192
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 131072,
+      "file": "c5_b_Lead08C5Low-11_pos103.bin",
+      "layer": 11,
+      "name": "Lead08C5Low",
+      "position": 103,
+      "sha256": "8daa5c582fda47337cd82fe829969ab54f35d7f00387921e62e19450ef18ab62",
+      "shape": [
+        4,
+        8192
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 131072,
+      "file": "c5_b_Lead08C5Low-12_pos103.bin",
+      "layer": 12,
+      "name": "Lead08C5Low",
+      "position": 103,
+      "sha256": "73f283107acc9f38bce0aafb28b85c0777a102300c3dc73e0aa8d708eb7c9103",
+      "shape": [
+        4,
+        8192
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 131072,
+      "file": "c5_b_Lead08C5Low-13_pos103.bin",
+      "layer": 13,
+      "name": "Lead08C5Low",
+      "position": 103,
+      "sha256": "10a1036b6969c7c99d4010e3118ea596cd7fb4de4579ca2507aa372d2f1002d7",
+      "shape": [
+        4,
+        8192
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 131072,
+      "file": "c5_b_Lead08C5Low-14_pos103.bin",
+      "layer": 14,
+      "name": "Lead08C5Low",
+      "position": 103,
+      "sha256": "4d4b99c12e8577bac263225eaee9a5d834fa3b8c70c56e6f296d507713820cec",
+      "shape": [
+        4,
+        8192
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 131072,
+      "file": "c5_b_Lead08C5Low-15_pos103.bin",
+      "layer": 15,
+      "name": "Lead08C5Low",
+      "position": 103,
+      "sha256": "9c4c444500f3c220d3c175d3d4d8717a34a836fda472117a26ad4132be9759e2",
+      "shape": [
+        4,
+        8192
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 131072,
+      "file": "c5_b_Lead08C5Low-16_pos103.bin",
+      "layer": 16,
+      "name": "Lead08C5Low",
+      "position": 103,
+      "sha256": "248d80a7620f82461863e8aaf09ba3c2ccf5e2765a86a665c4c519f97565d196",
+      "shape": [
+        4,
+        8192
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 131072,
+      "file": "c5_b_Lead08C5Low-17_pos103.bin",
+      "layer": 17,
+      "name": "Lead08C5Low",
+      "position": 103,
+      "sha256": "9a7c3243153b53b2b0a6bdb183f54c279ea41f12e1af816ed45de6e0784e46d1",
+      "shape": [
+        4,
+        8192
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 131072,
+      "file": "c5_b_Lead08C5Low-18_pos103.bin",
+      "layer": 18,
+      "name": "Lead08C5Low",
+      "position": 103,
+      "sha256": "b3715b32e5a7cebdfd628fc0ee7f83160e2eb724f39e46fd810568ae1cfd3a30",
+      "shape": [
+        4,
+        8192
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 131072,
+      "file": "c5_b_Lead08C5Low-19_pos103.bin",
+      "layer": 19,
+      "name": "Lead08C5Low",
+      "position": 103,
+      "sha256": "f4365206087ce5247164c2ebc22be20f0f541b0f4bea4b110825ecbbbf421bc4",
+      "shape": [
+        4,
+        8192
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 131072,
+      "file": "c5_b_Lead08C5Low-1_pos103.bin",
+      "layer": 1,
+      "name": "Lead08C5Low",
+      "position": 103,
+      "sha256": "4467c49a105c516d270007882cea030a85f2f7af5018223636c2e39125a9c788",
+      "shape": [
+        4,
+        8192
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 131072,
+      "file": "c5_b_Lead08C5Low-20_pos103.bin",
+      "layer": 20,
+      "name": "Lead08C5Low",
+      "position": 103,
+      "sha256": "bd08817eeb1315e14dfaf87cdab0865ee0f00a170d49044ee712f1a94ea61975",
+      "shape": [
+        4,
+        8192
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 131072,
+      "file": "c5_b_Lead08C5Low-21_pos103.bin",
+      "layer": 21,
+      "name": "Lead08C5Low",
+      "position": 103,
+      "sha256": "963be4b9cad467bfaece2ac315ae6724788ae3cb401a561cf34e465740f2371a",
+      "shape": [
+        4,
+        8192
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 131072,
+      "file": "c5_b_Lead08C5Low-22_pos103.bin",
+      "layer": 22,
+      "name": "Lead08C5Low",
+      "position": 103,
+      "sha256": "c6ce40eec2bfe2be1eaf80809b5b0e7857695e445221fa008e98312188b6c593",
+      "shape": [
+        4,
+        8192
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 131072,
+      "file": "c5_b_Lead08C5Low-23_pos103.bin",
+      "layer": 23,
+      "name": "Lead08C5Low",
+      "position": 103,
+      "sha256": "22c0e3a2f76417946644c274686e308a7c3a6b88e0b80f8ef010d52bef7920ac",
+      "shape": [
+        4,
+        8192
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 131072,
+      "file": "c5_b_Lead08C5Low-24_pos103.bin",
+      "layer": 24,
+      "name": "Lead08C5Low",
+      "position": 103,
+      "sha256": "820948fc1e063d4148cf07f3a22c0652968fdb2f72051f6240357abf3de8469e",
+      "shape": [
+        4,
+        8192
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 131072,
+      "file": "c5_b_Lead08C5Low-25_pos103.bin",
+      "layer": 25,
+      "name": "Lead08C5Low",
+      "position": 103,
+      "sha256": "4f504911c005cd172cc9b5b5825d3d2de46721db598178bb0b7e422c3280d590",
+      "shape": [
+        4,
+        8192
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 131072,
+      "file": "c5_b_Lead08C5Low-26_pos103.bin",
+      "layer": 26,
+      "name": "Lead08C5Low",
+      "position": 103,
+      "sha256": "2d887e8578973e4f078394a11e41586ba24cbf493aa47cd35ea7ef1c4e951484",
+      "shape": [
+        4,
+        8192
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 131072,
+      "file": "c5_b_Lead08C5Low-27_pos103.bin",
+      "layer": 27,
+      "name": "Lead08C5Low",
+      "position": 103,
+      "sha256": "1db24ba359c8241a53585d272f735609951aed218bc1618e816ce553176e5edf",
+      "shape": [
+        4,
+        8192
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 131072,
+      "file": "c5_b_Lead08C5Low-28_pos103.bin",
+      "layer": 28,
+      "name": "Lead08C5Low",
+      "position": 103,
+      "sha256": "224b9a445c2d29e0ac1f69ad6fc987ce6d470825125916da275d55774dfeb1f7",
+      "shape": [
+        4,
+        8192
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 131072,
+      "file": "c5_b_Lead08C5Low-29_pos103.bin",
+      "layer": 29,
+      "name": "Lead08C5Low",
+      "position": 103,
+      "sha256": "b61f7860fcfe0804dd5a8b10e0dbbe0a088b912e420734f449f8f4e9c3c0aa3e",
+      "shape": [
+        4,
+        8192
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 131072,
+      "file": "c5_b_Lead08C5Low-2_pos103.bin",
+      "layer": 2,
+      "name": "Lead08C5Low",
+      "position": 103,
+      "sha256": "58b0720b8ddd8e2942ab5482556030b51821fc5f0a48ce6e904621dc56bd361f",
+      "shape": [
+        4,
+        8192
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 131072,
+      "file": "c5_b_Lead08C5Low-30_pos103.bin",
+      "layer": 30,
+      "name": "Lead08C5Low",
+      "position": 103,
+      "sha256": "25ec52b1bd824cdca9d5b20ac9affc9f88d5f1f78b03e6dd03d1ab1d6f9955d8",
+      "shape": [
+        4,
+        8192
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 131072,
+      "file": "c5_b_Lead08C5Low-31_pos103.bin",
+      "layer": 31,
+      "name": "Lead08C5Low",
+      "position": 103,
+      "sha256": "0b2858643d925364a48154a7f7145bbe248f78154dbdd277c7ecab51a3555664",
+      "shape": [
+        4,
+        8192
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 131072,
+      "file": "c5_b_Lead08C5Low-32_pos103.bin",
+      "layer": 32,
+      "name": "Lead08C5Low",
+      "position": 103,
+      "sha256": "6fa3b973955322ff96d9ba72ecbed7950fdc568706573332498c66d0285a9e47",
+      "shape": [
+        4,
+        8192
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 131072,
+      "file": "c5_b_Lead08C5Low-33_pos103.bin",
+      "layer": 33,
+      "name": "Lead08C5Low",
+      "position": 103,
+      "sha256": "36583b69a4585536265e4a3ac1a314c62741b3dacc185045ef951d526ea82807",
+      "shape": [
+        4,
+        8192
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 131072,
+      "file": "c5_b_Lead08C5Low-34_pos103.bin",
+      "layer": 34,
+      "name": "Lead08C5Low",
+      "position": 103,
+      "sha256": "289b3676930fd8e210826294994ae21b3f613f78d158d3d789b11bbc32609ad4",
+      "shape": [
+        4,
+        8192
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 131072,
+      "file": "c5_b_Lead08C5Low-35_pos103.bin",
+      "layer": 35,
+      "name": "Lead08C5Low",
+      "position": 103,
+      "sha256": "cf7fa36d2e044bf796419aa149f8cb0272912c6d9691db740eaa398666ea47d8",
+      "shape": [
+        4,
+        8192
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 131072,
+      "file": "c5_b_Lead08C5Low-36_pos103.bin",
+      "layer": 36,
+      "name": "Lead08C5Low",
+      "position": 103,
+      "sha256": "2a075624ea3a25bfed3fc5153ebef4da2b2d93d25a2a55ac99ec098de475cf2b",
+      "shape": [
+        4,
+        8192
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 131072,
+      "file": "c5_b_Lead08C5Low-37_pos103.bin",
+      "layer": 37,
+      "name": "Lead08C5Low",
+      "position": 103,
+      "sha256": "34fafcb43824db7803e08571b6ea92ca5dee014956fbe68f5f342e45e5846060",
+      "shape": [
+        4,
+        8192
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 131072,
+      "file": "c5_b_Lead08C5Low-38_pos103.bin",
+      "layer": 38,
+      "name": "Lead08C5Low",
+      "position": 103,
+      "sha256": "0471edeb2901009f0aba2032c6a432a4387b6ffecfd4a834f7f17bf9c68ea647",
+      "shape": [
+        4,
+        8192
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 131072,
+      "file": "c5_b_Lead08C5Low-39_pos103.bin",
+      "layer": 39,
+      "name": "Lead08C5Low",
+      "position": 103,
+      "sha256": "b557153fc3b51b160217b7b72b000cf6d32e6435628e89a184bc0c001ae96866",
+      "shape": [
+        4,
+        8192
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 131072,
+      "file": "c5_b_Lead08C5Low-3_pos103.bin",
+      "layer": 3,
+      "name": "Lead08C5Low",
+      "position": 103,
+      "sha256": "c8cb767f56ba51627d1881ba15855855b881f5acec0731f39e7ac14e4dc527bb",
+      "shape": [
+        4,
+        8192
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 131072,
+      "file": "c5_b_Lead08C5Low-40_pos103.bin",
+      "layer": 40,
+      "name": "Lead08C5Low",
+      "position": 103,
+      "sha256": "d3b5bff36bc3af66a8052e0adefb7e09cd3328f146271a5f248a98401e0ebef5",
+      "shape": [
+        4,
+        8192
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 131072,
+      "file": "c5_b_Lead08C5Low-41_pos103.bin",
+      "layer": 41,
+      "name": "Lead08C5Low",
+      "position": 103,
+      "sha256": "6f180ec54ba1f56acb91e10d43ca4bbadfa6048eaa09453e746084daef407753",
+      "shape": [
+        4,
+        8192
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 131072,
+      "file": "c5_b_Lead08C5Low-42_pos103.bin",
+      "layer": 42,
+      "name": "Lead08C5Low",
+      "position": 103,
+      "sha256": "da287d9bed511dc67341772601de1c01240010437300f1a1248e47fc4acf9ddb",
+      "shape": [
+        4,
+        8192
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 131072,
+      "file": "c5_b_Lead08C5Low-4_pos103.bin",
+      "layer": 4,
+      "name": "Lead08C5Low",
+      "position": 103,
+      "sha256": "1d5203eb44d98a5ebbf96d4091e413fe38baeda8e7b55219cbeec0b2cb47ca49",
+      "shape": [
+        4,
+        8192
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 131072,
+      "file": "c5_b_Lead08C5Low-5_pos103.bin",
+      "layer": 5,
+      "name": "Lead08C5Low",
+      "position": 103,
+      "sha256": "bbd5bb20e9af3b908347f7c45e9645cce10d8e46f7128c31703ddc5d2756f8c7",
+      "shape": [
+        4,
+        8192
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 131072,
+      "file": "c5_b_Lead08C5Low-6_pos103.bin",
+      "layer": 6,
+      "name": "Lead08C5Low",
+      "position": 103,
+      "sha256": "3eb37aaa46c036e4d27c5dc2f039c4f94cd9c8911d6b65a2f88f82e142f839e7",
+      "shape": [
+        4,
+        8192
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 131072,
+      "file": "c5_b_Lead08C5Low-7_pos103.bin",
+      "layer": 7,
+      "name": "Lead08C5Low",
+      "position": 103,
+      "sha256": "79eecf8655523a90966f00867c7dbd9ccf94bc7d7c9b21c9198781d2b4c7fddd",
+      "shape": [
+        4,
+        8192
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 131072,
+      "file": "c5_b_Lead08C5Low-8_pos103.bin",
+      "layer": 8,
+      "name": "Lead08C5Low",
+      "position": 103,
+      "sha256": "8c18484a76573c4a222ddd0e150628e2c9dabc8704db7d4a48d8dc4d916e8d76",
+      "shape": [
+        4,
+        8192
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 131072,
+      "file": "c5_b_Lead08C5Low-9_pos103.bin",
+      "layer": 9,
+      "name": "Lead08C5Low",
+      "position": 103,
+      "sha256": "2792c4be7fffd46a7df5af576ff333da0fa5ff39bc2ef8489e28b675de0ab547",
+      "shape": [
+        4,
+        8192
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 16384,
+      "file": "c5_b_Lead08C5QLoraNorm-0_pos103.bin",
+      "layer": 0,
+      "name": "Lead08C5QLoraNorm",
+      "position": 103,
+      "sha256": "6136d60ced1706c636036ace14ff995919f96cd0dd70ec958202582a2ceee7af",
+      "shape": [
+        4,
+        1024
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 16384,
+      "file": "c5_b_Lead08C5QLoraNorm-10_pos103.bin",
+      "layer": 10,
+      "name": "Lead08C5QLoraNorm",
+      "position": 103,
+      "sha256": "5a8b54bba55bef335e6d75351f4cfeb67d3bf722a8ad325d5d5bc09c8414ef9a",
+      "shape": [
+        4,
+        1024
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 16384,
+      "file": "c5_b_Lead08C5QLoraNorm-11_pos103.bin",
+      "layer": 11,
+      "name": "Lead08C5QLoraNorm",
+      "position": 103,
+      "sha256": "5854040eac1c4acc1e191aaef7cd2cd55d8dc0b5128023c2a07d78bbdeb240b4",
+      "shape": [
+        4,
+        1024
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 16384,
+      "file": "c5_b_Lead08C5QLoraNorm-12_pos103.bin",
+      "layer": 12,
+      "name": "Lead08C5QLoraNorm",
+      "position": 103,
+      "sha256": "2c7038e62c56c7784439e70d962e4acd24872c169793551b922e067874215923",
+      "shape": [
+        4,
+        1024
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 16384,
+      "file": "c5_b_Lead08C5QLoraNorm-13_pos103.bin",
+      "layer": 13,
+      "name": "Lead08C5QLoraNorm",
+      "position": 103,
+      "sha256": "58a6ffb16c8eb89f972802869b887568d382e61c86fa2b245aaebb6a6e5c319e",
+      "shape": [
+        4,
+        1024
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 16384,
+      "file": "c5_b_Lead08C5QLoraNorm-14_pos103.bin",
+      "layer": 14,
+      "name": "Lead08C5QLoraNorm",
+      "position": 103,
+      "sha256": "3a0c9e496406b32cee39a3a9bd713fe894422b6eec7a348b29fb1a054c3abd3c",
+      "shape": [
+        4,
+        1024
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 16384,
+      "file": "c5_b_Lead08C5QLoraNorm-15_pos103.bin",
+      "layer": 15,
+      "name": "Lead08C5QLoraNorm",
+      "position": 103,
+      "sha256": "f253727c854ac129c9d2870ed4be90c527831450c7136af871b6cd7e42b53f81",
+      "shape": [
+        4,
+        1024
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 16384,
+      "file": "c5_b_Lead08C5QLoraNorm-16_pos103.bin",
+      "layer": 16,
+      "name": "Lead08C5QLoraNorm",
+      "position": 103,
+      "sha256": "43c2eb97f3db67956c6c0d1c443c7fd6d8d004a33a079318925d75b53157c712",
+      "shape": [
+        4,
+        1024
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 16384,
+      "file": "c5_b_Lead08C5QLoraNorm-17_pos103.bin",
+      "layer": 17,
+      "name": "Lead08C5QLoraNorm",
+      "position": 103,
+      "sha256": "2c93517508f7d7861ff8a44c59f47aaf744b6e9585ab65a193e649b7cd462b58",
+      "shape": [
+        4,
+        1024
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 16384,
+      "file": "c5_b_Lead08C5QLoraNorm-18_pos103.bin",
+      "layer": 18,
+      "name": "Lead08C5QLoraNorm",
+      "position": 103,
+      "sha256": "c6ba35447686e03ebadbf49fda6134727bf053f90070cb27705f5b6a6d5bb23b",
+      "shape": [
+        4,
+        1024
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 16384,
+      "file": "c5_b_Lead08C5QLoraNorm-19_pos103.bin",
+      "layer": 19,
+      "name": "Lead08C5QLoraNorm",
+      "position": 103,
+      "sha256": "f615111da6f878569ee3f7c9f490e1714400256f3d8a393b3022068be9bc31fb",
+      "shape": [
+        4,
+        1024
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 16384,
+      "file": "c5_b_Lead08C5QLoraNorm-1_pos103.bin",
+      "layer": 1,
+      "name": "Lead08C5QLoraNorm",
+      "position": 103,
+      "sha256": "d27350079231607f4966516e770a697bd406f28f3df65398c4214f3a397fc4b2",
+      "shape": [
+        4,
+        1024
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 16384,
+      "file": "c5_b_Lead08C5QLoraNorm-20_pos103.bin",
+      "layer": 20,
+      "name": "Lead08C5QLoraNorm",
+      "position": 103,
+      "sha256": "d9235ed07cfa4bb1d212a5ed1ca20c7bdcc9b27fb264435a3d8eebad6dce6dd2",
+      "shape": [
+        4,
+        1024
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 16384,
+      "file": "c5_b_Lead08C5QLoraNorm-21_pos103.bin",
+      "layer": 21,
+      "name": "Lead08C5QLoraNorm",
+      "position": 103,
+      "sha256": "617e1f5b2ea419fa526f43d8cdac315803361123eded209baf30504bc284a990",
+      "shape": [
+        4,
+        1024
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 16384,
+      "file": "c5_b_Lead08C5QLoraNorm-22_pos103.bin",
+      "layer": 22,
+      "name": "Lead08C5QLoraNorm",
+      "position": 103,
+      "sha256": "b2539bb0be779c7ecd9d7ab84d740502d32c64042b54a5f396874b1ac245584e",
+      "shape": [
+        4,
+        1024
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 16384,
+      "file": "c5_b_Lead08C5QLoraNorm-23_pos103.bin",
+      "layer": 23,
+      "name": "Lead08C5QLoraNorm",
+      "position": 103,
+      "sha256": "c1b09e9cb5ae62cdcdaf97a1fcc60abcd67fe1e34a3675577a8611d5f6df9aae",
+      "shape": [
+        4,
+        1024
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 16384,
+      "file": "c5_b_Lead08C5QLoraNorm-24_pos103.bin",
+      "layer": 24,
+      "name": "Lead08C5QLoraNorm",
+      "position": 103,
+      "sha256": "22e7dbab882a4b3358cfd08ce5dc5e6b2bd7fbed9e2282de49067c02cec39c7a",
+      "shape": [
+        4,
+        1024
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 16384,
+      "file": "c5_b_Lead08C5QLoraNorm-25_pos103.bin",
+      "layer": 25,
+      "name": "Lead08C5QLoraNorm",
+      "position": 103,
+      "sha256": "74bd6e637abcb44c64142dc1b7265121023098aa5c03fc332a840b1696d297eb",
+      "shape": [
+        4,
+        1024
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 16384,
+      "file": "c5_b_Lead08C5QLoraNorm-26_pos103.bin",
+      "layer": 26,
+      "name": "Lead08C5QLoraNorm",
+      "position": 103,
+      "sha256": "95d983c2e55287d928a85eb5c497ffc7009314275522b65d67cfa5628b929427",
+      "shape": [
+        4,
+        1024
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 16384,
+      "file": "c5_b_Lead08C5QLoraNorm-27_pos103.bin",
+      "layer": 27,
+      "name": "Lead08C5QLoraNorm",
+      "position": 103,
+      "sha256": "299a24d63eb61f0ab935bb230a77a3629e9dfc8ea7e057816e89f663d8cd7004",
+      "shape": [
+        4,
+        1024
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 16384,
+      "file": "c5_b_Lead08C5QLoraNorm-28_pos103.bin",
+      "layer": 28,
+      "name": "Lead08C5QLoraNorm",
+      "position": 103,
+      "sha256": "be8f957471e4a4cab7ae2ba62425a6022d82fe37182c0c4f86fcce24ec56a92f",
+      "shape": [
+        4,
+        1024
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 16384,
+      "file": "c5_b_Lead08C5QLoraNorm-29_pos103.bin",
+      "layer": 29,
+      "name": "Lead08C5QLoraNorm",
+      "position": 103,
+      "sha256": "8a3102aded037c6eed00355ff68ccb0a4b64f38322e8d0b75757c7eb456a86dd",
+      "shape": [
+        4,
+        1024
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 16384,
+      "file": "c5_b_Lead08C5QLoraNorm-2_pos103.bin",
+      "layer": 2,
+      "name": "Lead08C5QLoraNorm",
+      "position": 103,
+      "sha256": "1fce12cecda6f70ce964b221d40504f9d0ff11512b2c11a57c65d95e4191c3e9",
+      "shape": [
+        4,
+        1024
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 16384,
+      "file": "c5_b_Lead08C5QLoraNorm-30_pos103.bin",
+      "layer": 30,
+      "name": "Lead08C5QLoraNorm",
+      "position": 103,
+      "sha256": "2655fa2510bbf79d385847a24ea61448d9bf981be2b068ddba647756c5e0f5f7",
+      "shape": [
+        4,
+        1024
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 16384,
+      "file": "c5_b_Lead08C5QLoraNorm-31_pos103.bin",
+      "layer": 31,
+      "name": "Lead08C5QLoraNorm",
+      "position": 103,
+      "sha256": "0320cf7416ea733600309cba6fbf09fea952835ffecb142a5d479b9063bb0f8a",
+      "shape": [
+        4,
+        1024
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 16384,
+      "file": "c5_b_Lead08C5QLoraNorm-32_pos103.bin",
+      "layer": 32,
+      "name": "Lead08C5QLoraNorm",
+      "position": 103,
+      "sha256": "33f49fa1720c4385b169a5dbf636910effadd5aa14d9ad3f9252b6fbda82f9cd",
+      "shape": [
+        4,
+        1024
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 16384,
+      "file": "c5_b_Lead08C5QLoraNorm-33_pos103.bin",
+      "layer": 33,
+      "name": "Lead08C5QLoraNorm",
+      "position": 103,
+      "sha256": "ba447cbda2c8df48d131179dfc54a9d503019c5a380119463e780b2e4365a013",
+      "shape": [
+        4,
+        1024
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 16384,
+      "file": "c5_b_Lead08C5QLoraNorm-34_pos103.bin",
+      "layer": 34,
+      "name": "Lead08C5QLoraNorm",
+      "position": 103,
+      "sha256": "e1cfc5d36b3563163b1fbc89de6357d32069611f99f681c7ae8377ddbfd83a5b",
+      "shape": [
+        4,
+        1024
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 16384,
+      "file": "c5_b_Lead08C5QLoraNorm-35_pos103.bin",
+      "layer": 35,
+      "name": "Lead08C5QLoraNorm",
+      "position": 103,
+      "sha256": "ed24b12cc7403c76bbd4eca3f10a545751ede997a43100be69b2727688ce6978",
+      "shape": [
+        4,
+        1024
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 16384,
+      "file": "c5_b_Lead08C5QLoraNorm-36_pos103.bin",
+      "layer": 36,
+      "name": "Lead08C5QLoraNorm",
+      "position": 103,
+      "sha256": "ac79d0aab48e4a82ca1c2b20ce1eb2d53477d3d738b364c65d3f589ea27aae64",
+      "shape": [
+        4,
+        1024
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 16384,
+      "file": "c5_b_Lead08C5QLoraNorm-37_pos103.bin",
+      "layer": 37,
+      "name": "Lead08C5QLoraNorm",
+      "position": 103,
+      "sha256": "650fa4c787495aec6d8f11cf8de9b445d26ce418dd71b964e38f1cb9de33b592",
+      "shape": [
+        4,
+        1024
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 16384,
+      "file": "c5_b_Lead08C5QLoraNorm-38_pos103.bin",
+      "layer": 38,
+      "name": "Lead08C5QLoraNorm",
+      "position": 103,
+      "sha256": "41cba0d0269075c34936e803098773368caac3a2b1b33890069c7bde7fde2110",
+      "shape": [
+        4,
+        1024
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 16384,
+      "file": "c5_b_Lead08C5QLoraNorm-39_pos103.bin",
+      "layer": 39,
+      "name": "Lead08C5QLoraNorm",
+      "position": 103,
+      "sha256": "0698ce045a64178d29810036acd580dd148c051ed1b133adcb4d8ce7ae1b5b3f",
+      "shape": [
+        4,
+        1024
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 16384,
+      "file": "c5_b_Lead08C5QLoraNorm-3_pos103.bin",
+      "layer": 3,
+      "name": "Lead08C5QLoraNorm",
+      "position": 103,
+      "sha256": "886e13db9d4fd5bb26f4bb4614c2b1310c36de6ace9aff7342bfa75f4d1fa0a6",
+      "shape": [
+        4,
+        1024
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 16384,
+      "file": "c5_b_Lead08C5QLoraNorm-40_pos103.bin",
+      "layer": 40,
+      "name": "Lead08C5QLoraNorm",
+      "position": 103,
+      "sha256": "d5a3941917ff6db9785120a03a06bb37a6f3db514c6887cf3985ba7435c511fa",
+      "shape": [
+        4,
+        1024
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 16384,
+      "file": "c5_b_Lead08C5QLoraNorm-41_pos103.bin",
+      "layer": 41,
+      "name": "Lead08C5QLoraNorm",
+      "position": 103,
+      "sha256": "df0bd5c5e5108785563945482534faaec7a900ebf6407bedaef9723d538b4ed8",
+      "shape": [
+        4,
+        1024
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 16384,
+      "file": "c5_b_Lead08C5QLoraNorm-42_pos103.bin",
+      "layer": 42,
+      "name": "Lead08C5QLoraNorm",
+      "position": 103,
+      "sha256": "98a64e20eb409b73cfd52bb0332b74e35ca62188d01ef2caab86998752ccb520",
+      "shape": [
+        4,
+        1024
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 16384,
+      "file": "c5_b_Lead08C5QLoraNorm-4_pos103.bin",
+      "layer": 4,
+      "name": "Lead08C5QLoraNorm",
+      "position": 103,
+      "sha256": "8355e455517eec2d02deeb3193c1df4fb84551a05a9b1f6ac8459d40fb966bf1",
+      "shape": [
+        4,
+        1024
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 16384,
+      "file": "c5_b_Lead08C5QLoraNorm-5_pos103.bin",
+      "layer": 5,
+      "name": "Lead08C5QLoraNorm",
+      "position": 103,
+      "sha256": "a07db27eb5fea3d136fdf634b731dfd1607a692bc7fea52a20444c126c201d42",
+      "shape": [
+        4,
+        1024
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 16384,
+      "file": "c5_b_Lead08C5QLoraNorm-6_pos103.bin",
+      "layer": 6,
+      "name": "Lead08C5QLoraNorm",
+      "position": 103,
+      "sha256": "e8d703807122c795f99d47d4925fa2afef474fa804c7a1b94bedee6038acfc60",
+      "shape": [
+        4,
+        1024
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 16384,
+      "file": "c5_b_Lead08C5QLoraNorm-7_pos103.bin",
+      "layer": 7,
+      "name": "Lead08C5QLoraNorm",
+      "position": 103,
+      "sha256": "96a4395a2b0bdfad4b439b00254d56aaf68cd51b62e873900f2b96f2ff38f739",
+      "shape": [
+        4,
+        1024
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 16384,
+      "file": "c5_b_Lead08C5QLoraNorm-8_pos103.bin",
+      "layer": 8,
+      "name": "Lead08C5QLoraNorm",
+      "position": 103,
+      "sha256": "1757aea545eadf827d11e9e3a290e13aa3da6d7f6becbdb59fca55ba8e5c0b51",
+      "shape": [
+        4,
+        1024
+      ],
+      "tag": "b_"
+    },
+    {
+      "bytes": 16384,
+      "file": "c5_b_Lead08C5QLoraNorm-9_pos103.bin",
+      "layer": 9,
+      "name": "Lead08C5QLoraNorm",
+      "position": 103,
+      "sha256": "2e5c4e0afb0b0c751d60cd632fb57f3b85c7515db9738a57bfea8ce7c6fc8e13",
+      "shape": [
+        4,
+        1024
+      ],
+      "tag": "b_"
+    }
+  ],
+  "config": {
+    "path": "issue468/artifacts/lead08_reassessment/19_iter11_code_sort_pairs_config.jsonl",
+    "sha256": "46c43c44c306354213255a1cc6056ca63a9377855d0762f1d71b2491c4fd6ca4"
+  },
+  "files": 301,
+  "layers": 43,
+  "m": 4,
+  "model": {
+    "bytes": 86720111488,
+    "path": "/Users/lobanov/Projects/ds4/gguf/DeepSeek-V4-Flash-IQ2XXS-w2Q2K-AProjQ8-SExpQ8-OutQ8-chat-v2-imatrix.gguf",
+    "sha256": "efc7ed607ff27076e3e501fc3fefefa33c0ed8cf1eff483a2b7fdc0c2e616668"
+  },
+  "position": 103,
+  "prompt": {
+    "path": "issue468/prompts/exactness_small_corpus/code_sort_pairs.txt",
+    "sha256": "7f18e17589cb4ed172df6ec160792fccc586269bde17136a00c3007c4b6b2d7d"
+  },
+  "result": "PASS",
+  "schema": "lead08-v15-b2a-c5-v1",
+  "tag": "b_",
+  "total_bytes": 57065472
+}

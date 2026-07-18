@@ -78,6 +78,10 @@ reproducible scratch outputs rather than committed bulk artifacts.
 
 ## Stage B: full family and economic gate
 
+Implementation correction (iteration 30): Stage B is split into B1 direct capability, B2a C5 plus
+the nonredundant seam, and B2b fixed-work timing. This preserves the outcome contract while making
+each dependency independently auditable.
+
 Only after an audited Stage-A pass, extend both specializations to M=2..8. M=6..8 must still use
 one candidate token group per output tile rather than the current ext path's multiple token tiles.
 Exercise every real layer offset for every M and every exposed shape:
@@ -92,8 +96,9 @@ Exercise every real layer offset for every M and every exposed shape:
 | F16 | HC FFN mixer | `(M,24,16384)` |
 | F16 | FFN router | `(M,256,4096)` |
 
-Reuse C0-C4 and add `C5`, real K4 boundaries captured from the retained `code_sort_pairs` suffix at
-position 104. Use row prefixes for M=2/3 and all rows for M=4; C5 does not apply to M=5..8 unless a
+Reuse C0-C4 and add `C5`, real K4 boundaries captured from the retained `code_sort_pairs` suffix.
+Iteration-30 position census fixes the pinned-K4 lowercase-`b_` boundary at position 103; the
+historical position-104 batch had only two rows. Use row prefixes for M=2/3 and all rows for M=4; C5 does not apply to M=5..8 unless a
 separate real wider-batch capture is preflighted. There are six external dense call boundaries;
 output-B is internal to combined output. Capture `batch_heads` immediately before that operation
 and the resulting `batch_attn_low` after it. Capture binaries stay external/gitignored; retain a
@@ -114,7 +119,7 @@ The timing carrier includes low projection and B in both arms. This prevents the
 mistake of computing ext B and overwriting it. GPU time includes both candidate dispatches; retain
 host encode-plus-wait wall time separately because Metal GPU timestamps exclude host work.
 
-### Fixed-work timing carrier
+### Fixed-work timing carrier (Stage B2b)
 
 Each arm is explicitly M=4 and encodes all seven sites in production order for layers 0..42 in one
 command buffer, using real offsets and captured C5 K4 inputs. Outputs are intentionally independent rather than fed
@@ -186,23 +191,30 @@ xcrun metal -S -gline-tables-only \
   -o /tmp/lead08_exact_smallm.air.s
 ```
 
-Before Stage B is authorized, its implementation must make these two commands exact. The capture
-command creates external C5 data plus the retained manifest; the full command consumes it:
+The original capture command below was invalid because setting the model-only gate exits before the
+prompt executes. Iteration 30 corrects the contract: capture runs the normal fixed-K4 distribution
+probe with the gate unset; B2a replay then consumes the external data through the gate.
 
 ```sh
 CAPTURE=/tmp/lead08_exact_smallm_c5
+mkdir -p "$CAPTURE"
 
-DS4_LEAD08_EXACT_SMALLM_GATE=1 \
-DS4_LEAD08_EXACT_SMALLM_PHASE=capture \
-DS4_LEAD08_EXACT_SMALLM_CAPTURE_DIR="$CAPTURE" \
+DS4_DSPARK_VERIFY_DIST_PROBE=1 DS4_DSPARK_VERIFY_K=4 \
+DS4_DSPARK_VERIFY_BATCHED=0 DS4_DSPARK_ANCHOR_REUSE=1 \
+DS4_DSPARK_VERIFY_PREFIX_CHECKPOINT=1 DS4_DSPARK_DRAFT_METAL=1 \
+DS4_DSPARK_DRAFT_METAL_STS=1 DS4_METAL_GRAPH_DUMP_PREFIX="$CAPTURE/c5" \
+DS4_METAL_GRAPH_DUMP_NAME=Lead08C5HCAttnFlat,Lead08C5AttnNorm,Lead08C5QLoraNorm,Lead08C5Heads,Lead08C5Low,Lead08C5HCFFNFlat,Lead08C5FFNNorm \
+DS4_METAL_GRAPH_DUMP_LAYER=all DS4_METAL_GRAPH_DUMP_POS=103 \
 ./ds4-spec-bench --metal -m "$MODEL" --dspark "$DSPARK" \
   --bulk-config issue468/artifacts/lead08_reassessment/19_iter11_code_sort_pairs_config.jsonl \
   --jsonl-out /tmp/lead08_exact_smallm_capture.jsonl \
   2>/tmp/lead08_exact_smallm_capture.err
 
 DS4_LEAD08_EXACT_SMALLM_GATE=1 \
-DS4_LEAD08_EXACT_SMALLM_PHASE=full \
+DS4_LEAD08_EXACT_SMALLM_PHASE=c5 \
 DS4_LEAD08_EXACT_SMALLM_CAPTURE_DIR="$CAPTURE" \
+DS4_LEAD08_EXACT_SMALLM_CSV=/tmp/lead08_exact_smallm_c5.csv \
+DS4_LEAD08_EXACT_SMALLM_SEAM_CSV=/tmp/lead08_exact_smallm_seam.csv \
 ./ds4-spec-bench --metal -m "$MODEL" --dspark "$DSPARK" \
   --bulk-config issue468/artifacts/lead08_reassessment/19_iter11_code_sort_pairs_config.jsonl \
   --jsonl-out /tmp/lead08_exact_smallm_full.jsonl \

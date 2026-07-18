@@ -7,6 +7,7 @@ import re
 import struct
 from collections import Counter
 from functools import lru_cache
+from pathlib import Path
 
 
 SITES = {
@@ -17,6 +18,15 @@ SITES = {
     4: ("q8_0", 8192, 4096),
     5: ("f16", 16384, 24),
     6: ("f16", 4096, 256),
+}
+CAPTURE_NAMES = {
+    0: "Lead08C5HCAttnFlat",
+    1: "Lead08C5AttnNorm",
+    2: "Lead08C5AttnNorm",
+    3: "Lead08C5QLoraNorm",
+    4: "Lead08C5Low",
+    5: "Lead08C5HCFFNFlat",
+    6: "Lead08C5FFNNorm",
 }
 HOST_KERNEL = re.compile(r"^define void @kernel_lead08_exact_smallm_(q8_0|f16)_f32_m([2-8])\(")
 ACCUMULATOR = re.compile(
@@ -71,6 +81,53 @@ def input_words(corpus, layer, site, m=2, k=4096):
 def expected_hash(corpus, layer, site, m, k):
     words = input_words(corpus, layer, site, m, k)
     return ds4_hash(struct.pack(f"<{len(words)}I", *words))
+
+
+def expected_c5_hash(capture_dir, layer, site, m, k):
+    path = capture_dir / f"c5_b_{CAPTURE_NAMES[site]}-{layer}_pos103.bin"
+    data = path.read_bytes()
+    if len(data) != 4 * k * 4:
+        raise ValueError(f"wrong C5 capture size for {path}")
+    return ds4_hash(data[:m * k * 4])
+
+
+def validate_seam(path):
+    with open(path, newline="", encoding="utf-8") as source:
+        rows = list(csv.DictReader(source))
+    expected_fields = {
+        "layer", "m", "low_words", "out_words", "low_e_capture_diffs",
+        "low_s_capture_diffs", "low_c_capture_diffs", "ext_out_diffs",
+        "sentinel_diffs", "candidate_ref_diffs", "e_combined", "e_low",
+        "e_ext_b", "s_combined", "s_low", "s_ext_b", "c_combined", "c_low",
+        "c_ext_b", "c_exact_b", "result",
+    }
+    if len(rows) != 43 or set(rows[0]) != expected_fields:
+        raise ValueError("unexpected seam CSV schema/cardinality")
+    if {int(row["layer"]) for row in rows} != set(range(43)):
+        raise ValueError("seam layers are incomplete or duplicated")
+    zero_fields = (
+        "low_e_capture_diffs", "low_s_capture_diffs", "low_c_capture_diffs",
+        "ext_out_diffs", "sentinel_diffs", "candidate_ref_diffs",
+    )
+    census = {
+        "e_combined": "1", "e_low": "1", "e_ext_b": "1",
+        "s_combined": "0", "s_low": "1", "s_ext_b": "1",
+        "c_combined": "0", "c_low": "1", "c_ext_b": "0", "c_exact_b": "1",
+    }
+    for row in rows:
+        if (row["m"], row["low_words"], row["out_words"], row["result"]) != (
+                "4", "32768", "16384", "PASS"):
+            raise ValueError(f"invalid seam dimensions/result at layer {row['layer']}")
+        if any(row[field] != "0" for field in zero_fields):
+            raise ValueError(f"seam fidelity failure at layer {row['layer']}")
+        if any(row[field] != value for field, value in census.items()):
+            raise ValueError(f"seam dispatch census failure at layer {row['layer']}")
+    if sum(int(row["low_words"]) for row in rows) != 1409024:
+        raise ValueError("unexpected seam low-word total")
+    if sum(int(row["out_words"]) for row in rows) != 704512:
+        raise ValueError("unexpected seam output-word total")
+    print("PASS seam_cases=43 low_words=1409024 out_words=704512 "
+          "low_diffs=0 ext_diffs=0 sentinel_diffs=0 candidate_diffs=0")
 
 
 def validate_air(path, map_path):
@@ -154,7 +211,9 @@ def validate_air(path, map_path):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("cases_csv")
-    parser.add_argument("--phase", choices=("pair", "direct"), default="pair")
+    parser.add_argument("--phase", choices=("pair", "direct", "c5"), default="pair")
+    parser.add_argument("--capture-dir", type=Path)
+    parser.add_argument("--seam")
     parser.add_argument("--air")
     parser.add_argument("--air-map")
     args = parser.parse_args()
@@ -182,7 +241,8 @@ def main():
         expected_format, k, n = SITES[site]
         key = (layer, site, m, corpus)
         keys[key] += 1
-        if not 0 <= layer < 43 or not 0 <= corpus < 5 or not 2 <= m <= 8:
+        max_corpus = 5 if args.phase == "c5" else 4
+        if not 0 <= layer < 43 or not 0 <= corpus <= max_corpus or not 2 <= m <= 8:
             raise ValueError(f"out-of-range key {key}")
         if (format_name, int(row["k"]), int(row["n"])) != (expected_format, k, n):
             raise ValueError(f"shape/site mismatch for {key}")
@@ -192,25 +252,32 @@ def main():
                 row["first_got_bits"], float(row["max_abs"]), row["result"]) != (
                     0, "-1", "00000000", "00000000", 0.0, "PASS"):
             raise ValueError(f"fidelity failure for {key}")
-        expected = expected_hash(corpus,
-                                 layer if corpus == 3 else 0,
-                                 site if corpus == 3 else 0,
-                                 m,
-                                 k)
+        if corpus == 5:
+            if args.phase != "c5" or not args.capture_dir:
+                raise ValueError("C5 rows require --phase c5 and --capture-dir")
+            expected = expected_c5_hash(args.capture_dir, layer, site, m, k)
+        else:
+            expected = expected_hash(corpus,
+                                     layer if corpus == 3 else 0,
+                                     site if corpus == 3 else 0,
+                                     m,
+                                     k)
         if row["input_hash_ds4_64"] != expected:
             raise ValueError(f"input hash mismatch for {key}")
         hashes[key] = expected
 
-    expected_sites = range(7) if args.phase == "direct" else (1, 6)
-    expected_m = range(2, 9) if args.phase == "direct" else (2,)
+    expected_sites = range(7) if args.phase in ("direct", "c5") else (1, 6)
+    expected_m = range(2, 5) if args.phase == "c5" else (
+        range(2, 9) if args.phase == "direct" else (2,))
+    expected_corpora = (5,) if args.phase == "c5" else range(5)
     expected_keys = Counter((layer, site, m, corpus)
                             for layer in range(43)
                             for site in expected_sites
                             for m in expected_m
-                            for corpus in range(5))
+                            for corpus in expected_corpora)
     if keys != expected_keys:
         raise ValueError("case matrix is incomplete or duplicated")
-    expected_count = 10535 if args.phase == "direct" else 430
+    expected_count = 903 if args.phase == "c5" else (10535 if args.phase == "direct" else 430)
     if len(rows) != expected_count or len(hashes) != expected_count:
         raise ValueError(f"expected exactly {expected_count} unique cases")
     counts = Counter(row["format"] for row in rows)
@@ -220,6 +287,12 @@ def main():
     print(f"PASS cases={len(rows)} q8_0={counts['q8_0']} f16={counts['f16']} "
           f"sites={dict(sorted(site_counts.items()))} m={dict(sorted(m_counts.items()))} "
           f"corpora={dict(sorted(corpus_counts.items()))} bit_diffs=0")
+    if args.phase == "c5":
+        if not args.seam:
+            raise ValueError("--phase c5 requires --seam")
+        validate_seam(args.seam)
+    elif args.seam:
+        raise ValueError("--seam requires --phase c5")
     if args.air:
         validate_air(args.air, args.air_map)
     elif args.air_map:
