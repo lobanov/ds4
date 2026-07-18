@@ -554,8 +554,8 @@ typedef decltype(kernel_mul_mv_t_t_4<half, half4, half, half4>) mul_mv_t_t_4;
 template [[host_name("kernel_mul_mv_f32_f32_4")]] kernel mul_mv_t_t_4 kernel_mul_mv_t_t_4<float, float4, float, float4>;
 template [[host_name("kernel_mul_mv_f16_f32_4")]] kernel mul_mv_t_t_4 kernel_mul_mv_t_t_4<half,  half4,  float, float4>;
 
-// Lead 08 V15 Stage A: share one logical weight traversal across two tokens
-// while retaining the literal decode-time arithmetic and reduction per token.
+// Lead 08 V15: share one logical weight traversal across M=2..8 tokens while
+// retaining the literal decode-time arithmetic and reduction per token.
 template<short M, short NR0, typename args_t>
 void kernel_exact_smallm_q8_accumulate(
         args_t args,
@@ -718,35 +718,45 @@ void kernel_exact_smallm_dense_structure(
     }
 }
 
-[[host_name("kernel_lead08_exact_smallm_q8_0_f32_m2")]]
-kernel void kernel_lead08_exact_smallm_q8_0_f32_m2(
-        constant ds4_metal_args_mul_mv_ext & args,
-        device const char * src0,
-        device const char * src1,
-        device char * dst,
-        threadgroup char * shmem [[threadgroup(0)]],
-        uint3 tgpig [[threadgroup_position_in_grid]],
-        ushort tiisg [[thread_index_in_simdgroup]],
-        ushort sgitg [[simdgroup_index_in_threadgroup]]) {
-    kernel_exact_smallm_dense_structure<2, 2, constant ds4_metal_args_mul_mv_ext &,
-        kernel_exact_smallm_q8_accumulate<2, 2, constant ds4_metal_args_mul_mv_ext &>>(
-            args, src0, src1, dst, shmem, tgpig, tiisg, sgitg);
+#define DS4_DEFINE_EXACT_SMALLM(M_VALUE) \
+[[host_name("kernel_lead08_exact_smallm_q8_0_f32_m" #M_VALUE)]] \
+kernel void kernel_lead08_exact_smallm_q8_0_f32_m##M_VALUE( \
+        constant ds4_metal_args_mul_mv_ext & args, \
+        device const char * src0, \
+        device const char * src1, \
+        device char * dst, \
+        threadgroup char * shmem [[threadgroup(0)]], \
+        uint3 tgpig [[threadgroup_position_in_grid]], \
+        ushort tiisg [[thread_index_in_simdgroup]], \
+        ushort sgitg [[simdgroup_index_in_threadgroup]]) { \
+    kernel_exact_smallm_dense_structure<M_VALUE, 2, constant ds4_metal_args_mul_mv_ext &, \
+        kernel_exact_smallm_q8_accumulate<M_VALUE, 2, constant ds4_metal_args_mul_mv_ext &>>( \
+            args, src0, src1, dst, shmem, tgpig, tiisg, sgitg); \
+} \
+[[host_name("kernel_lead08_exact_smallm_f16_f32_m" #M_VALUE)]] \
+kernel void kernel_lead08_exact_smallm_f16_f32_m##M_VALUE( \
+        constant ds4_metal_args_mul_mv_ext & args, \
+        device const char * src0, \
+        device const char * src1, \
+        device char * dst, \
+        threadgroup char * shmem [[threadgroup(0)]], \
+        uint3 tgpig [[threadgroup_position_in_grid]], \
+        ushort tiisg [[thread_index_in_simdgroup]], \
+        ushort sgitg [[simdgroup_index_in_threadgroup]]) { \
+    kernel_exact_smallm_dense_structure<M_VALUE, 2, constant ds4_metal_args_mul_mv_ext &, \
+        kernel_exact_smallm_f16_accumulate<M_VALUE, 2, constant ds4_metal_args_mul_mv_ext &>>( \
+            args, src0, src1, dst, shmem, tgpig, tiisg, sgitg); \
 }
 
-[[host_name("kernel_lead08_exact_smallm_f16_f32_m2")]]
-kernel void kernel_lead08_exact_smallm_f16_f32_m2(
-        constant ds4_metal_args_mul_mv_ext & args,
-        device const char * src0,
-        device const char * src1,
-        device char * dst,
-        threadgroup char * shmem [[threadgroup(0)]],
-        uint3 tgpig [[threadgroup_position_in_grid]],
-        ushort tiisg [[thread_index_in_simdgroup]],
-        ushort sgitg [[simdgroup_index_in_threadgroup]]) {
-    kernel_exact_smallm_dense_structure<2, 2, constant ds4_metal_args_mul_mv_ext &,
-        kernel_exact_smallm_f16_accumulate<2, 2, constant ds4_metal_args_mul_mv_ext &>>(
-            args, src0, src1, dst, shmem, tgpig, tiisg, sgitg);
-}
+DS4_DEFINE_EXACT_SMALLM(2)
+DS4_DEFINE_EXACT_SMALLM(3)
+DS4_DEFINE_EXACT_SMALLM(4)
+DS4_DEFINE_EXACT_SMALLM(5)
+DS4_DEFINE_EXACT_SMALLM(6)
+DS4_DEFINE_EXACT_SMALLM(7)
+DS4_DEFINE_EXACT_SMALLM(8)
+
+#undef DS4_DEFINE_EXACT_SMALLM
 
 // DS4 compressor projections always compute two same-shaped F16 matvecs from
 // the same normalized activation: one for projected KV and one for pooling

@@ -292,7 +292,7 @@ typedef enum {
     DS4_GPU_EXACT_SMALLM_F16  = 1,
 } ds4_gpu_exact_smallm_format;
 
-/* Lead 08 V15 research-only exact M=2 dense-family capability gate. */
+/* Lead 08 V15 research-only exact M=2..8 dense-family capability gate. */
 int ds4_gpu_exact_smallm_dense_tensor(
         ds4_gpu_tensor              *out,
         const void                  *model_map,

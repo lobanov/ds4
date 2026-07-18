@@ -13628,7 +13628,7 @@ int ds4_gpu_exact_smallm_dense_tensor(
         uint32_t                     n_tok,
         ds4_gpu_exact_smallm_format  format) {
     if (!g_initialized && !ds4_gpu_init()) return 0;
-    if (!out || !x || !model_map || n_tok != 2u ||
+    if (!out || !x || !model_map || n_tok < 2u || n_tok > 8u ||
         in_dim == 0 || out_dim == 0 || in_dim > UINT32_MAX || out_dim > UINT32_MAX ||
         (in_dim & 31u) != 0 || (out_dim & 1u) != 0 ||
         (format != DS4_GPU_EXACT_SMALLM_Q8_0 && format != DS4_GPU_EXACT_SMALLM_F16)) {
@@ -13662,10 +13662,30 @@ int ds4_gpu_exact_smallm_dense_tensor(
                                                        &inner_offset);
         if (!wbuf) return 0;
 
+        static const char *q8_pipeline_names[9] = {
+            NULL, NULL,
+            "kernel_lead08_exact_smallm_q8_0_f32_m2",
+            "kernel_lead08_exact_smallm_q8_0_f32_m3",
+            "kernel_lead08_exact_smallm_q8_0_f32_m4",
+            "kernel_lead08_exact_smallm_q8_0_f32_m5",
+            "kernel_lead08_exact_smallm_q8_0_f32_m6",
+            "kernel_lead08_exact_smallm_q8_0_f32_m7",
+            "kernel_lead08_exact_smallm_q8_0_f32_m8",
+        };
+        static const char *f16_pipeline_names[9] = {
+            NULL, NULL,
+            "kernel_lead08_exact_smallm_f16_f32_m2",
+            "kernel_lead08_exact_smallm_f16_f32_m3",
+            "kernel_lead08_exact_smallm_f16_f32_m4",
+            "kernel_lead08_exact_smallm_f16_f32_m5",
+            "kernel_lead08_exact_smallm_f16_f32_m6",
+            "kernel_lead08_exact_smallm_f16_f32_m7",
+            "kernel_lead08_exact_smallm_f16_f32_m8",
+        };
         const int16_t nsg = format == DS4_GPU_EXACT_SMALLM_Q8_0 ? 4 : 8;
         const char *pipeline_name = format == DS4_GPU_EXACT_SMALLM_Q8_0
-            ? "kernel_lead08_exact_smallm_q8_0_f32_m2"
-            : "kernel_lead08_exact_smallm_f16_f32_m2";
+            ? q8_pipeline_names[n_tok]
+            : f16_pipeline_names[n_tok];
         id<MTLComputePipelineState> pipeline =
             ds4_gpu_get_mul_mv_pipeline(pipeline_name, nsg);
         if (!pipeline) return 0;
@@ -13689,7 +13709,7 @@ int ds4_gpu_exact_smallm_dense_tensor(
              threadsPerThreadgroup:MTLSizeMake(32, (NSUInteger)nsg, 1)];
         ds4_gpu_end_compute_encoder(cb, enc);
 
-        if (!ds4_gpu_finish_command_buffer(cb, owned, "Lead 08 exact small-M M2")) return 0;
+        if (!ds4_gpu_finish_command_buffer(cb, owned, "Lead 08 exact small-M")) return 0;
     }
     return 1;
 }

@@ -60,11 +60,13 @@ meaning materially changes.
 | `DS4_MOE_REPLAY_SELECTED_IDS` | diagnostic | Replays routed expert ids instead of using live router selection. |
 | `DS4_M2_FIDELITY_TEST` | diagnostic | Runs the self-contained Lead 08 routed-MoE fidelity/cost harness and exits. |
 | `DS4_LEAD08_EXACT_SMALLM_GATE` | diagnostic | Runs the Lead 08 V15 exact small-M research capability gate and exits; does not alter production graph callsites. |
-| `DS4_LEAD08_EXACT_SMALLM_PHASE` | diagnostic | Selects the V15 phase. Iteration 28 implements only `pair` (Stage A); other values fail closed. |
-| `DS4_LEAD08_EXACT_SMALLM_CSV` | diagnostic | Required explicit output path for the Stage-A per-case CSV evidence; the early-exit gate intentionally does not create bench JSONL. |
-| `DS4_LEAD08_EXACT_SMALLM_LAYER` | diagnostic | Optional Stage-A bring-up filter: one layer index or `all`; filtered success reports `FILTERED_PASS` and exits nonzero, so only the unfiltered 430-case gate can decide PASS. |
-| `DS4_LEAD08_EXACT_SMALLM_FORMAT` | diagnostic | Optional Stage-A bring-up filter: `q8_0`, `f16`, or `all`; filtered success is diagnostic-only and exits nonzero. |
-| `DS4_LEAD08_EXACT_SMALLM_CORPUS` | diagnostic | Optional Stage-A bring-up filter: corpus index `0..4` or `all`; filtered success is diagnostic-only and exits nonzero. |
+| `DS4_LEAD08_EXACT_SMALLM_PHASE` | diagnostic | Selects the V15 phase: `pair` runs Stage A M=2 Q-a/router; `direct` runs Stage B1 M=2..8 at all seven tensor sites. Other values fail closed. |
+| `DS4_LEAD08_EXACT_SMALLM_CSV` | diagnostic | Required explicit output path for per-case CSV evidence; the early-exit gate intentionally does not create bench JSONL. |
+| `DS4_LEAD08_EXACT_SMALLM_LAYER` | diagnostic | Optional bring-up filter: one layer index or `all`; filtered success reports `FILTERED_PASS` and exits nonzero, so it cannot decide PASS. |
+| `DS4_LEAD08_EXACT_SMALLM_SITE` | diagnostic | Optional Stage-B1 bring-up filter: site `0..6` or `all`; filtered success is diagnostic-only and exits nonzero. |
+| `DS4_LEAD08_EXACT_SMALLM_FORMAT` | diagnostic | Optional bring-up filter: `q8_0`, `f16`, or `all`; filtered success is diagnostic-only and exits nonzero. |
+| `DS4_LEAD08_EXACT_SMALLM_M` | diagnostic | Optional Stage-B1 bring-up filter: M `2..8` or `all`; filtered success is diagnostic-only and exits nonzero. |
+| `DS4_LEAD08_EXACT_SMALLM_CORPUS` | diagnostic | Optional bring-up filter: corpus index `0..4` or `all`; filtered success is diagnostic-only and exits nonzero. |
 | `DS4_LEAD08_BATCH_OVERLAP_PROBE` | diagnostic | Switches that harness to the cache-controlled K=4 production batch-MoE overlap sweep. |
 | `DS4_LEAD08_ADDRESS_LOCALITY_PROBE` | diagnostic | Switches the Lead 08 harness to the fixed-work K=4 production address-locality sweep: contiguous, same-set permuted, and slab-wide strided expert placement. Implies the batch-overlap harness setup; retained to reproduce the iteration-5 NO-GO. |
 | `DS4_LEAD08_ADDR_NSG_PROBE` | diagnostic | Switches the Lead 08 harness to the fixed-work K=4 production address-kernel SIMDgroup sweep with a bitwise fidelity gate. Retained to reproduce the iteration-6 NO-GO. |

@@ -23805,23 +23805,42 @@ static void lead08_exact_smallm_fill_input(
     }
 }
 
-/* Stage A compares a one-dispatch, one-grid-Y M=2 traversal against two
- * unchanged production M=1 dispatches at every real Q-a/router layer offset. */
+static const ds4_tensor *lead08_exact_smallm_site_weight(
+        const ds4_layer_weights *layer,
+        uint32_t                 site) {
+    switch (site) {
+    case 0: return layer->hc_attn_fn;
+    case 1: return layer->attn_q_a;
+    case 2: return layer->attn_kv;
+    case 3: return layer->attn_q_b;
+    case 4: return layer->attn_output_b;
+    case 5: return layer->hc_ffn_fn;
+    case 6: return layer->ffn_gate_inp;
+    default: return NULL;
+    }
+}
+
+/* Stage A covers the M=2 Q-a/router pair. Stage B1 expands the same direct
+ * one-grid-Y comparison to M=2..8 at all seven real dense sites. */
 static int metal_graph_test_exact_smallm_dense_family(
         const ds4_model   *model,
         const ds4_weights *weights) {
     const char *phase = getenv("DS4_LEAD08_EXACT_SMALLM_PHASE");
     const char *csv_path = getenv("DS4_LEAD08_EXACT_SMALLM_CSV");
+    const bool direct_phase = phase && strcmp(phase, "direct") == 0;
+    const bool pair_phase = !phase || !phase[0] || strcmp(phase, "pair") == 0;
     const bool filtered =
         lead08_exact_smallm_filter_active("DS4_LEAD08_EXACT_SMALLM_LAYER") ||
+        lead08_exact_smallm_filter_active("DS4_LEAD08_EXACT_SMALLM_SITE") ||
         lead08_exact_smallm_filter_active("DS4_LEAD08_EXACT_SMALLM_FORMAT") ||
+        lead08_exact_smallm_filter_active("DS4_LEAD08_EXACT_SMALLM_M") ||
         lead08_exact_smallm_filter_active("DS4_LEAD08_EXACT_SMALLM_CORPUS");
     if (!model || !weights || DS4_N_LAYER != 43u) {
         fprintf(stderr, "lead08_exact_smallm: expected model with 43 layers\n");
         return -1;
     }
-    if (phase && phase[0] && strcmp(phase, "pair") != 0) {
-        fprintf(stderr, "lead08_exact_smallm: Stage A supports phase=pair only\n");
+    if (!pair_phase && !direct_phase) {
+        fprintf(stderr, "lead08_exact_smallm: supported phases are pair and direct\n");
         return -1;
     }
     if (!csv_path || !csv_path[0]) {
@@ -23839,11 +23858,11 @@ static int metal_graph_test_exact_smallm_dense_family(
                  "candidate_dispatches,grid_y,bit_diffs,first_index,first_ref_bits,"
                  "first_got_bits,max_abs,result\n");
 
-    const uint32_t m = 2u;
-    const uint32_t max_k = DS4_N_EMBD;
-    const uint32_t max_n = DS4_N_LORA_Q;
-    const uint64_t x_bytes = (uint64_t)m * max_k * sizeof(float);
-    const uint64_t out_bytes = (uint64_t)m * max_n * sizeof(float);
+    const uint32_t max_m = 8u;
+    const uint32_t max_k = DS4_N_HC * DS4_N_EMBD;
+    const uint32_t max_n = DS4_N_HEAD * DS4_N_HEAD_DIM;
+    const uint64_t x_bytes = (uint64_t)max_m * max_k * sizeof(float);
+    const uint64_t out_bytes = (uint64_t)max_m * max_n * sizeof(float);
     uint32_t *input_words = xmalloc((size_t)x_bytes);
     float *ref_host = xmalloc((size_t)out_bytes);
     float *got_host = xmalloc((size_t)out_bytes);
@@ -23859,124 +23878,145 @@ static int metal_graph_test_exact_smallm_dense_family(
     for (uint32_t layer = 0; layer < DS4_N_LAYER && setup_ok; layer++) {
         if (!lead08_exact_smallm_filter_u32("DS4_LEAD08_EXACT_SMALLM_LAYER", layer)) continue;
         const ds4_layer_weights *lw = &weights->layer[layer];
-        for (uint32_t which = 0; which < 2u && setup_ok; which++) {
-            const bool is_q8 = which == 0u;
+        for (uint32_t site = 0; site < 7u && setup_ok; site++) {
+            if (pair_phase && site != 1u && site != 6u) continue;
+            if (!lead08_exact_smallm_filter_u32("DS4_LEAD08_EXACT_SMALLM_SITE", site)) continue;
+            const bool is_q8 = site >= 1u && site <= 4u;
             const char *format_name = is_q8 ? "q8_0" : "f16";
-            const uint32_t site = is_q8 ? 1u : 6u;
-            const ds4_tensor *weight = is_q8 ? lw->attn_q_a : lw->ffn_gate_inp;
+            const ds4_tensor *weight = lead08_exact_smallm_site_weight(lw, site);
             const uint32_t expected_type = is_q8 ? DS4_TENSOR_Q8_0 : DS4_TENSOR_F16;
+            const uint64_t hc_dim = (uint64_t)DS4_N_HC * DS4_N_EMBD;
+            const uint64_t hc_mix = 2u * DS4_N_HC + (uint64_t)DS4_N_HC * DS4_N_HC;
+            const uint64_t q_dim = (uint64_t)DS4_N_HEAD * DS4_N_HEAD_DIM;
+            const uint64_t out_low = (uint64_t)DS4_N_OUT_GROUP * DS4_N_LORA_O;
+            const uint64_t expected_k[7] = {
+                hc_dim, DS4_N_EMBD, DS4_N_EMBD, DS4_N_LORA_Q,
+                out_low, hc_dim, DS4_N_EMBD,
+            };
+            const uint64_t expected_n[7] = {
+                hc_mix, DS4_N_LORA_Q, DS4_N_HEAD_DIM, q_dim,
+                DS4_N_EMBD, hc_mix, DS4_N_EXPERT,
+            };
             if (!lead08_exact_smallm_format_enabled(format_name)) continue;
             if (!weight || weight->type != expected_type || weight->ndim != 2u ||
-                weight->dim[0] != DS4_N_EMBD || weight->dim[1] > max_n) {
-                fprintf(stderr, "lead08_exact_smallm: invalid %s tensor at layer %u\n",
-                        format_name, layer);
+                weight->dim[0] != expected_k[site] || weight->dim[1] != expected_n[site] ||
+                weight->dim[0] > max_k || weight->dim[1] > max_n) {
+                fprintf(stderr, "lead08_exact_smallm: invalid site %u %s tensor at layer %u\n",
+                        site, format_name, layer);
                 setup_ok = false;
                 break;
             }
             const uint32_t k = (uint32_t)weight->dim[0];
             const uint32_t n = (uint32_t)weight->dim[1];
-            for (uint32_t corpus = 0; corpus < 5u && setup_ok; corpus++) {
-                if (!lead08_exact_smallm_filter_u32("DS4_LEAD08_EXACT_SMALLM_CORPUS", corpus)) continue;
-                lead08_exact_smallm_fill_input(input_words, corpus, layer, site, m, k);
-                const uint64_t case_x_bytes = (uint64_t)m * k * sizeof(float);
-                if (!ds4_gpu_tensor_write(x, 0, input_words, case_x_bytes)) {
-                    fprintf(stderr, "lead08_exact_smallm: input upload failed\n");
-                    setup_ok = false;
-                    break;
-                }
-
-                ds4_gpu_tensor *x0 = metal_graph_tensor_row_view(x, 0, k);
-                ds4_gpu_tensor *x1 = metal_graph_tensor_row_view(x, 1, k);
-                ds4_gpu_tensor *ref0 = metal_graph_tensor_row_view(ref, 0, n);
-                ds4_gpu_tensor *ref1 = metal_graph_tensor_row_view(ref, 1, n);
-                bool encoded = x0 && x1 && ref0 && ref1;
-                const bool began = encoded && ds4_gpu_begin_commands() != 0;
-                encoded = began;
-                if (encoded && is_q8) {
-                    encoded = ds4_gpu_matmul_q8_0_tensor(ref0, model->map, model->size,
-                                  weight->abs_offset, k, n, x0, 1u) != 0 &&
-                              ds4_gpu_matmul_q8_0_tensor(ref1, model->map, model->size,
-                                  weight->abs_offset, k, n, x1, 1u) != 0;
-                } else if (encoded) {
-                    encoded = ds4_gpu_matmul_f16_tensor(ref0, model->map, model->size,
-                                  weight->abs_offset, k, n, x0, 1u) != 0 &&
-                              ds4_gpu_matmul_f16_tensor(ref1, model->map, model->size,
-                                  weight->abs_offset, k, n, x1, 1u) != 0;
-                }
-                if (encoded) {
-                    encoded = ds4_gpu_exact_smallm_dense_tensor(got, model->map, model->size,
-                                  weight->abs_offset, k, n, x, m,
-                                  is_q8 ? DS4_GPU_EXACT_SMALLM_Q8_0 : DS4_GPU_EXACT_SMALLM_F16) != 0;
-                }
-                const bool ended = began && ds4_gpu_end_commands() != 0;
-                encoded = encoded && ended;
-
-                ds4_gpu_tensor_free(x0);
-                ds4_gpu_tensor_free(x1);
-                ds4_gpu_tensor_free(ref0);
-                ds4_gpu_tensor_free(ref1);
-                if (!encoded || !ds4_gpu_tensor_read(ref, 0, ref_host,
-                                      (uint64_t)m * n * sizeof(float)) ||
-                    !ds4_gpu_tensor_read(got, 0, got_host,
-                                      (uint64_t)m * n * sizeof(float))) {
-                    fprintf(stderr, "lead08_exact_smallm: encode/read failed layer=%u format=%s C%u\n",
-                            layer, format_name, corpus);
-                    setup_ok = false;
-                    break;
-                }
-
-                uint64_t bit_diffs = 0;
-                uint64_t first = UINT64_MAX;
-                uint32_t first_ref = 0;
-                uint32_t first_got = 0;
-                double max_abs = 0.0;
-                for (uint64_t i = 0; i < (uint64_t)m * n; i++) {
-                    uint32_t ref_bits;
-                    uint32_t got_bits;
-                    memcpy(&ref_bits, &ref_host[i], sizeof(ref_bits));
-                    memcpy(&got_bits, &got_host[i], sizeof(got_bits));
-                    if (ref_bits != got_bits) {
-                        if (first == UINT64_MAX) {
-                            first = i;
-                            first_ref = ref_bits;
-                            first_got = got_bits;
-                        }
-                        bit_diffs++;
+            const uint32_t m_end = direct_phase ? 8u : 2u;
+            for (uint32_t m = 2u; m <= m_end && setup_ok; m++) {
+                if (!lead08_exact_smallm_filter_u32("DS4_LEAD08_EXACT_SMALLM_M", m)) continue;
+                for (uint32_t corpus = 0; corpus < 5u && setup_ok; corpus++) {
+                    if (!lead08_exact_smallm_filter_u32(
+                            "DS4_LEAD08_EXACT_SMALLM_CORPUS", corpus)) continue;
+                    lead08_exact_smallm_fill_input(input_words, corpus, layer, site, m, k);
+                    const uint64_t case_x_bytes = (uint64_t)m * k * sizeof(float);
+                    if (!ds4_gpu_tensor_write(x, 0, input_words, case_x_bytes)) {
+                        fprintf(stderr, "lead08_exact_smallm: input upload failed\n");
+                        setup_ok = false;
+                        break;
                     }
-                    const double abs_diff = fabs((double)ref_host[i] - (double)got_host[i]);
-                    if (abs_diff > max_abs) max_abs = abs_diff;
+
+                    ds4_gpu_tensor *x_rows[8] = {0};
+                    ds4_gpu_tensor *ref_rows[8] = {0};
+                    bool encoded = true;
+                    for (uint32_t token = 0; token < m; token++) {
+                        x_rows[token] = metal_graph_tensor_row_view(x, token, k);
+                        ref_rows[token] = metal_graph_tensor_row_view(ref, token, n);
+                        encoded = encoded && x_rows[token] && ref_rows[token];
+                    }
+                    const bool began = encoded && ds4_gpu_begin_commands() != 0;
+                    encoded = began;
+                    for (uint32_t token = 0; token < m && encoded; token++) {
+                        encoded = is_q8
+                            ? ds4_gpu_matmul_q8_0_tensor(ref_rows[token], model->map, model->size,
+                                  weight->abs_offset, k, n, x_rows[token], 1u) != 0
+                            : ds4_gpu_matmul_f16_tensor(ref_rows[token], model->map, model->size,
+                                  weight->abs_offset, k, n, x_rows[token], 1u) != 0;
+                    }
+                    if (encoded) {
+                        encoded = ds4_gpu_exact_smallm_dense_tensor(got, model->map, model->size,
+                                      weight->abs_offset, k, n, x, m,
+                                      is_q8 ? DS4_GPU_EXACT_SMALLM_Q8_0
+                                            : DS4_GPU_EXACT_SMALLM_F16) != 0;
+                    }
+                    const bool ended = began && ds4_gpu_end_commands() != 0;
+                    encoded = encoded && ended;
+
+                    for (uint32_t token = 0; token < m; token++) {
+                        ds4_gpu_tensor_free(x_rows[token]);
+                        ds4_gpu_tensor_free(ref_rows[token]);
+                    }
+                    if (!encoded || !ds4_gpu_tensor_read(ref, 0, ref_host,
+                                          (uint64_t)m * n * sizeof(float)) ||
+                        !ds4_gpu_tensor_read(got, 0, got_host,
+                                          (uint64_t)m * n * sizeof(float))) {
+                        fprintf(stderr, "lead08_exact_smallm: encode/read failed layer=%u site=%u "
+                                "format=%s m=%u C%u\n", layer, site, format_name, m, corpus);
+                        setup_ok = false;
+                        break;
+                    }
+
+                    uint64_t bit_diffs = 0;
+                    uint64_t first = UINT64_MAX;
+                    uint32_t first_ref = 0;
+                    uint32_t first_got = 0;
+                    double max_abs = 0.0;
+                    for (uint64_t i = 0; i < (uint64_t)m * n; i++) {
+                        uint32_t ref_bits;
+                        uint32_t got_bits;
+                        memcpy(&ref_bits, &ref_host[i], sizeof(ref_bits));
+                        memcpy(&got_bits, &got_host[i], sizeof(got_bits));
+                        if (ref_bits != got_bits) {
+                            if (first == UINT64_MAX) {
+                                first = i;
+                                first_ref = ref_bits;
+                                first_got = got_bits;
+                            }
+                            bit_diffs++;
+                        }
+                        const double abs_diff = fabs((double)ref_host[i] - (double)got_host[i]);
+                        if (abs_diff > max_abs) max_abs = abs_diff;
+                    }
+                    const bool pass = bit_diffs == 0;
+                    fprintf(csv, "%u,%u,%s,C%u,%u,%u,%u,%016" PRIx64 ",1,1,%" PRIu64 ",",
+                            layer, site, format_name, corpus, m, k, n,
+                            hash_bytes(input_words, case_x_bytes), bit_diffs);
+                    if (first == UINT64_MAX) {
+                        fprintf(csv, "-1,00000000,00000000,");
+                    } else {
+                        fprintf(csv, "%" PRIu64 ",%08x,%08x,", first, first_ref, first_got);
+                    }
+                    fprintf(csv, "%.9g,%s\n", max_abs, pass ? "PASS" : "FAIL");
+                    fflush(csv);
+                    fprintf(stderr,
+                            "lead08_exact_smallm_case: layer=%u site=%u format=%s corpus=C%u "
+                            "m=%u k=%u n=%u bit_diffs=%" PRIu64 " max_abs=%.3e result=%s\n",
+                            layer, site, format_name, corpus, m, k, n,
+                            bit_diffs, max_abs, pass ? "PASS" : "FAIL");
+                    cases++;
+                    failures += pass ? 0u : 1u;
+                    total_bit_diffs += bit_diffs;
+                    if (max_abs > worst_abs) worst_abs = max_abs;
                 }
-                const bool pass = bit_diffs == 0;
-                fprintf(csv, "%u,%u,%s,C%u,%u,%u,%u,%016" PRIx64 ",1,1,%" PRIu64 ",",
-                        layer, site, format_name, corpus, m, k, n,
-                        hash_bytes(input_words, case_x_bytes), bit_diffs);
-                if (first == UINT64_MAX) {
-                    fprintf(csv, "-1,00000000,00000000,");
-                } else {
-                    fprintf(csv, "%" PRIu64 ",%08x,%08x,", first, first_ref, first_got);
-                }
-                fprintf(csv, "%.9g,%s\n", max_abs, pass ? "PASS" : "FAIL");
-                fflush(csv);
-                fprintf(stderr,
-                        "lead08_exact_smallm_case: layer=%u site=%u format=%s corpus=C%u "
-                        "m=%u k=%u n=%u bit_diffs=%" PRIu64 " max_abs=%.3e result=%s\n",
-                        layer, site, format_name, corpus, m, k, n,
-                        bit_diffs, max_abs, pass ? "PASS" : "FAIL");
-                cases++;
-                failures += pass ? 0u : 1u;
-                total_bit_diffs += bit_diffs;
-                if (max_abs > worst_abs) worst_abs = max_abs;
             }
         }
     }
 
-    const bool full_pass = setup_ok && failures == 0u && cases == 430u && !filtered;
+    const uint32_t expected_cases = direct_phase ? 10535u : 430u;
+    const bool full_pass = setup_ok && failures == 0u && cases == expected_cases && !filtered;
     const bool diagnostic_pass = setup_ok && failures == 0u && cases > 0u;
     fprintf(stderr,
             "lead08_exact_smallm: SUMMARY cases=%u failures=%u bit_diffs=%" PRIu64
             " worst_abs=%.3e result=%s csv=%s\n",
             cases, failures, total_bit_diffs, worst_abs,
-            full_pass ? "BIT_EXACT" : (diagnostic_pass ? "FILTERED_PASS" : "FAIL"),
+            full_pass ? (direct_phase ? "DIRECT_BIT_EXACT" : "BIT_EXACT")
+                      : (diagnostic_pass ? "FILTERED_PASS" : "FAIL"),
             csv_path);
     fclose(csv);
     ds4_gpu_tensor_free(x);

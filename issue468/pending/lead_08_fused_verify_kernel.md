@@ -4,9 +4,9 @@
 > The prior `INTERIM_BOUNDED` contract remains a valid research envelope, but no current-runtime
 > mechanism clears its 8.7 ms admission bar. V1 remains the interim baseline. V13 has completed a
 > cross-quant exact small-M dense inventory and admits V15, one Q8/F16 family-level capability
-> prototype. V15 Stage A now passes 430/430 all-layer M=2 word-exact cases with compiled AIR
-> showing one logical weight traversal per format. Stage B's M=2..8, seven-site, output-B seam,
-> and <=7.5 ms cumulative economic gates remain untested. T1 Metal counter attribution is tooling-blocked, T2a applies only
+> prototype. V15 Stage A passes 430/430 all-layer M=2 word-exact cases; Stage B1 now passes
+> 10,535/10,535 direct M=2..8/seven-site cases and fourteen-kernel AIR topology. Stage B2's C5,
+> nonredundant output-B seam, and <=7.5 ms cumulative economic gates remain untested. T1 Metal counter attribution is tooling-blocked, T2a applies only
 > to the incompatible SSD address kernel, and mapped-kernel T2b is invalid on its control gate.
 > T2c validly selected one-sided arithmetic/issue sensitivity, but corrected address-faithful U1
 > saves only 4.71-4.72 ms even after removing activation and almost all semantics. Arithmetic and
@@ -91,7 +91,7 @@
 > mechanism, not another grouped gate+up variant.
 
 Date: 2026-07-07 (refreshed 2026-07-18). Status:
-**M3-bounded V14 exhausted -> V15 Stage A passed, Stage B pending; prior grouped, margin,
+**M3-bounded V14 exhausted -> V15 Stage B1 direct capability passed, Stage B2 pending; prior grouped, margin,
 address-layout, production-geometry, and existing batch-family mechanisms remain NO-GO.**
 This doc remains the Lead 08 provenance record. Phase A result:
 `issue468/summaries/mtp_verifier_engineering_and_phaseA.md`; Phase B canonical
@@ -363,11 +363,12 @@ fused (the full build). Keeps the Phase-B abort condition (>5% re-verification).
 
 **2026-07-18 current:** corrected U1 closes arithmetic/dequant below 4.74 ms, and the iteration-25
 mechanism audit finds no independent concrete >=8.7 ms package on the current in-RAM runtime.
-Lead 08 `INTERIM_BOUNDED` is exhausted. V15 Stage A now passes both Q8/F16 M=2 capability gates:
-430/430 all-layer C0-C4 cases are word-exact and source/AIR retain one logical traversal. Stage B
-is next: M=2..8 at all seven sites, a nonredundant output-B seam, C5 scope, and an M=4 all-layer
-candidate-minus-current-ext delta upper bound <=7.5 ms. No graph integration is authorized before
-that passes. Lead 05 remains an alternate only if SSD compatibility is in scope.
+Lead 08 `INTERIM_BOUNDED` is exhausted. V15 Stage A and B1 now pass: the Q8/F16 M=2..8 family is
+word-exact across 10,535 direct all-layer/seven-site/C0-C4 cases, and all fourteen specializations
+retain the required logical AIR topology. Stage B2 is next: a captured C5 matrix, nonredundant
+output-B seam, and an M=4 all-layer candidate-minus-current-ext delta upper bound <=7.5 ms. No graph
+integration is authorized before that passes. Lead 05 remains an alternate only if SSD compatibility
+is in scope.
 Do not repeat grouped, margin,
 address-layout, geometry, mapped-residency, existing batch-family, or top-r mechanisms without evidence that
 changes their upper bounds.
@@ -386,6 +387,26 @@ sufficient." (Confirmatory: a literal identical-input MoE kernel-equality harnes
 verify-bandwidth slope re-measure.)
 
 ## Worklog
+
+### 2026-07-18 - iteration-29 V15 Stage-B1 direct M=2..8 family -> PASS capability
+
+Independent preflight split Stage B without weakening its final decision: iteration 29 tests the
+direct family only; iteration 30 retains C5, the output-B seam, fixed-work timing, and economics.
+Extended the one research operation to fourteen static Q8/F16 M=2..8 pipelines and expanded the
+gate to all seven real tensor shapes. The unfiltered run covers 10,535 unique cases: 245 per layer,
+1,505 per site and M, and 2,107 per corpus. All match M unchanged M1 references word-for-word.
+
+The validator reconstructs all inputs/hashes and checks the complete matrix. Compiled AIR exposes
+all fourteen specializations; each has one raw device-load site, x-only grid use, and one unique
+primary recurrence enclosing the raw load. This is topology evidence, not register/spill or physical
+DRAM proof. Direct output-B testing is not the required nonredundant seam. No graph callsite changed,
+no speed claim exists, and V15 remains P0 for Stage B2. Artifact:
+`artifacts/lead08_reassessment/37_iter29_exact_smallm_direct.md`.
+
+Post-iteration red team forced a clean build, independently revalidated the 10,535 direct and 430
+Stage-A cases, regenerated the fourteen-kernel AIR map byte-identically, reproduced invalid-phase
+and filtered-run fail-closed behavior, and reviewed command ordering, row views, bounds, and graph
+isolation. It returned `COMMIT`, retaining all Stage-B2 limitations above.
 
 ### 2026-07-18 - iteration-28 V15 Stage-A exact small-M M=2 -> PASS capability
 
