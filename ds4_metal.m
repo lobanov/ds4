@@ -82,6 +82,7 @@ static id<MTLComputePipelineState> g_bin_mul_scalar_pipeline;
 static id<MTLComputePipelineState> g_bin_div_row_pipeline;
 static id<MTLComputePipelineState> g_moe_mul_mv_id_iq2_xxs_pipeline;
 static id<MTLComputePipelineState> g_moe_mul_mv_id_iq2_xxs_pair_pipeline;
+static id<MTLComputePipelineState> g_moe_mul_mv_id_iq2_xxs_pair_alu_pipeline;
 static id<MTLComputePipelineState> g_moe_mul_mv_id_iq2_xxs_pair_swiglu_pipeline;
 static id<MTLComputePipelineState> g_moe_mul_mv_id_iq2_xxs_pair_swiglu_m2_pipeline; /* Lead 08 M=2 fused routed-expert (DS4_DSPARK_FUSED_ROUTED_M2) */
 static id<MTLComputePipelineState> g_moe_mul_mv_id_q2_k_pipeline;
@@ -3980,6 +3981,13 @@ typedef struct {
 } ds4_gpu_mul_mv_id_args;
 
 typedef struct {
+    uint32_t rounds;
+    float    mul;
+    float    add;
+    uint32_t pad;
+} ds4_gpu_lead08_alu_probe_args;
+
+typedef struct {
     uint32_t n_total_expert;
     uint32_t n_expert;
 } ds4_gpu_stream_expert_validate_args;
@@ -5170,6 +5178,39 @@ int ds4_gpu_init(void) {
             g_queue = nil;
             g_device = nil;
             return 0;
+        }
+
+        if (getenv("DS4_LEAD08_MAPPED_ALU_PROBE") != NULL) {
+            error = nil;
+            fn = [library newFunctionWithName:@"kernel_mul_mv_id_iq2_xxs_pair_alu_f32"
+                               constantValues:moe_mv_id_constants
+                                        error:&error];
+            if (!fn) {
+                fprintf(stderr, "ds4: Metal Lead 08 mapped ALU function not found: %s\n",
+                        [[error localizedDescription] UTF8String]);
+                g_queue = nil;
+                g_device = nil;
+                return 0;
+            }
+            g_moe_mul_mv_id_iq2_xxs_pair_alu_pipeline =
+                [g_device newComputePipelineStateWithFunction:fn error:&error];
+            if (!g_moe_mul_mv_id_iq2_xxs_pair_alu_pipeline) {
+                fprintf(stderr, "ds4: Metal Lead 08 mapped ALU pipeline failed: %s\n",
+                        [[error localizedDescription] UTF8String]);
+                g_queue = nil;
+                g_device = nil;
+                return 0;
+            }
+            fprintf(stderr,
+                    "ds4: Lead 08 mapped ALU pipeline metadata "
+                    "production(tw=%lu max_threads=%lu smem=%lu) "
+                    "probe(tw=%lu max_threads=%lu smem=%lu)\n",
+                    (unsigned long)[g_moe_mul_mv_id_iq2_xxs_pair_pipeline threadExecutionWidth],
+                    (unsigned long)[g_moe_mul_mv_id_iq2_xxs_pair_pipeline maxTotalThreadsPerThreadgroup],
+                    (unsigned long)[g_moe_mul_mv_id_iq2_xxs_pair_pipeline staticThreadgroupMemoryLength],
+                    (unsigned long)[g_moe_mul_mv_id_iq2_xxs_pair_alu_pipeline threadExecutionWidth],
+                    (unsigned long)[g_moe_mul_mv_id_iq2_xxs_pair_alu_pipeline maxTotalThreadsPerThreadgroup],
+                    (unsigned long)[g_moe_mul_mv_id_iq2_xxs_pair_alu_pipeline staticThreadgroupMemoryLength]);
         }
 
         error = nil;
@@ -6874,6 +6915,7 @@ void ds4_gpu_cleanup(void) {
         g_hc_expand_pipeline = nil;
         g_moe_mul_mv_id_iq2_xxs_pipeline = nil;
         g_moe_mul_mv_id_iq2_xxs_pair_pipeline = nil;
+        g_moe_mul_mv_id_iq2_xxs_pair_alu_pipeline = nil;
         g_moe_mul_mv_id_iq2_xxs_pair_swiglu_pipeline = nil;
         g_moe_mul_mv_id_iq2_xxs_pair_swiglu_m2_pipeline = nil;
         g_moe_mul_mv_id_q2_k_pipeline = nil;
@@ -20380,7 +20422,8 @@ static int ds4_gpu_encode_mul_mv_id_pair(
         NSUInteger                  ids_off,
         NSUInteger                  threadgroup_bytes,
         NSUInteger                  nsg,
-        bool                        rows_per_group_is_nr0) {
+        bool                        rows_per_group_is_nr0,
+        const ds4_gpu_lead08_alu_probe_args *alu_probe) {
     if (!cb || !pipeline || !args || !src0_a || !src0_b || !src1 || !dst_a || !dst_b || !ids ||
         args->ne00 <= 0 || args->ne01 <= 0 || args->nei0 <= 0 || args->nei1 <= 0) {
         return 0;
@@ -20400,6 +20443,9 @@ static int ds4_gpu_encode_mul_mv_id_pair(
     [enc setBuffer:dst_a  offset:dst_a_off  atIndex:4];
     [enc setBuffer:dst_b  offset:dst_b_off  atIndex:5];
     [enc setBuffer:ids    offset:ids_off    atIndex:6];
+    if (alu_probe) {
+        [enc setBytes:alu_probe length:sizeof(*alu_probe) atIndex:7];
+    }
     if (threadgroup_bytes != 0) {
         [enc setThreadgroupMemoryLength:threadgroup_bytes atIndex:0];
     }
@@ -24901,7 +24947,8 @@ int ds4_gpu_routed_moe_one_tensor(
                                                  ds4_gpu_tensor_offset(selected),
                                                  gate_smem,
                                                  2,
-                                                 false);
+                                                 false,
+                                                 NULL);
         } else if (!g_quality_mode &&
                    gate_type == DS4_METAL_TENSOR_Q4_K &&
                    g_moe_mul_mv_id_q4_k_pair_pipeline) {
@@ -24922,7 +24969,8 @@ int ds4_gpu_routed_moe_one_tensor(
                                                  ds4_gpu_tensor_offset(selected),
                                                  gate_smem,
                                                  2,
-                                                 false);
+                                                 false,
+                                                 NULL);
         } else {
             ok = ds4_gpu_encode_mul_mv_id(cb,
                                             gate_mv_pipeline,
@@ -25606,6 +25654,45 @@ int ds4_gpu_routed_moe_batch_tensor(
             !use_mm_id &&
             ((gate_type == DS4_METAL_TENSOR_IQ2_XXS && g_moe_mul_mv_id_iq2_xxs_pair_pipeline) ||
              (gate_type == DS4_METAL_TENSOR_Q4_K && g_moe_mul_mv_id_q4_k_pair_pipeline));
+        const bool use_lead08_mapped_alu_probe =
+            getenv("DS4_LEAD08_MAPPED_ALU_PROBE") != NULL;
+        unsigned long lead08_mapped_alu_selector = 0ul;
+        ds4_gpu_lead08_alu_probe_args lead08_mapped_alu_args = {
+            .rounds = 0u,
+            .mul = 1.0f,
+            .add = 0.0f,
+            .pad = 0u,
+        };
+        if (use_lead08_mapped_alu_probe) {
+            if (use_iq2_batch_selected_addr || use_lead08_grouped_gateup_probe ||
+                use_mm_id || !use_tiny_pair_mv || n_tokens != 4u ||
+                gate_type != DS4_METAL_TENSOR_IQ2_XXS || g_quality_mode ||
+                getenv("DS4_LEAD08_ADDR_NSG") != NULL ||
+                getenv("DS4_LEAD08_ADDR_NR0") != NULL ||
+                getenv("DS4_LEAD08_ADDR_ALU_PROBE") != NULL ||
+                !g_moe_mul_mv_id_iq2_xxs_pair_alu_pipeline) {
+                fprintf(stderr,
+                        "ds4: Lead 08 mapped ALU probe requires mapped IQ2 tiny_pair_mv "
+                        "at K=4, NSG=2/NR0=4 with no competing Lead 08 probe\n");
+                return 0;
+            }
+            const char *rounds_env = getenv("DS4_LEAD08_MAPPED_ALU_ROUNDS");
+            char *end = NULL;
+            const unsigned long parsed = rounds_env && rounds_env[0] ?
+                strtoul(rounds_env, &end, 10) : 0ul;
+            if ((rounds_env && rounds_env[0] &&
+                 (!end || end == rounds_env || *end != '\0')) ||
+                (parsed != 0ul && parsed != 1ul && parsed != 8ul &&
+                 parsed != 32ul && parsed != 128ul)) {
+                fprintf(stderr,
+                        "ds4: invalid DS4_LEAD08_MAPPED_ALU_ROUNDS=%s "
+                        "(expected 0=production,1=companion-zero,8,32,128)\n",
+                        rounds_env ? rounds_env : "");
+                return 0;
+            }
+            lead08_mapped_alu_selector = parsed;
+            lead08_mapped_alu_args.rounds = parsed == 1ul ? 0u : (uint32_t)parsed;
+        }
         ds4_gpu_mul_mm_id_map_args gate_map_args = { 0 };
         ds4_gpu_mul_mm_id_args gate_mm_args = { 0 };
         ds4_gpu_mul_mm_id_args down_mm_args = { 0 };
@@ -26073,9 +26160,14 @@ int ds4_gpu_routed_moe_batch_tensor(
             }
         } else if (use_tiny_pair_mv) {
             id<MTLComputePipelineState> pair_pipeline =
+                use_lead08_mapped_alu_probe && lead08_mapped_alu_selector != 0ul ?
+                    g_moe_mul_mv_id_iq2_xxs_pair_alu_pipeline :
                 gate_type == DS4_METAL_TENSOR_IQ2_XXS ?
                     g_moe_mul_mv_id_iq2_xxs_pair_pipeline :
                     g_moe_mul_mv_id_q4_k_pair_pipeline;
+            const ds4_gpu_lead08_alu_probe_args *alu_probe_args =
+                use_lead08_mapped_alu_probe && lead08_mapped_alu_selector != 0ul ?
+                    &lead08_mapped_alu_args : NULL;
             ok = ds4_gpu_encode_mul_mv_id_pair(cb,
                                                  pair_pipeline,
                                                  &gate_args,
@@ -26093,7 +26185,16 @@ int ds4_gpu_routed_moe_batch_tensor(
                                                  ds4_gpu_tensor_offset(selected),
                                                  gate_smem,
                                                  2,
-                                                 false);
+                                                 false,
+                                                 alu_probe_args);
+            if (ok && use_lead08_mapped_alu_probe) {
+                fprintf(stderr,
+                        "lead08_mapped_alu_dispatch: layer=%u path=tiny_pair_mv "
+                        "gate=IQ2_XXS tokens=%u pairs=%u nsg=2 nr0=%d pipeline=%s selector=%lu\n",
+                        layer_index, n_tokens, pair_rows, gate_args.nr0,
+                        lead08_mapped_alu_selector == 0ul ? "production" : "companion",
+                        lead08_mapped_alu_selector);
+            }
         } else {
             ok = ds4_gpu_encode_mul_mv_id(cb,
                                                   gate_mv_pipeline,

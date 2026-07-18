@@ -22532,10 +22532,12 @@ int metal_graph_test_m2_fidelity_unit(const ds4_model *model, const ds4_weights 
     const bool addr_nsg_probe = getenv("DS4_LEAD08_ADDR_NSG_PROBE") != NULL;
     const bool addr_nr0_probe = getenv("DS4_LEAD08_ADDR_NR0_PROBE") != NULL;
     const bool addr_alu_probe = getenv("DS4_LEAD08_ADDR_ALU_PROBE") != NULL;
+    const bool mapped_alu_probe = getenv("DS4_LEAD08_MAPPED_ALU_PROBE") != NULL;
     const bool cache_replay_probe = getenv("DS4_LEAD08_CACHE_REPLAY_PROBE") != NULL;
     const bool batch_overlap_probe =
         getenv("DS4_LEAD08_BATCH_OVERLAP_PROBE") != NULL || address_locality_probe ||
-        addr_nsg_probe || addr_nr0_probe || addr_alu_probe || cache_replay_probe;
+        addr_nsg_probe || addr_nr0_probe || addr_alu_probe || mapped_alu_probe ||
+        cache_replay_probe;
     /* Legacy iteration-1 comparator. Its M=1 path uses the persistent selected-expert cache,
      * so the reported M=2/M=1x2 ratio is not a cold-equivalent production comparison. */
     if (!batch_overlap_probe) {
@@ -23196,7 +23198,7 @@ int metal_graph_test_m2_fidelity_unit(const ds4_model *model, const ds4_weights 
 
             /* Lead 08 iterations 6/7: preserve the production physical-row
              * algorithm and vary one address-kernel geometry dimension. */
-            if (addr_nsg_probe || addr_nr0_probe || addr_alu_probe) {
+            if (addr_nsg_probe || addr_nr0_probe || addr_alu_probe || mapped_alu_probe) {
                 enum { GEOMETRY_MAX_PATTERNS = 5 };
                 static const uint32_t nsg_values[GEOMETRY_MAX_PATTERNS] =
                     { 1u, 2u, 4u, 8u, 0u };
@@ -23204,18 +23206,22 @@ int metal_graph_test_m2_fidelity_unit(const ds4_model *model, const ds4_weights 
                     { 2u, 4u, 8u, 0u, 0u };
                 static const uint32_t alu_values[GEOMETRY_MAX_PATTERNS] =
                     { 0u, 1u, 8u, 32u, 128u };
-                const bool sweep_alu = addr_alu_probe;
+                const bool sweep_mapped_alu = mapped_alu_probe;
+                const bool sweep_alu = addr_alu_probe || sweep_mapped_alu;
                 const bool sweep_nr0 = addr_nr0_probe;
                 const uint32_t *geometry_values = sweep_alu ? alu_values :
                     (sweep_nr0 ? nr0_values : nsg_values);
                 const uint32_t geometry_patterns = sweep_alu ? 5u : (sweep_nr0 ? 3u : 4u);
                 const uint32_t geometry_baseline = sweep_alu ? 0u :
                     (sweep_nr0 ? 4u : 2u);
-                const uint32_t geometry_rounds = sweep_alu ? 10u : (uint32_t)BATCH_ROUNDS;
-                const char *geometry_name = sweep_alu ? "alu" : (sweep_nr0 ? "nr0" : "nsg");
-                const char *geometry_env = sweep_alu ?
+                const uint32_t geometry_rounds = sweep_mapped_alu ? 20u :
+                    (sweep_alu ? 10u : (uint32_t)BATCH_ROUNDS);
+                const char *geometry_name = sweep_mapped_alu ? "mapped_alu" :
+                    (sweep_alu ? "alu" : (sweep_nr0 ? "nr0" : "nsg"));
+                const char *geometry_env = sweep_mapped_alu ?
+                    "DS4_LEAD08_MAPPED_ALU_ROUNDS" : (sweep_alu ?
                     "DS4_LEAD08_ADDR_ALU_ROUNDS" :
-                    (sweep_nr0 ? "DS4_LEAD08_ADDR_NR0" : "DS4_LEAD08_ADDR_NSG");
+                    (sweep_nr0 ? "DS4_LEAD08_ADDR_NR0" : "DS4_LEAD08_ADDR_NSG"));
                 const char *fixed_geometry_env = sweep_alu ? NULL : (sweep_nr0 ?
                     "DS4_LEAD08_ADDR_NSG" : "DS4_LEAD08_ADDR_NR0");
                 const char *fixed_geometry_value = sweep_nr0 ? "2" : "4";
@@ -23246,19 +23252,20 @@ int metal_graph_test_m2_fidelity_unit(const ds4_model *model, const ds4_weights 
 
                 fprintf(stderr,
                         "lead08_addr_%s: START tokens=%u pairs=%u unique=%u rounds=%u "
-                        "%s=%s baseline=%u\n",
+                        "%s=%s baseline=%u strata=%u\n",
                         geometry_name,
                         (uint32_t)BATCH_K, pair_rows, nsg_unique,
                         geometry_rounds, geometry_name,
                         sweep_alu ? "[0=production,1=companion-zero,8,32,128]" :
                             (sweep_nr0 ? "[2,4,8]" : "[1,2,4,8]"),
-                        geometry_baseline);
-
+                        geometry_baseline, sweep_mapped_alu ? 2u : 1u);
                 float *ref_gate = malloc((size_t)bmid_bytes);
                 float *ref_up = malloc((size_t)bmid_bytes);
                 float *ref_mid = malloc((size_t)bmid_bytes);
                 float *ref_out = malloc((size_t)bout_bytes);
                 float *got = malloc((size_t)(bmid_bytes > bout_bytes ? bmid_bytes : bout_bytes));
+                uint32_t fidelity_cases[GEOMETRY_MAX_PATTERNS] = { 0 };
+                uint32_t fidelity_failures[GEOMETRY_MAX_PATTERNS] = { 0 };
                 uint32_t fid_layer = UINT32_MAX;
                 for (uint32_t il = 0; il < n_layer; il++) {
                     const ds4_layer_weights *L = &weights->layer[il];
@@ -23275,11 +23282,31 @@ int metal_graph_test_m2_fidelity_unit(const ds4_model *model, const ds4_weights 
                             "lead08_addr_%s_fid: allocation/layer discovery failed\n",
                             geometry_name);
                 } else {
+                    if (sweep_mapped_alu) {
+                        for (uint32_t pattern = 1; pattern < geometry_patterns; pattern++) {
+                            nsg_valid[pattern] = true;
+                        }
+                    }
+                    const uint32_t fid_begin = fid_layer;
+                    const uint32_t fid_end = sweep_mapped_alu ? n_layer : fid_layer + 1u;
+                    const uint32_t fid_strata = sweep_mapped_alu ? 2u : 1u;
+                    for (uint32_t fid_stratum = 0; fid_stratum < fid_strata; fid_stratum++) {
+                    for (uint32_t fid_iter = fid_begin; fid_iter < fid_end; fid_iter++) {
+                    fid_layer = fid_iter;
                     const ds4_layer_weights *L = &weights->layer[fid_layer];
+                    if ((uint32_t)L->ffn_gate_exps->dim[1] != expert_mid_dim ||
+                        (uint32_t)L->ffn_down_exps->dim[1] != out_dim ||
+                        L->ffn_gate_exps->type != L0->ffn_gate_exps->type) continue;
+                    const uint32_t fid_base = fid_stratum == 0u ?
+                        (fid_layer * 11u) % nsg_span :
+                        (53u + fid_layer * 11u) % DS4_N_EXPERT;
                     for (uint32_t t = 0; t < BATCH_K; t++) {
                         for (uint32_t e = 0; e < n_exp; e++) {
                             const uint32_t group = t == 0u ? 0u : t - 1u;
-                            bselh[t * n_exp + e] = (int32_t)(group * n_exp + e);
+                            const uint32_t logical = group * n_exp + e;
+                            bselh[t * n_exp + e] = (int32_t)(fid_stratum == 0u ?
+                                fid_base + logical :
+                                (fid_base + logical * 37u) % DS4_N_EXPERT);
                         }
                     }
                     ds4_gpu_tensor_write(bsel, 0, bselh, bsel_bytes);
@@ -23340,10 +23367,14 @@ int metal_graph_test_m2_fidelity_unit(const ds4_model *model, const ds4_weights 
                         uint64_t gate_bits = 0, up_bits = 0, mid_bits = 0, out_bits = 0;
                         double gate_max = 0.0, up_max = 0.0, mid_max = 0.0, out_max = 0.0;
                         uint32_t argmax_flips = 0;
+                        fidelity_cases[pattern]++;
                         if (!ref_ok || !got_ok || ref_mid_f16 || got_mid_f16) {
+                            fidelity_failures[pattern]++;
+                            nsg_valid[pattern] = false;
                             fprintf(stderr,
-                                    "lead08_addr_%s_fid: dispatch/read failed %s=%u layer=%u\n",
-                                    geometry_name, geometry_name,
+                                    "lead08_addr_%s_fid: dispatch/read failed "
+                                    "stratum=%u %s=%u layer=%u\n",
+                                    geometry_name, fid_stratum, geometry_name,
                                     geometry_values[pattern], fid_layer);
                             continue;
                         }
@@ -23382,19 +23413,34 @@ int metal_graph_test_m2_fidelity_unit(const ds4_model *model, const ds4_weights 
                             if (ref_argmax != got_argmax) argmax_flips++;
                         }
                         fprintf(stderr,
-                                "lead08_addr_%s_fid: %s=%u ref=%u layer=%u "
+                                "lead08_addr_%s_fid: stratum=%u %s=%u ref=%u layer=%u "
                                 "gate(max=%.3e bits=%llu) up(max=%.3e bits=%llu) "
                                 "mid(max=%.3e bits=%llu) out(max=%.3e bits=%llu) "
                                 "argmax_flips=%u\n",
-                                geometry_name, geometry_name, geometry_values[pattern],
+                                geometry_name, fid_stratum, geometry_name, geometry_values[pattern],
                                 geometry_baseline, fid_layer,
                                 gate_max, (unsigned long long)gate_bits,
                                 up_max, (unsigned long long)up_bits,
                                 mid_max, (unsigned long long)mid_bits,
                                 out_max, (unsigned long long)out_bits,
                                 argmax_flips);
-                        nsg_valid[pattern] = gate_bits == 0 && up_bits == 0 &&
+                        const bool case_valid = gate_bits == 0 && up_bits == 0 &&
                             mid_bits == 0 && out_bits == 0 && argmax_flips == 0;
+                        if (!case_valid) fidelity_failures[pattern]++;
+                        nsg_valid[pattern] = sweep_mapped_alu ?
+                            (nsg_valid[pattern] && case_valid) : case_valid;
+                    }
+                    }
+                    }
+                    if (sweep_mapped_alu) {
+                        for (uint32_t pattern = 1; pattern < geometry_patterns; pattern++) {
+                            fprintf(stderr,
+                                    "lead08_addr_%s_fid: SUMMARY selector=%u strata=%u "
+                                    "cases=%u failures=%u result=%s\n",
+                                    geometry_name, geometry_values[pattern], fid_strata,
+                                    fidelity_cases[pattern], fidelity_failures[pattern],
+                                    nsg_valid[pattern] ? "PASS" : "FAIL");
+                        }
                     }
                 }
                 free(ref_gate);
@@ -23403,12 +23449,16 @@ int metal_graph_test_m2_fidelity_unit(const ds4_model *model, const ds4_weights 
                 free(ref_out);
                 free(got);
 
+                const uint32_t timing_strata = sweep_mapped_alu ? 2u : 1u;
+                for (uint32_t stratum = 0; stratum < timing_strata; stratum++) {
                 for (uint32_t round = 0; round < geometry_rounds; round++) {
                     for (uint32_t oi = 0; oi < geometry_patterns; oi++) {
                         uint32_t pattern;
                         if (sweep_alu) {
                             const uint32_t rotation = round % geometry_patterns;
-                            pattern = round < geometry_patterns ?
+                            const bool ascending =
+                                ((round / geometry_patterns) & 1u) == 0u;
+                            pattern = ascending ?
                                 (rotation + oi) % geometry_patterns :
                                 (rotation + geometry_patterns - oi) % geometry_patterns;
                         } else {
@@ -23431,20 +23481,24 @@ int metal_graph_test_m2_fidelity_unit(const ds4_model *model, const ds4_weights 
                         double sample_ms = 0.0;
                         uint32_t sample_layers = 0;
                         fprintf(stderr,
-                                "lead08_addr_%s: BEGIN round=%u %s=%u\n",
-                                geometry_name, round, geometry_name,
+                                "lead08_addr_%s: BEGIN stratum=%u round=%u %s=%u\n",
+                                geometry_name, stratum, round, geometry_name,
                                 geometry_values[pattern]);
                         for (uint32_t il = 0; il < n_layer; il++) {
                             const ds4_layer_weights *L = &weights->layer[il];
                             if ((uint32_t)L->ffn_gate_exps->dim[1] != expert_mid_dim ||
                                 (uint32_t)L->ffn_down_exps->dim[1] != out_dim ||
                                 L->ffn_gate_exps->type != L0->ffn_gate_exps->type) continue;
-                            const uint32_t base = (round * 37u + il * 11u) % nsg_span;
+                            const uint32_t base = stratum == 0u ?
+                                (round * 37u + il * 11u) % nsg_span :
+                                (round * 37u + il * 11u) % DS4_N_EXPERT;
                             for (uint32_t t = 0; t < BATCH_K; t++) {
                                 for (uint32_t e = 0; e < n_exp; e++) {
                                     const uint32_t group = t == 0u ? 0u : t - 1u;
-                                    bselh[t * n_exp + e] =
-                                        (int32_t)(base + group * n_exp + e);
+                                    const uint32_t logical = group * n_exp + e;
+                                    bselh[t * n_exp + e] = (int32_t)(stratum == 0u ?
+                                        base + logical :
+                                        (base + logical * 37u) % DS4_N_EXPERT);
                                 }
                             }
                             ds4_gpu_tensor_write(bsel, 0, bselh, bsel_bytes);
@@ -23484,13 +23538,14 @@ int metal_graph_test_m2_fidelity_unit(const ds4_model *model, const ds4_weights 
                         nsg_ms[pattern] += sample_ms;
                         nsg_layers[pattern] += sample_layers;
                         fprintf(stderr,
-                                "lead08_addr_%s: SAMPLE round=%u %s=%u layers=%u "
+                                "lead08_addr_%s: SAMPLE stratum=%u round=%u %s=%u layers=%u "
                                 "ms_per_layer=%.3f cache_entries=%u->%u\n",
-                                geometry_name, round, geometry_name,
+                                geometry_name, stratum, round, geometry_name,
                                 geometry_values[pattern], sample_layers,
                                 sample_layers ? sample_ms / (double)sample_layers : 0.0,
                                 cache_start, cache_end);
                     }
+                }
                 }
                 fprintf(stderr,
                         "lead08_addr_%s: SUMMARY tokens=%u pairs=%u unique=%u",

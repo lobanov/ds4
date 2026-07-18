@@ -4,7 +4,8 @@
 > Preserve exact output as the ultimate project gate, but pursue verifier speed within a fresh
 > matched M3 task-quality/distribution envelope. V1 is the interim baseline; the V5/V13 exact
 > accumulation track is deferred; T1 Metal counter attribution is tooling-blocked, T2a applies only
-> to the incompatible SSD address kernel, and mapped-kernel T2b is P0; V14 mechanism-selected
+> to the incompatible SSD address kernel, and mapped-kernel T2b is invalid on its control gate;
+> control-stabilized T2c is P0; V14 mechanism-selected
 > acceleration is the active branch. The required prize remains >=8.7 ms/cycle, K=4 verify must
 > reach <=50.5 ms, and the composed 176-entry run must reach
 > `>= max(45.8 t/s, 1.20 x fresh plain)`.
@@ -354,12 +355,12 @@ fused (the full build). Keeps the Phase-B abort condition (>5% re-verification).
 
 ## Next steps
 
-**2026-07-18 current:** T2a retained dependent runtime FMAs and produced a monotonic response, but
-rounds 32 fall in the predeclared ambiguous band on the SSD selected-address kernel. That carrier cannot compose with DSpark, so it
-does not establish the live verifier's binding regime. A mapped path trace identifies 688/688 K4
-records as `tiny_pair_mv`. Preflight T2b on its `kernel_mul_mv_id_iq2_xxs_pair_f32` gate/up family,
-holding weights, physical rows, and dispatch geometry fixed and proving the actual
-dispatch. Only that valid live-kernel separator may select one distinct traffic/latency or ALU/instruction mechanism. Then permit one fixed-work
+**2026-07-18 current:** T2a is ambiguous on an incompatible SSD carrier. T2b reaches the live mapped
+`tiny_pair_mv` gate/up family and shows strong arithmetic sensitivity, but fails its predeclared
+production/companion-zero interval and narrowly misses the overlap positive threshold. Preflight a
+control-stabilized T2c direct replay on the same `kernel_mul_mv_id_iq2_xxs_pair_f32` carrier,
+excluding diagnostic logging from timing. Only a valid live-kernel separator may select one
+ALU/instruction mechanism; weak evidence cannot select traffic/latency. Then permit one fixed-work
 prototype only if its identified hot stage has a plausible >=8.7 ms/cycle prize; require >=15% stage
 improvement before integration. Do not repeat the grouped, margin, address-layout,
 geometry, mapped-residency, shared-family, or top-r mechanisms: the relaxed quality contract does
@@ -379,6 +380,31 @@ sufficient." (Confirmatory: a literal identical-input MoE kernel-equality harnes
 verify-bandwidth slope re-measure.)
 
 ## Worklog
+
+### 2026-07-18 - iteration-22 mapped tiny-pair ALU separator -> INVALID / near-threshold
+
+**Preflight and implementation.** Independent challenge returned REDESIGN: the retained-FMA test is
+one-sided and a weak response cannot select traffic/latency. A separate mapped companion pipeline
+preserves literal production selector 0 and holds K4, 24 pairs, 18 unique experts, mapped offsets,
+NSG 2, NR0 4, F32 gate/up, activation/down work, and dispatch counts fixed. Two ID strata, all 43
+layers, explicit dispatch identity, 20 balanced samples per arm, and dumped-source AIR gates replace
+iteration 21's layer-0/incompatible-carrier limitations.
+
+**Result.** Every companion arm passes 86/86 bitwise cases across gate/up/weighted-mid/routed output
+and argmax. AIR retains two runtime dependent FMAs and the backedge only in the companion. R32 adds
++26.00% synchronized gate/up on overlap and +27.05% on dispersed IDs, with consistent positive wall
+movement. However, three of four production/companion-zero paired intervals escape the predeclared
++/-2% band; the overlap R32 lower interval endpoint is also 24.958%, below the 25% positive gate.
+
+**Decision.** Close this T2b measurement design **INVALID**, retaining the strong response only as
+near-threshold diagnostic evidence. It authorizes neither arithmetic reduction nor a traffic
+prototype. T2c, a freshly preflighted control-stabilized direct replay of the same mapped pair
+carrier, is P0; stop the separator family if that replay cannot pass control. The measured gate/up
+stage is about 18.4 ms/cycle, so a selected mechanism must credibly remove about 47% of the whole
+stage to supply the required 8.7 ms prize. Canonical artifact:
+`artifacts/lead08_reassessment/30_iter22_mapped_alu_separator.{md,csv}`. The independent audit
+reproduced the schedule, 86-case fidelity matrix, dispatch/AIR proof, statistics, invalid gate, and
+economic calculation and returned **COMMIT**.
 
 ### 2026-07-18 - iteration-21 selected-address ALU separator -> T2a AMBIGUOUS
 

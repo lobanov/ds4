@@ -22,12 +22,20 @@ cycle (~16 ms/token off the target).
 | Goal | ≥20 % greedy throughput on ds4 IQ2XXS, exact-output-preserved |
 | Current best | Full DSpark stack **+4.9 %** over plain (40.04 vs 38.16 t/s; score-neutral 61/92) — M3 |
 | The gap | +20 % not reached; verify ≈80 % of the cycle |
-| Open lever | **V14 M3-bounded verifier acceleration.** T2a is ambiguous and uses the incompatible SSD address kernel; T2b on live mapped `tiny_pair_mv` / `kernel_mul_mv_id_iq2_xxs_pair_f32` is P0 before exactly one mechanism-specific prototype. Required composed saving is >=8.7 ms/cycle, with `verify_ms(4) <= 50.5 ms` and the M3 quality envelope |
+| Open lever | **V14 M3-bounded verifier acceleration.** T2b on live mapped `tiny_pair_mv` produced strong arithmetic sensitivity but failed its production/companion-zero control gate. T2c control-stabilized direct replay preflight is P0; no prototype is authorized. Required composed saving remains >=8.7 ms/cycle, with `verify_ms(4) <= 50.5 ms` and the M3 quality envelope |
 | Closed (negative) | Drafter/input quality (Lead 07), drafter quant (Q4_K), non-expert finetune (Stage 2), DFlash, quant-mismatch |
 
 ## Investigation arc
 
 Reverse-chronological. Each entry: what was tested → verdict → canonical record.
+
+- **2026-07-18 - Lead 08 iteration 22 mapped ALU separator: T2b INVALID / near-threshold;
+  audit COMMIT.** All companion arms are bit-exact on 86/86 all-layer/two-stratum cases, all
+  dispatches stay on mapped IQ2 K4 `tiny_pair_mv`, and AIR retains the runtime FMA loop. R32 adds
+  about 26-27% synchronized gate/up, but three production/companion-zero intervals escape +/-2%
+  and the overlap R32 lower bound is 24.958%, just below the 25% positive threshold. No prototype;
+  T2c control-stabilized direct replay preflight is P0.
+  `artifacts/lead08_reassessment/30_iter22_mapped_alu_separator.md`.
 
 - **2026-07-18 - Lead 08 iteration 21 selected-address ALU separator: T2a AMBIGUOUS; repeat audit
   COMMIT.** Literal production and companion-zero agree within 2%, and all companion arms are
@@ -291,11 +299,11 @@ The bench harness: `ds4-spec-bench` (`make ds4-spec-bench`) — use it, not the 
 Experiment selection and stop rules are maintained in
 `summaries/solution_space_ledger.md`; new work must enter that ledger before implementation.
 
-**Lead 08:** T1's Metal-counter capability gate is blocked. T2a retained runtime FMA work but its
-controlled response is threshold-ambiguous on the SSD selected-address gate/up kernel; that
-carrier is incompatible with DSpark and does not characterize the live mapped verifier. The next action is a
-freshly preflighted T2b on mapped `tiny_pair_mv` / `kernel_mul_mv_id_iq2_xxs_pair_f32`, with explicit dispatch proof and the same
-fixed-byte/row/geometry/compiler-retention gates. Attribution still does not authorize implementation.
+**Lead 08:** T1's Metal-counter capability gate is blocked. T2a is ambiguous on the incompatible
+SSD carrier. T2b reaches the live mapped `tiny_pair_mv` kernel and shows strong retained-FMA
+sensitivity, but fails its production/companion-zero control gate and is invalid. The next action is
+a freshly preflighted T2c control-stabilized direct replay of the same carrier. Attribution still
+does not authorize implementation.
 The selected fixed-work prototype must improve its identified hot stage by at least 15% and expose a
 credible >=8.7 ms/cycle composed saving before integration. Final bounded-track admission additionally
 requires `verify_ms(4) <= 50.5 ms` and `>= max(45.8 t/s, 1.20 x fresh plain)` on the 176-entry corpus, and no

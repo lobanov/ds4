@@ -125,6 +125,13 @@ struct ds4_metal_dsv4_moe_swiglu_weight_args {
     uint32_t alu_pad;
 };
 
+struct ds4_metal_lead08_alu_probe_args {
+    uint32_t rounds;
+    float mul;
+    float add;
+    uint32_t pad;
+};
+
 struct ds4_metal_dsv4_moe_sum6_args {
     uint32_t width;
     uint32_t tokens;
@@ -1041,6 +1048,63 @@ kernel void kernel_mul_mv_id_iq2_xxs_pair_f32(
         tgpig,
         tiisg,
         sgitg);
+}
+
+// Lead 08 research-only mapped-carrier arithmetic sensitivity probe. The
+// production entry point above remains the literal non-probe specialization.
+kernel void kernel_mul_mv_id_iq2_xxs_pair_alu_f32(
+        constant ds4_metal_args_mul_mv_id & args,
+        device const char * src0_gate,
+        device const char * src0_up,
+        device const char * src1,
+        device       char * dst_gate,
+        device       char * dst_up,
+        device const char * ids,
+        constant ds4_metal_lead08_alu_probe_args & probe,
+        threadgroup  char * shmem [[threadgroup(0)]],
+        uint3  tgpig[[threadgroup_position_in_grid]],
+        ushort tiitg[[thread_index_in_threadgroup]],
+        ushort tiisg[[thread_index_in_simdgroup]],
+        ushort sgitg[[simdgroup_index_in_threadgroup]]) {
+    const int iid1 = tgpig.z/args.nei0;
+    const int idx  = tgpig.z%args.nei0;
+
+    tgpig.z = 0;
+
+    const int32_t i02 = ((device const int32_t *) (ids + iid1*args.nbi1))[idx];
+    const int64_t i11 = idx % args.ne11;
+    const int64_t i12 = iid1;
+
+    device const char * src0_gate_cur = src0_gate + i02*args.nb02;
+    device const char * src0_up_cur   = src0_up   + i02*args.nb02;
+    device const char * src1_cur      = src1      + i11*args.nb11 + i12*args.nb12;
+
+    device char * dst_gate_cur = dst_gate + (idx*args.ne0 + i12*args.ne1*args.ne0)*sizeof(float);
+    device char * dst_up_cur   = dst_up   + (idx*args.ne0 + i12*args.ne1*args.ne0)*sizeof(float);
+
+    ds4_metal_args_mul_mv args0 = {
+        args.ne00, args.ne01, 1,
+        args.nb00, args.nb01, args.nb02, args.nb02,
+        args.ne10, 1, 1,
+        args.nb10, args.nb11, args.nb12, args.nb12,
+        args.ne0, 1, args.nr0, 1, 1,
+    };
+
+    (void)tiitg;
+    kernel_mul_mv_iq2_xxs_pair_f32_impl<N_R0_IQ2_XXS, true>(
+        args0,
+        src0_gate_cur,
+        src0_up_cur,
+        src1_cur,
+        dst_gate_cur,
+        dst_up_cur,
+        shmem,
+        tgpig,
+        tiisg,
+        sgitg,
+        probe.rounds,
+        probe.mul,
+        probe.add);
 }
 
 // Decode-only routed expert gate/up projection fused with the DS4 activation:
