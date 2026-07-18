@@ -22,21 +22,29 @@ cycle (~16 ms/token off the target).
 | Goal | ≥20 % greedy throughput on ds4 IQ2XXS, exact-output-preserved |
 | Current best | Full DSpark stack **+4.9 %** over plain (40.04 vs 38.16 t/s; score-neutral 61/92) — M3 |
 | The gap | +20 % not reached; verify ≈80 % of the cycle |
-| Open lever | **Lead 08 V15 exact dense-family capability gate.** Bounded work is exhausted. V13 inventories one structurally plausible Q8/F16 load-once family across all seven exposed dense debts; iteration 27 must preflight the protocol before implementation, direct bits, and a candidate-minus-current-ext all-layer delta upper bound <=7.5 ms |
+| Open lever | **Lead 08 V15 Stage A cross-quant M2 capability.** Protocol preflight is complete. Implement both Q8 Q-a and F16 router research kernels together; require all-43/C0-C4 bit equality and one logical weight traversal before the full M2..8/economic stage |
 | Closed (negative) | Drafter/input quality (Lead 07), drafter quant (Q4_K), non-expert finetune (Stage 2), DFlash, quant-mismatch |
 
 ## Investigation arc
 
 Reverse-chronological. Each entry: what was tested → verdict → canonical record.
 
+- **2026-07-18 - Lead 08 iteration 27 V15 protocol: REDESIGN; staged GO.** A monolithic both-format
+  M=2..8 build, seam refactor, exhaustive correctness, and timing iteration is not auditable. Stage A
+  now admits only a research-only M=2 pair for Q8 Q-a and F16 router across all 43 offsets and five
+  deterministic finite input classes, with literal M1 bit equality and source/AIR one-traversal
+  proof. Only its audited both-format pass admits Stage B's seven-site M=2..8 gate, nonredundant
+  output-B seam, and cumulative all-layer <=7.5 ms policy test. No graph edits are admitted.
+  `artifacts/lead08_reassessment/35_iter27_exact_smallm_protocol.md`.
+
 - **2026-07-18 - Lead 08 iteration 26 exact small-M dense inventory: DESIGN COMPLETE; V15
   conditional.** The initially proposed F16/router helper was too narrow. The exposed exactness debt
   spans four Q8 and three F16 sites totaling 77.875 MiB/layer. Four independent M1 traversals add
   9.810 GiB/43 layers, so the only admissible structure loads each weight once while retaining an
   independent literal M1 arithmetic DAG per token. Source seams are plausible, though output-B
-  requires a nonredundant batch seam. Admit one common-family capability prototype only after a
-  mandatory timing-protocol preflight: direct bits on all seven
-  shapes and candidate-minus-current-ext all-43 delta upper CI <=7.5 ms. No implementation or speed claim yet.
+  requires a nonredundant batch seam. Iteration 27 subsequently stages the implementation: a
+  both-format M=2 capability spike precedes the retained all-seven M=2..8 and
+  candidate-minus-current-ext all-43 delta upper-CI gate. No implementation or speed claim yet.
   `artifacts/lead08_reassessment/34_iter26_exact_smallm_dense_inventory.md`.
 
 - **2026-07-18 - Lead 08 iteration 25 bounded-track audit: STOP / EXHAUSTED; corrected audit COMMIT.**
@@ -348,12 +356,10 @@ literal direct carrier is about 10.74 ms/cycle. Corrected address-faithful U1 sa
 ms even after removing activation and almost all
 semantics, so arithmetic/dequant reduction closes without a broad kernel sweep. Iteration 25 finds
 no independent concrete >=8.7 ms mechanism, so Lead 08 bounded work is exhausted on this runtime.
-V13 now completes a cross-quant exact dense-family inventory. One conditional V15 capability gate is
-the primary exact-track next step, preceded by a mandatory executable-protocol preflight: Q8+F16,
-one weight traversal, literal M1 arithmetic per token,
-no redundant output-B work, direct bit equality on all seven shapes, and candidate-minus-current-ext
-all-layer delta upper CI <=7.5 ms above the conservative 43 ms policy base. This is not yet a speed
-result or full-path exactness.
+V13 completes the cross-quant inventory and iteration 27 completes V15's executable protocol. Stage A
+is now the primary exact-track step: both Q8 Q-a and F16 router M=2 research specializations, all 43
+offsets/C0-C4, literal M1 bits, and one logical weight traversal. Only an audited both-format pass
+admits Stage B's full M=2..8/seam/economic gate. This is not yet a speed result or full-path exactness.
 Lead 05 SSD compatibility remains an alternate redirect if that scope becomes acceptable. Any future bounded-track admission additionally
 requires `verify_ms(4) <= 50.5 ms` and `>= max(45.8 t/s, 1.20 x fresh plain)` on the 176-entry corpus, and no
 regression from a fresh matched M3 control on the recorded task-quality and distribution gates.

@@ -383,6 +383,23 @@ verify-bandwidth slope re-measure.)
 
 ## Worklog
 
+### 2026-07-18 - iteration-27 V15 executable protocol -> REDESIGN / staged GO
+
+Independent preflight rejected a monolithic both-format M=2..8 build plus seam refactor and timing.
+Stage A is the only authorized implementation: one research-only API with both Q8 Q-a and F16
+router M=2 specializations, literal M1 arithmetic, all 43 real offsets, C0-C4 bit gates, and
+source/AIR proof of one logical weight traversal. No graph callsite changes. Only an audited
+both-format pass admits Stage B: all seven sites at M=2..8, captured C5 inputs, a nonredundant
+batch-low/output-B seam, and a balanced all-43 cumulative timing carrier whose delta upper bound
+must be <=7.5 ms. Artifact:
+`artifacts/lead08_reassessment/35_iter27_exact_smallm_protocol.md`.
+The first red-team returned `FIX` on C5/output-B capture scope, M4 timing scope, deterministic input
+constructors, Q8 reduction order, common-family structure, topology outcome, and numeric timing
+validity; the protocol was corrected for repeat audit.
+The repeat returned `FIX` on ledger C5 scope, format-specific AIR language, Stage-B reproduction,
+validity-bootstrap details, and C3 site/sign construction; those were corrected for final audit.
+The final repeat audit returned `COMMIT`.
+
 ### 2026-07-18 - iteration-26 cross-quant exact small-M inventory -> DESIGN COMPLETE / conditional V15
 
 Returned to the primary exact-output track after bounded-track exhaustion. Independent preflight
