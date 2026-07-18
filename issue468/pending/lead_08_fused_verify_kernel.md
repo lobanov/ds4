@@ -357,16 +357,12 @@ fused (the full build). Keeps the Phase-B abort condition (>5% re-verification).
 
 ## Next steps
 
-**2026-07-18 current:** T2c passes its control, fidelity, schedule, timestamp, and AIR gates and
-validly selects one-sided arithmetic/issue sensitivity on the live mapped
-`kernel_mul_mv_id_iq2_xxs_pair_f32` carrier. This does not establish dequant-compute dominance or
-select traffic/latency. Independently preflight U1, exactly one maximum-removable arithmetic
-upper-bound kernel retaining packed loads, address calculation, geometry, and stores. Its paired
-absolute saving lower bound must reach 8.7 ms in both strata; because clean direct production is
-only about 10.74 ms/cycle, this is an approximately 81% cut. Failure closes arithmetic reduction
-without production tuning. Do not repeat the grouped, margin, address-layout,
-geometry, mapped-residency, shared-family, or top-r mechanisms: the relaxed quality contract does
-not alter their economic falsifiers.
+**2026-07-18 current:** corrected U1 closes arithmetic/dequant below 4.74 ms, and the iteration-25
+mechanism audit finds no independent concrete >=8.7 ms package on the current in-RAM runtime.
+Lead 08 `INTERIM_BOUNDED` is exhausted. Redirect to Lead 05 only if SSD compatibility is in scope,
+or resume deferred V13/V5 exact work without a speed promise. Do not repeat grouped, margin,
+address-layout, geometry, mapped-residency, shared-family, or top-r mechanisms without evidence that
+changes their upper bounds.
 
 **Milestone COMPLETE (2026-07-13): Phase B characterization + decisive measurements →
 FINAL verdict = NO-GO via swaps → bounded build attempt with a hard exit gate
@@ -382,6 +378,13 @@ sufficient." (Confirmatory: a literal identical-input MoE kernel-equality harnes
 verify-bandwidth slope re-measure.)
 
 ## Worklog
+
+### 2026-07-18 - iteration-25 bounded-track reassessment -> STOP / EXHAUSTED
+
+Independent preflight audited every mechanism after U1. None is both independent of U1 and backed
+by a fresh composable >=8.7 ms upper bound. Close the current in-RAM M5 bounded track. Redirect to
+Lead 05 only if SSD compatibility is in scope, or resume deferred V13/V5 exact work without a speed
+promise. Artifact: `artifacts/lead08_reassessment/33_iter25_bounded_track_exhaustion.md`.
 
 ### 2026-07-18 - iteration-24 optimistic packed-weight floor -> economic STOP
 

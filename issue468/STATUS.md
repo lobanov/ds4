@@ -22,12 +22,20 @@ cycle (~16 ms/token off the target).
 | Goal | ≥20 % greedy throughput on ds4 IQ2XXS, exact-output-preserved |
 | Current best | Full DSpark stack **+4.9 %** over plain (40.04 vs 38.16 t/s; score-neutral 61/92) — M3 |
 | The gap | +20 % not reached; verify ≈80 % of the cycle |
-| Open lever | **No selected Lead 08 mechanism.** Corrected U1 proves even an optimistic nonsemantic arithmetic/dequant removal saves only 4.71-4.72 ms, below 8.7 ms. Arithmetic closes; only a genuinely independent mechanism with a fresh >=8.7 ms upper bound may reopen bounded work |
+| Open lever | **Lead 08 bounded track exhausted.** Corrected U1 is below 4.74 ms and a systematic reassessment finds no independent composable >=8.7 ms mechanism. Redirect to Lead 05 compatibility if SSD scope is acceptable, or deferred V13/V5 exact work without a speed promise |
 | Closed (negative) | Drafter/input quality (Lead 07), drafter quant (Q4_K), non-expert finetune (Stage 2), DFlash, quant-mismatch |
 
 ## Investigation arc
 
 Reverse-chronological. Each entry: what was tested → verdict → canonical record.
+
+- **2026-07-18 - Lead 08 iteration 25 bounded-track audit: STOP / EXHAUSTED; corrected audit COMMIT.**
+  The removable arithmetic saving is upper-bounded below 4.74 ms by U1; retained traffic is distinct but has no surviving
+  realizable mechanism. Compatible residency, launch/host, grouping, layout,
+  geometry, top-r, margin, and readahead are already too small or closed. Down/attention/dense lack
+  both a fresh >=8.7 ms isolated carrier and a concrete bounded-quality mechanism. No further
+  current-runtime bounded experiment is admitted; corrected audit COMMIT.
+  `artifacts/lead08_reassessment/33_iter25_bounded_track_exhaustion.md`.
 
 - **2026-07-18 - Lead 08 iteration 24 packed-weight floor: U1 economic STOP; corrected audit
   COMMIT.** A nonsemantic checksum kernel retains mapped IQ2 q/scale loads, ID addressing, grid,
@@ -324,9 +332,9 @@ SSD carrier and T2b is invalid. T2c now validly selects one-sided arithmetic/iss
 the live mapped `tiny_pair_mv` kernel, without proving production is dequant-compute-bound. Its
 literal direct carrier is about 10.74 ms/cycle. Corrected address-faithful U1 saves only 4.71-4.72
 ms even after removing activation and almost all
-semantics, so arithmetic/dequant reduction closes without a broad kernel sweep. The next action is
-a ledger reassessment limited to genuinely independent non-arithmetic mechanisms; if none has a
-fresh >=8.7 ms upper bound, Lead 08 bounded work is exhausted. Final bounded-track admission additionally
+semantics, so arithmetic/dequant reduction closes without a broad kernel sweep. Iteration 25 finds
+no independent concrete >=8.7 ms mechanism, so Lead 08 bounded work is exhausted on this runtime.
+Only Lead 05 SSD compatibility or deferred V13/V5 exact work remains as a redirect. Final bounded-track admission additionally
 requires `verify_ms(4) <= 50.5 ms` and `>= max(45.8 t/s, 1.20 x fresh plain)` on the 176-entry corpus, and no
 regression from a fresh matched M3 control on the recorded task-quality and distribution gates.
 The exact-hybrid V5/V13 path is deferred, not disproven. Do not repeat the grouped, margin, layout,
