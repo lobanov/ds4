@@ -1,9 +1,11 @@
 # Lead 11 — Target-confidence draft bypass + STS recalibration (a two-stage scheduler)
 
-Date: 2026-07-19. Status: **in progress (research-lead skill; Exp 0a done, Exp 0b next).**
-The engine implementation (if the Exp-0 verdict is PROCEED) is framed as **Milestone 4 (DSpark
-runtime)** — structured + documented like `summaries/dspark_runtime_milestone_3_progress.md` (see
-Scope).
+Date: 2026-07-19. Status: **in progress (research-lead skill; Exp 0a done; Exp 0b DROPPED).**
+The offline cycle-economics simulation (Exp 0b) is dropped — the offline drafter (D_f32/D_f16)
+does not reproduce the live engine (p1 0.835/0.525; baseline 59.54/35.72 t/s vs the live 40.04).
+The PROCEED/STOP verdict now comes from the **real-engine bypass measurement** (M4 lever 1).
+The engine implementation (if PROCEED) is framed as **Milestone 4 (DSpark runtime)** — structured
++ documented like `summaries/dspark_runtime_milestone_3_progress.md` (see Scope).
 
 ## Purpose / hypothesis
 
@@ -74,36 +76,40 @@ population → a different optimal `verify_n`), so they must be **jointly** tune
 
 ## Scope / experiments
 
-- **Exp 0 — measurement (the gate's value).** (a) A **unified IQ2 capture** (H + logprobs in one
-  run, aligned — add a single-file appended H dump so the capture stays "no many small files").
-  (b) A **cycle-economics simulation**: per cycle (target margin, drafter first-draft success,
-  per-position verify cost from the M3 timing model), sweep `(θ_bypass, θ_sts)` → expected t/s.
-  Sizes the gain + finds the joint optimum, with no ds4 changes.
-- **Milestone 4 (DSpark runtime) — the engine implementation, conditional on Exp 0 PROCEED.**
-  Framed + documented like `summaries/dspark_runtime_milestone_3_progress.md`: each lever
-  **env-gated default-off**, with a **codex gate A** (post-smoke/pre-bench) + **codex gate B**
-  (post-bench/pre-finalize); the combined re-bench (full corpus, per-source, prompt-clustered
-  CIs); the 20-Q no-regression gate + the 92Q score-neutrality; + the **milestone-4 progress doc**
-  (the lever table + the cycle-cost attribution + the per-lever codex gates + the verdict) as
-  the canonical record. Each lever committed separately on `dspark-research`.
-  - **M4 lever 1 — the pre-draft bypass gate (claim 1).** Implement the target-margin bypass
-    (`θ_bypass`, env-gated) in ds4; the M3-style smoke + codex gate A; fidelity gate (gate off →
-    the M3 full-stack baseline reproduces bit-token-for-token).
-  - **M4 lever 2 — the recalibrated STS (claim 2).** Retrain the confidence model for the
-    filtered (bypass-filtered) distribution + the new `θ_sts` schedule (env-gated); smoke +
-    codex gate A.
-  - **M4 re-bench.** The combined measurement (the full M3 stack + levers 1+2) vs the M3
-    baseline + the 20-Q no-regression gate + the 92Q score-neutrality + **codex gate B** (the
-    realized gain vs the Exp-0 prediction; post-bench/pre-finalize).
+- **Exp 0a — the unified IQ2 capture + the gate-signal probe (DONE).** The single-file H dump +
+  the aligned logprobs capture (`lead3_h.bin` + `lead3_logprobs.jsonl`); the gate-signal probe
+  (target margin predicts drafter rejection, corr −0.44 on FP; the IQ2 margin matches FP).
+- **Exp 0b — the offline cycle-economics simulation (DROPPED).** The offline drafter (D_f32/D_f16)
+  does not reproduce the live engine — p1 0.835/0.525, baseline 59.54/35.72 t/s vs the live 40.04,
+  and the F16 result is degenerate (bypassing almost everything → a +28% artifact). A simulation-
+  based verdict is unsound. The verdict comes from the **real-engine bypass measurement** (M4
+  lever 1) — the authoritative measurement (the live Metal drafter + the real cycle timings).
+- **Milestone 4 (DSpark runtime) — the engine implementation.** Framed + documented like
+  `summaries/dspark_runtime_milestone_3_progress.md`: each lever **env-gated default-off**, with
+  a **codex gate A** (post-smoke/pre-bench) + **codex gate B** (post-bench/pre-finalize); the
+  combined re-bench (full corpus, per-source, prompt-clustered CIs); the 20-Q no-regression gate
+  + the 92Q score-neutrality; + the **milestone-4 progress doc** (the lever table + the
+  cycle-cost attribution + the per-lever codex gates + the verdict). Each lever committed
+  separately on `dspark-research`.
+  - **M4 lever 1 — the pre-draft bypass gate (claim 1) + the real-engine measurement (the
+    PROCEED/STOP gate).** Implement the target-margin bypass (`θ_bypass`, env-gated) in ds4; the
+    M3-style smoke + codex gate A; fidelity gate (gate off → the M3 full-stack baseline reproduces).
+    Run the real engine (`ds4-spec-bench`, `mode=speculative_argmax`, with vs without the bypass,
+    `DS4_DSPARK_TIMING=1`) on the corpus → the actual speedup (the live Metal drafter + the real
+    cycle-cost attribution; CI, per-source). **PROCEED if ≥ +3% (CI excl 0); STOP → closes negative.**
+  - **[IF PROCEED] M4 lever 2 — the recalibrated STS (claim 2).** Retrain the confidence model
+    for the filtered distribution + the new `θ_sts` schedule (env-gated); smoke + codex gate A.
+  - **[IF PROCEED] M4 re-bench.** The combined measurement (the full M3 stack + levers 1+2) vs
+    the M3 baseline + the 20-Q gate + the 92Q + **codex gate B** (the realized gain).
   - **M4 propagate.** Write `summaries/dspark_runtime_milestone_4_progress.md` (structured like
     M3's) + update Lead 11 + STATUS + `spec_speedup_model.md`; archive the lead if resolved.
 
 ## Decision rule (locked before Exp 1)
 
-- **PROCEED:** the cycle-economics simulation (Exp 0) predicts a combined throughput gain
-  **≥ +3%** at the joint `(θ_bypass, θ_sts)` optimum, AND the M4 levers realize it (CI excl 0 vs
-  the M3 full-stack baseline). → implement as **Milestone 4** (the engine + the combined re-bench
-  + the milestone-4 progress doc).
+- **PROCEED:** the **real-engine bypass measurement** (M4 lever 1 — the live Metal drafter + the
+  real cycle timings via `DS4_DSPARK_TIMING`) shows a bypass speedup **≥ +3%** (CI excl 0 vs the
+  M3 full-stack baseline). → add the recalibrated STS (M4 lever 2) + the combined re-bench as
+  **Milestone 4**.
 - **MARGINAL:** +1–3%, or the gain is almost all from the bypass (claim 1) with no selection-effect
   uplift (claim 2). → land the bypass alone if it's net positive; report honestly; don't claim
   claim 2 without the recalibration proving it.
@@ -127,12 +133,11 @@ a few % is worth landing.
 
 ## Deliverables
 
-1. The unified IQ2 capture (H + logprobs, aligned, single-file-each) for the lead3 corpus.
-2. The cycle-economics simulation (Exp 0) + the joint `(θ_bypass, θ_sts)` optimum + the predicted gain.
-3. The pre-draft bypass implementation (Exp 1) + the recalibrated STS / retrained confidence model (Exp 2).
-4. The measured throughput gain (vs the M3 full-stack baseline) + the PROCEED/MARGINAL/STOP verdict.
-5. If PROCEED (**Milestone 4**): the engine implementation (M4 lever 1 the bypass + M4 lever 2
-   the recalibrated STS, env-gated, each with codex gate A) + the combined re-bench (20-Q gate,
+1. The unified IQ2 capture (H + logprobs, aligned, single-file-each) for the lead3 corpus. [DONE]
+2. The pre-draft bypass implementation (M4 lever 1) + the **real-engine measurement** (the actual
+   speedup, CI, per-source, via `DS4_DSPARK_TIMING`) + codex gate A + the PROCEED/STOP verdict.
+3. [IF PROCEED] the recalibrated STS / retrained confidence model (M4 lever 2).
+4. [IF PROCEED] the combined re-bench (the realized gain vs the M3 baseline, the 20-Q gate, the
    92Q, full corpus, per-source CIs, codex gate B) + the **milestone-4 progress doc**
    (`summaries/dspark_runtime_milestone_4_progress.md`, structured like M3's: the lever table,
    the cycle-cost attribution, the per-lever codex gates, the combined measurement, the verdict).
@@ -148,8 +153,9 @@ Lead 11 tests whether a **pre-draft target-margin bypass gate** (using the verif
 confidence, available before the draft) composed with a **recalibrated STS** can lift throughput
 ~3–5% by (1) skipping hopeless drafts and (2) raising the drafted-prefix acceptance — the one
 scheduling lever left with Lead 08 blocked and Lead 10 capped. The gate signal is already
-established (margin predicts rejection, corr −0.44); the decisive next step is the unified
-IQ2 capture + the cycle-economics simulation.
+established (margin predicts rejection, corr −0.44); the decisive next step is the real-engine
+bypass measurement (M4 lever 1 — the offline simulation was dropped: the offline drafter ≠ the
+live engine).
 
 ## Worklog
 
@@ -233,3 +239,22 @@ single-process memory (one ds4 run at a time).
   → per-anchor (target margin, conf_logits, block-acceptance); sweep `(θ_bypass, θ_sts)` →
   expected t/s (the M3 cost model: draft 7.6ms, verify_ms(verify_n) sublinear ~29@1/~53@3/~67@5,
   plain_decode ~26.2ms; the STS survival schedule `verify_n = largest K with Π sigmoid(conf_i/temp_i) ≥ θ_sts`).
+
+### 2026-07-19 — Exp 0b DROPPED: the offline drafter ≠ the live engine; pivot to the real-engine measurement
+
+- Ran the cycle-economics simulation (the D_f32 + D_f16 drafter on the unified capture's H +
+  the M3 cost model). **Both unsound:** the offline drafter does not reproduce the live engine.
+  - **D_f32:** p1 = 0.835, E[a|4] = 2.68, baseline = 59.54 t/s (vs the live 40.04) — over by ~49%
+    (the block acceptance is too high; the Lead-04 dtype-invariance held for p1 but NOT the block).
+  - **D_f16:** p1 = 0.525, E[a|4] = 1.33, baseline = 35.72 t/s (vs the live 40.04) — under, and
+    degenerate (the "joint optimum" runs to θ_bypass=8.0 → bypass almost everything → a +28%
+    artifact; the offline F16 drafter is so much worse than the live that plain-decode beats it).
+- **Neither** offline drafter matches the live Metal (p1 ~0.70, 40.04 t/s). A simulation-based
+  verdict is unsound — the offline drafter (on the captured H) diverges from the live engine.
+- **Pivot (goal tweak 2026-07-19):** drop Exp 0b. The PROCEED/STOP verdict now comes from the
+  **real-engine bypass measurement** (M4 lever 1: implement the bypass, run the actual speculative
+  decode with vs without it, `DS4_DSPARK_TIMING=1` → the real speedup with the live Metal drafter
+  + the real cycle timings). This is the authoritative measurement — no offline-drafter proxy.
+- **Next:** M4 lever 1 — implement the pre-draft bypass gate in ds4 (env-gated, default-off) +
+  the real-engine bench. (Open design question: the bypass's pre-draft signal — the current
+  logits' margin about the anchor — checking its predictiveness before the implementation.)
