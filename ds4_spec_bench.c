@@ -276,7 +276,7 @@ static void usage(FILE *fp) {
             "Engine options:\n"
             "  -m, --model FILE           Target GGUF (default: ds4flash.gguf)\n"
             "      --mtp FILE             Enable MTP drafter\n"
-            "      --dspark FILE          Enable DSpark drafter\n"
+            "      --dspark FILE          Enable DSpark drafter (M3 default speculative stack)\n"
             "      --backend NAME         metal | cuda | rocm | cpu\n"
             "      --metal | --cuda | --rocm | --cpu\n"
             "  -t, --threads N            CPU threads\n"

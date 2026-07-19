@@ -818,9 +818,13 @@ static bool parse_reasoning_effort_name(const char *s, ds4_think_mode *out) {
 static bool server_should_speculate(float temperature,
                                     int mtp_draft_tokens,
                                     bool has_dspark) {
-    return temperature <= 0.0f &&
-           (mtp_draft_tokens > 1 || has_dspark) &&
-           getenv("DS4_MTP_SPEC_DISABLE") == NULL;
+    /* M3 default (2026-07-19): --dspark speculates at any temperature (the batched
+     * verify is score-neutral at temp=0 and distribution-close at temp>0 with
+     * TV ~0.0104). --mtp stays gated to temp<=0 (its path was never measured at
+     * temp>0). DS4_MTP_SPEC_DISABLE still forces plain decode for both. */
+    if (getenv("DS4_MTP_SPEC_DISABLE") != NULL) return false;
+    if (has_dspark) return true;
+    return temperature <= 0.0f && mtp_draft_tokens > 1;
 }
 
 static bool parse_reasoning_effort_value(const char **p, ds4_think_mode *out) {
@@ -13051,10 +13055,14 @@ static void test_server_should_speculate_gate(void) {
         saved = xstrdup(cur);
     }
     unsetenv("DS4_MTP_SPEC_DISABLE");
+    /* --mtp path: temp<=0 only. */
     TEST_ASSERT(server_should_speculate(0.0f, 2, false));
-    TEST_ASSERT(server_should_speculate(0.0f, 1, true));
-    TEST_ASSERT(!server_should_speculate(0.1f, 2, true));
+    TEST_ASSERT(!server_should_speculate(0.1f, 2, false));
     TEST_ASSERT(!server_should_speculate(0.0f, 1, false));
+    /* --dspark path (M3 default): any temperature. */
+    TEST_ASSERT(server_should_speculate(0.0f, 1, true));
+    TEST_ASSERT(server_should_speculate(0.5f, 1, true));
+    TEST_ASSERT(server_should_speculate(0.1f, 2, true));
     setenv("DS4_MTP_SPEC_DISABLE", "1", 1);
     TEST_ASSERT(!server_should_speculate(0.0f, 2, false));
     TEST_ASSERT(!server_should_speculate(0.0f, 1, true));

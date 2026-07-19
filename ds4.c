@@ -28543,40 +28543,49 @@ static bool dspark_verify_dist_probe_enabled(void) {
 /* Milestone 3: committing batched (sublinear) verify for the DSpark path. When enabled,
  * the DSpark verify commits the accepted prefix via metal_graph_verify_suffix_tops
  * (sublinear weight-loading, STS-driven verify_n ~ E[a], no oververify) instead of the
- * sequential short-circuiting verify. Env-gated default-off; the exact sequential verify
- * remains the greedy-exact fallback (default when off). Requires the per-position batched
- * DSpark capture (layers 40-42) so the window-state push works for batch-verified tokens. */
+ * sequential short-circuiting verify. M3 default (2026-07-19): ON whenever --dspark is
+ * loaded, opt-out via DS4_DSPARK_VERIFY_BATCHED=0|off. The exact sequential verify
+ * remains reachable as a fallback by disabling this gate (and the other M3 levers);
+ * it is greedy-exact / distribution-exact but does not clear baseline. Requires the
+ * per-position batched DSpark capture (layers 40-42) so the window-state push works
+ * for batch-verified tokens. */
 static bool dspark_verify_batched_enabled(void) {
     const char *e = getenv("DS4_DSPARK_VERIFY_BATCHED");
-    return e && strcmp(e, "0") && strcasecmp(e, "off");
+    if (e && (!strcmp(e, "0") || !strcasecmp(e, "off"))) return false;
+    return true;  /* M3 default: ON; opt-out via =0|=off */
 }
 
 static bool dspark_anchor_reuse_enabled(void) {
     const char *e = getenv("DS4_DSPARK_ANCHOR_REUSE");
-    return e && strcmp(e, "0") && strcasecmp(e, "off");
+    if (e && (!strcmp(e, "0") || !strcasecmp(e, "off"))) return false;
+    return true;  /* M3 default: ON */
 }
 
 static bool dspark_output_batched_enabled(void) {
     const char *e = getenv("DS4_DSPARK_OUTPUT_BATCHED");
-    return e && strcmp(e, "0") && strcasecmp(e, "off");
+    if (e && (!strcmp(e, "0") || !strcasecmp(e, "off"))) return false;
+    return true;  /* M3 default: ON */
 }
 
 static bool dspark_prefix_checkpoint_enabled(void) {
     const char *e = getenv("DS4_DSPARK_VERIFY_PREFIX_CHECKPOINT");
-    return e && strcmp(e, "0") && strcasecmp(e, "off");
+    if (e && (!strcmp(e, "0") || !strcasecmp(e, "off"))) return false;
+    return true;  /* M3 default: ON */
 }
 
 static bool dspark_draft_metal_enabled(void) {
     const char *e = getenv("DS4_DSPARK_DRAFT_METAL");
-    return e && strcmp(e, "0") && strcasecmp(e, "off");
+    if (e && (!strcmp(e, "0") || !strcasecmp(e, "off"))) return false;
+    return true;  /* M3 default: ON */
 }
 
 /* m3 lever 3 STS composition: when on, the Metal drafter computes the learned
  * confidence (conf_logits via the conf_proj head) + the STS adapts the batch
- * verify_n. Off (default) = fixed verify_n = draft_n. Requires the Metal drafter. */
+ * verify_n. M3 default (2026-07-19): ON; opt-out via =0|=off. Requires the Metal drafter. */
 static bool dspark_metal_sts_enabled(void) {
     const char *e = getenv("DS4_DSPARK_DRAFT_METAL_STS");
-    return e && strcmp(e, "0") && strcasecmp(e, "off");
+    if (e && (!strcmp(e, "0") || !strcasecmp(e, "off"))) return false;
+    return true;  /* M3 default: ON */
 }
 
 static float dspark_schedule_threshold(void) {
