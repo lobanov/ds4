@@ -1,0 +1,636 @@
+{
+  "n_prompts": 60,
+  "max_step": 3,
+  "loss": "CE vs sel (hard-label proxy)",
+  "type_rank": [
+    {
+      "type": "hc_ffn",
+      "mean_ratio": 50.79353662029906,
+      "n": 9
+    },
+    {
+      "type": "hc_attn",
+      "mean_ratio": 44.78242485890084,
+      "n": 9
+    },
+    {
+      "type": "head:hc_fn",
+      "mean_ratio": 22.547944819498536,
+      "n": 1
+    },
+    {
+      "type": "main_norm",
+      "mean_ratio": 0.13265316984174558,
+      "n": 1
+    },
+    {
+      "type": "head:hc_scale",
+      "mean_ratio": 0.03319681356642528,
+      "n": 1
+    },
+    {
+      "type": "attn",
+      "mean_ratio": 0.03219170795057397,
+      "n": 27
+    },
+    {
+      "type": "head:hc_base",
+      "mean_ratio": 0.023648441021921596,
+      "n": 1
+    },
+    {
+      "type": "ffn_norm",
+      "mean_ratio": 0.018178112344437815,
+      "n": 3
+    },
+    {
+      "type": "head:norm_w",
+      "mean_ratio": 0.014420573121808137,
+      "n": 1
+    },
+    {
+      "type": "main_proj",
+      "mean_ratio": 0.003785989687025146,
+      "n": 1
+    },
+    {
+      "type": "router",
+      "mean_ratio": 0.0028370622680767518,
+      "n": 3
+    },
+    {
+      "type": "shared_expert",
+      "mean_ratio": 0.002740169846689545,
+      "n": 9
+    },
+    {
+      "type": "head:lm_head",
+      "mean_ratio": 0.00014127059479336268,
+      "n": 1
+    },
+    {
+      "type": "head:markov_w2",
+      "mean_ratio": 0.00012024136020477163,
+      "n": 1
+    },
+    {
+      "type": "head:markov_w1",
+      "mean_ratio": 4.8107585103071976e-05,
+      "n": 1
+    }
+  ],
+  "per_weight": [
+    {
+      "name": "L2_hc_attn_scale",
+      "type": "hc_attn",
+      "layer": "2",
+      "grad_norm": 17.696861267089844,
+      "weight_norm": 0.05516105890274048,
+      "ratio": 320.8216379234485
+    },
+    {
+      "name": "L2_hc_ffn_scale",
+      "type": "hc_ffn",
+      "layer": "2",
+      "grad_norm": 17.28388214111328,
+      "weight_norm": 0.06059291958808899,
+      "ratio": 285.2459042793113
+    },
+    {
+      "name": "L1_hc_ffn_scale",
+      "type": "hc_ffn",
+      "layer": "1",
+      "grad_norm": 16.99163055419922,
+      "weight_norm": 0.10317236930131912,
+      "ratio": 164.69167732699609
+    },
+    {
+      "name": "L1_hc_attn_scale",
+      "type": "hc_attn",
+      "layer": "1",
+      "grad_norm": 4.250889778137207,
+      "weight_norm": 0.05401147902011871,
+      "ratio": 78.7034507326691
+    },
+    {
+      "name": "head.hc_fn",
+      "type": "head:hc_fn",
+      "layer": "-",
+      "grad_norm": 17.363317489624023,
+      "weight_norm": 0.7700620889663696,
+      "ratio": 22.547944819498536
+    },
+    {
+      "name": "L0_hc_ffn_scale",
+      "type": "hc_ffn",
+      "layer": "0",
+      "grad_norm": 2.250438690185547,
+      "weight_norm": 0.3135280907154083,
+      "ratio": 7.177789668043201
+    },
+    {
+      "name": "L0_hc_attn_scale",
+      "type": "hc_attn",
+      "layer": "0",
+      "grad_norm": 6.436615467071533,
+      "weight_norm": 1.8501520156860352,
+      "ratio": 3.4789657349757617
+    },
+    {
+      "name": "L0_attn_norm",
+      "type": "attn",
+      "layer": "0",
+      "grad_norm": 0.7533111572265625,
+      "weight_norm": 3.835127830505371,
+      "ratio": 0.19642400215043132
+    },
+    {
+      "name": "L0_q_a_norm",
+      "type": "attn",
+      "layer": "0",
+      "grad_norm": 0.49684280157089233,
+      "weight_norm": 2.62959623336792,
+      "ratio": 0.18894261988440703
+    },
+    {
+      "name": "main_norm",
+      "type": "main_norm",
+      "layer": "-",
+      "grad_norm": 0.7517150640487671,
+      "weight_norm": 5.6667704582214355,
+      "ratio": 0.13265316984174558
+    },
+    {
+      "name": "L2_q_a_norm",
+      "type": "attn",
+      "layer": "2",
+      "grad_norm": 0.3795923590660095,
+      "weight_norm": 3.116572856903076,
+      "ratio": 0.12179800585284146
+    },
+    {
+      "name": "L1_q_a_norm",
+      "type": "attn",
+      "layer": "1",
+      "grad_norm": 0.339878112077713,
+      "weight_norm": 2.861429214477539,
+      "ratio": 0.11877914377820864
+    },
+    {
+      "name": "L1_attn_norm",
+      "type": "attn",
+      "layer": "1",
+      "grad_norm": 0.36972254514694214,
+      "weight_norm": 4.198072910308838,
+      "ratio": 0.08806958646167364
+    },
+    {
+      "name": "L2_attn_norm",
+      "type": "attn",
+      "layer": "2",
+      "grad_norm": 0.3667818307876587,
+      "weight_norm": 4.281190395355225,
+      "ratio": 0.08567286126435868
+    },
+    {
+      "name": "head.hc_scale",
+      "type": "head:hc_scale",
+      "layer": "-",
+      "grad_norm": 0.035160645842552185,
+      "weight_norm": 1.0591572523117065,
+      "ratio": 0.03319681356642528
+    },
+    {
+      "name": "L0_ffn_norm",
+      "type": "ffn_norm",
+      "layer": "0",
+      "grad_norm": 0.32113367319107056,
+      "weight_norm": 12.571884155273438,
+      "ratio": 0.025543798306186378
+    },
+    {
+      "name": "head.hc_base",
+      "type": "head:hc_base",
+      "layer": "-",
+      "grad_norm": 0.15926390886306763,
+      "weight_norm": 6.734647274017334,
+      "ratio": 0.023648441021921596
+    },
+    {
+      "name": "L1_ffn_norm",
+      "type": "ffn_norm",
+      "layer": "1",
+      "grad_norm": 0.24513354897499084,
+      "weight_norm": 15.636595726013184,
+      "ratio": 0.015676912882461286
+    },
+    {
+      "name": "head.norm_w",
+      "type": "head:norm_w",
+      "layer": "-",
+      "grad_norm": 0.2662355899810791,
+      "weight_norm": 18.46220588684082,
+      "ratio": 0.014420573121808137
+    },
+    {
+      "name": "L2_ffn_norm",
+      "type": "ffn_norm",
+      "layer": "2",
+      "grad_norm": 0.22707796096801758,
+      "weight_norm": 17.05605697631836,
+      "ratio": 0.013313625844665786
+    },
+    {
+      "name": "L0_kv_a_norm",
+      "type": "attn",
+      "layer": "0",
+      "grad_norm": 0.2410905510187149,
+      "weight_norm": 20.260156631469727,
+      "ratio": 0.011899737766302435
+    },
+    {
+      "name": "L1_hc_attn_base",
+      "type": "hc_attn",
+      "layer": "1",
+      "grad_norm": 0.1510169506072998,
+      "weight_norm": 12.756133079528809,
+      "ratio": 0.011838771959007054
+    },
+    {
+      "name": "L1_hc_ffn_base",
+      "type": "hc_ffn",
+      "layer": "1",
+      "grad_norm": 0.13073943555355072,
+      "weight_norm": 12.954028129577637,
+      "ratio": 0.01009256999025857
+    },
+    {
+      "name": "L0_kv",
+      "type": "attn",
+      "layer": "0",
+      "grad_norm": 0.9387471079826355,
+      "weight_norm": 95.00830841064453,
+      "ratio": 0.009880684370520278
+    },
+    {
+      "name": "L2_hc_attn_base",
+      "type": "hc_attn",
+      "layer": "2",
+      "grad_norm": 0.12856702506542206,
+      "weight_norm": 13.025696754455566,
+      "ratio": 0.009870260876558068
+    },
+    {
+      "name": "L0_hc_attn_fn",
+      "type": "hc_attn",
+      "layer": "0",
+      "grad_norm": 0.15881991386413574,
+      "weight_norm": 18.678483963012695,
+      "ratio": 0.008502826791436815
+    },
+    {
+      "name": "L2_ffn_down_shexp",
+      "type": "shared_expert",
+      "layer": "2",
+      "grad_norm": 1.006943941116333,
+      "weight_norm": 144.19900512695312,
+      "ratio": 0.006983015869144246
+    },
+    {
+      "name": "L2_hc_ffn_base",
+      "type": "hc_ffn",
+      "layer": "2",
+      "grad_norm": 0.08954412490129471,
+      "weight_norm": 12.955836296081543,
+      "ratio": 0.006911489374743811
+    },
+    {
+      "name": "L1_kv_a_norm",
+      "type": "attn",
+      "layer": "1",
+      "grad_norm": 0.15660133957862854,
+      "weight_norm": 25.38827133178711,
+      "ratio": 0.006168255314908005
+    },
+    {
+      "name": "L1_kv",
+      "type": "attn",
+      "layer": "1",
+      "grad_norm": 0.5210683345794678,
+      "weight_norm": 96.92967224121094,
+      "ratio": 0.005375736062356386
+    },
+    {
+      "name": "L2_attn_sinks",
+      "type": "attn",
+      "layer": "2",
+      "grad_norm": 0.031160367652773857,
+      "weight_norm": 6.374853134155273,
+      "ratio": 0.004888013417253103
+    },
+    {
+      "name": "L2_kv",
+      "type": "attn",
+      "layer": "2",
+      "grad_norm": 0.43654075264930725,
+      "weight_norm": 97.38338470458984,
+      "ratio": 0.004482702608597336
+    },
+    {
+      "name": "L0_hc_attn_base",
+      "type": "hc_attn",
+      "layer": "0",
+      "grad_norm": 0.05445452407002449,
+      "weight_norm": 13.889120101928711,
+      "ratio": 0.0039206604644781455
+    },
+    {
+      "name": "L0_q_a",
+      "type": "attn",
+      "layer": "0",
+      "grad_norm": 0.49660515785217285,
+      "weight_norm": 130.73619079589844,
+      "ratio": 0.0037985285851524823
+    },
+    {
+      "name": "main_proj",
+      "type": "main_proj",
+      "layer": "-",
+      "grad_norm": 1.3118042945861816,
+      "weight_norm": 346.4891357421875,
+      "ratio": 0.003785989687025146
+    },
+    {
+      "name": "L1_ffn_gate_inp",
+      "type": "router",
+      "layer": "1",
+      "grad_norm": 0.26503077149391174,
+      "weight_norm": 74.94657135009766,
+      "ratio": 0.003536262789872947
+    },
+    {
+      "name": "L2_kv_a_norm",
+      "type": "attn",
+      "layer": "2",
+      "grad_norm": 0.09291291236877441,
+      "weight_norm": 26.85835838317871,
+      "ratio": 0.0034593667655787174
+    },
+    {
+      "name": "L0_output_a",
+      "type": "attn",
+      "layer": "0",
+      "grad_norm": 1.3721734285354614,
+      "weight_norm": 411.9757995605469,
+      "ratio": 0.003330713672985526
+    },
+    {
+      "name": "L2_ffn_gate_shexp",
+      "type": "shared_expert",
+      "layer": "2",
+      "grad_norm": 0.43238839507102966,
+      "weight_norm": 132.1308135986328,
+      "ratio": 0.0032724266451917196
+    },
+    {
+      "name": "L1_hc_ffn_fn",
+      "type": "hc_ffn",
+      "layer": "1",
+      "grad_norm": 0.23992884159088135,
+      "weight_norm": 77.9627914428711,
+      "ratio": 0.0030774788479282617
+    },
+    {
+      "name": "L0_ffn_gate_inp",
+      "type": "router",
+      "layer": "0",
+      "grad_norm": 0.24144580960273743,
+      "weight_norm": 80.24980926513672,
+      "ratio": 0.003008677675544667
+    },
+    {
+      "name": "L2_hc_ffn_fn",
+      "type": "hc_ffn",
+      "layer": "2",
+      "grad_norm": 0.22696341574192047,
+      "weight_norm": 77.16912841796875,
+      "ratio": 0.0029411167444139403
+    },
+    {
+      "name": "L0_ffn_down_shexp",
+      "type": "shared_expert",
+      "layer": "0",
+      "grad_norm": 0.3891378343105316,
+      "weight_norm": 135.7030029296875,
+      "ratio": 0.0028675698098748394
+    },
+    {
+      "name": "L0_ffn_up_shexp",
+      "type": "shared_expert",
+      "layer": "0",
+      "grad_norm": 0.32715868949890137,
+      "weight_norm": 131.0148468017578,
+      "ratio": 0.0024971115677746947
+    },
+    {
+      "name": "L2_q_a",
+      "type": "attn",
+      "layer": "2",
+      "grad_norm": 0.2938331961631775,
+      "weight_norm": 124.4348373413086,
+      "ratio": 0.00236134190746944
+    },
+    {
+      "name": "L2_hc_attn_fn",
+      "type": "hc_attn",
+      "layer": "2",
+      "grad_norm": 0.2079388052225113,
+      "weight_norm": 89.20152282714844,
+      "ratio": 0.0023311127280354334
+    },
+    {
+      "name": "L0_output_b",
+      "type": "attn",
+      "layer": "0",
+      "grad_norm": 0.8128455281257629,
+      "weight_norm": 357.34228515625,
+      "ratio": 0.0022746972913388606
+    },
+    {
+      "name": "L2_ffn_up_shexp",
+      "type": "shared_expert",
+      "layer": "2",
+      "grad_norm": 0.3370247781276703,
+      "weight_norm": 154.15579223632812,
+      "ratio": 0.00218626088088207
+    },
+    {
+      "name": "L0_hc_ffn_base",
+      "type": "hc_ffn",
+      "layer": "0",
+      "grad_norm": 0.029827702790498734,
+      "weight_norm": 13.775562286376953,
+      "ratio": 0.002165262090244696
+    },
+    {
+      "name": "L1_q_a",
+      "type": "attn",
+      "layer": "1",
+      "grad_norm": 0.2639273405075073,
+      "weight_norm": 123.66265869140625,
+      "ratio": 0.0021342525164861786
+    },
+    {
+      "name": "L2_ffn_gate_inp",
+      "type": "router",
+      "layer": "2",
+      "grad_norm": 0.13701632618904114,
+      "weight_norm": 69.68421173095703,
+      "ratio": 0.0019662463388126416
+    },
+    {
+      "name": "L0_ffn_gate_shexp",
+      "type": "shared_expert",
+      "layer": "0",
+      "grad_norm": 0.2545400559902191,
+      "weight_norm": 135.40338134765625,
+      "ratio": 0.0018798648413119795
+    },
+    {
+      "name": "L1_ffn_down_shexp",
+      "type": "shared_expert",
+      "layer": "1",
+      "grad_norm": 0.2627545893192291,
+      "weight_norm": 151.4688262939453,
+      "ratio": 0.0017347106711536626
+    },
+    {
+      "name": "L1_output_a",
+      "type": "attn",
+      "layer": "1",
+      "grad_norm": 0.7133121490478516,
+      "weight_norm": 411.7633056640625,
+      "ratio": 0.0017323353956892075
+    },
+    {
+      "name": "L1_ffn_up_shexp",
+      "type": "shared_expert",
+      "layer": "1",
+      "grad_norm": 0.25475645065307617,
+      "weight_norm": 150.5517120361328,
+      "ratio": 0.0016921524651405642
+    },
+    {
+      "name": "L1_ffn_gate_shexp",
+      "type": "shared_expert",
+      "layer": "1",
+      "grad_norm": 0.2129935622215271,
+      "weight_norm": 137.5557861328125,
+      "ratio": 0.0015484158697321288
+    },
+    {
+      "name": "L1_output_b",
+      "type": "attn",
+      "layer": "1",
+      "grad_norm": 0.4871443808078766,
+      "weight_norm": 331.0704040527344,
+      "ratio": 0.001471422316355045
+    },
+    {
+      "name": "L0_q_b",
+      "type": "attn",
+      "layer": "0",
+      "grad_norm": 0.5286000967025757,
+      "weight_norm": 367.4193420410156,
+      "ratio": 0.0014386833686169023
+    },
+    {
+      "name": "L1_hc_attn_fn",
+      "type": "hc_attn",
+      "layer": "1",
+      "grad_norm": 0.20915549993515015,
+      "weight_norm": 160.18572998046875,
+      "ratio": 0.001305706194681954
+    },
+    {
+      "name": "L0_hc_ffn_fn",
+      "type": "hc_ffn",
+      "layer": "0",
+      "grad_norm": 0.06721020489931107,
+      "weight_norm": 52.905120849609375,
+      "ratio": 0.0012703912933185568
+    },
+    {
+      "name": "L2_q_b",
+      "type": "attn",
+      "layer": "2",
+      "grad_norm": 0.3668535351753235,
+      "weight_norm": 362.33477783203125,
+      "ratio": 0.0010124712216981445
+    },
+    {
+      "name": "L2_output_b",
+      "type": "attn",
+      "layer": "2",
+      "grad_norm": 0.33140334486961365,
+      "weight_norm": 328.2434997558594,
+      "ratio": 0.0010096265276116768
+    },
+    {
+      "name": "L2_output_a",
+      "type": "attn",
+      "layer": "2",
+      "grad_norm": 0.40796738862991333,
+      "weight_norm": 411.8155212402344,
+      "ratio": 0.0009906556882588278
+    },
+    {
+      "name": "L1_q_b",
+      "type": "attn",
+      "layer": "1",
+      "grad_norm": 0.34632986783981323,
+      "weight_norm": 360.1935119628906,
+      "ratio": 0.0009615105667852598
+    },
+    {
+      "name": "L1_attn_sinks",
+      "type": "attn",
+      "layer": "1",
+      "grad_norm": 0.0043611591681838036,
+      "weight_norm": 6.726642608642578,
+      "ratio": 0.0006483411445971303
+    },
+    {
+      "name": "L0_attn_sinks",
+      "type": "attn",
+      "layer": "0",
+      "grad_norm": 0.0010546173434704542,
+      "weight_norm": 6.173896312713623,
+      "ratio": 0.0001708187650153045
+    },
+    {
+      "name": "head.lm_head",
+      "type": "head:lm_head",
+      "layer": "-",
+      "grad_norm": 0.5780554413795471,
+      "weight_norm": 4091.831298828125,
+      "ratio": 0.00014127059479336268
+    },
+    {
+      "name": "head.markov_w2",
+      "type": "head:markov_w2",
+      "layer": "-",
+      "grad_norm": 0.3042229413986206,
+      "weight_norm": 2530.102294921875,
+      "ratio": 0.00012024136020477163
+    },
+    {
+      "name": "head.markov_w1",
+      "type": "head:markov_w1",
+      "layer": "-",
+      "grad_norm": 0.1477735936641693,
+      "weight_norm": 3071.731689453125,
+      "ratio": 4.8107585103071976e-05
+    }
+  ]
+}

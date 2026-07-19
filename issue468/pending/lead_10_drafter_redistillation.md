@@ -251,6 +251,26 @@ learning curve, the +2 pp verdict needs only ~60 held-out prompts.
 
 ## Worklog
 
+### 2026-07-19 — Phase-0 gradient probe run (the LoRA-target ranking)
+
+- Probe on the Lead-11 unified capture (`lead3_h.bin`, 60 prompts, max_step=3, **F32** — F16
+  backward NaN'd through the MoE/rmsnorm; max_step=3 to fit the ~9 GB/step MoE activation
+  retention within the 182 GB MPS limit). Experts frozen (verified `exp_gate.grad is None`).
+  Loss: **CE vs sel** (the soft labels were dropped in Lead-11's Exp-0a consolidation — a
+  Phase-1 re-capture item; CE is a valid probe proxy). Result: `artifacts/lead10_phase0/{gradient_probe_result.json, probe_summary.md, gradient_probe.py}`.
+- **Finding (raw ‖∇W‖, matrices):** `head.hc_fn` (17.4) ≫ `main_proj` (1.3) > `head.lm_head`
+  (0.58) ≈ attn projections (0.55) > `shared_expert` (0.39) > router (0.21) > body
+  `hc_attn_fn`/`hc_ffn_fn` (0.19/0.18). The ‖∇W‖/‖W‖ ratio inflated the tiny HC-scale weights
+  (a known artifact — those are scalar/vector, excluded from the LoRA set). **The IQ2-mismatch
+  gradient concentrates at the OUTPUT (head.hc_fn, lm_head) + the INPUT (main_proj) + the
+  attention — NOT in the body's HC mixing.** Suggested set: train head.hc_fn directly (65k
+  params); LoRA main_proj + attn + lm_head + shared_expert.
+- **Caveat (for codex gate A):** head.hc_fn's dominance may be partly Sinkhorn-iteration
+  gradient amplification — the ablation must confirm it generalizes.
+- **Deferred:** the per-target LoRA ablation (Phase-0 part 2) needs the training setup (body
+  LoRA not yet built; head LoRA exists from Stage 2) + the labels (soft labels missing) →
+  folded into Phase 1's first training runs (which ablate the targets).
+
 ### 2026-07-19 — Lead 11 unified soft-label capture available → Phase 0 unblocked (pre-execution)
 
 - Lead 11's unified capture (`issue468/artifacts/lead11_unified_capture/`) produced H_iq2 +
