@@ -1,6 +1,9 @@
 # Lead 11 — Target-confidence draft bypass + STS recalibration (a two-stage scheduler)
 
-Date: 2026-07-19. Status: **proposed (not yet started).**
+Date: 2026-07-19. Status: **in progress (research-lead skill; Exp 0a done, Exp 0b next).**
+The engine implementation (if the Exp-0 verdict is PROCEED) is framed as **Milestone 4 (DSpark
+runtime)** — structured + documented like `summaries/dspark_runtime_milestone_3_progress.md` (see
+Scope).
 
 ## Purpose / hypothesis
 
@@ -76,20 +79,31 @@ population → a different optimal `verify_n`), so they must be **jointly** tune
   (b) A **cycle-economics simulation**: per cycle (target margin, drafter first-draft success,
   per-position verify cost from the M3 timing model), sweep `(θ_bypass, θ_sts)` → expected t/s.
   Sizes the gain + finds the joint optimum, with no ds4 changes.
-- **Exp 1 — the bypass (claim 1).** Implement the pre-draft target-margin gate in ds4 → measure
-  the speedup from skipping the draft on bypassed cycles (vs the false-skip cost).
-- **Exp 2 — the STS recalibration (claim 2).** Recalibrate `θ_sts` for the filtered population
-  + retrain the confidence model (the `conf_proj`/temp, or the confidence head) on the filtered
-  distribution → measure the acceptance + throughput gain on the drafted cycles.
-- **Exp 3 — the engine implementation (conditional).** If Exp 1+2 clear the bar, land the full
-  two-stage scheduler in ds4 (the pre-draft gate + the recalibrated STS), re-bench the M3 stack,
-  the 20-Q gate, + the 92Q.
+- **Milestone 4 (DSpark runtime) — the engine implementation, conditional on Exp 0 PROCEED.**
+  Framed + documented like `summaries/dspark_runtime_milestone_3_progress.md`: each lever
+  **env-gated default-off**, with a **codex gate A** (post-smoke/pre-bench) + **codex gate B**
+  (post-bench/pre-finalize); the combined re-bench (full corpus, per-source, prompt-clustered
+  CIs); the 20-Q no-regression gate + the 92Q score-neutrality; + the **milestone-4 progress doc**
+  (the lever table + the cycle-cost attribution + the per-lever codex gates + the verdict) as
+  the canonical record. Each lever committed separately on `dspark-research`.
+  - **M4 lever 1 — the pre-draft bypass gate (claim 1).** Implement the target-margin bypass
+    (`θ_bypass`, env-gated) in ds4; the M3-style smoke + codex gate A; fidelity gate (gate off →
+    the M3 full-stack baseline reproduces bit-token-for-token).
+  - **M4 lever 2 — the recalibrated STS (claim 2).** Retrain the confidence model for the
+    filtered (bypass-filtered) distribution + the new `θ_sts` schedule (env-gated); smoke +
+    codex gate A.
+  - **M4 re-bench.** The combined measurement (the full M3 stack + levers 1+2) vs the M3
+    baseline + the 20-Q no-regression gate + the 92Q score-neutrality + **codex gate B** (the
+    realized gain vs the Exp-0 prediction; post-bench/pre-finalize).
+  - **M4 propagate.** Write `summaries/dspark_runtime_milestone_4_progress.md` (structured like
+    M3's) + update Lead 11 + STATUS + `spec_speedup_model.md`; archive the lead if resolved.
 
 ## Decision rule (locked before Exp 1)
 
 - **PROCEED:** the cycle-economics simulation (Exp 0) predicts a combined throughput gain
-  **≥ +3%** at the joint `(θ_bypass, θ_sts)` optimum, AND Exp 1+2 realize it (CI excl 0 vs the
-  M3 full-stack baseline). → implement in the engine (Exp 3).
+  **≥ +3%** at the joint `(θ_bypass, θ_sts)` optimum, AND the M4 levers realize it (CI excl 0 vs
+  the M3 full-stack baseline). → implement as **Milestone 4** (the engine + the combined re-bench
+  + the milestone-4 progress doc).
 - **MARGINAL:** +1–3%, or the gain is almost all from the bypass (claim 1) with no selection-effect
   uplift (claim 2). → land the bypass alone if it's net positive; report honestly; don't claim
   claim 2 without the recalibration proving it.
@@ -117,7 +131,11 @@ a few % is worth landing.
 2. The cycle-economics simulation (Exp 0) + the joint `(θ_bypass, θ_sts)` optimum + the predicted gain.
 3. The pre-draft bypass implementation (Exp 1) + the recalibrated STS / retrained confidence model (Exp 2).
 4. The measured throughput gain (vs the M3 full-stack baseline) + the PROCEED/MARGINAL/STOP verdict.
-5. If PROCEED: the engine implementation (Exp 3) + the re-bench (20-Q gate, 92Q, full corpus).
+5. If PROCEED (**Milestone 4**): the engine implementation (M4 lever 1 the bypass + M4 lever 2
+   the recalibrated STS, env-gated, each with codex gate A) + the combined re-bench (20-Q gate,
+   92Q, full corpus, per-source CIs, codex gate B) + the **milestone-4 progress doc**
+   (`summaries/dspark_runtime_milestone_4_progress.md`, structured like M3's: the lever table,
+   the cycle-cost attribution, the per-lever codex gates, the combined measurement, the verdict).
 
 ## Exit conditions
 
@@ -196,3 +214,22 @@ single-process memory (one ds4 run at a time).
 
 **Next:** Exp 0a — add the consolidated single-file H dump to ds4-spec-bench + the unified capture
 (open implementation question: is `dspark_main_hidden` accessible from the bench for a single-file dump?).
+
+### 2026-07-19 — Exp 0a DONE: the unified H+logprobs capture (aligned)
+
+- Added the **consolidated single-file H dump** (`--dump-hidden-single`, prompt_id-prefixed records)
+  to ds4-spec-bench + ds4.c (backwards-compatible — the prefix is omitted when the env is unset).
+  Run the unified capture on the lead3 corpus → `issue468/artifacts/lead11_unified_capture/lead3_h.bin`
+  (single, 273MB) + `lead3_logprobs.jsonl` (single, 5811 records), **one run → aligned by
+  construction**. Both are single files (no many small files).
+- **FIDELITY GATE PASS:** H.tok == logprobs.sel at 5811/5811 (100%), positions fully overlap. The
+  lead3-misalignment finding is **resolved** (the unified capture aligns by construction). Commit a6887cc.
+- **Goal tweak (2026-07-19):** the engine implementation (Exp 1–3) is reframed as **Milestone 4
+  (DSpark runtime)**, structured + documented like the M3 progress doc — each lever env-gated
+  default-off with codex gates A/B, the combined re-bench, the 20-Q/92Q gates, + a milestone-4
+  progress doc. The Scope/Deliverables above are updated accordingly; the goal's task list is
+  split into per-lever M4 tasks (m4-lever1-bypass, m4-lever2-sts, m4-rebench, m4-propagate).
+- **Next:** Exp 0b — the cycle-economics simulation. Run the D_f32 drafter on the H (lead3_h.bin)
+  → per-anchor (target margin, conf_logits, block-acceptance); sweep `(θ_bypass, θ_sts)` →
+  expected t/s (the M3 cost model: draft 7.6ms, verify_ms(verify_n) sublinear ~29@1/~53@3/~67@5,
+  plain_decode ~26.2ms; the STS survival schedule `verify_n = largest K with Π sigmoid(conf_i/temp_i) ≥ θ_sts`).
