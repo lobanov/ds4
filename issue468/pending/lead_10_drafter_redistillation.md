@@ -251,6 +251,20 @@ learning curve, the +2 pp verdict needs only ~60 held-out prompts.
 
 ## Worklog
 
+### 2026-07-19 — head.hc_fn KL ablation (codex exp #2): +2.58 pp, CONFIRMS the CE result
+
+- Re-captured the lead3 soft labels (`ds4-spec-bench --dump-logprobs-jsonl`, top-128) →
+  `artifacts/lead10_phase1/lead3_logprobs_recapture.jsonl` (5,811 anchors, `{id,pos,sel,top}`;
+  **0 mismatches vs lead3_h.bin** — the recapture is aligned with the original trajectory).
+- The head.hc_fn KL ablation (`head_hcfn_kl_ablation.py`, rank=32, 12 epochs, KL vs the IQ2
+  top-128): baseline p1 = 0.8501; trained p1 = 0.8759; **delta = +2.58 pp**. The KL (the goal's
+  specified loss) **confirms** the CE result (+2.41 pp) — head.hc_fn generalizes under both.
+  The codex's concern (the KL might rank differently) didn't materialize (the IQ2 teacher is
+  peaked — top token ~99.75% — so KL ≈ CE for the dominant positions; the KL edges slightly
+  higher, +2.58 vs +2.41).
+- **Net:** head.hc_fn-only clears the +2 pp PROCEED bar under BOTH CE + KL (on the 20-prompt
+  eval). The decisive-test + its KL confirmation are both positive.
+
 ### 2026-07-19 — head.hc_fn ablation (codex's decisive test): +2.41 pp, GENERALIZES
 
 - The head.hc_fn-only LoRA ablation (`artifacts/lead10_phase1/head_hcfn_ablation.py`): rank=32,

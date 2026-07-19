@@ -1,0 +1,9 @@
+{
+  "baseline_p1": 0.8500842223469961,
+  "trained_p1": 0.8759124087591241,
+  "delta": 0.02582818641212803,
+  "loss": "KL vs IQ2 top-128",
+  "rank": 32,
+  "epochs": 12,
+  "ce_reference_delta": 0.0241
+}
