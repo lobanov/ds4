@@ -251,6 +251,26 @@ learning curve, the +2 pp verdict needs only ~60 held-out prompts.
 
 ## Worklog
 
+### 2026-07-19 — codex gate A (Phase-0 probe methodology) → corrections + decisive test
+
+- Codex review (gpt-5.5 xhigh, retained: `artifacts/dspark_codex_reviews/2026-07-19_lead10_phase0_gateA.md`)
+  + my independent verification:
+  - **Sinkhorn caveat REFUTED (my error):** the head's `hc_head` is a SIGMOID reduce
+    (`drafter_head.py:78`), not the body's iterative Sinkhorn (`hc_primitives.hc_split_sinkhorn`)
+    → `head.hc_fn`'s dominance is a REAL local CE sensitivity (the 65k matrix gates the final
+    4×4096 HC state before the output), not a gradient artifact. Corrected in `probe_summary.md`.
+  - **Metric: raw ‖∇W‖ is size-confounded.** RMS re-rank (‖∇W‖/√n) keeps `head.hc_fn` #1
+    (~100×) but DEMOTES `lm_head` (RMS 2.51e-5 — 530M params, inflated under raw norm).
+    Verified by recomputing from the shapes.
+  - **`lm_head` + `embed_w` are TARGET-loaded** (shared with the verifier —
+    `drafter_body.py:206`, `drafter_head.build_head`) → `lm_head` DROPPED from the LoRA set
+    (deployment problem).
+- **Corrected target set:** train `head.hc_fn` directly; LoRA `main_proj` + the attention
+  projections + the router + the body HC-mixing + the shared expert; **DROP `lm_head`**.
+- **Decisive next step (codex):** run a `head.hc_fn`-only ablation now (the head LoRA exists
+  from Stage 2) — if held-out p1 improves under soft labels, keep it #1; else demote the
+  gradient spike and re-select targets by KL + top-r/RMS.
+
 ### 2026-07-19 — Phase-0 gradient probe run (the LoRA-target ranking)
 
 - Probe on the Lead-11 unified capture (`lead3_h.bin`, 60 prompts, max_step=3, **F32** — F16

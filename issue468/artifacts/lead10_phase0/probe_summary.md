@@ -40,22 +40,40 @@ projection (main_proj) + the attention — NOT in the body's HC mixing.** head.h
 hidden-input-invariant at the *acceptance* level; the *distribution* mismatch localizing to the
 output + input projections is a new signal).
 
-## Caveats (for codex gate A)
+## Caveats — CORRECTED after codex gate A (2026-07-19, verified)
 
-1. **head.hc_fn's dominance may be partly a Sinkhorn-iteration gradient-amplification artifact**
-   (the hc_head's iterative normalization can amplify the gradient through the mixing weights).
-   The ablation (Phase 1) must confirm head.hc_fn actually generalizes, not just that its
-   gradient is numerically large.
-2. **CE-vs-KL + max_step=3 (early steps, cold KV window):** the ranking is a probe proxy; the
-   codex gate should assess whether the ordering is robust to the loss choice + the step range.
-3. **The tiny high-ratio weights (hc_*_scale, norms):** excluded from the LoRA candidate set —
-   train directly or freeze.
+1. **The Sinkhorn concern was REFUTED** (my original caveat was wrong). The head's `hc_head`
+   is a **sigmoid reduce** (`pre = sigmoid(mixes·hc_scale + hc_base)`, then weighted sum —
+   `drafter_head.py:78`); the iterative Sinkhorn is body-only (`hc_primitives.hc_split_sinkhorn`).
+   So **head.hc_fn's dominance is a real local CE sensitivity** (the 65k-param matrix gates the
+   final 4×4096 HC state right before the output norm + lm_head), not a gradient-amplification
+   artifact. Independently re-verified.
+2. **The metric matters — raw ‖∇W‖ is size-confounded.** RMS grad (‖∇W‖/√n) re-ranks:
+   head.hc_fn stays #1 by ~100× (RMS 6.78e-2), but **lm_head is demoted** (RMS 2.51e-5 — it is
+   530M params, inflated under raw ‖∇W‖). For LoRA specifically the right metric is the **top-r
+   singular energy of ∇W** (the low-rank LoRA captures the top-r directions); RMS is a fallback.
+   (Not yet computed — a Phase-1 pre-training refinement.)
+3. **lm_head + embed_w are target-loaded** (from the IQ2 target GGUF, shared with the verifier —
+   `drafter_body.py:206`, `drafter_head.build_head`), not the drafter's own. Training lm_head has
+   a deployment problem (it's the shared output head) → **dropped from the LoRA target set**.
+4. **max_step=3 = early/cold-KV steps + CE-vs-KL unvalidated.** The ranking is a probe proxy;
+   could shift under soft-label KL + later (warm-KV) steps. The codex recommends re-running with
+   KL (once soft labels are re-captured) + a step-bucket comparison (steps 1–3 vs 16/32/64).
 
-## Suggested LoRA-target set (subject to the ablation)
+## Suggested LoRA-target set (corrected after codex gate A — RMS metric, lm_head dropped)
 
-- **Train directly (small, high-grad):** head.hc_fn.
-- **LoRA (matrices):** main_proj, the attention projections (q_a/q_b/kv/output_a/output_b),
-  head.lm_head, the shared expert. (Body hc_attn_fn/hc_ffn_fn — low priority.)
+- **Train directly (small, dominant by raw AND RMS):** `head.hc_fn` (65k params, RMS 6.78e-2 —
+  ~100× the next; a real CE sensitivity, confirmed not a Sinkhorn artifact).
+- **LoRA (body dense matrices — meaningful RMS grad):** `main_proj` (1.85e-4), the sparse-MLA
+  attention projections (`q_a/q_b/kv/output_a/output_b`), the router (`ffn_gate_inp` 2.36e-4),
+  the body HC-mixing matrices (`hc_attn_fn`, `hc_ffn_fn`), the shared expert.
+- **DROPPED:** `head.lm_head` (target-loaded/shared with the verifier — deployment problem; RMS
+  2.51e-5, near-bottom per-param).
+
+**Decisive next step (codex gate A):** run a **head.hc_fn-only ablation now** (the head LoRA
+exists from Stage 2) — if held-out p1 improves under soft labels, keep it #1; if it only reduces
+training loss or harms held-out, demote the gradient spike and select targets by KL + the
+top-r/RMS metric.
 
 ## Deferred
 
