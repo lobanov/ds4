@@ -41,7 +41,8 @@ Pair with `research-lead` (the methodology) + `adversarial-codex-review` (the ga
    `hc_post` broadcast-axis bug (Lead 03) that made it 43% wrong until the gate
    caught it. The gate: run both on the same `main_hidden` + anchors → compare the
    draft token IDs. If they diverge, the torch port has a bug — fix it before
-   trusting any powered number.
+   trusting any powered number. *(See research-lead principle 4 for the general
+   fidelity-gate methodology.)*
 
 2. **The offline drafter ≠ the live engine — don't trust the offline throughput.**
    The torch drafter (D_f32 or D_f16 on captured H) does NOT reproduce the live Metal
@@ -51,6 +52,8 @@ Pair with `research-lead` (the methodology) + `adversarial-codex-review` (the ga
    vs the live Metal p1~0.70; the offline baselines 59.54/35.72 t/s vs the live 40.04.
    **For runtime/engine verdicts, measure on the real engine** (`ds4-spec-bench` +
    `DS4_DSPARK_TIMING`); the torch drafter is a diagnostic, not the deployable result.
+   *(See research-lead principle 12 for the methodology — when to use the offline
+   vs the live.)*
 
 3. **Choose the dtype deliberately (F32 vs F16) — and know the block-divergence.**
    - **F32** is the evaluation carrier (Lead 04: D_f16 on FP hiddens is numerically
@@ -222,13 +225,12 @@ def entropy_of(top):
 
 - **Trusting the torch port without the numpy fidelity gate** → the `hc_post` bug (Lead
   03). Always gate: 100% draft-token agreement on a known-good input.
-- **Headlining the offline simulation's throughput** → the D_f32/D_f16 divergence from
-  the live Metal (Lead 11). The offline drafter is a diagnostic; the live engine is the
-  verdict.
+- **Headlining the offline simulation's throughput** → see research-lead principle 12
+  + anti-pattern. For torch specifically: the D_f32/D_f16 block diverges from the Metal.
 - **Assuming F16 == F32 for the block from the p1 result** → the block diverges (Lead
   04 + Lead 11). Validate the block-level dtype-invariance separately.
-- **Using the drafter's confidence as a pre-draft signal** → it's a post-draft product
-  (Lead 11). The pre-draft signal (the target's margin) is different (off-by-one).
+- **Using the drafter's confidence as a pre-draft signal** → see research-lead principle
+  13. For torch specifically: the `confidence_head` is a post-draft product (`return_conf`).
 - **Resampling positions for the bootstrap CI** → the positions within a prompt are
   correlated. Resample prompts.
 - **Forgetting the anchor-token-as-embedding-seed** → the drafter's `forward_prompt`

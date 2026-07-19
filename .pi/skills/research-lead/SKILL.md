@@ -7,11 +7,11 @@ description: Playbook for executing a research lead in the issue468 dossier (a `
 
 A playbook for taking a `pending/lead_*.md` from "assigned" to a recorded,
 decision-grade result in the `issue468/` dossier. It is written from the lessons
-of Leads 01 (anchor-reuse falsifier) and 03 (acceptance statistical power) — two
-leads where the obvious path was wrong in instructive ways.
+of Leads 01–03, 07, 10–11 — leads where the obvious path was wrong
+in instructive ways.
 
 This skill is **methodology**, not a script. Pair it with `adversarial-codex-review`
-for the gates.
+for the gates + `pytorch-numerical-modelling` for the torch drafter patterns.
 
 ## When to use
 
@@ -64,7 +64,8 @@ for the gates.
    the modified harness reproduced retained summaries exactly before the variant was
    trusted. Lead 03: the torch port had to match the numpy oracle at 100% draft-token
    agreement before any powered number was trusted — and the gate initially FAILED,
-   leading to a codex bug-hunt that found a real `hc_post` broadcast-axis bug.*
+   leading to a codex bug-hunt that found a real `hc_post` broadcast-axis bug (see
+   `pytorch-numerical-modelling` principle 1 for the torch-specific fidelity gate).*
 5. **Two codex gates for decision-grade work — setup + verdict.** One gate at setup
    (catch methodology/indexing bugs before you trust the numbers) and one at verdict
    (catch overclaims before you record). **Independently verify every decisive codex
@@ -107,7 +108,7 @@ for the gates.
    87 GB IQ2XXS resident set). **If it crashes once, switch to a lighter path — do not
    retry the same way.** *Lead 03: two machine restarts from oversubscription →
    switched the numpy oracle (per-expert re-dequant) to a torch/MPS port (experts
-   loaded once).*
+   loaded once). See `pytorch-numerical-modelling` for the MPS-specific patterns.*
 10. **Add a notation/glossary section to every table- or formula-heavy summary.** Define
    every symbol and term up front — estimator-qualified metrics (sliding vs cycle-jump
    `E[a|K]`), `S(K)`, costs (`decode_ms`/`verify_ms`), break-even, `CI`, `P(speed<1)`,
@@ -127,7 +128,8 @@ for the gates.
     wins. *Lead 11: the offline cycle-economics simulation (Exp 0b) was dropped —
     D_f32 p1 0.835 / D_f16 p1 0.525 vs the live 0.70; the offline baseline 59.54 /
     35.72 t/s vs the live 40.04. The verdict came from the real-engine bypass
-    measurement.*
+    measurement. See `pytorch-numerical-modelling` principle 2 for the torch-specific
+    divergence (the p1-invariant but block-divergent dtype behavior).*
 13. **For a gate/scheduler, verify the signal is available AT the decision point** (not
     post-decision). A signal computed after the decision (circular) forces a weaker
     proxy. *Lead 11: the first-draft margin (the gate-probe signal, corr −0.44) is

@@ -9,7 +9,10 @@ Dispatches a second agent (codex) to independently and adversarially review work
 you (pi) just did — challenging assumptions, re-deriving claims from code, and
 running experiments to find what you missed. Designed for the moment you are about
 to conclude "blocked", "infeasible", or "done": a fresh adversarial pass catches
-self-inflicted bugs and unjustified leaps before they cost real effort.
+self-inflicted bugs and unjustified leaps before they cost real effort. For the
+research-lead workflow, this skill provides the codex gates (setup + verdict).
+For torch-specific claims (dtype-invariance, the block-divergence, the offline-vs-live
+gap), see `pytorch-numerical-modelling`.
 
 ## When to use
 
@@ -19,6 +22,8 @@ self-inflicted bugs and unjustified leaps before they cost real effort.
 - A sub-validation passed (e.g. "forward matches a reference on random input")
   but the end-to-end result is wrong or untested.
 - The user asks for an independent/adversarial/second-opinion review.
+- You're about to record a STOP/negative verdict — a negative that's actually a bug
+  kills a real lead (the most expensive error).
 
 ## Prerequisites
 
@@ -150,6 +155,7 @@ M6. OFFLINE-VS-LIVE (runtime/engine leads): is the throughput measured on the RE
     offline drafter may not reproduce the live engine's acceptance (Lead 11:
     D_f32/D_f16 diverged ±50% from the live Metal). If the verdict rests on an
     offline simulation, flag it — the live-engine measurement is the deployable evidence.
+    (See research-lead principle 12 + pytorch-numerical-modelling principle 2.)
 
 CONSTRAINTS: do not modify tracked files. You may run read-only commands and
 inline scripts (python -c, rg, jq, etc.) to verify claims.
