@@ -38,6 +38,19 @@ roughly **19–22 ms/cycle** of measured headroom at K=3..5, so a fused low-K ve
 is justified. The remaining acceptance levers are still a better drafter (training) and —
 per Lead 04 — target hidden-state precision.
 
+> **2026-07-19 Lead 11 (target-confidence draft bypass) — CLOSED NEGATIVE.** A pre-draft
+> target-margin bypass gate (skip the draft+verify on low-target-confidence cycles, using the
+> current logits' top1-top2 margin) was implemented + measured on the real engine: **< +3%
+> on both corpora** (lead3 +0.11–0.29%, baseline_corpus +2.65%, all CIs include 0; the clean
+> equal-length lead3 subset +0.17%). The bypass is fundamentally limited in the M3 stack:
+> (a) the pre-draft signal (the current logits' margin) is **off-by-one** (about the anchor,
+> not the first draft — the first-draft margin is only computed during the verify, post-draft);
+> (b) the bypass's standalone decode (~30–33ms) **loses the M3 anchor-reuse folding** (~0.1ms).
+> The M3 anchor-reuse already optimizes the anchor decode; the bypass regresses on it.
+> Codex gate A confirms the STOP. The scheduling axis is not exhausted (a scaled long-corpus
+> θ sweep is a remaining check), but the bypass lever itself is dead. Full record:
+> `archive/leads/lead_11_target_confidence_bypass.md`.
+
 ## The question and the gates
 
 Can a DSpark-style speculative path deliver a **material local decode speedup** on `ds4`
