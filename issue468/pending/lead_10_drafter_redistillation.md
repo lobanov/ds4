@@ -96,8 +96,12 @@ LoRA did not?
 - Per prompt, captured via `ds4-spec-bench` (`mode=argmax`, `gen_tokens=128`, ds4 chat template):
   - **H_iq2** — `--dump-hidden-dir` (the existing mechanism);
   - **Y_iq2** — the greedy tokens (the bench output);
-  - **IQ2 top-128 logits** — `--dump-logprobs` (the soft-label target). **Phase 0 must confirm
-    the bench exposes this; if not, augment it** (mirror the Lead-04 Q2 top-128 capture).
+  - **IQ2 top-128 logits** — `--dump-logprobs` (the soft-label target). **Capture mechanism
+    proven:** Lead 11's unified capture (`issue468/artifacts/lead11_unified_capture/`) already
+    produced H_iq2 + Y_iq2 + IQ2 top-k for the **lead3 corpus** (`lead3_h.bin` +
+    `lead3_logprobs.jsonl`; 60 prompts / 5,811 anchors; variable-length record format decoded,
+    0 h.bin↔logprobs mismatches). Running it on the **distill_corpus** (240 train + 60 eval) is
+    now a plain bench invocation, not an R&D item.
 
 ### Phase 0 — LoRA target selection (gradient probe + ablation)
 
@@ -105,8 +109,9 @@ The dense LoRA targets are **selected empirically, not guessed**:
 
 1. **Gradient-magnitude probe (cheap, no training).** Load the D_f32 drafter with gradients
    enabled; on a few hundred IQ2 anchors (H_iq2 → drafter → draft distribution), compute the
-   loss vs the IQ2 target (KL on the top-128, **or cross-entropy on Y_iq2 as a proxy — runnable
-   on the already-captured lead3 bundles before the soft-label capture lands**) and backprop
+   loss vs the IQ2 target (**KL on the IQ2 top-128 — directly available in Lead 11's unified
+   capture** `lead3_logprobs.jsonl` for the lead3 corpus; cross-entropy on Y_iq2 as a fallback
+   proxy) and backprop
    once. For each dense candidate weight W, record **‖∇W‖ / ‖W‖** (normalized so targets at
    different depths are comparable). Rank. The high-ratio targets are the LoRA candidates.
    - Candidates (per the inventory): per layer — `main_proj`, the sparse-MLA attention
@@ -198,8 +203,9 @@ Two distinct questions, both addressed:
 
 ## Codex gates + fidelity gate
 
-1. **Codex gate A (setup):** the soft-label capture augmentation (if added), the KL-loss
-   indexing/normalization over the top-128 (padding, masked positions), the **Phase-0
+1. **Codex gate A (setup):** the KL-loss indexing/normalization over the IQ2 top-128 (padding,
+   masked positions; the Lead-11 unified-capture `lead3_logprobs.jsonl` format — soft-label
+   capture proven, no bench augmentation needed), the **Phase-0
    gradient-probe + per-target ablation** (the target selection is sound — the ‖∇W‖/‖W‖
    normalization, the candidate set, the ablation's held-out read), the **expert-freeze +
    LoRA-target choice**, the F32/mixed precision, and the train/eval disjointness — BEFORE
@@ -244,6 +250,19 @@ dead). A real but uncertain bet with a negative prior; the train-set size is mea
 learning curve, the +2 pp verdict needs only ~60 held-out prompts.
 
 ## Worklog
+
+### 2026-07-19 — Lead 11 unified soft-label capture available → Phase 0 unblocked (pre-execution)
+
+- Lead 11's unified capture (`issue468/artifacts/lead11_unified_capture/`) produced H_iq2 +
+  Y_iq2 + IQ2 top-k for the **lead3 corpus**: `lead3_h.bin` (variable-length records
+  `id_len·id·pos·tok·hidden[12288]`; 5,811 records, consumes the file exactly; hidden finite)
+  + `lead3_logprobs.jsonl` (`{id,pos,sel,top}`; `sel` = Y_iq2, matches the h.bin `tok` on all
+  5,811 records — 0 mismatches; `top` = the IQ2 top-k soft labels). 60 prompts / 5,811 anchors.
+- **Resolves the Phase-0 `--dump-logprobs` open item** — the soft-label capture mechanism is
+  proven; no bench augmentation needed. The Phase-0 gradient probe is immediately runnable on
+  this capture (KL on the IQ2 top-128, not just the hard-label proxy).
+- The distill_corpus (240 train + 60 eval) soft-label capture is still a separate run, but now
+  a plain bench invocation (mechanism proven) — not a Lead-10 blocker.
 
 ### 2026-07-16 — added Phase-0 LoRA target-selection diagnostic (pre-execution)
 
