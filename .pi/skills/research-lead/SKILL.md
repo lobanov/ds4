@@ -53,7 +53,14 @@ for the gates.
    The sliding headline was an overclaim a codex gate caught.*
 4. **Fidelity-gate every implementation change.** Before trusting a variant or a new
    implementation, **reproduce a known-good baseline bit-for-bit.** A new code path
-   that doesn't reproduce the baseline is wrong, no matter how plausible. *Lead 01:
+   that doesn't reproduce the baseline is wrong, no matter how plausible. For
+   **env-gated engine changes** (the M3/M4 pattern: each lever default-off behind its
+   own env), the fidelity gate is: **with the env unset, the baseline reproduces
+   bit-token-for-token** (Lead 11: the bypass gate off → `bypass_count=0` + the normal
+   M3 t/s). Also check the **interaction with the existing optimizations** — a change
+   that skips an optimization's precondition can regress even if it's byte-exact
+   (Lead 11: the bypass skipped the verify → lost the M3 anchor-reuse folding ~0.1ms;
+   the standalone decode ~30-33ms net-negative despite byte-exactness). *Lead 01:
    the modified harness reproduced retained summaries exactly before the variant was
    trusted. Lead 03: the torch port had to match the numpy oracle at 100% draft-token
    agreement before any powered number was trusted — and the gate initially FAILED,
@@ -61,9 +68,14 @@ for the gates.
 5. **Two codex gates for decision-grade work — setup + verdict.** One gate at setup
    (catch methodology/indexing bugs before you trust the numbers) and one at verdict
    (catch overclaims before you record). **Independently verify every decisive codex
-   claim** (re-derive the number yourself). *Lead 01 GATE-1: the KV-window modeling +
-   indexing semantics. Lead 03 GATE-1: the sliding-overclaim + the torch bug. Lead 03
-   GATE-2: a stale "break-even" framing (2.203 vs the dynamic 2.256).*
+   claim** (re-derive the number yourself). For a **STOP/negative verdict**, the
+   verdict gate's primary job is to confirm the negative isn't a **false negative** —
+   a bug, a measurement artifact, or a missed signal/θ. A negative that's actually a
+   bug kills a real lead (the most expensive error). *Lead 01 GATE-1: the KV-window
+   modeling + indexing semantics. Lead 03 GATE-1: the sliding-overclaim + the torch
+   bug. Lead 03 GATE-2: a stale "break-even" framing (2.203 vs the dynamic 2.256).
+   Lead 11 GATE-A: confirmed the STOP (the off-by-one signal + the folding loss are
+   fundamental, not bugs).*
 6. **Scope the verdict honestly — significance ≠ non-inferiority.** Distinguish "no
    effect detected" from "effect absent." Report CIs and the MDE vs the decision
    margin, not just point estimates. If underpowered, say "non-inferiority NOT
@@ -72,9 +84,14 @@ for the gates.
 7. **Corpus representativeness drives the verdict.** Report **per-source/stratified**,
    flag the mix. A tightly-CI'd number on an easy corpus is still biased. If the
    verdict is corpus-limited (not precision-limited), more N from the same mix won't
-   help — diversity might. *Lead 03: dolly/codealpaca/jsonex per-source E[a|4] spanned
-   2.22–2.51; the old code/synthesis corpus was 2.175 (harder). The verdict was
-   corpus-limited, so chasing N was over-powered.*
+   help — diversity might. **Size the corpus for the MDE vs the decision bar** — n=9
+   is underpowered for a ±3% bar (P(>3%)≈0.43 under the bootstrap); a tight CI needs
+   n≥60. Don't headline an underpowered corpus's point estimate — the STOP/PROCEED
+   must rest on the tight-CI corpus. *Lead 03: dolly/codealpaca/jsonex per-source
+   E[a|4] spanned 2.22–2.51; the old code/synthesis corpus was 2.175 (harder). The
+   verdict was corpus-limited, so chasing N was over-powered. Lead 11: the
+   baseline_corpus (n=9) was underpowered; the lead3 (n=60) was the tight-CI
+   measurement that confirmed the STOP.*
 8. **The regime is part of the result.** For any headline number, record **which
    estimator, which accounting regime, and which policy/sample provenance** produced
    it. "1.04x" is incomplete; "anchor-reuse accounting, frozen threshold chosen on
@@ -101,6 +118,21 @@ for the gates.
    policy, offline expected-value policy, oracle/upper bound. Do **not** headline a
    weaker tier as if it were stronger. *Lead 02: the frozen threshold was the clean
    evidence; expected-opt was diagnostic; oracle was only a ceiling.*
+12. **For runtime/engine leads, the offline oracle is a DIAGNOSTIC, not the verdict.**
+    The offline drafter (D_f32/D_f16 on captured H) does not reproduce the live
+    engine's acceptance — the Lead-04 dtype-invariance held for p1, not the block.
+    The deployable verdict comes from the **real-engine measurement** (the live Metal
+    drafter + `DS4_DSPARK_TIMING`). Don't trust an offline simulation's throughput
+    prediction for an engine change; if the simulation + the live disagree, the live
+    wins. *Lead 11: the offline cycle-economics simulation (Exp 0b) was dropped —
+    D_f32 p1 0.835 / D_f16 p1 0.525 vs the live 0.70; the offline baseline 59.54 /
+    35.72 t/s vs the live 40.04. The verdict came from the real-engine bypass
+    measurement.*
+13. **For a gate/scheduler, verify the signal is available AT the decision point** (not
+    post-decision). A signal computed after the decision (circular) forces a weaker
+    proxy. *Lead 11: the first-draft margin (the gate-probe signal, corr −0.44) is
+    only computed during the verify (post-draft) → the bypass used the weaker anchor
+    margin (off-by-one) → +0.11% (not the +3% the gate-probe promised).*
 
 ## Workflow
 
@@ -242,3 +274,10 @@ Don't let them drift — numbers must match.
   corpus-limited (Lead 03: jsonex positive, dolly negative). Report stratified.
 - **Archiving the lead without sweeping links** → dangling `pending/lead_NN_*.md`
   references. On archive, `grep` + update all paths.
+- **Trusting an offline simulation for an engine verdict** → the offline drafter ≠ the
+  live engine (Lead 11: D_f32/D_f16 diverged ±50% from the live Metal). For
+  runtime/engine work, measure on the real engine; the offline simulation is a
+  diagnostic (principle 12).
+- **Using a post-decision signal for a pre-decision gate** → the off-by-one (Lead 11:
+  the first-draft margin isn't available pre-draft → the weaker anchor margin → no
+  speedup). Verify the signal is available at the decision point (principle 13).

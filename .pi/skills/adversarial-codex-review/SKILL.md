@@ -122,6 +122,16 @@ claims you can back with a runnable check or a precise citation. Not exhaustive:
 7. PREMISE SENSITIVITY: for each PREMISE above, state how tightly the conclusion
    depends on it and the magnitude of the swing if it fails or proves
    unrealizable. A premise that flips the headline IS the headline.
+8. THE FALSE NEGATIVE (for a STOP/negative verdict): is the < bar result (a) a bug
+   (the implementation, the measurement), (b) a missed signal/θ, or (c) a real
+   fundamental limit? Reproduce the one validation that would flip the verdict. A
+   negative that's actually a bug kills a real lead — the most expensive error.
+   (Lead 11: the equal-length subset removed the eos contamination → still +0.17%;
+   the off-by-one signal + the folding loss are fundamental, not bugs.)
+9. SIGNAL-AT-THE-DECISION-POINT (for a gate/scheduler): is the signal available AT
+   the decision point (not post-decision)? A post-decision signal (circular) forces
+   a weaker proxy. (Lead 11: the first-draft margin isn't available pre-draft → the
+   weaker anchor margin → no speedup.)
 
 IF THIS IS A MODELING / CONCLUSIONS REVIEW (not a bug hunt), also challenge:
 M1. ASSUMPTION REALIZABILITY: is each load-bearing assumption achievable on the
@@ -135,6 +145,11 @@ M4. DATA REPRESENTATIVENESS: was the input distribution measured on
     type) or a convenience sample?
 M5. COMPLETENESS: is any cost/overhead term set to zero that is nonzero in
     practice (readback, partial-accept rollback, first-miss waste, state capture)?
+M6. OFFLINE-VS-LIVE (runtime/engine leads): is the throughput measured on the REAL
+    engine (the live drafter + the real timings) or an offline simulation/oracle? The
+    offline drafter may not reproduce the live engine's acceptance (Lead 11:
+    D_f32/D_f16 diverged ±50% from the live Metal). If the verdict rests on an
+    offline simulation, flag it — the live-engine measurement is the deployable evidence.
 
 CONSTRAINTS: do not modify tracked files. You may run read-only commands and
 inline scripts (python -c, rg, jq, etc.) to verify claims.
