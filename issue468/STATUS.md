@@ -409,16 +409,16 @@ detect +2 pp on 60 held-out prompts; corpus + capture input prepared (`issue468/
 A real but uncertain bet (negative prior); not yet started. Design in
 `issue468/pending/lead_10_drafter_redistillation.md`.
 
-**Lead 11 — target-confidence draft bypass + STS recalibration (a two-stage scheduler)** is a
-proposed scheduling lever, relevant with Lead 08 intractable + Lead 10 capped: use the target's
-own margin at the anchor (available pre-draft, from the prior verify) to **bypass the draft** on
-low-confidence cycles (saving the draft cost the post-draft STS structurally can't), composed
-with a **recalibrated STS** on the filtered (higher-acceptance) cycles. Hypothesis: (1) speed up
-via draft-skip, (2) higher drafted-prefix acceptance (selection effect; needs STS retrain/
-recalibration). The gate signal is established (target margin predicts drafter rejection,
-corr −0.44 on FP; IQ2 margin matches FP). Bar: +3% combined throughput. Not yet started — Exp 0
-is the unified IQ2 H+logprobs capture + the cycle-economics simulation. Design in
-`issue468/pending/lead_11_target_confidence_bypass.md`.
+**Lead 11 — target-confidence draft bypass (CLOSED NEGATIVE, 2026-07-19).** The pre-draft
+target-margin bypass (env-gated, `DS4_DSPARK_BYPASS`) was implemented + measured on the real
+engine: **< +3% on both corpora** (lead3 +0.11–0.29%, baseline_corpus +2.65%, all CIs include 0;
+the clean equal-length lead3 subset +0.17%). Codex gate A confirms the STOP. The bypass is
+fundamentally limited in the M3 stack: the pre-draft signal (the current logits' margin) is
+off-by-one (about the anchor, not the first draft — the first-draft margin isn't available
+pre-draft), + the standalone decode (~30–33ms) loses the M3 anchor-reuse folding (~0.1ms). The
+scheduling axis is not exhausted (a scaled long-corpus θ sweep is a remaining check the codex
+flagged), but the bypass lever itself is dead. Full record:
+`issue468/archive/leads/lead_11_target_confidence_bypass.md`.
 
 ## Canonicality rule
 
