@@ -151,3 +151,48 @@ IQ2 capture + the cycle-economics simulation.
   capture (0–3% greedy agreement — different prompt handling). → Exp 0 needs a **unified
   H+logprobs capture** (one run, aligned). Open item: add the consolidated single-file H dump
   (mirror the logprobs jsonl pattern) so the capture stays single-file-per-modality.
+
+### 2026-07-19 — orientation + decision rule LOCKED (research-lead skill, steps 1–2)
+
+Oriented (skill principle 1 — verified the assets, didn't trust memory):
+- **Lead 11** (this doc) — the two-stage scheduler (pre-draft target-margin bypass + recalibrated STS).
+- **Established findings:** gate probe (`target_confidence_gate_probe.py`, FP, n=5790) — target
+  margin predicts drafter rejection, **corr(entropy,success)=−0.44**, fail-median margin 1.75 vs
+  success 12.0, `margin<0.75` skip → TPR 0.25 / FPR 0.03 (net+). IQ2 logprobs capture
+  (`iq2_logprobs.jsonl`, 5811 records) — IQ2 margin (mean 8.73 / median 8.33) **matches FP** →
+  the gate signal carries to the deployment target.
+- **The M3 baseline (the comparison):** full stack **40.04 t/s**; cycle ≈ decode(0.1ms, folded)
+  + draft(7.6ms) + verify(~59–62ms, STS-adapted verify_n~3.8) ≈ 66ms; verify_ms **sublinear**
+  (~29@1, ~53@3, ~67@5; ~16ms/token); standalone anchor decode ~28ms; plain ds4 **38.16 t/s**
+  (~26.2ms/token).
+- **The lead3-misalignment finding stands:** the existing IQ2 H does NOT align with the logprobs
+  capture → Exp 0a needs the unified H+logprobs capture (one run).
+
+**Decision rule LOCKED (principle 2):** the gate's value is the **cycle-economics expected t/s**
+vs the M3 baseline (40.04 t/s).
+- **PROCEED** at **≥ +3% (≥ 41.24 t/s)** at the joint `(θ_bypass, θ_sts)` optimum.
+- **MARGINAL** +1–3%.
+- **STOP** ≤ +1% or harm (the false-skips outweigh the saved drafts).
+The bar is deliberately modest — the verify still dominates; Lead 08 is intractable, Lead 10
+is capped. Do NOT headline a Lead-11 gain as the +20% path.
+
+**Estimator LOCKED (principle 3 — the cycle-economics expected-t/s):**
+`throughput(θ_bypass, θ_sts) = Σ_cycles tokens(cycle) / Σ_cycles cost(cycle)`, where per cycle:
+- if `target_margin < θ_bypass` → **BYPASS**: tokens=1 (the anchor), cost = `plain_decode_ms` ≈ 26.2 ms
+  (the standalone anchor forward; from plain ds4's 38.16 t/s).
+- else → **DRAFT**: tokens = 1 + `accepted` (the drafter's block acceptance), cost = `draft_ms` (7.6) +
+  `verify_ms(verify_n)`, where `verify_n = sts_schedule(drafter_confidence, θ_sts)`.
+- Cost parameters (from M3): `draft_ms=7.6`; `verify_ms(verify_n)` = the sublinear M3 curve
+  (~29@1, ~53@3, ~67@5); `plain_decode_ms≈26.2`.
+- Inputs (from the unified capture + the offline drafter run): per-anchor `(target_margin,
+  drafter block-acceptance)`.
+- Claim split (the hypothesis): claim 1 (draft-skip) = the bypass saving on reject-early cycles;
+  claim 2 (selection effect) = the acceptance uplift on the filtered (drafted) cycles.
+
+**Skill principles confirmed:** orient (✓ this step); lock-the-rule (✓ above); estimator-is-the-result
+(✓ the cycle-economics t/s); fidelity-gate (Exp 0a H+logprobs alignment; Exp 1 M3-baseline-reproduces);
+two codex gates (Exp 0 + Exp 3); honest scope (✓ the +3% bar); per-source (the full corpus);
+single-process memory (one ds4 run at a time).
+
+**Next:** Exp 0a — add the consolidated single-file H dump to ds4-spec-bench + the unified capture
+(open implementation question: is `dspark_main_hidden` accessible from the bench for a single-file dump?).
