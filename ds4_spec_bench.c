@@ -40,6 +40,7 @@ typedef struct {
     bool ssd_streaming;
     bool ssd_streaming_cold;
     char *dump_hidden_dir;
+    char *dump_hidden_single;  /* consolidated single-file H dump (appended; prompt_id-prefixed records) */
     char *force_tokens_dir;
     char *dump_logprobs_jsonl;   /* single appended JSONL of per-anchor top-k logprobs across all prompts */
     int   logprobs_top_k;       /* top-k for the logprobs dump (default 128, max 128) */
@@ -370,6 +371,8 @@ static spec_bench_config parse_options(int argc, char **argv) {
             c.ssd_streaming_cold = true;
         } else if (!strcmp(arg, "--dump-hidden-dir")) {
             c.dump_hidden_dir = xstrdup0(need_arg(&i, argc, argv, arg));
+        } else if (!strcmp(arg, "--dump-hidden-single")) {
+            c.dump_hidden_single = xstrdup0(need_arg(&i, argc, argv, arg));
         } else if (!strcmp(arg, "--force-tokens-dir")) {
             c.force_tokens_dir = xstrdup0(need_arg(&i, argc, argv, arg));
         } else if (!strcmp(arg, "--dump-logprobs-jsonl")) {
@@ -1573,12 +1576,19 @@ int main(int argc, char **argv) {
     for (int i = 0; rc == 0 && !did_rewrite && i < runs.len; i++) {
         spec_run *run = &runs.v[i];
         char err[256] = {0};
-        if (cfg.dump_hidden_dir && run->id && run->id[0]) {
+        if (cfg.dump_hidden_single && run->id && run->id[0]) {
+            /* consolidated single-file H dump: all prompts append to ONE file, each record
+             * prompt_id-prefixed (DS4_DSPARK_DUMP_PROMPT_ID) so prompts stay distinguishable. */
+            setenv("DS4_DSPARK_DUMP_HIDDEN", cfg.dump_hidden_single, 1);
+            setenv("DS4_DSPARK_DUMP_PROMPT_ID", run->id, 1);
+        } else if (cfg.dump_hidden_dir && run->id && run->id[0]) {
             char dpath[2048];
             snprintf(dpath, sizeof(dpath), "%s/%s.bin", cfg.dump_hidden_dir, run->id);
             setenv("DS4_DSPARK_DUMP_HIDDEN", dpath, 1);
+            unsetenv("DS4_DSPARK_DUMP_PROMPT_ID");
         } else {
             unsetenv("DS4_DSPARK_DUMP_HIDDEN");
+            unsetenv("DS4_DSPARK_DUMP_PROMPT_ID");
         }
         /* teacher_force: per-prompt forced-token input + IQ2-argmax output paths */
         if (run->mode == SPEC_MODE_TEACHER_FORCE) {

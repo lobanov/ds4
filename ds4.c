@@ -28109,6 +28109,12 @@ static void dspark_dump_hidden_if_enabled(ds4_session *s, uint32_t pos_after_inc
         strncpy(open_path, path, sizeof(open_path) - 1);
         open_path[sizeof(open_path) - 1] = '\0';
     }
+    const char *pid = getenv("DS4_DSPARK_DUMP_PROMPT_ID");
+    if (pid && pid[0]) {
+        uint32_t plen = (uint32_t)strlen(pid);
+        fwrite(&plen, sizeof(plen), 1, fp);
+        fwrite(pid, 1, plen, fp);
+    }
     const int32_t pos = (int32_t)(pos_after_inc > 0 ? pos_after_inc - 1u : 0u);
     const int32_t tok = (s->checkpoint.len > 0)
         ? (int32_t)s->checkpoint.v[s->checkpoint.len - 1] : (int32_t)-1;
