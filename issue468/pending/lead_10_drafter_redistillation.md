@@ -251,6 +251,31 @@ learning curve, the +2 pp verdict needs only ~60 held-out prompts.
 
 ## Worklog
 
+### 2026-07-19 — learning curve + the F16 fidelity complication (PAUSED for direction)
+
+- **Learning curve** (head.hc_fn KL, nested train 10/20/40, 20-prompt eval): ~+2.0–2.6 pp
+  but **noisy** — the 20→40 climb is inconsistent across runs (within the training noise; the
+  LoRA init + the shuffle vary the held-out by ~0.5–0.9 pp). Train-set sizing is **inconclusive
+  at 40 prompts** (the noise dominates the 20→40 signal). Result:
+  `artifacts/lead10_phase1/learning_curve_result.json`.
+- **F16 fidelity FAILS — but it's a torch-oracle artifact, not a LoRA issue.** The trained head
+  at F16 gives p1=0.55 vs F32 0.87. **The UNTRAINED F16 head ALSO gives 0.55** → not a LoRA
+  issue (the LoRA delta ‖B@A‖ is identical F16/F32 = 0.6104). Root cause: the torch oracle's
+  `hc_head` overflows at F16 — the body output x0 has values up to **1721** (~2e-4 of elements
+  > 255 → x0² > 65504 → F16 inf → the `rsqrt` + the matmul accumulation collapse). The ds4
+  deployment (the live decoder) works at 0.79 (it handles the overflow differently — likely a
+  F32 rsqrt / accumulation / clamping in the C/Metal path). **So the torch oracle's F16 is NOT
+  faithful to the ds4's F16** for the hc_head's overflow handling.
+- **Implication:** the +2.4–2.6 pp (F32) is solid, but the **F16 deployment fidelity can't be
+  checked via the torch oracle** (the overflow artifact). The proper F16 check (the ds4 with the
+  trained LoRA) is the **integration** — out of scope here. **Paused for the user's decision** on
+  how to proceed:
+  - (A) accept the F32 result (+2.4 pp → PROCEED on the F32 metric) + note the F16-deployment
+  caveat (the integration verifies);
+  - (B) fix the torch oracle's F16 `hc_head` (compute the rsqrt + the matmul accumulation in
+  F32 internally) + re-check the F16 fidelity;
+  - (C) integrate the trained LoRA into the ds4 + the live F16 check (a separate goal).
+
 ### 2026-07-19 — head.hc_fn KL ablation (codex exp #2): +2.58 pp, CONFIRMS the CE result
 
 - Re-captured the lead3 soft labels (`ds4-spec-bench --dump-logprobs-jsonl`, top-128) →

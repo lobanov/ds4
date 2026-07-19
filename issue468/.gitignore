@@ -29,3 +29,4 @@ artifacts/lead07_crossed_oracle/force_tokens/
 # Lead 11 unified capture raw data (regeneratable: --dump-hidden-single + --dump-logprobs-jsonl)
 issue468/artifacts/lead11_unified_capture/*.bin
 issue468/artifacts/lead11_unified_capture/lead3_logprobs.jsonl
+artifacts/lead10_phase1/lead3_features.npz
