@@ -98,6 +98,7 @@ typedef struct {
     int cycles;
     int accepted_total;
     int accepted_max;
+    int bypass_count;
     bool dspark_metrics_present;
     bool schedule_batched;
     bool scheduled_verify;
@@ -1185,6 +1186,7 @@ static run_result execute_run(
     int cycles = 0;
     int accepted_total = 0;
     int accepted_max = 0;
+    int bypass_count = 0;
     int tok_out[8192];
     int tok_n = 0;
     int force_tok[8192];   /* teacher_force: the forced (FP) trajectory tokens */
@@ -1270,29 +1272,55 @@ static run_result execute_run(
             int accepted[256];
             int cap = remaining;
             if (cap > (int)(sizeof(accepted) / sizeof(accepted[0]))) cap = (int)(sizeof(accepted) / sizeof(accepted[0]));
-            produced = ds4_session_eval_speculative_argmax(session,
-                                                           first,
-                                                           remaining,
-                                                           eos,
-                                                           accepted,
-                                                           cap,
-                                                           err,
-                                                           sizeof(err));
-            if (produced < 0) {
-                snprintf(res.err, sizeof(res.err), "speculative decode failed: %s", err);
-                goto done;
-            }
-            if (ds4_engine_has_dspark(engine)) {
-                ds4_dspark_cycle_metrics metric = {0};
-                res.dspark_timing_enabled = getenv("DS4_DSPARK_TIMING") != NULL;
-                if (ds4_session_get_dspark_last_cycle_metrics(session, &metric) == 0) {
-                    res.dspark_metrics_present = true;
-                    res.schedule_batched = res.schedule_batched || metric.batched_schedule;
-                    res.scheduled_verify = res.scheduled_verify || metric.scheduled_verify;
-                    if (metric.schedule_batch_limit > res.schedule_batch_limit) {
-                        res.schedule_batch_limit = metric.schedule_batch_limit;
+            /* Lead 11 M4 lever 1: the pre-draft target-margin bypass. If enabled
+             * (DS4_DSPARK_BYPASS=1) + the current logits' top1-top2 margin (about
+             * the anchor `first`) < theta_bypass (DS4_DSPARK_BYPASS_THRESHOLD), skip
+             * the draft+verify — commit `first` via a plain decode (1 token). Env-
+             * gated default-off; byte-exact (the anchor is the model's greedy argmax). */
+            bool did_bypass = false;
+            const char *bypass_env = getenv("DS4_DSPARK_BYPASS");
+            if (bypass_env && bypass_env[0] == '1') {
+                float theta = 0.0f;
+                const char *th_env = getenv("DS4_DSPARK_BYPASS_THRESHOLD");
+                if (th_env) theta = (float)atof(th_env);
+                ds4_token_score sc[2];
+                int ns = ds4_session_top_logprobs(session, sc, 2);
+                if (ns >= 2 && (sc[0].logprob - sc[1].logprob) < theta) {
+                    if (ds4_session_eval(session, first, err, sizeof(err)) != 0) {
+                        snprintf(res.err, sizeof(res.err), "bypass decode failed: %s", err);
+                        goto done;
                     }
-                    dspark_cycle_vec_push(&res.dspark_cycles, &metric);
+                    produced = 1;
+                    accepted[0] = first;
+                    did_bypass = true;
+                    bypass_count++;
+                }
+            }
+            if (!did_bypass) {
+                produced = ds4_session_eval_speculative_argmax(session,
+                                                               first,
+                                                               remaining,
+                                                               eos,
+                                                               accepted,
+                                                               cap,
+                                                               err,
+                                                               sizeof(err));
+                if (produced < 0) {
+                    snprintf(res.err, sizeof(res.err), "speculative decode failed: %s", err);
+                    goto done;
+                }
+                if (ds4_engine_has_dspark(engine)) {
+                    ds4_dspark_cycle_metrics metric = {0};
+                    res.dspark_timing_enabled = getenv("DS4_DSPARK_TIMING") != NULL;
+                    if (ds4_session_get_dspark_last_cycle_metrics(session, &metric) == 0) {
+                        res.dspark_metrics_present = true;
+                        res.schedule_batched = res.schedule_batched || metric.batched_schedule;
+                        res.scheduled_verify = res.scheduled_verify || metric.scheduled_verify;
+                        if (metric.schedule_batch_limit > res.schedule_batch_limit) {
+                            res.schedule_batch_limit = metric.schedule_batch_limit;
+                        }
+                        dspark_cycle_vec_push(&res.dspark_cycles, &metric);
+                    }
                 }
             }
             for (int i = 0; i < produced; i++) {
@@ -1317,6 +1345,7 @@ static run_result execute_run(
     res.cycles = cycles;
     res.accepted_total = accepted_total;
     res.accepted_max = accepted_max;
+    res.bypass_count = bypass_count;
     {
         const char *dtd = getenv("DS4_BENCH_DUMP_TOKENS");
         if (dtd && run->id && run->id[0]) {
@@ -1413,6 +1442,7 @@ static void write_result_jsonl(
     fprintf(out, ",\"cycles\":%d", res->cycles);
     fprintf(out, ",\"accepted_total\":%d", res->accepted_total);
     fprintf(out, ",\"accepted_max\":%d", res->accepted_max);
+    fprintf(out, ",\"bypass_count\":%d", res->bypass_count);
     fprintf(out, ",\"accepted_mean\":%.9g",
             res->cycles > 0 ? (double)res->accepted_total / (double)res->cycles : 0.0);
     fprintf(out, ",\"tokens_per_second\":%.9g",
