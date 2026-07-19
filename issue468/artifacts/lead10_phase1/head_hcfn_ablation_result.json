@@ -1,0 +1,11 @@
+{
+  "baseline_p1": 0.8500842223469961,
+  "trained_p1": 0.8742279618192027,
+  "delta": 0.024143739472206605,
+  "rank": 32,
+  "epochs": 12,
+  "loss": "CE vs sel (hard-label)",
+  "verdict": "GENERALIZES (keep head.hc_fn #1)",
+  "train_anchors": 3670,
+  "eval_anchors": 1781
+}

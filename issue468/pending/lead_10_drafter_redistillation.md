@@ -251,6 +251,26 @@ learning curve, the +2 pp verdict needs only ~60 held-out prompts.
 
 ## Worklog
 
+### 2026-07-19 — head.hc_fn ablation (codex's decisive test): +2.41 pp, GENERALIZES
+
+- The head.hc_fn-only LoRA ablation (`artifacts/lead10_phase1/head_hcfn_ablation.py`): rank=32,
+  12 epochs, hard-label CE vs sel, 40 train / 20 eval (seed 42) from the lead3 captures.
+  Precomputed the body features no_grad (sidesteps the MoE activation-retention issue).
+- **Result:** baseline (no LoRA) p1 = 0.8501; trained (hc_fn LoRA) p1 = 0.8742; **delta =
+  +2.41 pp** → **GENERALIZES**. The codex's decisive test is POSITIVE — head.hc_fn (the #1
+  gradient target) is a real, trainable lever, not just a large gradient.
+- **Fixed:** the F16 body forward overflowed (inf in x0 → NaN training); switched the precompute
+  to **F32 no_grad** (fits: experts 77 GB + ~9 GB/step, no retention; 0 inf-prompts).
+- **Baseline note (fidelity):** the torch-oracle baseline = 0.8501, NOT the 0.79 (the combined300
+  full-59 mean). Per-prompt the torch oracle MATCHES combined300 (dolly_0090: 0.852 ≈ the
+  ablation). The 20-prompt eval subset is easier than the full corpus (0.85 vs 0.79). The
+  +2.41 pp delta is internally consistent (same metric, same eval) but on the easy 20-subset.
+- **Caveats:** hard-label CE (the KL version needs the soft-label re-capture); head.hc_fn-ONLY
+  (the full multi-target LoRA — main_proj + attn + router + body HC + shared_expert — is the
+  next step, needs body-LoRA); 20-prompt eval (the 60-prompt validation is phase 2).
+- **Net:** head.hc_fn clears the +2 pp bar on a preliminary 20-prompt hard-label test → proceed
+  to the full multi-target LoRA + the soft-label (KL) re-training + the 60-prompt validation.
+
 ### 2026-07-19 — codex gate A (Phase-0 probe methodology) → corrections + decisive test
 
 - Codex review (gpt-5.5 xhigh, retained: `artifacts/dspark_codex_reviews/2026-07-19_lead10_phase0_gateA.md`)
