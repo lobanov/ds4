@@ -1,11 +1,11 @@
 # Lead 11 — Target-confidence draft bypass + STS recalibration (a two-stage scheduler)
 
-Date: 2026-07-19. Status: **in progress (research-lead skill; Exp 0a done; Exp 0b DROPPED).**
-The offline cycle-economics simulation (Exp 0b) is dropped — the offline drafter (D_f32/D_f16)
-does not reproduce the live engine (p1 0.835/0.525; baseline 59.54/35.72 t/s vs the live 40.04).
-The PROCEED/STOP verdict now comes from the **real-engine bypass measurement** (M4 lever 1).
-The engine implementation (if PROCEED) is framed as **Milestone 4 (DSpark runtime)** — structured
-+ documented like `summaries/dspark_runtime_milestone_3_progress.md` (see Scope).
+Date: 2026-07-19. Status: **CLOSED NEGATIVE (STOP, 2026-07-19).** M4 lever 1 (the pre-draft
+bypass) measured on the real engine: **< +3% on both corpora** (lead3 +0.11–0.29%, baseline_corpus
++2.65%, all CIs include 0; the clean equal-length lead3 subset +0.17%). Codex gate A confirms the
+STOP. The bypass is fundamentally limited in the M3 stack: the pre-draft signal (the current
+logits' margin) is off-by-one (the first-draft margin isn't available pre-draft), + the standalone
+decode loses the M3 anchor-reuse folding. Lead 11 closes negative; no M4 lever 2 / re-bench.
 
 ## Purpose / hypothesis
 
@@ -258,3 +258,38 @@ single-process memory (one ds4 run at a time).
 - **Next:** M4 lever 1 — implement the pre-draft bypass gate in ds4 (env-gated, default-off) +
   the real-engine bench. (Open design question: the bypass's pre-draft signal — the current
   logits' margin about the anchor — checking its predictiveness before the implementation.)
+
+### 2026-07-19 — M4 lever 1 DONE + the STOP verdict (Lead 11 closes negative)
+
+- **Implemented** the pre-draft target-margin bypass in ds4-spec-bench (commit 90ebe5b): in the
+  speculative loop, after the anchor argmax, read the current logits' top1-top2 margin
+  (`ds4_session_top_logprobs`, k=2); if `DS4_DSPARK_BYPASS=1` + margin < `θ_bypass` →
+  `ds4_session_eval(first)` (a plain decode, 1 token); else → `eval_speculative_argmax`.
+  Env-gated default-off; bypass_count tracked in the result JSONL.
+- **Fidelity gate PASS:** bypass OFF → the normal M3 speculative (bypass_count=0, the baseline t/s).
+- **Real-engine measurement** (the live Metal drafter + DS4_DSPARK_TIMING, off vs on):
+  - lead3 (60 short): θ=2.0 → +0.11% CI[-2.07%,+2.31%] (29% bypass); θ=1.0 → +0.29%
+    CI[-1.85%,+2.39%] (19% bypass). **Equal-length subset (n=49): +0.17% CI[-1.97%,+2.30%].**
+  - baseline_corpus (9 long, 4k-16k): θ=2.0 → +2.65% CI[-1.16%,+6.54%] (38% bypass).
+  - 1-prompt smoke (dolly_0090): +7.1% — an outlier (the corpus is ~0).
+  - **None clears the +3% bar; all CIs include 0.**
+- **Codex gate A** (gpt-5.5 xhigh, retained: `artifacts/dspark_codex_reviews/2026-07-19_lead11_m4lever1_codex_gateA.md`):
+  C3 (the off-by-one + the folding loss) + C4 (the STOP) **sound**. Independently re-verified:
+  the equal-length subset (+0.17%, CI incl 0) — the STOP holds on the clean data. The bypass's
+  measured decode cost (from the residuals) ~30-33ms (loses the M3 anchor-reuse folding).
+  Caveat: the baseline_corpus (n=9) is underpowered; a clean long-corpus θ sweep is the remaining
+  check, but the lead3 tight CI + the fundamental limits suggest it won't clear +3%.
+- **The fundamental limits** (confirmed): (a) the pre-draft signal (the current logits' margin) is
+  **off-by-one** — it's about the anchor, not the first draft; the gate-probe signal (the
+  first-draft margin) is only computed during the verify (post-draft → circular, not available
+  pre-draft). (b) the bypass (a standalone `ds4_session_eval` ~30-33ms) **loses the M3
+  anchor-reuse folding** (the anchor decode folded into the verify at ~0.1ms); the M3 anchor-reuse
+  already optimizes the anchor decode, so the bypass regresses on it.
+
+**VERDICT: STOP — Lead 11 closes negative.** The pre-draft target-margin bypass does not clear
+the +3% bar on either corpus (all CIs include 0; the clean equal-length lead3 subset is +0.17%).
+The bypass is fundamentally limited in the M3 stack: the only pre-draft signal (the anchor
+margin) is off-by-one (the first-draft margin isn't available pre-draft), + the standalone
+decode loses the M3 anchor-reuse folding. The scheduling axis is **not exhausted** (a scaled
+long-corpus θ sweep is a remaining check the codex flagged), but the bypass lever itself is dead.
+No M4 lever 2 / re-bench (not PROCEED).
