@@ -1,0 +1,1 @@
+{"id":"dolly_0090","mode":"speculative_argmax","chat_prompt_file":"/Users/lobanov/Projects/ds4-dspark-research/issue468/prompts/lead3_corpus/dolly_0090.txt","system":"You are a helpful assistant","frontier_tokens":100,"gen_tokens":128,"exclude_eos":true,"seed":1,"temperature":0}
