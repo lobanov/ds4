@@ -99,13 +99,39 @@ LoRA did not?
   - **IQ2 top-128 logits** — `--dump-logprobs` (the soft-label target). **Phase 0 must confirm
     the bench exposes this; if not, augment it** (mirror the Lead-04 Q2 top-128 capture).
 
+### Phase 0 — LoRA target selection (gradient probe + ablation)
+
+The dense LoRA targets are **selected empirically, not guessed**:
+
+1. **Gradient-magnitude probe (cheap, no training).** Load the D_f32 drafter with gradients
+   enabled; on a few hundred IQ2 anchors (H_iq2 → drafter → draft distribution), compute the
+   loss vs the IQ2 target (KL on the top-128, **or cross-entropy on Y_iq2 as a proxy — runnable
+   on the already-captured lead3 bundles before the soft-label capture lands**) and backprop
+   once. For each dense candidate weight W, record **‖∇W‖ / ‖W‖** (normalized so targets at
+   different depths are comparable). Rank. The high-ratio targets are the LoRA candidates.
+   - Candidates (per the inventory): per layer — `main_proj`, the sparse-MLA attention
+     (`wq_a/wq_b/wkv/wo_a/wo_b`), the HC mixing (`hc_attn_fn`/`hc_ffn_fn`), `ffn.gate`,
+     `ffn.shared_experts`, the norms; top-level — `hc_head_fn`, `markov_head`,
+     `confidence_head`. (Routed experts are frozen — read their gradients only as a reference.)
+2. **Per-target LoRA ablation (confirmatory).** Train a separate small LoRA on each top-gradient
+   candidate (short run, held-out p1 measured). Pick the winners for the full Lead-10 LoRA.
+
+**Why:** the IQ2-mismatch location is not obvious — Lead 07 showed the drafter is
+hidden-input-invariant at the acceptance level, so the remaining signal could be in the input
+projection, the context modeling, or the output heads. The probe tells us where before we
+commit. **Caveat:** gradient magnitude ≠ generalization (a target can have signal and still
+overfit, like Stage 2's head-LoRA) — the ablation confirms which winners generalize.
+
+**Secondary read:** if NO dense target carries a meaningful gradient, the IQ2 mismatch is weak
+→ temper the prior (a pre-STOP hint before spending the full training budget).
+
 ### Training approach
 
 - **Routed experts frozen; dense-LoRA on the rest.** Full fine-tune is infeasible (per-expert
-  overfitting at ~700 updates/expert; MXFP4 train complexity). LoRA targets: the sparse-MLA
-  attention (`wq_a/wq_b/wkv/wo_a/wo_b`), `main_proj`, `markov_head`/`confidence_head`, the
-  norms, the HC mixing; optionally the shared expert. This is the feasible trainable surface
-  (LoRA adapters = millions of params, not 19.85B).
+  overfitting at ~700 updates/expert; MXFP4 train complexity). LoRA targets: **selected by the
+  Phase-0 probe above** from the dense candidates (the attention, `main_proj`, the heads, the HC
+  mixing, optionally the shared expert). This is the feasible trainable surface (LoRA adapters =
+  millions of params, not 19.85B).
 - **Soft labels**: KL(drafter distribution ‖ IQ2 top-128 teacher distribution) per anchor (the
   proper MTP-distillation loss, re-targeted to IQ2).
 - **Precision**: train at **F32 or mixed-precision (F32 master / F16 compute)**, then cast to
@@ -173,9 +199,11 @@ Two distinct questions, both addressed:
 ## Codex gates + fidelity gate
 
 1. **Codex gate A (setup):** the soft-label capture augmentation (if added), the KL-loss
-   indexing/normalization over the top-128 (padding, masked positions), the **expert-freeze +
-   LoRA-target choice** (confirm the routed experts are frozen + the dense targets are right),
-   the F32/mixed precision, and the train/eval disjointness — BEFORE trusting any trained number.
+   indexing/normalization over the top-128 (padding, masked positions), the **Phase-0
+   gradient-probe + per-target ablation** (the target selection is sound — the ‖∇W‖/‖W‖
+   normalization, the candidate set, the ablation's held-out read), the **expert-freeze +
+   LoRA-target choice**, the F32/mixed precision, and the train/eval disjointness — BEFORE
+   trusting any trained number.
 2. **Fidelity gate:** trained drafter reproduces the 0.79 baseline (LoRA disabled) + F16==F32 on
    Q2 post-training.
 3. **Codex gate B (verdict):** the PROCEED/MARGINAL/STOP vs the data — honestly scoped
@@ -196,9 +224,10 @@ Two distinct questions, both addressed:
 ## Deliverables
 
 1. The soft-label IQ2 capture (240 train + 60 eval): H_iq2 + Y_iq2 + IQ2 top-128.
-2. The trained dense-LoRA drafter (F16 GGUF, routed experts frozen) + the training config/checkpoint + the learning curve.
-3. The held-out p1 (+ E[a|4]) vs the 0.79 baseline + the 0.85 ceiling, per-source, with CIs.
-4. The PROCEED/MARGINAL/STOP verdict + the codex-gate artifacts.
+2. The Phase-0 target-selection result (gradient-probe ranking + per-target ablation) — which dense parts carry the IQ2-mismatch signal.
+3. The trained dense-LoRA drafter (F16 GGUF, routed experts frozen) + the training config/checkpoint + the learning curve.
+4. The held-out p1 (+ E[a|4]) vs the 0.79 baseline + the 0.85 ceiling, per-source, with CIs.
+5. The PROCEED/MARGINAL/STOP verdict + the codex-gate artifacts.
 
 ## Exit conditions
 
@@ -215,6 +244,15 @@ dead). A real but uncertain bet with a negative prior; the train-set size is mea
 learning curve, the +2 pp verdict needs only ~60 held-out prompts.
 
 ## Worklog
+
+### 2026-07-16 — added Phase-0 LoRA target-selection diagnostic (pre-execution)
+
+Added a two-step Phase-0 to pick the dense LoRA targets empirically rather than guessing:
+(1) a **gradient-magnitude probe** (‖∇W‖/‖W‖ per dense candidate, one backward pass; runnable
+on the lead3 captures with a hard-label proxy before the soft-label capture lands);
+(2) a **per-target LoRA ablation** to confirm which targets generalize. Threaded through the
+training approach (targets now selected by the probe), Codex gate A, and the deliverables.
+Secondary read: if no dense target carries signal, temper the prior (pre-STOP hint).
 
 ### 2026-07-16 — drafter architecture finding → dense-LoRA reframe (pre-execution)
 
