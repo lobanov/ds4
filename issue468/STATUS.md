@@ -409,6 +409,17 @@ detect +2 pp on 60 held-out prompts; corpus + capture input prepared (`issue468/
 A real but uncertain bet (negative prior); not yet started. Design in
 `issue468/pending/lead_10_drafter_redistillation.md`.
 
+**Lead 11 — target-confidence draft bypass + STS recalibration (a two-stage scheduler)** is a
+proposed scheduling lever, relevant with Lead 08 intractable + Lead 10 capped: use the target's
+own margin at the anchor (available pre-draft, from the prior verify) to **bypass the draft** on
+low-confidence cycles (saving the draft cost the post-draft STS structurally can't), composed
+with a **recalibrated STS** on the filtered (higher-acceptance) cycles. Hypothesis: (1) speed up
+via draft-skip, (2) higher drafted-prefix acceptance (selection effect; needs STS retrain/
+recalibration). The gate signal is established (target margin predicts drafter rejection,
+corr −0.44 on FP; IQ2 margin matches FP). Bar: +3% combined throughput. Not yet started — Exp 0
+is the unified IQ2 H+logprobs capture + the cycle-economics simulation. Design in
+`issue468/pending/lead_11_target_confidence_bypass.md`.
+
 ## Canonicality rule
 
 This file is the source of truth for the branch's current research state.

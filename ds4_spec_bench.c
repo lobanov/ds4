@@ -41,6 +41,8 @@ typedef struct {
     bool ssd_streaming_cold;
     char *dump_hidden_dir;
     char *force_tokens_dir;
+    char *dump_logprobs_jsonl;   /* single appended JSONL of per-anchor top-k logprobs across all prompts */
+    int   logprobs_top_k;       /* top-k for the logprobs dump (default 128, max 128) */
     char *rewrite_frontier_path;
 } spec_bench_config;
 
@@ -370,6 +372,10 @@ static spec_bench_config parse_options(int argc, char **argv) {
             c.dump_hidden_dir = xstrdup0(need_arg(&i, argc, argv, arg));
         } else if (!strcmp(arg, "--force-tokens-dir")) {
             c.force_tokens_dir = xstrdup0(need_arg(&i, argc, argv, arg));
+        } else if (!strcmp(arg, "--dump-logprobs-jsonl")) {
+            c.dump_logprobs_jsonl = xstrdup0(need_arg(&i, argc, argv, arg));
+        } else if (!strcmp(arg, "--logprobs-top-k")) {
+            c.logprobs_top_k = atoi(need_arg(&i, argc, argv, arg));
         } else if (!strcmp(arg, "--ssd-streaming-cache-experts")) {
             uint32_t experts = 0;
             uint64_t bytes = 0;
@@ -1105,6 +1111,37 @@ static int read_force_tokens(const char *path, int *out, int max) {
     return n;
 }
 
+/* Single-append-JSONL top-k logprobs dump. Fires once per argmax step (the logits predict
+ * the step's token; scores[0].id == the greedy). All prompts' records go to ONE file (the path
+ * from DS4_BENCH_DUMP_LOGPROBS_JSONL), so the capture is a single JSONL, not many small files.
+ * Record: {"id":<prompt_id>,"pos":<step>,"sel":<greedy_tok>,"top":[[id,logprob],...]} */
+static void dump_logprobs_jsonl_if_enabled(ds4_session *s, const char *prompt_id, int pos, int selected) {
+    const char *path = getenv("DS4_BENCH_DUMP_LOGPROBS_JSONL");
+    if (!path || !path[0] || !s) return;
+    int k = 128;
+    const char *ke = getenv("DS4_BENCH_LOGPROBS_TOP_K");
+    if (ke && atoi(ke) > 0 && atoi(ke) <= 128) k = atoi(ke);
+    static FILE *fp = NULL;
+    static char open_path[1024] = {0};
+    if (!fp || strcmp(open_path, path) != 0) {
+        if (fp) fclose(fp);
+        fp = fopen(path, "ab");  /* append: one file across all prompts */
+        if (!fp) return;
+        strncpy(open_path, path, sizeof(open_path) - 1);
+    }
+    ds4_token_score scores[128];
+    int n = ds4_session_top_logprobs(s, scores, k);
+    fprintf(fp, "{\"id\":");
+    json_write_string(fp, prompt_id ? prompt_id : "");
+    fprintf(fp, ",\"pos\":%d,\"sel\":%d,\"top\":[", pos, selected);
+    for (int i = 0; i < n && i < k && scores[i].id >= 0; i++) {
+        if (i) fputc(',', fp);
+        fprintf(fp, "[%d,%.9g]", scores[i].id, scores[i].logprob);
+    }
+    fputs("]}\n", fp);
+    fflush(fp);
+}
+
 static run_result execute_run(
         ds4_engine        *engine,
         int                ctx_alloc,
@@ -1175,6 +1212,7 @@ static run_result execute_run(
                 goto done;
             }
             if (!run->exclude_eos && token == eos) res.eos_hit = true;
+            dump_logprobs_jsonl_if_enabled(session, run->id, emitted, token);
             if (ds4_session_eval(session, token, err, sizeof(err)) != 0) {
                 snprintf(res.err, sizeof(res.err), "decode failed: %s", err);
                 goto done;
@@ -1524,6 +1562,13 @@ int main(int argc, char **argv) {
                     invalid, runs.len);
             rc = 2;
         }
+    }
+    if (cfg.dump_logprobs_jsonl) setenv("DS4_BENCH_DUMP_LOGPROBS_JSONL", cfg.dump_logprobs_jsonl, 1);
+    else unsetenv("DS4_BENCH_DUMP_LOGPROBS_JSONL");
+    if (cfg.logprobs_top_k > 0) {
+        char kb[16];
+        snprintf(kb, sizeof(kb), "%d", cfg.logprobs_top_k);
+        setenv("DS4_BENCH_LOGPROBS_TOP_K", kb, 1);
     }
     for (int i = 0; rc == 0 && !did_rewrite && i < runs.len; i++) {
         spec_run *run = &runs.v[i];
