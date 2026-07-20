@@ -28,7 +28,7 @@ def parse_body(path, with_drafts=False):
         recs.append((a,p,bs,body,drafts))
     return recs
 
-wrecs = parse_winkv('/tmp/live_winkv_post.bin')   # POST-attention (has main_x at slot n_real)
+wrecs = parse_winkv('/tmp/live_winkv_final.bin')   # POST-LOOP (all 3 stages' main_x valid)
 brecs = parse_body('/tmp/live_body3.bin', with_drafts=True)
 print(f'recs: winkv_post={len(wrecs)} body={len(brecs)}', flush=True)
 body = build_body(DSPARK, TARGET, dev, dtype=torch.float32)
@@ -66,7 +66,7 @@ print('(was rel|d|=0.60 WITHOUT main_x; if this drops near 0, main_x was the bug
 
 # DRAFT AGREEMENT: do the torch body outputs produce the same drafts as the live?
 print(f'\n=== draft agreement (torch drafts from body_diff_mainx body vs live drafts) ===', flush=True)
-pos1_agree=0; n_tot_d=0; full_agree=0
+per_pos_agree = np.zeros(BLOCK, dtype=np.int64); per_pos_tot = 0
 with torch.no_grad():
     for (a,p,n,wkv),(ba,bp,bs,lb,live_drafts) in zip(wrecs,brecs):
         if live_drafts is None: continue
@@ -74,8 +74,10 @@ with torch.no_grad():
         out,_ = head.forward(tb.unsqueeze(0).to(dev), torch.tensor([a]))
         torch_drafts = out[0,1:].cpu().numpy()
         k = min(len(torch_drafts), len(live_drafts))
-        if torch_drafts[0]==live_drafts[0]: pos1_agree+=1
-        if (torch_drafts[:k]==live_drafts[:k]).all(): full_agree+=1
-        n_tot_d+=1
-print(f'position-1 draft agreement: {pos1_agree}/{n_tot_d} = {pos1_agree/max(n_tot_d,1):.3f}', flush=True)
-print(f'  (live p1 = 0.996; if torch ~0.99, the body forward is faithful enough)', flush=True)
+        for pos in range(k):
+            if torch_drafts[pos]==live_drafts[pos]: per_pos_agree[pos]+=1
+        per_pos_tot += 1
+print('per-position draft agreement (torch vs live):')
+for pos in range(BLOCK):
+    print(f'  pos {pos+1}: {per_pos_agree[pos]}/{per_pos_tot} = {per_pos_agree[pos]/max(per_pos_tot,1):.3f}')
+print(f'  (the live ACCEPTANCE is [0.996, 0.835, 0.673, 0.516, 0.390]; draft-vs-live agreement near 1.0 => faithful)', flush=True)

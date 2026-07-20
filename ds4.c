@@ -29762,6 +29762,37 @@ static bool metal_graph_eval_dspark_draft_block(
             }
         }
     }
+    /* faithful-repro: AFTER all 3 stages, every stage's kv_cache has its own main_x
+     * stored at slot n_real (the WINKV_POST dump inside the loop captured only stage 0's).
+     * Flush + dump all 3 stages here. Gated by DS4_DSPARK_DUMP_WINKV_FINAL. */
+    if (ok && getenv("DS4_DSPARK_DUMP_WINKV_FINAL")) {
+        (void)ds4_gpu_end_commands();
+        (void)ds4_gpu_begin_commands();
+        const char *wpath = getenv("DS4_DSPARK_DUMP_WINKV_FINAL");
+        const uint32_t kv_rows_f = DS4_N_SWA + DS4_DSPARK_BLOCK;
+        const uint64_t per_stage_f = (uint64_t)kv_rows_f * DS4_N_HEAD_DIM;
+        float *wkv = xmalloc((size_t)DS4_DSPARK_STAGES * per_stage_f * sizeof(float));
+        bool wok = true;
+        for (uint32_t s = 0; s < DS4_DSPARK_STAGES && wok; s++) {
+            wok = ds4_gpu_tensor_read(g->dspark_kv_cache[s], 0,
+                                      wkv + (uint64_t)s * per_stage_f,
+                                      per_stage_f * sizeof(float)) != 0;
+        }
+        if (wok) {
+            static FILE *wfp = NULL; static char wopen[1024] = {0};
+            if (!wfp || strcmp(wopen, wpath) != 0) {
+                if (wfp) fclose(wfp); wfp = fopen(wpath, "ab");
+                strncpy(wopen, wpath, sizeof(wopen)-1); wopen[sizeof(wopen)-1] = '\0';
+            }
+            if (wfp) {
+                int32_t a32 = anchor_token, p32 = (int32_t)pos, n32 = (int32_t)g->dspark_n_real;
+                fwrite(&a32, 4, 1, wfp); fwrite(&p32, 4, 1, wfp); fwrite(&n32, 4, 1, wfp);
+                fwrite(wkv, sizeof(float), (size_t)DS4_DSPARK_STAGES * per_stage_f, wfp);
+                fflush(wfp);
+            }
+        }
+        free(wkv);
+    }
     if (ok) ok = metal_graph_encode_output_head_dspark_batch(g,
                                                              target_model,
                                                              target_weights,
