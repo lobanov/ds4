@@ -10,7 +10,8 @@ the ds4-dspark-research dossier. The torch code (`dspark_train/drafter_body.py` 
 `drafter_head.py`) + the numpy oracle (`dspark_oracle/forward.py`) are the canonical
 implementations; this skill captures how to use them correctly + what goes wrong.
 
-Pair with `research-lead` (the methodology) + `adversarial-codex-review` (the gates).
+Pair with `research-lead` (the methodology) + `adversarial-codex-review` (the gates)
++ `pytorch-drafter-finetuning` (the LoRA/training/baking-specific patterns).
 
 ## When to use
 
@@ -201,6 +202,15 @@ def entropy_of(top):
     lp = np.array([t[1] for t in top]); p = np.exp(lp - lp.max()); p /= p.sum()
     return float(-(p * np.log(p + 1e-12)).sum())
 ```
+
+## Cross-reference: drafter fine-tuning
+
+For the fine-tuning-specific patterns — LoRA init, the hc_head F16 overflow fix, the
+GGUF offset (`data_off + off`) for baking, the precomputed-features training, the
+gradient-probe target ranking, the KL-vs-CE proxy — see
+`pytorch-drafter-finetuning`. The skills are complementary: this one covers the
+general torch drafter usage (loading, forward, measurement, fidelity-gating); the
+fine-tuning one covers the training + deployment layer on top.
 
 ## Guardrails
 

@@ -11,7 +11,8 @@ of Leads 01–03, 07, 10–11 — leads where the obvious path was wrong
 in instructive ways.
 
 This skill is **methodology**, not a script. Pair it with `adversarial-codex-review`
-for the gates + `pytorch-numerical-modelling` for the torch drafter patterns.
+for the gates + `pytorch-numerical-modelling` for the torch drafter patterns +
+`pytorch-drafter-finetuning` for the LoRA/training/GGUF-baking patterns.
 
 ## When to use
 
