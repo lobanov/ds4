@@ -93,7 +93,9 @@ class DrafterHead(nn.Module):
     def k_scores(self, x, prev_tok):  # x [N,BLOCK,HC,DIM], prev_tok [N,K] -> [N,K,VOCAB] (teacher-forced, LoRA-applied)
         dev = self.lm_head.device; dt = self.lm_head.dtype
         h = self.hc_head(x.to(dev)).to(dev, dt)            # [N,BLOCK,DIM] (LoRA via _hc_fn)
-        h = h * (1.0 / torch.sqrt((h * h).mean(-1, keepdim=True) + NORM_EPS)) * self._norm_w().to(dev, dt)
+        hf = h.float()  # rms-norm in F32 (faithful to ds4; avoids h^2 F16 overflow)
+        hf = hf * (1.0 / torch.sqrt((hf * hf).mean(-1, keepdim=True) + NORM_EPS)) * self._norm_w().to(dev, torch.float32)
+        h = hf.to(dt)
         base = h @ self.lm_head.T                            # [N,BLOCK,VOCAB]
         bias = self._mw1(prev_tok.to(dev)).to(dev, dt) @ self._mw2_T(dt)  # [N,K,VOCAB]
         return base + bias                                   # BLOCK==K -> [N,K,VOCAB]
@@ -128,7 +130,9 @@ class DrafterHead(nn.Module):
         dev = x.device
         dt = self.lm_head.dtype
         h = self.hc_head(x.to(dev)).to(dev, dt)
-        h = h * (1.0 / torch.sqrt((h * h).mean(-1, keepdim=True) + NORM_EPS)) * self._norm_w().to(dev, dt)
+        hf = h.float()  # rms-norm in F32 (faithful to ds4; avoids h^2 F16 overflow)
+        hf = hf * (1.0 / torch.sqrt((hf * hf).mean(-1, keepdim=True) + NORM_EPS)) * self._norm_w().to(dev, torch.float32)
+        h = hf.to(dt)
         base = h @ self.lm_head.T                                # [b, BLOCK, VOCAB]
         b = x.shape[0]
         out = torch.zeros(b, BLOCK + 1, dtype=torch.long, device=dev)
