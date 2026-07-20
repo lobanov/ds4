@@ -251,7 +251,27 @@ learning curve, the +2 pp verdict needs only ~60 held-out prompts.
 
 ## Worklog
 
-### 2026-07-20 — F16 oracle fix: F16==F32 PASSES (the +2.4 pp holds at F16) — ENCOURAGING
+### 2026-07-20 — codex gate B: verdict revised to MARGINAL (baseline regime questionable)
+
+- Codex gate B (gpt-5.5 xhigh, retained: `artifacts/dspark_codex_reviews/2026-07-20_lead10_phase2_gateB.md`):
+  - **C1 (+2.30pp):** validly derived (CI [+0.0161, +0.0301]) but conditional on one stochastic run
+    (no torch.manual_seed) + hparam/target selection already used lead3 (in-sample bias).
+  - **C2 (the baseline): LIKELY-WRONG.** The phase2 cache baseline (0.8440) does NOT match
+    the combined300 for the SAME 0080–0099 IDs (combined300 mean ~0.7945). Specific prompts
+    disagree hard (codealpaca_0080: phase2 0.852 vs combined300 0.762; dolly_0090: 0.680 vs
+    0.852). So the phase2 cache (the drafter_body forward) + the combined300 (the Lead-03
+    measure) are DIFFERENT regimes — the +2.30pp is on the phase2 cache, not the deployment.
+  - **C3 (F16):** approximate (not a deployment proof; the decisive test is the live ds4).
+  - **C4 (PROCEED): questionable** — the p1 clears the rule, but the baseline mismatch +
+    F16 + E[a|4] gaps undermine the deployment PROCEED.
+- **Verdict revised: MARGINAL.** The p1 signal is real-looking (the Δp1 CI excludes 0, all
+  sources positive) but the baseline/eval regime is questionable (the phase2 cache may not be
+  the deployed 0.79 regime) + the F16/E[a|4]/head-only gaps. The decisive test is the **ds4
+  integration (SC7)**: bake the trained LoRA into the dspark GGUF + run the live ds4 on the
+  combined300 or the fresh distill eval → the row-matched p1 + E[a|4] + the F32/F16/ds4
+  agreement. NOT archived (the MARGINAL → the integration pending).
+
+### 2026-07-20 — Phase-2 held-out validation: +2.30 pp (PROCEED on the phase2 cache)
 
 - **Root cause** (read from `ds4.c:28286 dspark_hc_head_one`): the ds4's hc_head computes the
   RMS norm (`rms_norm_no_weight`) + the matvec (`matvec_f16`) + the sigmoid **all in F32**

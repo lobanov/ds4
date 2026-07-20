@@ -401,13 +401,16 @@ sublinear bit-exact batch-path build (HC/compressor/attention on decode reductio
 load sharing) with a hard exit gate: an end-to-end K=4 bit-exact verifier must profile
 `verify_ms(4) ≤ 50.5 ms`. GO is unconfirmed until that gate clears.
 
-**Lead 10 — drafter re-distillation for IQ2XXS (soft labels)** is a proposed, lower-priority
-drafter-quality follow-up: the one untested route after Lead 07 (hidden-side, dead) and Stage 2
-(head-only hard-label, dead). It tests whether the 0.79 IQ2-native acceptance is a distribution
-mismatch a full-body soft-label re-distillation can close, or a capacity ceiling. Powered to
-detect +2 pp on 60 held-out prompts; corpus + capture input prepared (`issue468/data/distill_corpus/`).
-A real but uncertain bet (negative prior); not yet started. Design in
-`issue468/pending/lead_10_drafter_redistillation.md`.
+**Lead 10 — drafter re-distillation for IQ2XXS (soft labels)** is an **active** lead (MARGINAL
+verdict, pending the ds4 integration). Full-body re-distillation reframed to **dense-LoRA**
+(experts frozen) per the architecture finding. The **head.hc_fn-only LoRA** (KL vs IQ2 top-128,
+rank=32, 12 epochs) gives **+2.30 pp Δp1 CI[+0.0161,+0.0301]** on a 3-fold CV (60 held-out
+lead3 prompts). Codex gate A (Phase-0 probe) + gate B (verdict) both run. Gate B revised the
+verdict to **MARGINAL**: the phase2-cache baseline (0.8440) doesn't match the combined300
+(~0.7945 for the same IDs) — the +2.30pp is on the drafter_body's regime, not necessarily the
+deployment. The F16 oracle fix (the hc_head F32-internal) passes (F16≈F32). The decisive test
+is the **ds4 integration**: bake the trained LoRA into the dspark GGUF + the live ds4 check.
+Design + worklog in `issue468/pending/lead_10_drafter_redistillation.md`.
 
 **Lead 11 — target-confidence draft bypass (CLOSED NEGATIVE, 2026-07-19).** The pre-draft
 target-margin bypass (env-gated, `DS4_DSPARK_BYPASS`) was implemented + measured on the real
