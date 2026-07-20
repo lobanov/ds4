@@ -251,6 +251,24 @@ learning curve, the +2 pp verdict needs only ~60 held-out prompts.
 
 ## Worklog
 
+### 2026-07-20 — F16 oracle fix: F16==F32 PASSES (the +2.4 pp holds at F16) — ENCOURAGING
+
+- **Root cause** (read from `ds4.c:28286 dspark_hc_head_one`): the ds4's hc_head computes the
+  RMS norm (`rms_norm_no_weight`) + the matvec (`matvec_f16`) + the sigmoid **all in F32**
+  (the `float *` signatures; `matvec_f16` returns an F32 `pre`). The torch oracle's
+  `drafter_head.hc_head` computed the rsqrt + the matmul **in F16** → overflowed on the large
+  body-output values (up to 1721 → x² > 65504 → F16 inf → the rsqrt + the matmul-result
+  cast collapse → p1 0.55 vs F32 0.85).
+- **Fix:** made `drafter_head.hc_head` **F32-internal** (cast the input + the weights to F32,
+  compute the rsqrt + the matmul + the sigmoid in F32, cast the output to the input dtype) +
+  the `p1_scores` norm in F32. Faithful to the ds4's F32-internal hc_head.
+- **Re-check:** **F16==F32 |diff| = 0.00000 → PASS.** The trained head at F16 gives
+  p1=0.8742 == F32 0.8742 (the +2.4 pp holds at F16). The dtype-invariance is restored.
+- **Learning curve** (with the fix): 10/20/40 → +1.6/+2.1/+2.4 pp (steady climb; the
+  20→40 gain +0.34 pp → **data-limited**, scale to the distill_corpus).
+- **ENCOURAGING** → the ds4 integration (SC7) is in scope. [codex review/bug-hunt of the fix
+  next, per the f16-oracle-fix task.]
+
 ### 2026-07-19 — learning curve + the F16 fidelity complication (PAUSED for direction)
 
 - **Learning curve** (head.hc_fn KL, nested train 10/20/40, 20-prompt eval): ~+2.0–2.6 pp

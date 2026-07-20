@@ -76,12 +76,19 @@ class DrafterHead(nn.Module):
         return self.conf_proj.to(dtype)
 
     def hc_head(self, x):  # x [b, BLOCK, HC, DIM] -> [b, BLOCK, DIM]
+        # F32-internal (faithful to the ds4's dspark_hc_head_one: rms_norm_no_weight +
+        # matvec_f16 + sigmoid all run in F32) — avoids the F16 overflow on the large
+        # body-output values (up to 1721 -> x^2 > 65504 -> F16 inf -> the rsqrt + the
+        # matmul-result cast collapse). The weights are F16 in the GGUF; cast to F32 for
+        # the compute, cast the output back to the input dtype.
         b, s, hc, d = x.shape
-        flat = x.reshape(b, s, hc * d)
+        out_dt = x.dtype
+        xf = x.float()
+        flat = xf.reshape(b, s, hc * d)
         rsqrt = 1.0 / torch.sqrt((flat * flat).mean(-1, keepdim=True) + NORM_EPS)
-        mixes = (flat @ self._hc_fn().T) * rsqrt                 # [b, BLOCK, HC]
+        mixes = (flat @ self._hc_fn().float().T) * rsqrt       # [b, BLOCK, HC]
         pre = torch.sigmoid(mixes * self.hc_scale[0] + self.hc_base) + HC_EPS
-        return (pre.unsqueeze(-1) * x).sum(dim=2)                # [b, BLOCK, DIM]
+        return ((pre.unsqueeze(-1) * xf).sum(dim=2)).to(out_dt)  # [b, BLOCK, DIM]
 
     def k_scores(self, x, prev_tok):  # x [N,BLOCK,HC,DIM], prev_tok [N,K] -> [N,K,VOCAB] (teacher-forced, LoRA-applied)
         dev = self.lm_head.device; dt = self.lm_head.dtype
@@ -95,7 +102,10 @@ class DrafterHead(nn.Module):
         dev = self.lm_head.device; dt = self.lm_head.dtype
         x = x0.to(dev).unsqueeze(1)                       # [N,1,HC,DIM]
         h = self.hc_head(x)[:, 0].to(dev, dt)             # [N,DIM] (uses _hc_fn with LoRA)
-        h = h * (1.0 / torch.sqrt((h * h).mean(-1, keepdim=True) + NORM_EPS)) * self._norm_w().to(dev, dt)
+        # the rms-norm in F32 (avoids the h^2 F16 overflow when h is large)
+        hf = h.float()
+        hf = hf * (1.0 / torch.sqrt((hf * hf).mean(-1, keepdim=True) + NORM_EPS)) * self._norm_w().to(dev, torch.float32)
+        h = hf.to(dt)
         base = h @ self.lm_head.T                          # [N,VOCAB]
         bias = self._mw1(anchor.to(dev)).to(dev, dt) @ self._mw2_T(dt)  # [N,VOCAB]
         return base + bias
