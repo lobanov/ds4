@@ -10398,6 +10398,45 @@ decode_again:
     dsml_decode_tracker dsml_tracker;
     dsml_decode_tracker_init(&dsml_tracker);
 
+    /* Lead 09 trajectory capture (env-gated research instrumentation).
+     * When DS4_CAPTURE_TRAJECTORY=1, drive the engine's
+     * metal_graph_debug_dump path (which reads getenv each call) with a
+     * per-request prefix so layer 40/41/42 hc_ffn_post is dumped per token,
+     * and open a per-request token+region JSONL. DSpark stays OFF during
+     * capture; the layer means are for offline per-region acceptance replay.
+     * The model is single-instance and decode is serialized, so per-request
+     * setenv/unsetenv is safe. Env unset -> capture_active=false -> zero work
+     * (one NULL-check per token, no fopen, no setenv) -> baseline unchanged. */
+    const char *cap_env = getenv("DS4_CAPTURE_TRAJECTORY");
+    const bool capture_active = cap_env && cap_env[0] == '1';
+    FILE *capture_fp = NULL;
+    if (capture_active) {
+        const char *cap_dir = getenv("DS4_CAPTURE_TRAJECTORY_DIR");
+        if (!cap_dir || !cap_dir[0]) cap_dir = ".";
+        const size_t cap_len = strlen(cap_dir) + strlen(id) + 32;
+        if (cap_len > 900) {
+            trace_event(s, trace_id,
+                        "lead09 capture: path too long (%zu); skipping", cap_len);
+        } else {
+            char cap_prefix[1024];
+            snprintf(cap_prefix, sizeof(cap_prefix), "%s/%s_", cap_dir, id);
+            setenv("DS4_METAL_GRAPH_DUMP_PREFIX", cap_prefix, 1);
+            setenv("DS4_METAL_GRAPH_DUMP_NAME", "hc_ffn_post", 1);
+            setenv("DS4_METAL_GRAPH_DUMP_LAYER", "40,41,42", 1);
+            char cap_jsonl[1024];
+            snprintf(cap_jsonl, sizeof(cap_jsonl), "%s/%s_tokens.jsonl",
+                     cap_dir, id);
+            capture_fp = fopen(cap_jsonl, "wb");
+            trace_event(s, trace_id,
+                        "lead09 capture ON dir=%s id=%s jsonl=%s",
+                        cap_dir, id, capture_fp ? "open" : "fopen-failed");
+        }
+    } else {
+        /* Clear any dump prefix left by a prior capture request so a
+         * non-capture request does not inherit it. */
+        unsetenv("DS4_METAL_GRAPH_DUMP_PREFIX");
+    }
+
     while (!g_stop_requested && completion < max_tokens &&
            ds4_session_pos(s->session) < ds4_session_ctx(s->session)) {
         dsml_decode_state dsml_state = j->req.kind == REQ_CHAT && j->req.has_tools ?
@@ -10469,6 +10508,25 @@ decode_again:
             thinking_state_feed(&thinking, piece, piece_len);
             if (j->req.kind == REQ_CHAT && j->req.has_tools) {
                 dsml_decode_tracker_update(&dsml_tracker, text.ptr, text.len);
+            }
+
+            if (capture_fp) {
+                /* Region for this token: TOOL inside a DSML tool-call span,
+                 * THINKING inside <think>, else TEXT. dsml_decode_tracker_update
+                 * and thinking_state_feed both just ran for this token, so the
+                 * state is current. (The streaming renderer's SUPPRESS is a
+                 * transport concept; the DSML/thinking state is the ground
+                 * truth for the acceptance replay.) */
+                const char *region =
+                    (j->req.kind == REQ_CHAT && j->req.has_tools &&
+                     dsml_decode_state_is_tool(dsml_tracker.decode))
+                        ? "TOOL"
+                        : (thinking.inside ? "THINKING" : "TEXT");
+                fprintf(capture_fp,
+                        "{\"req\":\"%s\",\"completion\":%d,\"abs_pos\":%d,"
+                        "\"token\":%d,\"region\":\"%s\"}\n",
+                        id, completion, (int)ds4_session_pos(s->session),
+                        token, region);
             }
 
             size_t stop_pos = 0, stop_len = 0;
@@ -10639,6 +10697,17 @@ decode_again:
             }
         }
         if (stop_decode) break;
+    }
+
+    if (capture_fp) {
+        fflush(capture_fp);
+        fclose(capture_fp);
+        capture_fp = NULL;
+    }
+    if (capture_active) {
+        /* Drop the per-request dump prefix so a later non-capture request
+         * does not inherit it. */
+        unsetenv("DS4_METAL_GRAPH_DUMP_PREFIX");
     }
 
     if (g_stop_requested && strcmp(finish, "error") != 0) {
