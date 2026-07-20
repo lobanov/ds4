@@ -28,8 +28,8 @@ def parse_body(path, with_drafts=False):
         recs.append((a,p,bs,body,drafts))
     return recs
 
-wrecs = parse_winkv('/tmp/live_winkv_final.bin')   # POST-LOOP (all 3 stages' main_x valid)
-brecs = parse_body('/tmp/live_body3.bin', with_drafts=True)
+wrecs = parse_winkv('/tmp/live_winkv_final20.bin')   # POST-LOOP (all 3 stages' main_x valid), 20-prompt
+brecs = parse_body('/tmp/live_body20.bin', with_drafts=True)
 print(f'recs: winkv_post={len(wrecs)} body={len(brecs)}', flush=True)
 body = build_body(DSPARK, TARGET, dev, dtype=torch.float32)
 from drafter_head import build_head
@@ -81,3 +81,23 @@ print('per-position draft agreement (torch vs live):')
 for pos in range(BLOCK):
     print(f'  pos {pos+1}: {per_pos_agree[pos]}/{per_pos_tot} = {per_pos_agree[pos]/max(per_pos_tot,1):.3f}')
 print(f'  (the live ACCEPTANCE is [0.996, 0.835, 0.673, 0.516, 0.390]; draft-vs-live agreement near 1.0 => faithful)', flush=True)
+
+# ISOLATION: run the head on the LIVE (bit-exact) body vs the torch body. If the live-body
+# draft agreement is much higher, the residual is the BODY (the FP8-KV draft-block KV); if similar,
+# the residual is the HEAD's own Q8_0 (lm_head/markov).
+print(f'\n=== ISOLATION: head on LIVE body (bit-exact) vs torch body ===', flush=True)
+live_body_agree = np.zeros(BLOCK, dtype=np.int64)
+with torch.no_grad():
+    for (a,p,n,wkv),(ba,bp,bs,lb,live_drafts) in zip(wrecs,brecs):
+        if live_drafts is None or bs < BLOCK: continue
+        # run head on the LIVE body (lb = [bs, HC_DIM] -> [bs, HC, DIM])
+        lb_t = torch.as_tensor(lb, device=dev, dtype=torch.float32).reshape(bs, HC, DIM).unsqueeze(0)  # [1, bs, HC, DIM]
+        out,_ = head.forward(lb_t, torch.tensor([a]))
+        lb_drafts = out[0,1:].cpu().numpy()
+        k = min(len(lb_drafts), len(live_drafts))
+        for pos in range(k):
+            if lb_drafts[pos]==live_drafts[pos]: live_body_agree[pos]+=1
+print('per-position draft agreement (head on LIVE body vs live drafts):')
+for pos in range(BLOCK):
+    print(f'  pos {pos+1}: {live_body_agree[pos]}/{per_pos_tot} = {live_body_agree[pos]/max(per_pos_tot,1):.3f}')
+print('  (if these are ~1.0, the residual gap is the BODY FP8-KV; if similar to torch-body, it is the HEAD Q8_0)', flush=True)

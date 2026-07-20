@@ -42,6 +42,20 @@ def apply_rotary(x_last, cos, sin):
     return out
 
 
+def fp8_kv_quantize_nope(x):
+    """Per-64-block E4M3FN quantize with power-of-2 scale, matching ds4.c
+    dsv4_fp8_kv_quantize_row_inplace_cpu. Applied to the nope part of the kv
+    (the first HEAD_DIM-ROPE_DIM dims). MPS lacks float8_e4m3fn, so roundtrip via CPU."""
+    shape = x.shape
+    x = x.reshape(*shape[:-1], -1, 64)
+    amax = x.abs().amax(-1, keepdim=True).clamp(min=1e-4)
+    scale = torch.pow(2.0, torch.ceil(torch.log2(amax / 448.0)))
+    v = (x / scale).clamp(-448.0, 448.0)
+    dev = x.device
+    v_q = v.cpu().to(torch.float8_e4m3fn).to(torch.float32).to(dev)
+    return (v_q * scale).reshape(*shape)
+
+
 def hc_split_sinkhorn(mixes, scale, base, hc=HC, iters=20, eps=HC_EPS):
     pre = torch.sigmoid(mixes[..., :hc] * scale[0] + base[:hc]) + eps
     post = 2.0 * torch.sigmoid(mixes[..., hc:2 * hc] * scale[1] + base[hc:2 * hc])
@@ -126,6 +140,7 @@ class DrafterBody:
         q[..., -ROPE_DIM:] = apply_rotary(q[..., -ROPE_DIM:], cs, ss)
         kv = rmsnorm(x_draft @ w["kv"].T, w["kv_a_norm"])
         kv[..., -ROPE_DIM:] = apply_rotary(kv[..., -ROPE_DIM:], cs_kv, ss_kv)
+        kv[..., :HEAD_DIM - ROPE_DIM] = fp8_kv_quantize_nope(kv[..., :HEAD_DIM - ROPE_DIM])
         kv_all = torch.cat([win_kv.unsqueeze(0), kv], dim=1)
         idx = torch.cat([torch.arange(n_real, device=self.dev),
                          torch.arange(WIN, WIN + block, device=self.dev)])
