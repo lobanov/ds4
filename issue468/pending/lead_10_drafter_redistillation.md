@@ -1,5 +1,21 @@
 # Lead 10 — Soft-label dense-LoRA drafter re-distillation for IQ2XXS (experts frozen)
 
+*** *Re-opened 2026-07-20 for re-attempt (goal mrthg76m-800onm).* The original STOP was
+predicated on an **unfaithful torch oracle**: a faithful-repro investigation this session
+showed the torch port's body forward proper diverges from the live Metal drafter by ~60%
+(rel|diff|), with rec0 (empty win_kv) at 101% — i.e. the body forward itself is wrong, not
+the win_kv or the capture. The hc_pre Sinkhorn, the win_kv KV projection, and the window
+size (128) all match in code; the divergence localizes to **_attn / hc_post / _moe**.
+Consequently the original Lead 10 offline gain (+2.30 pp) was measured on a torch port whose
+per-position acceptance shape is wrong (pos1 0.880 vs live 0.996; suffix inflated) — the
+offline→live non-transfer is explained by the unfaithful surface, not by a real negative.
+
+*Re-attempt plan (goal mrthg76m-800onm):* (1) fix the torch body forward → faithful repro
+(per-position acceptance within ~1pp of live); (2) measure suffix-loss concentration on
+the faithful port → pick the LoRA target; (3) re-train with a **REINFORCE objective
+(reward = #accepted, positions coupled)** instead of the per-position KL; (4) live ds4 test
++ codex gates A/B. The prior STOP verdict below is superseded pending this re-attempt. ***
+
 Date: 2026-07-16. **Status: resolved & archived 2026-07-20 — STOP (the head.hc_fn LoRA gives
 no live-ds4 gain).** The head.hc_fn-only dense-LoRA (KL vs IQ2 top-128, rank=32) gives
 +2.30 pp held-out offline (the torch oracle) but **NO live-ds4 gain** (E[a|K] 3.494 vs 3.516,

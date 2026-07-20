@@ -29113,6 +29113,29 @@ static bool metal_graph_dspark_encode_attention(
                                                        DS4_N_HC,
                                                        DS4_N_HC_SINKHORN_ITER,
                                                        DS4_HC_EPS) != 0;
+    /* faithful-repro: dump the hc_split [pre,post,comb] + residual (batch_cur_hc) for stage 0. */
+    if (ok && stage == 0 && getenv("DS4_DSPARK_DUMP_HCSPLIT")) {
+        const char *hpath = getenv("DS4_DSPARK_DUMP_HCSPLIT");
+        float *sp = xmalloc((size_t)n_tokens * mix_hc * sizeof(float));
+        float *rs = xmalloc((size_t)n_tokens * hc_dim * sizeof(float));
+        bool spk = (ds4_gpu_tensor_read(g->batch_hc_split, 0, sp, (uint64_t)n_tokens*mix_hc*sizeof(float)) != 0);
+        bool rsk = (ds4_gpu_tensor_read(g->batch_cur_hc, 0, rs, (uint64_t)n_tokens*hc_dim*sizeof(float)) != 0);
+        if (spk && rsk) {
+            static FILE *hfp = NULL; static char hopen[1024] = {0};
+            if (!hfp || strcmp(hopen, hpath) != 0) {
+                if (hfp) fclose(hfp); hfp = fopen(hpath, "ab");
+                strncpy(hopen, hpath, sizeof(hopen)-1); hopen[sizeof(hopen)-1]='\0';
+            }
+            if (hfp) {
+                int32_t p32=(int32_t)start_pos, n32=(int32_t)n_tokens, m32=(int32_t)mix_hc;
+                fwrite(&p32,4,1,hfp); fwrite(&n32,4,1,hfp); fwrite(&m32,4,1,hfp);
+                fwrite(sp, sizeof(float), (size_t)n_tokens*mix_hc, hfp);
+                fwrite(rs, sizeof(float), (size_t)n_tokens*hc_dim, hfp);
+                fflush(hfp);
+            }
+        }
+        free(sp); free(rs);
+    }
     if (ok) ok = ds4_gpu_rms_norm_weight_rows_tensor(g->batch_attn_norm,
                                                      g->batch_attn_cur,
                                                      dspark_model->map,
@@ -29289,6 +29312,36 @@ static bool metal_graph_dspark_encode_attention(
                                                            DS4_N_EMBD,
                                                            g->batch_heads,
                                                            n_tokens) != 0;
+    /* faithful-repro bisection: dump batch_heads + batch_attn_out for stage 0. */
+    if (ok && stage == 0 && getenv("DS4_DSPARK_DUMP_ATTNINT")) {
+        /* FLUSH the GPU command buffer so the read sees fresh (post-kernel) data,
+         * not the pre-attention stale state. End+begin splits the batch but is gated
+         * to this diagnostic path only. */
+        (void)ds4_gpu_end_commands();
+        (void)ds4_gpu_begin_commands();
+        const char *ipath = getenv("DS4_DSPARK_DUMP_ATTNINT");
+        float *hbuf = xmalloc((size_t)n_tokens * DS4_N_HEAD * DS4_N_HEAD_DIM * sizeof(float));
+        float *obuf = xmalloc((size_t)n_tokens * DS4_N_EMBD * sizeof(float));
+        bool hok = (ds4_gpu_tensor_read(g->batch_heads, 0, hbuf,
+                                        (uint64_t)n_tokens * DS4_N_HEAD * DS4_N_HEAD_DIM * sizeof(float)) != 0);
+        bool ook = (ds4_gpu_tensor_read(g->batch_attn_out, 0, obuf,
+                                        (uint64_t)n_tokens * DS4_N_EMBD * sizeof(float)) != 0);
+        if (hok && ook) {
+            static FILE *ifp = NULL; static char iopen[1024] = {0};
+            if (!ifp || strcmp(iopen, ipath) != 0) {
+                if (ifp) fclose(ifp); ifp = fopen(ipath, "ab");
+                strncpy(iopen, ipath, sizeof(iopen)-1); iopen[sizeof(iopen)-1] = '\0';
+            }
+            if (ifp) {
+                int32_t a32 = (int32_t)0, p32 = (int32_t)start_pos, n32 = (int32_t)n_tokens;
+                fwrite(&a32,4,1,ifp); fwrite(&p32,4,1,ifp); fwrite(&n32,4,1,ifp);
+                fwrite(hbuf, sizeof(float), (size_t)n_tokens*DS4_N_HEAD*DS4_N_HEAD_DIM, ifp);
+                fwrite(obuf, sizeof(float), (size_t)n_tokens*DS4_N_EMBD, ifp);
+                fflush(ifp);
+            }
+        }
+        free(hbuf); free(obuf);
+    }
     if (ok) ok = ds4_gpu_hc_expand_split_tensor(after_attn_hc_view,
                                                  g->batch_attn_out,
                                                  g->batch_cur_hc,
@@ -29542,6 +29595,41 @@ static bool metal_graph_eval_dspark_draft_block(
     if (g->dspark_n_real >= DS4_N_SWA) g->dspark_n_real = 0;
     if (base_real_out) *base_real_out = g->dspark_n_real;
 
+    /* faithful-repro: dump the win_kv (dspark_kv_cache, the committed tokens' KV)
+     * at the START of the cycle, before the body forward modifies it. Gated by
+     * DS4_DSPARK_DUMP_WINKV=<path>. Layout: [STAGES][N_SWA+BLOCK][HEAD_DIM]. */
+    if (getenv("DS4_DSPARK_DUMP_WINKV")) {
+        const char *wpath = getenv("DS4_DSPARK_DUMP_WINKV");
+        const uint32_t kv_rows = DS4_N_SWA + DS4_DSPARK_BLOCK;
+        const uint64_t per_stage = (uint64_t)kv_rows * DS4_N_HEAD_DIM;
+        float *wkv = xmalloc((size_t)DS4_DSPARK_STAGES * per_stage * sizeof(float));
+        bool wok = true;
+        for (uint32_t s = 0; s < DS4_DSPARK_STAGES && wok; s++) {
+            wok = ds4_gpu_tensor_read(g->dspark_kv_cache[s], 0,
+                                      wkv + (uint64_t)s * per_stage,
+                                      per_stage * sizeof(float)) != 0;
+        }
+        if (wok) {
+            static FILE *wfp = NULL;
+            static char wopen[1024] = {0};
+            if (!wfp || strcmp(wopen, wpath) != 0) {
+                if (wfp) fclose(wfp);
+                wfp = fopen(wpath, "ab");
+                strncpy(wopen, wpath, sizeof(wopen) - 1);
+                wopen[sizeof(wopen) - 1] = '\0';
+            }
+            if (wfp) {
+                int32_t a32 = anchor_token, p32 = (int32_t)pos, n32 = (int32_t)g->dspark_n_real;
+                fwrite(&a32, sizeof(int32_t), 1, wfp);
+                fwrite(&p32, sizeof(int32_t), 1, wfp);
+                fwrite(&n32, sizeof(int32_t), 1, wfp);
+                fwrite(wkv, sizeof(float), (size_t)DS4_DSPARK_STAGES * per_stage, wfp);
+                fflush(wfp);
+            }
+        }
+        free(wkv);
+    }
+
     bool ok = metal_graph_dspark_input_stage(g,
                                              target_model,
                                              target_weights,
@@ -29562,6 +29650,64 @@ static bool metal_graph_eval_dspark_draft_block(
                                                  stage,
                                                  pos,
                                                  block_size);
+        /* faithful-repro bisection: dump the post-attention output (batch_next_hc,
+         * written by encode_attention) for stage 0, to separate _attn from _moe. */
+        if (ok && stage == 0 && getenv("DS4_DSPARK_DUMP_ATTN")) {
+            const char *apath = getenv("DS4_DSPARK_DUMP_ATTN");
+            const uint32_t hc_dim_a = DS4_N_HC * DS4_N_EMBD;
+            float *abuf = xmalloc((size_t)block_size * hc_dim_a * sizeof(float));
+            bool aok = true;
+            for (uint32_t i = 0; i < block_size && aok; i++) {
+                aok = ds4_gpu_tensor_read(g->batch_after_attn_hc,
+                                          (uint64_t)i * hc_dim_a * sizeof(float),
+                                          abuf + (uint64_t)i * hc_dim_a,
+                                          (uint64_t)hc_dim_a * sizeof(float)) != 0;
+            }
+            if (aok) {
+                static FILE *afp = NULL; static char aopen[1024] = {0};
+                if (!afp || strcmp(aopen, apath) != 0) {
+                    if (afp) fclose(afp); afp = fopen(apath, "ab");
+                    strncpy(aopen, apath, sizeof(aopen) - 1); aopen[sizeof(aopen)-1] = '\0';
+                }
+                if (afp) {
+                    int32_t a32 = anchor_token, p32 = (int32_t)pos, n32 = (int32_t)block_size;
+                    fwrite(&a32, 4, 1, afp); fwrite(&p32, 4, 1, afp); fwrite(&n32, 4, 1, afp);
+                    fwrite(abuf, sizeof(float), (size_t)block_size * hc_dim_a, afp); fflush(afp);
+                }
+            }
+            free(abuf);
+        }
+        /* faithful-repro: after stage-0 attention, slot n_real of dspark_kv_cache holds
+         * the current anchor's main_x KV (the +1 token). Dump the full cache so the
+         * torch port can include win_kv[0..n_real] (win_kv + main_x). */
+        if (ok && stage == 0 && getenv("DS4_DSPARK_DUMP_WINKV_POST")) {
+            (void)ds4_gpu_end_commands();
+            (void)ds4_gpu_begin_commands();
+            const char *wpath = getenv("DS4_DSPARK_DUMP_WINKV_POST");
+            const uint32_t kv_rows_w = DS4_N_SWA + DS4_DSPARK_BLOCK;
+            const uint64_t per_stage_w = (uint64_t)kv_rows_w * DS4_N_HEAD_DIM;
+            float *wkv = xmalloc((size_t)DS4_DSPARK_STAGES * per_stage_w * sizeof(float));
+            bool wok = true;
+            for (uint32_t s = 0; s < DS4_DSPARK_STAGES && wok; s++) {
+                wok = ds4_gpu_tensor_read(g->dspark_kv_cache[s], 0,
+                                          wkv + (uint64_t)s * per_stage_w,
+                                          per_stage_w * sizeof(float)) != 0;
+            }
+            if (wok) {
+                static FILE *wfp = NULL; static char wopen[1024] = {0};
+                if (!wfp || strcmp(wopen, wpath) != 0) {
+                    if (wfp) fclose(wfp); wfp = fopen(wpath, "ab");
+                    strncpy(wopen, wpath, sizeof(wopen)-1); wopen[sizeof(wopen)-1] = '\0';
+                }
+                if (wfp) {
+                    int32_t a32 = anchor_token, p32 = (int32_t)pos, n32 = (int32_t)g->dspark_n_real;
+                    fwrite(&a32, 4, 1, wfp); fwrite(&p32, 4, 1, wfp); fwrite(&n32, 4, 1, wfp);
+                    fwrite(wkv, sizeof(float), (size_t)DS4_DSPARK_STAGES * per_stage_w, wfp);
+                    fflush(wfp);
+                }
+            }
+            free(wkv);
+        }
         if (ok) ok = metal_graph_encode_layer_ffn_batch(g,
                                                         dspark_model,
                                                         layer,
@@ -29572,6 +29718,48 @@ static bool metal_graph_eval_dspark_draft_block(
             ds4_gpu_tensor *tmp = g->batch_cur_hc;
             g->batch_cur_hc = g->batch_next_hc;
             g->batch_next_hc = tmp;
+        }
+        /* faithful-repro bisection: dump the body output after this stage. Gated by
+         * DS4_DSPARK_DUMP_BODY_S<n>=<path> for stage n in {0,1}. (stage 2 == the final
+         * body dump above.) Layout matches the body dump: [block_size, HC*DIM]. */
+        if (ok && (stage == 0 || stage == 1)) {
+            char envname[48];
+            snprintf(envname, sizeof(envname), "DS4_DSPARK_DUMP_BODY_S%u", stage);
+            const char *spath = getenv(envname);
+            if (spath && spath[0]) {
+                /* FLUSH so the read sees the post-stage state, not the pre-stage stale buffer. */
+                (void)ds4_gpu_end_commands();
+                (void)ds4_gpu_begin_commands();
+                const uint32_t hc_dim_s = DS4_N_HC * DS4_N_EMBD;
+                float *sbody = xmalloc((size_t)block_size * hc_dim_s * sizeof(float));
+                bool sok = true;
+                for (uint32_t i = 0; i < block_size && sok; i++) {
+                    sok = ds4_gpu_tensor_read(g->batch_cur_hc,
+                                              (uint64_t)i * hc_dim_s * sizeof(float),
+                                              sbody + (uint64_t)i * hc_dim_s,
+                                              (uint64_t)hc_dim_s * sizeof(float)) != 0;
+                }
+                if (sok) {
+                    static FILE *sfp[2] = {NULL, NULL};
+                    static char sopen[2][1024] = {{0},{0}};
+                    int si = (int)stage;
+                    if (!sfp[si] || strcmp(sopen[si], spath) != 0) {
+                        if (sfp[si]) fclose(sfp[si]);
+                        sfp[si] = fopen(spath, "ab");
+                        strncpy(sopen[si], spath, sizeof(sopen[si]) - 1);
+                        sopen[si][sizeof(sopen[si]) - 1] = '\0';
+                    }
+                    if (sfp[si]) {
+                        int32_t a32 = anchor_token, p32 = (int32_t)pos, n32 = (int32_t)block_size;
+                        fwrite(&a32, sizeof(int32_t), 1, sfp[si]);
+                        fwrite(&p32, sizeof(int32_t), 1, sfp[si]);
+                        fwrite(&n32, sizeof(int32_t), 1, sfp[si]);
+                        fwrite(sbody, sizeof(float), (size_t)block_size * hc_dim_s, sfp[si]);
+                        fflush(sfp[si]);
+                    }
+                }
+                free(sbody);
+            }
         }
     }
     if (ok) ok = metal_graph_encode_output_head_dspark_batch(g,
@@ -29622,6 +29810,41 @@ static bool metal_graph_eval_dspark_draft_block(
     free(row_logits);
     if (norm_buf) free(norm_buf);
     if (!ok) return false;
+    /* faithful-repro instrumentation: dump the drafter body output (batch_cur_hc
+     * after the 3 DSpark stages) + the draft tokens, for bit-exact comparison
+     * against the torch port. Gated by DS4_DSPARK_DUMP_BODY=<path> (append). */
+    if (getenv("DS4_DSPARK_DUMP_BODY")) {
+        const char *bpath = getenv("DS4_DSPARK_DUMP_BODY");
+        const uint32_t hc_dim = DS4_N_HC * DS4_N_EMBD;
+        float *body = xmalloc((size_t)block_size * hc_dim * sizeof(float));
+        bool brok = true;
+        for (uint32_t i = 0; i < block_size && brok; i++) {
+            brok = ds4_gpu_tensor_read(g->batch_cur_hc,
+                                       (uint64_t)i * hc_dim * sizeof(float),
+                                       body + (uint64_t)i * hc_dim,
+                                       (uint64_t)hc_dim * sizeof(float)) != 0;
+        }
+        if (brok) {
+            static FILE *bfp = NULL;
+            static char bopen[1024] = {0};
+            if (!bfp || strcmp(bopen, bpath) != 0) {
+                if (bfp) fclose(bfp);
+                bfp = fopen(bpath, "ab");
+                strncpy(bopen, bpath, sizeof(bopen) - 1);
+                bopen[sizeof(bopen) - 1] = '\0';
+            }
+            if (bfp) {
+                int32_t a32 = anchor_token, p32 = (int32_t)pos, n32 = (int32_t)block_size;
+                fwrite(&a32, sizeof(int32_t), 1, bfp);
+                fwrite(&p32, sizeof(int32_t), 1, bfp);
+                fwrite(&n32, sizeof(int32_t), 1, bfp);
+                fwrite(body, sizeof(float), (size_t)block_size * hc_dim, bfp);
+                fwrite(drafts, sizeof(int), block_size, bfp);
+                fflush(bfp);
+            }
+        }
+        free(body);
+    }
     *draft_n = (int)block_size;
     return true;
 }

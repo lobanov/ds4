@@ -64,7 +64,10 @@ def hc_pre(x_hc, fn, scale, base):
 
 
 def hc_post(x, residual, post, comb):
-    return post.unsqueeze(-1) * x.unsqueeze(-2) + (comb.unsqueeze(-1) * residual.unsqueeze(-2)).sum(-2)
+    # Faithful to ds4.c hc_post_one: out[dst,d] = post[dst]*x[d] + sum_src comb_buffer[dst+src*HC]*residual[src,d].
+    # comb_buffer[dst+src*HC] == comb[src,dst] in torch row-major, so it's the TRANSPOSE of the
+    # naive matrix-vector product. Verified bit-exact vs the live (max_abs_delta 0.0 on a sample).
+    return post.unsqueeze(-1) * x.unsqueeze(-2) + torch.einsum("...ji,...jd->...id", comb, residual)
 
 
 def sparse_attn(q, kv_g, sink, scale):
