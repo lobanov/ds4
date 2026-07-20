@@ -35,9 +35,23 @@ scheduling therefore remains only conditional secondary material: it helps only 
 cheaper verifier exists than the exact Lead 06 path. Lead 08 Phase A now gives that next
 recommendation directly: verifier wall time is dominated by GPU layer execution and retains
 roughly **19–22 ms/cycle** of measured headroom at K=3..5, so a fused low-K verifier kernel
-is justified. The remaining acceptance levers are still a better drafter (training) and —
-per Lead 04 — target hidden-state precision.
+is justified. The drafter-training lever is now **empirically closed** (Lead 10 STOP — see
+below); target hidden-state precision remains (Lead 07 PIVOT, the native ceiling is not
+recoverable).
 
+> **2026-07-20 Lead 10 (drafter re-distillation, dense-LoRA) — STOP (archived).** The
+> head.hc_fn-only dense-LoRA (KL vs IQ2 top-128, rank=32, experts frozen) gives **+2.30 pp
+> held-out p1** offline (3-fold CV, CI [+0.0161,+0.0301]) but **NO live-ds4 gain** when baked
+> into the dspark GGUF + run on the live engine (E[a|K] 3.494 vs 3.516, t/s 35.73 vs 37.07).
+> The decisive ds4 integration test confirmed the codex gate B's concern: the offline
+> drafter_head (the torch port) + the live ds4 drafter are **different regimes** — the
+> offline gain does not transfer to the deployment. The F16 oracle fix (the hc_head
+> F32-internal, faithful to ds4.c:28286) passes (F16≈F32). The drafter-training lever
+> ("a better drafter via training") is now **empirically closed** — neither the hidden-side
+> (Lead 07) nor the output-side (Lead 10 head.hc_fn LoRA) produces a deployable acceptance
+> gain. The +20% remains Lead 08 (the fused verify kernel). Full record:
+> `archive/leads/lead_10_drafter_redistillation.md`.
+>
 > **2026-07-19 Lead 11 (target-confidence draft bypass) — CLOSED NEGATIVE.** A pre-draft
 > target-margin bypass gate (skip the draft+verify on low-target-confidence cycles, using the
 > current logits' top1-top2 margin) was implemented + measured on the real engine: **< +3%

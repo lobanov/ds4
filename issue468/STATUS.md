@@ -401,16 +401,15 @@ sublinear bit-exact batch-path build (HC/compressor/attention on decode reductio
 load sharing) with a hard exit gate: an end-to-end K=4 bit-exact verifier must profile
 `verify_ms(4) ≤ 50.5 ms`. GO is unconfirmed until that gate clears.
 
-**Lead 10 — drafter re-distillation: STOP (archived 2026-07-20). The head.hc_fn-only dense-LoRA gives +2.30pp held-out offline but NO live-ds4 gain when baked into the dspark GGUF. The offline drafter_head (torch) + the live ds4 drafter are different regimes — the gain does not transfer to deployment. Drafter-quality axis closed. Result: archive/leads/lead_10_drafter_redistillation.md.
-verdict, pending the ds4 integration). Full-body re-distillation reframed to **dense-LoRA**
-(experts frozen) per the architecture finding. The **head.hc_fn-only LoRA** (KL vs IQ2 top-128,
-rank=32, 12 epochs) gives **+2.30 pp Δp1 CI[+0.0161,+0.0301]** on a 3-fold CV (60 held-out
-lead3 prompts). Codex gate A (Phase-0 probe) + gate B (verdict) both run. Gate B revised the
-verdict to **MARGINAL**: the phase2-cache baseline (0.8440) doesn't match the combined300
-(~0.7945 for the same IDs) — the +2.30pp is on the drafter_body's regime, not necessarily the
-deployment. The F16 oracle fix (the hc_head F32-internal) passes (F16≈F32). The decisive test
-is the **ds4 integration**: bake the trained LoRA into the dspark GGUF + the live ds4 check.
-Design + worklog in `issue468/pending/lead_10_drafter_redistillation.md`.
+**Lead 10 — drafter re-distillation: STOP (archived 2026-07-20).** The head.hc_fn-only
+dense-LoRA (KL vs IQ2 top-128, rank=32, experts frozen) gives **+2.30 pp held-out p1** offline
+(3-fold CV, CI [+0.0161,+0.0301]) but **NO live-ds4 gain** when baked into the dspark GGUF
+(E[a|K] 3.494 vs 3.516, t/s 35.73 vs 37.07). The decisive ds4 integration test confirmed the
+codex gate B's concern: the offline drafter_head (the torch port) + the live ds4 drafter are
+different regimes — the gain does not transfer to deployment. The F16 oracle fix (the hc_head
+F32-internal, faithful to ds4.c) passes. Two codex gates run (A: Phase-0 probe; B: the
+verdict). The drafter-quality axis is **closed**. Full record:
+`archive/leads/lead_10_drafter_redistillation.md`.
 
 **Lead 11 — target-confidence draft bypass (CLOSED NEGATIVE, 2026-07-19).** The pre-draft
 target-margin bypass (env-gated, `DS4_DSPARK_BYPASS`) was implemented + measured on the real
