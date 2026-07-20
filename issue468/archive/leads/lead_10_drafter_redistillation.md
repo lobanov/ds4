@@ -1,6 +1,13 @@
 # Lead 10 — Soft-label dense-LoRA drafter re-distillation for IQ2XXS (experts frozen)
 
-Date: 2026-07-16. Status: **proposed (not yet started).** *Reframed 2026-07-16 after the
+Date: 2026-07-16. **Status: resolved & archived 2026-07-20 — STOP (the head.hc_fn LoRA gives
+no live-ds4 gain).** The head.hc_fn-only dense-LoRA (KL vs IQ2 top-128, rank=32) gives
++2.30 pp held-out offline (the torch oracle) but **NO live-ds4 gain** (E[a|K] 3.494 vs 3.516,
+t/s 35.73 vs 37.07) when baked into the dspark GGUF + run on the live ds4. The offline
+drafter_head (the torch port) + the live ds4 drafter are different regimes — the codex gate
+B's baseline-discrepancy concern is confirmed. Result: `issue468/archive/leads/lead_10_drafter_redistillation.md`.
+
+*** *Reframed 2026-07-16 after the
 drafter parameter-count finding (it is a 19.85B MoE — full fine-tune is infeasible at any sane
 corpus; the experiment is dense-LoRA with the routed experts frozen, not "full-body").*
 
@@ -251,7 +258,28 @@ learning curve, the +2 pp verdict needs only ~60 held-out prompts.
 
 ## Worklog
 
-### 2026-07-20 — codex gate B: verdict revised to MARGINAL (baseline regime questionable)
+### 2026-07-20 — ds4 integration (SC7): NO live gain → STOP (the decisive test)
+
+- Baked the head.hc_fn LoRA (trained on all 60 lead3, KL, rank=32) into the dspark GGUF
+  (the mtp.2.hc_head_fn, at the correct absolute offset `gdoff + off = 11357400928`, F16).
+  Two baking bugs found + fixed: (1) the offset was `off` (relative) not `gdoff + off`
+  (absolute) — the delta went to the wrong file location; (2) the byte order (the
+  `_gguf_ne_to_torch` does `reshape(reversed(dims))`, a simple C-order flat, not a
+  transpose). Verified: the torch oracle with the baked weight reproduces the gain
+  (+6.18pp in-sample — the LoRA trained on all 60, so higher than the +2.30pp held-out).
+- **The live ds4 (the decisive test):** baseline E[a|K]=3.516, t/s=37.07. LoRA-baked
+  E[a|K]=3.494 (−0.022), t/s=35.73 (−1.34, −3.6%). **NO live-ds4 gain.**
+- **The offline +2.30pp (held-out) / +6.18pp (in-sample) does NOT transfer to the live ds4.**
+  The same baked hc_head_fn weight → the torch oracle shows the gain, the live ds4 doesn't.
+  The offline drafter_head (the torch port) + the live ds4 drafter are **different regimes**.
+  The codex gate B's baseline-discrepancy concern (the phase2 cache 0.8440 vs the combined300
+  0.7945) is confirmed: the offline regime ≠ the deployment regime.
+- **Verdict: STOP.** The head.hc_fn LoRA (the #1 gradient target, +2.30pp held-out offline)
+  does not deploy — no live-ds4 acceptance or throughput gain. The offline-trained LoRA
+  (on the drafter_head's regime) doesn't transfer to the live ds4's regime.
+- **Implication:** the drafter-quality axis (Lead 10) is closed. The offline torch port +
+  the live ds4 must be reconciled before any further offline-trained LoRA can be trusted.
+  The +20% remains Lead 08 (the verify side).
 
 - Codex gate B (gpt-5.5 xhigh, retained: `artifacts/dspark_codex_reviews/2026-07-20_lead10_phase2_gateB.md`):
   - **C1 (+2.30pp):** validly derived (CI [+0.0161, +0.0301]) but conditional on one stochastic run

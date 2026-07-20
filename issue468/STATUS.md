@@ -401,7 +401,7 @@ sublinear bit-exact batch-path build (HC/compressor/attention on decode reductio
 load sharing) with a hard exit gate: an end-to-end K=4 bit-exact verifier must profile
 `verify_ms(4) ≤ 50.5 ms`. GO is unconfirmed until that gate clears.
 
-**Lead 10 — drafter re-distillation for IQ2XXS (soft labels)** is an **active** lead (MARGINAL
+**Lead 10 — drafter re-distillation: STOP (archived 2026-07-20). The head.hc_fn-only dense-LoRA gives +2.30pp held-out offline but NO live-ds4 gain when baked into the dspark GGUF. The offline drafter_head (torch) + the live ds4 drafter are different regimes — the gain does not transfer to deployment. Drafter-quality axis closed. Result: archive/leads/lead_10_drafter_redistillation.md.
 verdict, pending the ds4 integration). Full-body re-distillation reframed to **dense-LoRA**
 (experts frozen) per the architecture finding. The **head.hc_fn-only LoRA** (KL vs IQ2 top-128,
 rank=32, 12 epochs) gives **+2.30 pp Δp1 CI[+0.0161,+0.0301]** on a 3-fold CV (60 held-out
