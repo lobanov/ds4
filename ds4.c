@@ -29808,6 +29808,14 @@ static bool metal_graph_eval_dspark_draft_block(
     const uint64_t row_bytes = (uint64_t)DS4_N_VOCAB * sizeof(float);
     float *row_logits = xmalloc((size_t)row_bytes);
     const bool want_conf = (conf_proj && conf_logits_out);
+    if (!getenv("DS4_DSPARK_NO_CONF_DEBUG")) {
+        static int entry_cnt = 0;
+        if (entry_cnt < 3) {
+            fprintf(stderr, "DRAFT_BLOCK entry#%d block_size=%d want_conf=%d conf_proj=%p conf_logits_out=%p\n",
+                    entry_cnt, block_size, (int)want_conf, (const void*)conf_proj, (void*)conf_logits_out);
+            fflush(stderr); entry_cnt++;
+        }
+    }
     float *norm_buf = want_conf ? xmalloc((size_t)DS4_N_EMBD * sizeof(float)) : NULL;
     for (uint32_t i = 0; ok && i < block_size; i++) {
         ok = ds4_gpu_tensor_read(g->spec_logits,
@@ -29827,9 +29835,30 @@ static bool metal_graph_eval_dspark_draft_block(
                                      (uint64_t)i * DS4_N_EMBD * sizeof(float),
                                      norm_buf,
                                      (uint64_t)DS4_N_EMBD * sizeof(float)) != 0;
+            if (!getenv("DS4_DSPARK_NO_CONF_DEBUG")) {
+                static int dbg_cnt = 0;
+                if (dbg_cnt < 10) {
+                    float nm = 0.0f, mm = 0.0f;
+                    if (ok) { for (uint32_t z = 0; z < DS4_N_EMBD; z++) nm += fabsf(norm_buf[z]); nm /= DS4_N_EMBD; }
+                    else nm = -1.0f;
+                    for (uint32_t z = 0; z < DS4_DSPARK_MARKOV_RANK; z++) mm += fabsf(markov_emb[z]);
+                    mm /= DS4_DSPARK_MARKOV_RANK;
+                    fprintf(stderr, "CONF_DEBUG i=%d block_size=%d ok=%d norm_mean=%.4f markov_mean=%.4f conf=%d\n",
+                            i, block_size, (int)ok, nm, mm, (int)want_conf);
+                    fflush(stderr);
+                    dbg_cnt++;
+                }
+            }
             if (!ok) break;
             conf_logits_out[i] = dot_f32(norm_buf, conf_proj, DS4_N_EMBD)
                                + dot_f32(markov_emb, conf_proj + DS4_N_EMBD, DS4_DSPARK_MARKOV_RANK);
+            if (!getenv("DS4_DSPARK_NO_CONF_DEBUG")) {
+                static int dbg_cnt2 = 0;
+                if (dbg_cnt2 < 10) {
+                    fprintf(stderr, "CONF_VAL i=%d conf_logit=%.4f\n", i, conf_logits_out[i]);
+                    fflush(stderr); dbg_cnt2++;
+                }
+            }
         }
         if (all_draft_logits) {
             memcpy(all_draft_logits + (uint64_t)i * DS4_N_VOCAB, row_logits, (size_t)row_bytes);

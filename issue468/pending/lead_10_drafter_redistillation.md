@@ -385,6 +385,26 @@ learning curve, the +2 pp verdict needs only ~60 held-out prompts.
 
 ## Worklog
 
+### 2026-07-21 — throughput-impact diagnostics + the pos5 conf_logit finding (the pivot to conf_proj)
+
+**The throughput-impact decomposition** (verify(K) = 29.6 + 7K ms, the M3 batched verify):
+- **conf_proj oracle (verify_n = match): +10.4% throughput** — NOT body-capped. The STS
+  over-verifies (verify_n=5 in 67% of cycles; over-verify in 44%, waste 0.9 drafts/cycle).
+  The confidence is only moderately calibrated (corr 0.36-0.48 at the suffix).
+- **draft-quality oracle (match = verify_n): +26.3%** — body-capped (the suffix noise-placeholder).
+- **The pos5 conf_logit=0 anomaly RESOLVED.** It's NOT a bug — it's the anchor_reuse design:
+  with anchor_reuse ON, draft_eval_n = draft_n - 1 = 4 (the anchor takes a slot), so the
+  Metal drafter (block_size=4) only computes conf_logit[0..3]. Verified: with anchor_reuse
+  OFF + STS ON, conf_logit[4] = 0.949 (healthy). (My earlier 'verification' was flawed —
+  I ran with STS OFF, which makes conf_proj=NULL → all conf_logits zero.) The 5th draft CAN
+  be verified if draft_eval_n is extended to 5 (DS4_DSPARK_BLOCK=6 or anchor-reuse restructure).
+
+**The pivot:** the conf_proj calibration (the verify_n lever, +10.4% oracle, not body-capped)
+is the high-confidence target. The draft-quality (hc_fn, +26.3% theoretical, body-capped) is
+the higher-risk target. The pos5 finding adds a new dimension: extending the 5th draft
+verification (via the draft_eval_n extension + the conf_proj calibration) could further
+increase the accepted length.
+
 ### 2026-07-20/21 — RE-OPENED for re-attempt (goal mrthg76m-800onm): faithful repro DONE, REINFORCE in progress
 
 **Why re-open:** the original STOP (below) rested on an **unfaithful torch oracle**. A
