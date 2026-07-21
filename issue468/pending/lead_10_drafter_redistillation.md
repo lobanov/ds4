@@ -385,6 +385,38 @@ learning curve, the +2 pp verdict needs only ~60 held-out prompts.
 
 ## Worklog
 
+### 2026-07-21 — task-9 final verdict + codex gate B: the Lead 10 re-attempt is a +3.8-4.7% CANDIDATE (not the +20% solution)
+
+**The four levers, summarized:**
+- (1) pos5 [RESOLVED]: the anchor_reuse design (conf_logit[4]=0.949 when computed).
+- (2) conf_proj calibration LoRA [POSITIVE, +3.0% live on two corpora]: rank1/3ep, codex-caught
+  false negative (rank32 overtrains). The verify_n lever, captured via a per-input linear
+  correction to the confidence.
+- (3) hc_fn draft-quality LoRA [NEGATIVE, body-capped]: confirmed across 5 rank1 seeds +
+  rank32 (the codex challenge tested; the rank1 is noise, E[acc] flat).
+- (4) draft=5/verify=6 block=6 [POSITIVE, the BEST config]: block=6 + DS4_DSPARK_CONF_THRESHOLD=0.45
+  (NO LoRA). +4.69% over the block=6 baseline (lead3, CI [+1.48,+2.99]); +4.51% over the
+  block=6 baseline (baseline_corpus, CI [+0.31,+2.85]); +3.81% over the canonical 37.07.
+  The 5th proposal's value (P(5th|first 4 matched)=0.825) is captured via the higher
+  threshold (prefix-conditional verification). SUPERSEDES the conf_proj LoRA (the LoRA +
+  higher threshold don't compound).
+
+**Codex gate B (the final review):** the verdict holds as a measured +3.8-4.7% CANDIDATE +
+  NOT a +20% solution (38.48 vs the 44.48 target). BUT NOT deployment-ready, three caveats:
+  (a) 'supersedes the conf_proj LoRA' is too strong — block=5+conf+th=0.45 is UNTESTED; the
+  5th-proposal value might be the threshold, not the block size. (b) the quality gate
+  (20-Q ds4-eval) is missing for the block=6 (the M3 batched verify is score-neutral not
+  byte-exact; block=6 changes the trajectory). (c) the cross-build lower bound is tiny
+  (+0.18 t/s). The decisive test: a same-stack factorial A/B (block=5+conf+th=0.45 vs
+  block=6+th=0.45) + the 20-Q no-regression gate.
+
+**Final verdict:** the Lead 10 re-attempt is POSITIVE (the faithful repro broke the
+  offline→live barrier; the block=6+th=0.45 is a +3.8-4.7% candidate; the conf_proj LoRA
+  is a +3.0% alternative). The +20% gate is NOT reached (the verify dominates ~80% of the
+  cycle; the draft-side + the STS can only do so much — Lead 08 fused verify is the
+  remaining avenue). Deploy as a CANARY (block=6+th=0.45) pending the factorial A/B + the
+  quality gate. The original STOP (on the unfaithful torch oracle) is overturned.
+
 ### 2026-07-21 — task-8 draft=5/verify=6 (DS4_DSPARK_BLOCK=6): POSITIVE — block=6 + th=0.45 beats block=5+conf by +1.93%
 
 **The engine change:** DS4_DSPARK_BLOCK 5->6 + DS4_DSPARK_MAX_BLOCK 5->6 (ds4.h:58, ds4.c:435) +

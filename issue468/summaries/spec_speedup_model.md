@@ -39,18 +39,38 @@ is justified. The drafter-training lever is now **empirically closed** (Lead 10 
 below); target hidden-state precision remains (Lead 07 PIVOT, the native ceiling is not
 recoverable).
 
-> **2026-07-20 Lead 10 (drafter re-distillation, dense-LoRA) — STOP (archived).** The
+> **2026-07-21 Lead 10 (drafter re-distillation, dense-LoRA) — RE-ATTEMPT COMPLETE: a +3.8-4.7% CANDIDATE, not the +20% solution.** The original 2026-07-20 STOP (the head.hc_fn LoRA:
+> +2.30pp offline but NO live gain) was on an **unfaithful torch oracle** (the torch body forward
+> diverged ~60% rel|d| from the live Metal drafter). A faithful-repro investigation closed the
+> gap via four fixes (hc_post comb-transpose, the main_x token, a harness dump-timing fix, the
+> FP8-KV E4M3FN simulation) + a GPU-dump-sync discipline: **position-1 0.880→1.000, body rel|d|
+> 0.60→0.005** — the offline→live transfer barrier is broken. Four levers then pursued:
+> (1) pos5 [RESOLVED: the anchor_reuse design]; (2) **conf_proj calibration LoRA [POSITIVE,
+> +3.0% live]** — rank1/3ep (the adversarial codex gate caught a false negative: rank32
+> overtrains); (3) **hc_fn draft-quality [NEGATIVE, body-capped]** (confirmed across 5 rank1
+> seeds); (4) **draft=5/verify=6 (DS4_DSPARK_BLOCK=6) [POSITIVE, the BEST config]** — block=6 +
+> DS4_DSPARK_CONF_THRESHOLD=0.45 (NO LoRA): +4.69% over the block=6 baseline (lead3, CI
+> [+1.48,+2.99]), +4.51% (baseline_corpus), **+3.81% over the canonical 37.07** (38.48 t/s).
+> The 5th proposal's value (P(5th|first 4 matched)=0.825) is captured via the higher threshold
+> (prefix-conditional verification); this supersedes the conf_proj LoRA. **Codex gate B:** the
+> verdict holds as a measured +3.8-4.7% CANDIDATE + NOT a +20% solution (38.48 vs the 44.48
+> target); NOT deployment-ready (block=5+conf+th=0.45 untested; the 20-Q quality gate missing
+> for block=6; the cross-build lower bound tiny). The +20% gate remains not reached (the verify
+> dominates ~80% of the cycle; Lead 08 fused verify is the remaining avenue). Deploy as a CANARY
+> (block=6+th=0.45) pending the factorial A/B + the quality gate. The drafter-training lever is
+> **re-opened + partially captured** (the conf_proj + the block=6+th=0.45 are real deployable
+> wins; the hc_fn draft-quality remains body-capped). Full record:
+> `pending/lead_10_drafter_redistillation.md`.
+>
+> **2026-07-20 Lead 10 (the ORIGINAL STOP, superseded by the re-attempt above)** — the
 > head.hc_fn-only dense-LoRA (KL vs IQ2 top-128, rank=32, experts frozen) gives **+2.30 pp
 > held-out p1** offline (3-fold CV, CI [+0.0161,+0.0301]) but **NO live-ds4 gain** when baked
 > into the dspark GGUF + run on the live engine (E[a|K] 3.494 vs 3.516, t/s 35.73 vs 37.07).
 > The decisive ds4 integration test confirmed the codex gate B's concern: the offline
 > drafter_head (the torch port) + the live ds4 drafter are **different regimes** — the
 > offline gain does not transfer to the deployment. The F16 oracle fix (the hc_head
-> F32-internal, faithful to ds4.c:28286) passes (F16≈F32). The drafter-training lever
-> ("a better drafter via training") is now **empirically closed** — neither the hidden-side
-> (Lead 07) nor the output-side (Lead 10 head.hc_fn LoRA) produces a deployable acceptance
-> gain. The +20% remains Lead 08 (the fused verify kernel). Full record:
-> `archive/leads/lead_10_drafter_redistillation.md`.
+> F32-internal, faithful to ds4.c:28286) passes (F16≈F32). (This STOP was on the unfaithful
+> oracle; the 2026-07-21 re-attempt above overturned it.)
 >
 > **2026-07-19 Lead 11 (target-confidence draft bypass) — CLOSED NEGATIVE.** A pre-draft
 > target-margin bypass gate (skip the draft+verify on low-target-confidence cycles, using the

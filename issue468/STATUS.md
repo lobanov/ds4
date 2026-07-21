@@ -401,20 +401,31 @@ sublinear bit-exact batch-path build (HC/compressor/attention on decode reductio
 load sharing) with a hard exit gate: an end-to-end K=4 bit-exact verifier must profile
 `verify_ms(4) ≤ 50.5 ms`. GO is unconfirmed until that gate clears.
 
-**Lead 10 — drafter re-distillation: RE-OPENED 2026-07-20 for re-attempt (goal mrthg76m-800onm).**
+**Lead 10 — drafter re-distillation: RE-ATTEMPT COMPLETE 2026-07-21 (goal mrthg76m-800onm) — a +3.8-4.7% CANDIDATE, not the +20% solution.**
 The original STOP (the head.hc_fn LoRA: +2.30pp held-out offline, but NO live-ds4 gain when
-baked: E[a|K] 3.494 vs 3.516, t/s 35.73 vs 37.07) was on an **unfaithful torch oracle** — a
-faithful-repro investigation found the torch body forward diverged ~60% rel|d| from the live
-Metal drafter, so the offline per-position acceptance shape was wrong (pos1 0.880 vs live
-0.996; the +2.30pp was measured on that wrong shape). The gap was closed via four fixes (the
-hc_post comb-transpose, the missing main_x token, a harness dump-timing fix, the FP8-KV
-E4M3FN simulation), driven by two codex hunts + a GPU-dump-sync discipline (`ds4_gpu_tensor_read`
-does NOT sync — a stale-buffer confound had caused a false bisection). **Result: position-1
-0.880 → 1.000, body rel|d| 0.60 → 0.005** — the offline→live transfer barrier is broken; the
-torch oracle is now a trustworthy training surface. Target re-confirmed (head.hc_fn, gradient
-probe: suffix-CE grad RMS 0.26 vs markov ~1e-7). The REINFORCE re-training (reward = #accepted,
-positions coupled) is in progress (paused for a harness-approach decision). The drafter-quality
-axis is **re-opened**. Full record: `issue468/pending/lead_10_drafter_redistillation.md`.
+baked) was on an **unfaithful torch oracle** (the torch body forward diverged ~60% rel|d|
+from the live Metal drafter). A faithful-repro investigation closed the gap via four fixes
+(the hc_post comb-transpose, the missing main_x token, a harness dump-timing fix, the FP8-KV
+E4M3FN simulation) + a GPU-dump-sync discipline: **position-1 0.880 → 1.000, body rel|d|
+0.60 → 0.005** — the offline→live transfer barrier is broken. Four levers then pursued:
+(1) pos5 [RESOLVED: the anchor_reuse design, not a bug; conf_logit[4]=0.949 when computed];
+(2) **conf_proj calibration LoRA [POSITIVE, +3.0% live on two corpora]** — rank1/3ep (the
+adversarial codex gate caught a false negative: rank32 overtrains); the verify_n lever via
+a per-input linear confidence correction; (3) **hc_fn draft-quality LoRA [NEGATIVE,
+body-capped]** — confirmed across 5 rank1 seeds + rank32 (the codex challenge tested; the
+rank1 is noise); (4) **draft=5/verify=6 (DS4_DSPARK_BLOCK=6) [POSITIVE, the BEST config]** —
+block=6 + DS4_DSPARK_CONF_THRESHOLD=0.45 (NO LoRA): +4.69% over the block=6 baseline (lead3,
+CI [+1.48,+2.99]), +4.51% (baseline_corpus, CI [+0.31,+2.85]), **+3.81% over the canonical
+37.07**. The 5th proposal's value (P(5th|first 4 matched)=0.825) is captured via the higher
+threshold (prefix-conditional verification); this supersedes the conf_proj LoRA (the LoRA +
+higher threshold don't compound). **Codex gate B:** the verdict holds as a measured
++3.8-4.7% CANDIDATE + NOT a +20% solution (38.48 vs the 44.48 target); NOT deployment-ready
+— (a) block=5+conf+th=0.45 untested (the 5th value might be the threshold, not the block size),
+(b) the 20-Q quality gate missing for block=6, (c) the cross-build lower bound is tiny. The
++20% gate is not reached (the verify dominates ~80% of the cycle; Lead 08 fused verify is the
+remaining avenue). Deploy as a CANARY (block=6+th=0.45) pending the factorial A/B + the
+quality gate. The original STOP is overturned. Full record + the 4 codex gates:
+`issue468/pending/lead_10_drafter_redistillation.md`.
 
 **Lead 11 — target-confidence draft bypass (CLOSED NEGATIVE, 2026-07-19).** The pre-draft
 target-margin bypass (env-gated, `DS4_DSPARK_BYPASS`) was implemented + measured on the real
