@@ -12,17 +12,17 @@ If proposals_accepted==4: all 4 match (=1).
 STS: conf[0..3] are the 4 proposals' confidence; verify_n = sts(conf,4) + 1 (anchor);
 cycle = 32.57 + 9.36*verify_n; accepted = min(proposals_accepted, sts); tokens = accepted+1.
 """
-import sys, struct, numpy as np, torch, json
+import sys, struct, numpy as np, torch, json, os
 sys.path.insert(0, 'issue468/dspark_train')
 from drafter_head import build_head, HC, DIM, VOCAB, NORM_EPS
 
 DSPARK = '/Users/lobanov/Projects/ds4/gguf/dspark.gguf'
 TARGET = '/Users/lobanov/Projects/ds4/gguf/DeepSeek-V4-Flash-IQ2XXS-w2Q2K-AProjQ8-SExpQ8-OutQ8-chat-v2-imatrix.gguf'
-BODY_DUMP = '/tmp/live_body20_v2.bin'
-BENCH = '/tmp/bench20_v2.jsonl'
+BODY_DUMP = os.environ.get('BODY_DUMP', '/tmp/live_body20_v2.bin')
+BENCH = os.environ.get('BENCH', '/tmp/bench20_v2.jsonl')
 dev = 'mps'; HC_DIM = HC * DIM
-RANK = int(__import__('os').environ.get('CRANK', '32')); LR = 3e-3; EPOCHS = int(__import__('os').environ.get('CEP', '15')); BS = 32
-NPROP = 4  # anchor_reuse ON -> 4 proposals
+RANK = int(os.environ.get('CRANK', '32')); LR = 3e-3; EPOCHS = int(os.environ.get('CEP', '15')); BS = 32
+NPROP = int(os.environ.get('NPROP', '4'))  # 4 for block=5+anchor_reuse; 5 for block=6
 
 STS_TEMPS = [1.057018, 0.757858, 1.037660, 1.369200, 1.295342]
 STS_THRESH = 0.15

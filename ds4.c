@@ -432,7 +432,7 @@ typedef struct {
     float *output_norm;
 } ds4_cpu_decode_scratch;
 
-#define DS4_DSPARK_BLOCK 5u
+#define DS4_DSPARK_BLOCK 6u
 #define DS4_DSPARK_WIN 128u
 #define DS4_DSPARK_STAGES 3u
 #define DS4_DSPARK_MARKOV_RANK 256u
@@ -24076,7 +24076,7 @@ struct ds4_session {
 };
 
 static const float ds4_dspark_sts_temp[DS4_DSPARK_BLOCK] = {
-    1.057018f, 0.757858f, 1.037660f, 1.369200f, 1.295342f,
+    1.057018f, 0.757858f, 1.037660f, 1.369200f, 1.295342f, 1.400000f,
 };
 
 static void dspark_session_reset_state(ds4_session *s) {

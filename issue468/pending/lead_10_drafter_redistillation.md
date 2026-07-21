@@ -385,6 +385,36 @@ learning curve, the +2 pp verdict needs only ~60 held-out prompts.
 
 ## Worklog
 
+### 2026-07-21 — task-8 draft=5/verify=6 (DS4_DSPARK_BLOCK=6): WORKS but NEUTRAL vs the block=5
+
+**The engine change:** DS4_DSPARK_BLOCK 5->6 + DS4_DSPARK_MAX_BLOCK 5->6 (ds4.h:58, ds4.c:435) +
+  a 6th STS temp (1.4) + the harness conf_logits/draft_ids formats extended to 6. The Metal
+  drafter is parameterized by max_tokens (no kernel change). Smoke test: drafted=6, verify_n
+  up to 6, conf_logit[5]=0 (the new pos6, unused; conf_logit[0..4] = the 5 proposals).
+
+**The break-even analysis (the key insight):** with cycle≈75ms + tokens≈3.7, the 5th draft
+  should only be verified when P(match) > tokens*9.36/cycle ≈ 0.462. The 5th's average
+  acceptance is 0.39 (< 0.462). So the 5th helps ONLY for the cycles where P > 0.462
+  (selectively verified by the recalibrated STS). Without the recalibration, VERIFY_K=6
+  (always verify) gives -4.3% (48.35 vs 50.55) — the over-verify hurts.
+
+**The recalibration (rank1/3ep, NPROP=5, the block=6 capture):** offline +4.56% (CI
+  [+1.29%, +8.09%]) over the block=6 baseline; corr preserved (0.626). The 5th proposal
+  adds ~0.32 proposals_accepted (3.156 vs block=5's 2.85).
+
+**Live A/B on lead3 (60):** block=6 recalibrated = 47.45 t/s (+2.87% over the block=6
+  baseline, CI [+0.38, +2.25], 37/60 wins). The mechanism: verify_n 4.78->3.69 (reduced
+  over-verify), accepted 3.66->3.24 (small hit). Oracle-drift PASSES (offline predicted
+  48.24, live 47.45, within 1.7%).
+
+**Verdict: NEUTRAL vs the task-6 deployment.** The block=6 + recalibrated (47.45) ≈ the
+  block=5 + conf_proj (47.44, the task-6 win). The 5th proposal's acceptance (0.39) is
+  below the break-even (0.462); the recalibration prevents over-verify but the 5th's
+  contribution is neutralized by the verify cost. The block=6 is more complex (more verify,
+  more drafts) for no net gain. The deployable win remains the block=5 + conf_proj (task-6,
+  +3.0%). The user's hypothesis (the 5th could improve the acceptance) is tested + found
+  neutral — the 5th's marginal acceptance doesn't clear the break-even threshold.
+
 ### 2026-07-21 — task-7 hc_fn draft-quality: CLOSED NEGATIVE (body-cap confirmed across seeds + configs)
 
 **The hc_fn LoRA (REINFORCE on the throughput reward, faithful torch port, calibrated

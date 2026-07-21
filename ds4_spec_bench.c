@@ -1488,7 +1488,7 @@ static void write_result_jsonl(
         const ds4_dspark_cycle_metrics *m = &res->dspark_cycles.v[i];
         if (i) fprintf(out, ",");
         fprintf(out,
-                "{\"scheduled_verify\":%s,\"batched_schedule\":%s,\"schedule_batch_limit\":%d,\"rows_computed\":%d,\"drafted\":%d,\"verify_n\":%d,\"verified\":%d,\"accepted\":%d,\"decode_ms\":%.6f,\"draft_ms\":%.6f,\"verify_ms\":%.6f,\"total_ms\":%.6f,\"pushes_init\":%d,\"pushes_verify\":%d,\"push_init_ms\":%.6f,\"push_verify_ms\":%.6f,\"verify_decode_ms\":%.6f,\"logits_read_ms\":%.6f,\"conf_logits\":[%.6f,%.6f,%.6f,%.6f,%.6f]",
+                "{\"scheduled_verify\":%s,\"batched_schedule\":%s,\"schedule_batch_limit\":%d,\"rows_computed\":%d,\"drafted\":%d,\"verify_n\":%d,\"verified\":%d,\"accepted\":%d,\"decode_ms\":%.6f,\"draft_ms\":%.6f,\"verify_ms\":%.6f,\"total_ms\":%.6f,\"pushes_init\":%d,\"pushes_verify\":%d,\"push_init_ms\":%.6f,\"push_verify_ms\":%.6f,\"verify_decode_ms\":%.6f,\"logits_read_ms\":%.6f,\"conf_logits\":[%.6f,%.6f,%.6f,%.6f,%.6f,%.6f]",
                 m->scheduled_verify ? "true" : "false",
                 m->batched_schedule ? "true" : "false",
                 m->schedule_batch_limit,
@@ -1511,7 +1511,8 @@ static void write_result_jsonl(
                 m->conf_logits[1],
                 m->conf_logits[2],
                 m->conf_logits[3],
-                m->conf_logits[4]);
+                m->conf_logits[4],
+                m->conf_logits[5]);
         if (m->verify_dist.present) {
             fprintf(out,
                     ",\"verify_dist\":{\"n_compared\":%d,\"argmax_flips\":%d,\"max_abs_logit_diff\":%.6g,\"mean_tv\":%.6g,\"mean_kl_seq_batched\":%.6g,\"batched_verify_ms\":%.6f}",
@@ -1523,9 +1524,9 @@ static void write_result_jsonl(
                     m->verify_dist.batched_verify_ms);
         }
         fprintf(out,
-                ",\"anchor_id\":%d,\"draft_ids\":[%d,%d,%d,%d,%d]",
+                ",\"anchor_id\":%d,\"draft_ids\":[%d,%d,%d,%d,%d,%d]",
                 m->anchor_id,
-                m->draft_ids[0], m->draft_ids[1], m->draft_ids[2], m->draft_ids[3], m->draft_ids[4]);
+                m->draft_ids[0], m->draft_ids[1], m->draft_ids[2], m->draft_ids[3], m->draft_ids[4], m->draft_ids[5]);
         fprintf(out, "}");
     }
     fprintf(out, "]");

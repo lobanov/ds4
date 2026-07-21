@@ -8,7 +8,7 @@ from gguf_loader import index_gguf, read_tensor
 
 DSPARK = '/Users/lobanov/Projects/ds4/gguf/dspark.gguf'
 DELTA = '/tmp/confproj_lora_delta.npy'
-OUT = '/Users/lobanov/Projects/ds4/gguf/dspark_lora_conf.gguf'
+OUT = __import__('os').environ.get('OUT_GGUF', '/Users/lobanov/Projects/ds4/gguf/dspark_lora_conf.gguf')
 TENSOR = 'mtp.2.confidence_head.proj.weight'
 
 def f32_to_bf16_bits(arr_f32):
