@@ -385,6 +385,37 @@ learning curve, the +2 pp verdict needs only ~60 held-out prompts.
 
 ## Worklog
 
+### 2026-07-21 — task-7 hc_fn draft-quality: CLOSED NEGATIVE (body-cap confirmed across seeds + configs)
+
+**The hc_fn LoRA (REINFORCE on the throughput reward, faithful torch port, calibrated
+conf_proj loaded + frozen):**
+- **rank32/8ep:** offline +1.99% (CI [+0.22%, +4.01%]) BUT E[acc] barely moved (2.735 -> 2.743);
+  the gain was a verify_n side effect (4.071 -> 3.929) via the norm->conf_logits path, NOT a
+draft-quality gain. Baked on top of conf_proj + live A/B/C on lead3 (60): conf_proj-only +3.20%,
+  conf_proj+hc_fn +1.53% -> hc_fn INCREMENTAL **-1.63%** (CI [-1.47, -0.13], excludes 0).
+  The rank32 delta is destructive: ‖delta‖=0.74 vs ‖hc_fn‖=0.77 (228% perturbation).
+
+**The adversarial codex gate challenged the negative** (as it did for task-6): the body-cap is
+  questionable (proposal marginals 0.868/0.774/0.639/0.522 — real headroom); rank32 over-
+  perturbed; a tiny rank1/3ep/temp=0.1 (delta norm ~0.025) might be neutral-to-positive.
+  The codex's single rank1/3ep/temp=0.1 seed gave E[acc] 2.735->2.770 (+0.035), predicted +0.95%.
+
+**INDEPENDENTLY VERIFIED in-pi via a 5-seed sweep:** the rank1 result is NOISE, not signal.
+  temp=0.1: Δthroughput = -3.74% / -0.24% / +0.32% (3 seeds); E[acc] = 2.637 / 2.726 / 2.735.
+  temp=0.7: -0.11% / -1.22% (2 seeds); E[acc] = 2.735 / 2.717. The distribution is centered
+  ~-1% with E[acc] ~flat. The codex's +0.035 was a lucky single seed. There is NO reliable
+  E[acc] improvement from the hc_fn LoRA at any rank/temp.
+
+**Verdict:** the draft-quality lever is BODY-CAPPED (confirmed). The hc_fn cannot reliably
+  improve the draft quality (the suffix noise-placeholder limit). The rank32 disrupts the
+  conf_proj calibration; the rank1 is noise. The deployable win remains the conf_proj-only
+  (task-6, +3.0%). The +26.3% theoretical oracle is not reachable via the head.
+
+**Oracle-drift note:** the rank32 offline +1.99% did NOT predict the live -1.63% (the hc_fn
+  changes the drafts -> the trajectory -> the conf_logits -> the verify_n; the single-
+  trajectory offline can't predict a trajectory-changing perturbation — same distribution-
+  shift caveat as the threshold sweep). The rank1 offline is noise (no drift to assess).
+
 ### 2026-07-21 — task-6 conf_proj calibration: POSITIVE (+3.0% live, confirmed on two corpora) — the codex gate caught a false negative
 
 **The initial rank32/15ep verdict was a FALSE NEGATIVE.** The adversarial codex gate (gpt-5.5
