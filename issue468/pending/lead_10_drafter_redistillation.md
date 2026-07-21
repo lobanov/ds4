@@ -385,35 +385,45 @@ learning curve, the +2 pp verdict needs only ~60 held-out prompts.
 
 ## Worklog
 
-### 2026-07-21 — task-8 draft=5/verify=6 (DS4_DSPARK_BLOCK=6): WORKS but NEUTRAL vs the block=5
+### 2026-07-21 — task-8 draft=5/verify=6 (DS4_DSPARK_BLOCK=6): POSITIVE — block=6 + th=0.45 beats block=5+conf by +1.93%
 
 **The engine change:** DS4_DSPARK_BLOCK 5->6 + DS4_DSPARK_MAX_BLOCK 5->6 (ds4.h:58, ds4.c:435) +
   a 6th STS temp (1.4) + the harness conf_logits/draft_ids formats extended to 6. The Metal
   drafter is parameterized by max_tokens (no kernel change). Smoke test: drafted=6, verify_n
   up to 6, conf_logit[5]=0 (the new pos6, unused; conf_logit[0..4] = the 5 proposals).
 
-**The break-even analysis (the key insight):** with cycle≈75ms + tokens≈3.7, the 5th draft
-  should only be verified when P(match) > tokens*9.36/cycle ≈ 0.462. The 5th's average
-  acceptance is 0.39 (< 0.462). So the 5th helps ONLY for the cycles where P > 0.462
-  (selectively verified by the recalibrated STS). Without the recalibration, VERIFY_K=6
-  (always verify) gives -4.3% (48.35 vs 50.55) — the over-verify hurts.
+**The break-even analysis:** with cycle≈75ms + tokens≈4.16, the 5th draft should only be
+  verified when P(match) > ~0.45-0.52. The 5th's average acceptance is 0.43 (true match
+  224/518=0.432). BUT P(5th | first 4 matched) = 0.824 (HIGH when the prefix is strong) —
+  the codex's key insight. So the 5th IS valuable in strong-prefix states.
 
-**The recalibration (rank1/3ep, NPROP=5, the block=6 capture):** offline +4.56% (CI
-  [+1.29%, +8.09%]) over the block=6 baseline; corr preserved (0.626). The 5th proposal
-  adds ~0.32 proposals_accepted (3.156 vs block=5's 2.85).
+**The conf_proj LoRA recalibration (rank1/3ep, NPROP=5):** offline +4.56% over the block=6
+  baseline; live +2.87% (47.45 t/s). The LoRA verifies the 5th only 26.4% of cycles at 73.6%
+  precision (capturing real high-P cases). BUT the LoRA is NOT the deployable win (see below).
 
-**Live A/B on lead3 (60):** block=6 recalibrated = 47.45 t/s (+2.87% over the block=6
-  baseline, CI [+0.38, +2.25], 37/60 wins). The mechanism: verify_n 4.78->3.69 (reduced
-  over-verify), accepted 3.66->3.24 (small hit). Oracle-drift PASSES (offline predicted
-  48.24, live 47.45, within 1.7%).
+**The codex gate's decisive recommendation:** live threshold sweep on the block=6 BASELINE
+  (no LoRA). The block=6 baseline at th=0.15 OVER-verifies (verify_n 4.78, the 5th). A higher
+  threshold verifies the 5th only in strong-prefix states. **Live A/B on lead3 (60), paired:**
+  - block=6 th=0.15 (baseline): 46.13 t/s
+  - block=6 th=0.45: **48.36 t/s (+4.69% vs baseline, CI [+1.48,+2.99], 48/60 wins)**
+  - block=6 th=0.55: 47.85 t/s (+3.61%)
+  - **block=6 th=0.45 vs block=5+conf (cross-build): +1.93% (CI [+0.18,+1.65], 35/60 wins)**
 
-**Verdict: NEUTRAL vs the task-6 deployment.** The block=6 + recalibrated (47.45) ≈ the
-  block=5 + conf_proj (47.44, the task-6 win). The 5th proposal's acceptance (0.39) is
-  below the break-even (0.462); the recalibration prevents over-verify but the 5th's
-  contribution is neutralized by the verify cost. The block=6 is more complex (more verify,
-  more drafts) for no net gain. The deployable win remains the block=5 + conf_proj (task-6,
-  +3.0%). The user's hypothesis (the 5th could improve the acceptance) is tested + found
-  neutral — the 5th's marginal acceptance doesn't clear the break-even threshold.
+**Verdict: POSITIVE.** The block=6 + DS4_DSPARK_CONF_THRESHOLD=0.45 (NO LoRA — just the
+  threshold) is the best config. The 5th proposal's value (P(5th|prefix)=0.824) is captured
+  via the higher threshold (prefix-conditional verification). This SUPERSEDES the task-6
+  conf_proj LoRA (the codex noted 'on b6lora, raising threshold hurts' — the LoRA + higher
+  threshold don't compound). The deployable win is block=6 + th=0.45 (a config change, no
+  GGUF modification). Oracle-drift: the codex's same-trajectory sim predicted +3.6% over
+  b6base; live is +4.69% (no drift, direction + magnitude right).
+
+**Why the block=5 threshold sweep (task-6) didn't help but the block=6 does:** the block=5
+  has no 5th proposal, so the higher threshold just reduces the verify (no 5th value to
+  capture). The block=6's 5th proposal IS the value; the higher threshold captures it
+  selectively. The 5th's acceptance (0.43 avg, 0.824 conditional) clears the break-even
+  in strong-prefix states.
+
+### 2026-07-21 — task-7 hc_fn draft-quality: CLOSED NEGATIVE (body-cap confirmed across seeds + configs)
 
 ### 2026-07-21 — task-7 hc_fn draft-quality: CLOSED NEGATIVE (body-cap confirmed across seeds + configs)
 
