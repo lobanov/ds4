@@ -21,7 +21,7 @@ TARGET = '/Users/lobanov/Projects/ds4/gguf/DeepSeek-V4-Flash-IQ2XXS-w2Q2K-AProjQ
 BODY_DUMP = '/tmp/live_body20_v2.bin'
 BENCH = '/tmp/bench20_v2.jsonl'
 dev = 'mps'; HC_DIM = HC * DIM
-RANK = 32; LR = 3e-3; EPOCHS = 15; BS = 32
+RANK = int(__import__('os').environ.get('CRANK', '32')); LR = 3e-3; EPOCHS = int(__import__('os').environ.get('CEP', '15')); BS = 32
 NPROP = 4  # anchor_reuse ON -> 4 proposals
 
 STS_TEMPS = [1.057018, 0.757858, 1.037660, 1.369200, 1.295342]
