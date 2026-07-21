@@ -401,15 +401,20 @@ sublinear bit-exact batch-path build (HC/compressor/attention on decode reductio
 load sharing) with a hard exit gate: an end-to-end K=4 bit-exact verifier must profile
 `verify_ms(4) ≤ 50.5 ms`. GO is unconfirmed until that gate clears.
 
-**Lead 10 — drafter re-distillation: STOP (archived 2026-07-20).** The head.hc_fn-only
-dense-LoRA (KL vs IQ2 top-128, rank=32, experts frozen) gives **+2.30 pp held-out p1** offline
-(3-fold CV, CI [+0.0161,+0.0301]) but **NO live-ds4 gain** when baked into the dspark GGUF
-(E[a|K] 3.494 vs 3.516, t/s 35.73 vs 37.07). The decisive ds4 integration test confirmed the
-codex gate B's concern: the offline drafter_head (the torch port) + the live ds4 drafter are
-different regimes — the gain does not transfer to deployment. The F16 oracle fix (the hc_head
-F32-internal, faithful to ds4.c) passes. Two codex gates run (A: Phase-0 probe; B: the
-verdict). The drafter-quality axis is **closed**. Full record:
-`archive/leads/lead_10_drafter_redistillation.md`.
+**Lead 10 — drafter re-distillation: RE-OPENED 2026-07-20 for re-attempt (goal mrthg76m-800onm).**
+The original STOP (the head.hc_fn LoRA: +2.30pp held-out offline, but NO live-ds4 gain when
+baked: E[a|K] 3.494 vs 3.516, t/s 35.73 vs 37.07) was on an **unfaithful torch oracle** — a
+faithful-repro investigation found the torch body forward diverged ~60% rel|d| from the live
+Metal drafter, so the offline per-position acceptance shape was wrong (pos1 0.880 vs live
+0.996; the +2.30pp was measured on that wrong shape). The gap was closed via four fixes (the
+hc_post comb-transpose, the missing main_x token, a harness dump-timing fix, the FP8-KV
+E4M3FN simulation), driven by two codex hunts + a GPU-dump-sync discipline (`ds4_gpu_tensor_read`
+does NOT sync — a stale-buffer confound had caused a false bisection). **Result: position-1
+0.880 → 1.000, body rel|d| 0.60 → 0.005** — the offline→live transfer barrier is broken; the
+torch oracle is now a trustworthy training surface. Target re-confirmed (head.hc_fn, gradient
+probe: suffix-CE grad RMS 0.26 vs markov ~1e-7). The REINFORCE re-training (reward = #accepted,
+positions coupled) is in progress (paused for a harness-approach decision). The drafter-quality
+axis is **re-opened**. Full record: `issue468/pending/lead_10_drafter_redistillation.md`.
 
 **Lead 11 — target-confidence draft bypass (CLOSED NEGATIVE, 2026-07-19).** The pre-draft
 target-margin bypass (env-gated, `DS4_DSPARK_BYPASS`) was implemented + measured on the real

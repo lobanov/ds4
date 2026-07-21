@@ -18,13 +18,13 @@ the faithful port → pick the LoRA target; (3) re-train with a **REINFORCE obje
 
 ---
 
-## Re-attempt progress worklog (goal mrthg76m-800onm, 2026-07-20/21)
+## Re-attempt status (2026-07-20/21) — faithful repro DONE; REINFORCE paused
 
-**HEADLINE: the faithful-repro prerequisite (tasks 1-4) is DONE — the offline→live transfer
-barrier that killed the original Lead 10 is broken.** The torch oracle's position-1 draft
-agreement went **0.880 → 1.000** (body rel|d| 0.60 → 0.005) via four real fixes, driven by
-two adversarial codex hunts + a dump-sync discipline. Target = head.hc_fn (confirmed).
-Task-5 (REINFORCE) is paused pending a decision on the training-harness approach.
+**The faithful-repro prerequisite (tasks 1-4) is DONE: position-1 0.880 → 1.000, body rel|d|
+0.60 → 0.005.** The offline→live transfer barrier that killed the original Lead 10 is broken.
+Target = head.hc_fn (gradient probe, confirmed). Task-5 (REINFORCE) is paused for a
+harness-approach decision. The chronological entry is in the [Worklog](#worklog) (2026-07-20/21);
+the task-organized detail follows.
 
 ### task-2-fix-body — DONE (faithful repro)
 
@@ -108,7 +108,13 @@ a direct live-ds4 LoRA search.
 
 ---
 
-Date: 2026-07-16. **Status: resolved & archived 2026-07-20 — STOP (the head.hc_fn LoRA gives
+Date: 2026-07-16. **Status: RE-OPENED 2026-07-20 for re-attempt (goal mrthg76m-800onm).**
+The original STOP below was on an **unfaithful torch oracle** (the body forward diverged ~60%
+rel|d| from the live; the +2.30 pp offline was measured on a wrong per-position shape — pos1
+0.880 vs live 0.996) and is **superseded**. The re-attempt's faithful repro (position-1
+0.880 → 1.000, body rel|d| 0.60 → 0.005) is DONE; the REINFORCE re-training is in progress
+(paused for a harness-approach decision). See the Worklog (2026-07-20/21). Original STOP text
+(the head.hc_fn LoRA gives
 no live-ds4 gain).** The head.hc_fn-only dense-LoRA (KL vs IQ2 top-128, rank=32) gives
 +2.30 pp held-out offline (the torch oracle) but **NO live-ds4 gain** (E[a|K] 3.494 vs 3.516,
 t/s 35.73 vs 37.07) when baked into the dspark GGUF + run on the live ds4. The offline
@@ -121,7 +127,20 @@ corpus; the experiment is dense-LoRA with the routed experts frozen, not "full-b
 
 ## Purpose
 
-Resolve the one drafter-quality question left open after Lead 07 and Stage 2:
+***Re-attempt framing (2026-07-20/21):* the original Lead 10 closed STOP because the
+head.hc_fn LoRA gave +2.30pp offline but no live-ds4 gain. This re-attempt rests on a new
+finding: that negative was measured on an **unfaithful torch oracle** (the body forward
+diverged ~60% rel|d| from the live; the offline per-position acceptance shape was wrong —
+pos1 0.880 vs live 0.996). The faithful-repro investigation (online research + 2 codex hunts
++ a GPU-dump-sync discipline) closed that gap: **position-1 0.880 → 1.000, body rel|d| 0.60 →
+0.005** — the torch oracle is now a trustworthy training surface. The original question is
+re-opened, this time with a **REINFORCE objective (reward = #accepted, positions coupled)**
+instead of the per-position KL. The faithful-repro detail + the REINFORCE status are in the
+[Worklog](#worklog) (2026-07-20/21).**
+
+The original Lead 10 question (the FP-vs-IQ2 distribution mismatch):
+
+> Resolve the one drafter-quality question left open after Lead 07 and Stage 2:
 
 > The current dspark drafter was distilled against the **native (FP) target** and reaches
 > p1 ≈ 0.79 when deployed on the **IQ2XXS** target. Is that 0.79 a **distribution mismatch**
@@ -365,6 +384,60 @@ dead). A real but uncertain bet with a negative prior; the train-set size is mea
 learning curve, the +2 pp verdict needs only ~60 held-out prompts.
 
 ## Worklog
+
+### 2026-07-20/21 — RE-OPENED for re-attempt (goal mrthg76m-800onm): faithful repro DONE, REINFORCE in progress
+
+**Why re-open:** the original STOP (below) rested on an **unfaithful torch oracle**. A
+faithful-repro investigation (online research + 2 codex hunts + a GPU-dump-sync discipline)
+found the torch port's body forward diverged from the live Metal drafter by ~60% rel|d| — the
+offline +2.30 pp was measured on a port whose per-position acceptance shape was wrong
+(pos1 0.880 vs live 0.996; suffix inflated). The offline→live non-transfer is explained by
+the unfaithful surface, not a real negative. Re-attempt plan: faithful repro → suffix-loss
+measurement → REINFORCE (reward = #accepted) → live test.
+
+**task-2 (faithful repro) — DONE.** Four real fixes, body rel|d| 0.60 → **0.005**:
+1. **hc_post comb-transpose** (`drafter_body.py:66`). Torch used the naive matrix-vector
+   product; the live `hc_post_one` reads `comb_buffer[dst+src*HC]` == the **transpose**.
+   Codex-verified bit-exact (max_abs_delta 0.0 vs 42.0). 0.46 → 0.34.
+2. **The missing main_x token.** The live Metal attention is over `n_real + 1 + block`
+   tokens — the `+1` is the anchor's main-hidden KV at slot `n_real`, which the CPU-port torch
+   missed. Including it + the correct win_kv: 0.34 → position-1 0.926.
+3. **The harness dump-timing fix** (codex hunt #2). The 0.34 residual was a HARNESS bug, not
+   a torch bug: `DS4_DSPARK_DUMP_WINKV_POST` captured only stage 0's main_x. Fixed via
+   `DS4_DSPARK_DUMP_WINKV_FINAL` (post-loop). Codex also confirmed: routed MoE rel=2.85e-05,
+   Q8_0/Q4_K dequant bit-exact, Q8_0 matmul F32-accumulate == torch F32. 0.34 → 0.027.
+4. **FP8-KV simulation** (`fp8_kv_quantize_nope`). The live FP8-quantizes the draft-block KV
+   (per-64-block E4M3FN, power-of-2 scale); the torch used F32. Matching it: 0.027 → **0.005**.
+   Driver: a stale-GPU-buffer confound (`ds4_gpu_tensor_read` does NOT sync) had caused a
+   false "860× explosion" bisection; fixed via end_commands/begin_commands flushes before
+   every ds4.c intermediate dump.
+
+**task-3 (verify) — DONE.** 20-prompt / 506-cycle `body_diff_mainx.py`: body rel|d|=0.005;
+per-position draft agreement (torch vs live) **p1=1.000, p2=0.990, p3=0.986, p4=0.982,
+p5=0.972**. Position-1 acceptance within ~0pp of live (1.000 vs 0.996); positions 2-5 within
+~1-1.5pp (the autoregressive cascade + residual FP8-KV E4M3 rounding). Body forward at the
+quantization noise floor. **The offline→live transfer barrier is broken.**
+
+**task-4 (target) — DONE.** Gradient probe (`grad_probe_suffix.py`) on the faithful port:
+suffix-CE gradient RMS — **hc_fn=2.6e-1, markov_w2=6.2e-7, markov_w1=1.3e-7**. head.hc_fn is
+the overwhelming #1 target (~6 orders of magnitude above the markov), confirming Phase 0 now
+on the faithful port. The markov (inter-position coupling) is NOT the suffix lever. The
+dense-body is structural (the parallel-block noise-placeholder). **Target: head.hc_fn.**
+
+**task-5 (REINFORCE) — IN PROGRESS, PAUSED 2026-07-21.** REINFORCE LoRA on head.hc_fn
+(rank 32, reward = #accepted, positions coupled via the autoregressive rollout), trained on
+the captured LIVE body (bit-exact). The rollout was verified correct (== head.forward == live
+drafts). Two harness issues (NOT about the faithful port): (1) an alignment bug — the body
+dump (506 records) ≠ the bench cycles (511) → the sel misaligns → the baseline reads ~0.5
+not ~3.5; (2) noisy sampling — the reward (temp 0.7) is ~0.02 (the suffix is uncertain), so
+the policy gradient is noise-dominated (reward flat over 8 epochs; held-out ΔE[a|K]=0.009,
+CI includes 0). Both fixable. **PAUSED** for a decision on the harness approach (fix the
+REINFORCE alignment + lower temp / bank the faithful win / simplest-transfer-test first /
+direct live-ds4 LoRA search).
+
+Key artifacts: `artifacts/lead10_phase2/{body_diff_mainx,body_diff_stages,debug_attn,debug_rec0,grad_probe_suffix,reinforce_train}.py`;
+ds4.c dump envs (`_BODY/_BODY_S0/_BODY_S1/_WINKV/_WINKV_POST/_WINKV_FINAL/_ATTN/_ATTNINT/_HCSPLIT`, all GPU-flushed);
+codex reviews (hunt #1 the hc_post transpose, hunt #2 the harness/MoE/FP8 verification).
 
 ### 2026-07-20 — ds4 integration (SC7): NO live gain → STOP (the decisive test)
 
