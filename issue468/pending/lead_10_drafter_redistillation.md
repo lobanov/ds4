@@ -417,6 +417,16 @@ learning curve, the +2 pp verdict needs only ~60 held-out prompts.
   remaining avenue). Deploy as a CANARY (block=6+th=0.45) pending the factorial A/B + the
   quality gate. The original STOP (on the unfaithful torch oracle) is overturned.
 
+**Deployment-readiness follow-ups (flagged by codex gate B, NOT blocking the verdict):**
+  (a) the factorial A/B — block=5+conf+th=0.45 vs block=6+th=0.45 (same-stack, to isolate
+  the block-size effect from the threshold effect; the codex's decisive test for the
+  'supersedes the conf_proj LoRA' claim); (b) the formal 20-Q ds4-eval no-regression gate
+  for the block=6+th=0.45 (the ds4-eval TUI run timed out in the non-interactive harness;
+  the score-neutrality is EXPECTED — the block=6+th=0.45 uses the same committing batched
+  verify as the M3, already 92Q score-neutral; the block size + the threshold only affect
+  which drafts are verified/accepted, not the greedy output correctness — mismatched drafts
+  are always rejected by the verify). These are deployment steps, not verdict steps.
+
 ### 2026-07-21 — task-8 draft=5/verify=6 (DS4_DSPARK_BLOCK=6): POSITIVE — block=6 + th=0.45 beats block=5+conf by +1.93%
 
 **The engine change:** DS4_DSPARK_BLOCK 5->6 + DS4_DSPARK_MAX_BLOCK 5->6 (ds4.h:58, ds4.c:435) +
