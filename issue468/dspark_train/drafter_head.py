@@ -57,6 +57,9 @@ class DrafterHead(nn.Module):
             self.lora_mw1_B = nn.Parameter(torch.zeros(VOCAB, r))
             self.lora_mw2_A = nn.Parameter(torch.empty(r, self.rank_m)); nn.init.normal_(self.lora_mw2_A, std=0.02)
             self.lora_mw2_B = nn.Parameter(torch.zeros(VOCAB, r))
+            # conf_proj LoRA (for the confidence-head calibration — the verify_n lever)
+            self.lora_conf_A = nn.Parameter(torch.empty(r, DIM + self.rank_m)); nn.init.normal_(self.lora_conf_A, std=0.02)
+            self.lora_conf_B = nn.Parameter(torch.zeros(1, r))
 
     def _hc_fn(self):
         return self.hc_fn + (self.lora_hc_B @ self.lora_hc_A) if self.lora_rank else self.hc_fn
@@ -73,7 +76,11 @@ class DrafterHead(nn.Module):
         return w2.T.to(dtype)
 
     def _conf_proj(self, dtype):
-        return self.conf_proj.to(dtype)
+        base = self.conf_proj
+        if self.lora_rank:
+            delta = (self.lora_conf_B @ self.lora_conf_A).squeeze(0)  # [DIM + rank_m]
+            base = base + delta.to(base.dtype)
+        return base.to(dtype)
 
     def hc_head(self, x):  # x [b, BLOCK, HC, DIM] -> [b, BLOCK, DIM]
         # F32-internal (faithful to the ds4's dspark_hc_head_one: rms_norm_no_weight +

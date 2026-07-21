@@ -385,6 +385,32 @@ learning curve, the +2 pp verdict needs only ~60 held-out prompts.
 
 ## Worklog
 
+### 2026-07-21 — task-6 conf_proj calibration: CLOSED NEGATIVE (the +10.4% oracle is not achievable via conf_proj)
+
+**The conf_proj LoRA (rank 32, masked BCE on per-position match, 1249 pos/191 neg train labels,
+135 held-out):** Δthroughput = **−1.55%** (CI [−3.09%, −0.09%]). The LoRA OVERFITS — the
+BCE drops 0.54→0.016 on train, but the held-out corr(survival, match) DROPS 0.659→0.371.
+The baseline conf_proj is already near-optimal for a LINEAR projection (corr 0.659); a
+rank-32 LoRA only fits training noise.
+
+**The STS threshold sweep (a blunt absolute-recalibration alternative):** the OFFLINE
+simulation predicted th=0.15→0.50 gives +3.84% (50.03 vs 48.18 t/s). But the LIVE test
+(20-prompt, back-to-back) shows th=0.50 = 50.37 t/s vs th=0.15 = 50.55 t/s (**−0.36% live**).
+The M3's th=0.15 is confirmed optimal. The offline drifted via **distribution shift**:
+changing the threshold changes the trajectory → the conf_logits differ → the
+single-trajectory offline simulation can't predict the sweep. (Methodological lesson: the
+offline STS simulation is only valid for small changes that don't shift the trajectory.)
+
+**Cycle economics grounded (the oracle-drift check on the absolute model):** measured
+verify(K) = 26 + 9.34·K ms (R²=0.71), draft 6.5ms, decode 0.07ms; the instrumented
+total_ms captures 99.5% of wall-clock decode time (no hidden overhead). The earlier
+'1.7× oracle drift' was a calculation bug (used accepted+n_cycles instead of emitted).
+Prefill is NOT counted in tokens_per_second (line 1449: decode-only).
+
+**Verdict:** the conf_proj lever (the +10.4% oracle) is NOT achievable. The baseline
+conf_proj + th=0.15 is near-optimal. The linear projection's capacity (corr 0.659) is the
+ceiling; reaching the oracle (corr 1.0) would require a non-linear confidence model.
+
 ### 2026-07-21 — throughput-impact diagnostics + the pos5 conf_logit finding (the pivot to conf_proj)
 
 **The throughput-impact decomposition** (verify(K) = 29.6 + 7K ms, the M3 batched verify):
